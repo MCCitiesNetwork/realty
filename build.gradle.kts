@@ -1,6 +1,7 @@
 plugins {
     java
     id("xyz.jpenilla.run-paper") version "2.3.1"
+    id("com.gradleup.shadow") version "9.3.1"
 }
 
 group = "io.github.md5sha256"
@@ -16,6 +17,8 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    compileOnly("org.jetbrains:annotations:26.0.2-1")
+    implementation("org.spongepowered:configurate-yaml:4.2.0")
 }
 
 
@@ -32,11 +35,18 @@ tasks {
         options.isDeprecation = true
     }
 
+    shadowJar {
+        val base = "io.github.md5sha256.realty.libraries"
+        relocate("org.spongepowered.configurate", "${base}.org.spongepowered.configurate")
+    }
+
     processResources {
         filesMatching("plugin.yml") {
             expand("version" to project.version)
         }
     }
+
+
     runServer {
         // Configure the Minecraft version for our task.
         // This is the only required configuration besides applying the plugin.
