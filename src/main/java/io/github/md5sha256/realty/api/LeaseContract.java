@@ -9,6 +9,8 @@ import java.util.OptionalInt;
 
 public interface LeaseContract extends Contract {
 
+    int leaseContractId();
+
     @NotNull User landlord();
 
     @NotNull User tenant();

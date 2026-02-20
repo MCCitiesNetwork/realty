@@ -7,6 +7,8 @@ import java.time.Instant;
 
 public interface SaleContract extends Contract {
 
+    int saleContractId();
+
     @NotNull User authority();
 
     @NotNull User titleholder();
