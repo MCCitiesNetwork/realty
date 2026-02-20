@@ -24,6 +24,8 @@ dependencies {
     compileOnly("com.github.MilkBowl:VaultAPI:1.7")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
+    implementation("org.mybatis:mybatis:3.5.19")
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.6")
 }
 
 
@@ -42,7 +44,14 @@ tasks {
 
     shadowJar {
         val base = "io.github.md5sha256.realty.libraries"
-        relocate("org.spongepowered.configurate", "${base}.org.spongepowered.configurate")
+        relocate("org.mariadb", "${base}.org.mariadb")
+        relocate("org.mybatis", "${base}.org.mybatis")
+        relocate("org.spongepowered", "${base}.org.spongepowered")
+        relocate("org.yaml", "${base}.org.yaml")
+        relocate("io.leangen.geantyref", "${base}.io.leangen.geantyref")
+        relocate("org.apache.ibatis", "${base}.org.apache.ibatis")
+        relocate("org.jetbrains.annotations", "${base}.org.jetbrains.annotations")
+        relocate("org.intellij.lang", "${base}.org.intellij.lang")
     }
 
     processResources {
