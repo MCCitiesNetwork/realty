@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS RealtyRegion
 
 CREATE TABLE IF NOT EXISTS Contract
 (
-    contractId     INT                       NOT NULL AUTO_INCREMENT,
+    contractId     INT                       NOT NULL,
     contractType   ENUM ('contract', 'sale') NOT NULL,
     realtyRegionId INT                       NOT NULL,
     PRIMARY KEY (contractId, contractType)
@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS SaleContractAuction
 
 ALTER TABLE RealtyRegion
     ADD (
-        CONSTRAINT RealtyRegion_Contract_contractId_fk FOREIGN KEY (contractId) REFERENCES Contract (contractId)
+        CONSTRAINT RealtyRegion_Contract_contractId_fk FOREIGN KEY (contractId) REFERENCES Contract (contractId),
+        CONSTRAINT unique_worldGuardRegionId_worldId UNIQUE (worldGuardRegionId, worldId)
         );
 
 ALTER TABLE Contract
