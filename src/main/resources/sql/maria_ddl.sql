@@ -40,10 +40,16 @@ CREATE TABLE IF NOT EXISTS SaleContractAuction
     biddingDurationSeconds LONG     NOT NULL,
     paymentDurationSeconds LONG     NOT NULL,
     minBid                 DOUBLE   NOT NULL,
-    minStep                DOUBLE   NOT NULL,
-    currentBidderId        UUID,
-    currentBidPrice        DOUBLE
+    minStep                DOUBLE   NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS SaleContractBid
+(
+    saleContractAuctionId INT    NOT NULL,
+    bidderId              UUID   NOT NULL,
+    bidPrice              DOUBLE NOT NULL,
+    PRIMARY KEY (saleContractAuctionId, bidderId, bidPrice)
+    );
 
 ALTER TABLE RealtyRegion
     ADD (
@@ -72,11 +78,14 @@ ALTER TABLE SaleContract
 
 ALTER TABLE SaleContractAuction
     ADD (
-        CONSTRAINT chk_bid CHECK ((currentBidderId IS NULL AND currentBidPrice IS NULL) OR
-                                  (currentBidderId IS NOT NULL AND currentBidPrice IS NOT NULL)),
-        CONSTRAINT chk_valid_bidPrice CHECK (currentBidPrice > 0),
         CONSTRAINT chk_valid_minBid CHECK (minBid > 0),
         CONSTRAINT chk_valid_minStep CHECK (minStep > 0),
         CONSTRAINT chk_valid_biddingDuration CHECK ( biddingDurationSeconds > 0 ),
         CONSTRAINT chk_valid_paymentDuration CHECK ( paymentDurationSeconds > 0 )
+        );
+
+ALTER TABLE SaleContractBid
+    ADD (
+        CONSTRAINT SaleContractAuction_SaleContractBid_saleContractAuctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId),
+        CONSTRAINT chk_valid_bidPrice CHECK (bidPrice > 0)
         );

@@ -1,22 +1,18 @@
 package io.github.md5sha256.realty.database.entity;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * Internal entity record mapping to the {@code SaleContractAuction} DDL table.
  *
- * @param saleContractAuctionId Auto-increment primary key
- * @param startDate             When the auction started
+ * @param saleContractAuctionId  Auto-increment primary key
+ * @param startDate              When the auction started
  * @param biddingDurationSeconds Bidding window in seconds (must be &gt; 0)
  * @param paymentDurationSeconds Payment window in seconds (must be &gt; 0)
- * @param minBid                Minimum bid amount (must be &gt; 0)
- * @param minStep               Minimum price step between bids (must be &gt; 0)
- * @param currentBidderId       UUID of the current highest bidder (nullable)
- * @param currentBidPrice       Current highest bid price (nullable; present iff currentBidderId is present)
+ * @param minBid                 Minimum bid amount (must be &gt; 0)
+ * @param minStep                Minimum price step between bids (must be &gt; 0)
  * @see io.github.md5sha256.realty.api.SaleContractAuction
  */
 public record SaleContractAuctionEntity(
@@ -25,8 +21,6 @@ public record SaleContractAuctionEntity(
         long biddingDurationSeconds,
         long paymentDurationSeconds,
         double minBid,
-        double minStep,
-        @Nullable UUID currentBidderId,
-        @Nullable Double currentBidPrice
+        double minStep
 ) {
 }
