@@ -1,4 +1,4 @@
-package io.github.md5sha256.realty.database.mapper.maria;
+package io.github.md5sha256.realty.database.maria;
 
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
