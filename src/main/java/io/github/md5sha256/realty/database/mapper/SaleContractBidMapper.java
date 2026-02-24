@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface SaleContractBidMapper {
 
-    @Nullable SaleContractBid selectCurrentBid(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+    @Nullable SaleContractBid selectHighestBid(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     int performContractBid(@NotNull SaleContractBid bid);
 

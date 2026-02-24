@@ -31,7 +31,7 @@ public interface MariaSaleContractBidMapper extends SaleContractBidMapper {
             @Arg(column = "bidderId", javaType = UUID.class),
             @Arg(column = "bidPrice", javaType = double.class)
     })
-    @Nullable SaleContractBid selectCurrentBid(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+    @Nullable SaleContractBid selectHighestBid(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                @Param("worldId") @NotNull UUID worldId);
 
     @Override
