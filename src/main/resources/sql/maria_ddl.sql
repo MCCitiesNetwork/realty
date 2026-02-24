@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS SaleContractAuction
     startDate              DATETIME NOT NULL,
     biddingDurationSeconds LONG     NOT NULL,
     paymentDurationSeconds LONG     NOT NULL,
+    paymentDeadline        DATETIME NOT NULL DEFAULT (startDate + INTERVAL (biddingDurationSeconds + paymentDurationSeconds) SECOND),
     minBid                 DOUBLE   NOT NULL,
     minStep                DOUBLE   NOT NULL
 );

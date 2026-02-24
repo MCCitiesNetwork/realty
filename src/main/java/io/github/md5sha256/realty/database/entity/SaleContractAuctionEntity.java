@@ -20,6 +20,7 @@ public record SaleContractAuctionEntity(
         @NotNull LocalDateTime startDate,
         long biddingDurationSeconds,
         long paymentDurationSeconds,
+        @NotNull LocalDateTime paymentDeadline,
         double minBid,
         double minStep
 ) {
