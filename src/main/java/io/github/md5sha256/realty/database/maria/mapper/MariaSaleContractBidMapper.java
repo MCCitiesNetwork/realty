@@ -45,7 +45,11 @@ public interface MariaSaleContractBidMapper extends SaleContractBidMapper {
             AND #{bidAmount} >= sca.minBid
             AND (
                 NOT EXISTS (SELECT 1 FROM SaleContractBid scb WHERE scb.saleContractAuctionId = #{saleContractId})
-                OR #{bidAmount} >= (SELECT MAX(scb.bidPrice) + sca.minStep FROM SaleContractBid scb WHERE scb.saleContractAuctionId = #{saleContractId})
+                OR (
+                    #{bidAmount} > (SELECT MAX(scb.bidPrice) FROM SaleContractBid scb WHERE scb.saleContractAuctionId = #{saleContractId})
+                    AND #{bidAmount} >= (SELECT MAX(scb.bidPrice) + sca.minStep FROM SaleContractBid scb WHERE scb.saleContractAuctionId = #{saleContractId})
+                    AND #{bidderId} != (SELECT scb.bidderId FROM SaleContractBid scb WHERE scb.saleContractAuctionId = #{saleContractId} ORDER BY scb.bidPrice DESC LIMIT 1)
+                )
             )
             """)
     int performContractBid(@NotNull SaleContractBid bid);

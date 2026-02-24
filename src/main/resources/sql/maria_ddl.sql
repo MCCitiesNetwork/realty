@@ -46,9 +46,11 @@ CREATE TABLE IF NOT EXISTS SaleContractAuction
 
 CREATE TABLE IF NOT EXISTS SaleContractBid
 (
+    bidId INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     saleContractAuctionId INT    NOT NULL,
     bidderId              UUID   NOT NULL,
     bidPrice              DOUBLE NOT NULL,
+    bidTime               DATETIME NOT NULL DEFAULT NOW(),
     PRIMARY KEY (saleContractAuctionId, bidderId, bidPrice)
     );
 
