@@ -17,6 +17,10 @@ repositories {
         name = "jitpack"
         url = uri("https://jitpack.io")
     }
+    maven {
+        name = "enginehub"
+        url = uri("https://maven.enginehub.org/repo/")
+    }
 }
 
 dependencies {
@@ -24,6 +28,7 @@ dependencies {
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
+    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
     implementation("org.mybatis:mybatis:3.5.19")
