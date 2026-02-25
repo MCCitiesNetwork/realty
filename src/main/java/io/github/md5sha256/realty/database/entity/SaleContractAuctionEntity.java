@@ -17,11 +17,13 @@ import java.time.LocalDateTime;
  */
 public record SaleContractAuctionEntity(
         int saleContractAuctionId,
+        int realtyRegionId,
         @NotNull LocalDateTime startDate,
         long biddingDurationSeconds,
         long paymentDurationSeconds,
         @NotNull LocalDateTime paymentDeadline,
         double minBid,
-        double minStep
+        double minStep,
+        boolean ended
 ) {
 }

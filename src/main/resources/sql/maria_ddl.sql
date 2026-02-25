@@ -36,20 +36,23 @@ CREATE TABLE IF NOT EXISTS SaleContract
 CREATE TABLE IF NOT EXISTS SaleContractAuction
 (
     saleContractAuctionId  INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    realtyRegionId         INT      NOT NULL,
     startDate              DATETIME NOT NULL,
     biddingDurationSeconds LONG     NOT NULL,
     paymentDurationSeconds LONG     NOT NULL,
-    paymentDeadline        DATETIME NOT NULL DEFAULT (startDate + INTERVAL (biddingDurationSeconds + paymentDurationSeconds) SECOND),
+    paymentDeadline        DATETIME NOT NULL DEFAULT (startDate +
+    INTERVAL (biddingDurationSeconds + paymentDurationSeconds) SECOND),
     minBid                 DOUBLE   NOT NULL,
-    minStep                DOUBLE   NOT NULL
-);
+    minStep                DOUBLE   NOT NULL,
+    ended                  BOOL     NOT NULL DEFAULT FALSE
+    );
 
 CREATE TABLE IF NOT EXISTS SaleContractBid
 (
-    bidId INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    saleContractAuctionId INT    NOT NULL,
-    bidderId              UUID   NOT NULL,
-    bidPrice              DOUBLE NOT NULL,
+    bidId                 INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    saleContractAuctionId INT      NOT NULL,
+    bidderId              UUID     NOT NULL,
+    bidPrice              DOUBLE   NOT NULL,
     bidTime               DATETIME NOT NULL DEFAULT NOW(),
     PRIMARY KEY (saleContractAuctionId, bidderId, bidPrice)
     );
@@ -81,6 +84,7 @@ ALTER TABLE SaleContract
 
 ALTER TABLE SaleContractAuction
     ADD (
+        CONSTRAINT SaleContractAuction_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId),
         CONSTRAINT chk_valid_minBid CHECK (minBid > 0),
         CONSTRAINT chk_valid_minStep CHECK (minStep > 0),
         CONSTRAINT chk_valid_biddingDuration CHECK ( biddingDurationSeconds > 0 ),
