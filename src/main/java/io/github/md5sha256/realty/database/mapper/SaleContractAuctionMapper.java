@@ -1,9 +1,12 @@
 package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
+import org.apache.ibatis.annotations.Param;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -14,6 +17,17 @@ import java.util.UUID;
  */
 public interface SaleContractAuctionMapper {
 
-    @Nullable SaleContractAuctionEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+    @Nullable SaleContractAuctionEntity selectActiveByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
+    int createAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull LocalDateTime startDate, long biddingDurationSeconds, long paymentDurationSeconds, double minBid, double minStep);
+
+    int postponeAuctionPaymentDeadline(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    @Nullable List<SaleContractAuctionEntity> selectExpiredBiddingAuctions();
+
+    @Nullable List<SaleContractAuctionEntity> selectExpiredPaymentAuctions();
+
+    int markEnded(@Param("saleContractAuctionId") int saleContractAuctionId);
+
+    int deleteAuction(int saleContractAuctionId);
 }

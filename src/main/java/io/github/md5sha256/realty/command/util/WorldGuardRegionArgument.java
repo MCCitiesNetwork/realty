@@ -62,7 +62,7 @@ public class WorldGuardRegionArgument implements CustomArgumentType<WorldGuardRe
             throw ERROR_REGION_NOT_FOUND.create(regionName);
         }
 
-        return new WorldGuardRegion(region, world.getUID());
+        return new WorldGuardRegion(region, world);
     }
 
     @Override

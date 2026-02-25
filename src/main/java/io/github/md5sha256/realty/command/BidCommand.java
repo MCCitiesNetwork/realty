@@ -37,8 +37,8 @@ public record BidCommand(
         return Commands.literal("bid")
                 .requires(source -> source.getSender() instanceof Player player && player.hasPermission("realty.command.bid"))
                 .then(Commands.argument("bid", DoubleArgumentType.doubleArg(0))
-                        .then(Commands.argument("region", new WorldGuardRegionArgument()))
-                        .executes(this::execute));
+                        .then(Commands.argument("region", new WorldGuardRegionArgument())
+                                .executes(this::execute)));
     }
 
     private int execute(@NotNull CommandContext<CommandSourceStack> ctx) {
@@ -49,7 +49,7 @@ public record BidCommand(
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 SaleContractBidMapper bidMapper = wrapper.saleContractBidMapper();
                 SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
-                SaleContractAuctionEntity auction = auctionMapper.selectByRegion(region.region().getId(), region.world().getUID());
+                SaleContractAuctionEntity auction = auctionMapper.selectActiveByRegion(region.region().getId(), region.world().getUID());
                 if (auction == null) {
                     sender.sendMessage("That region does not have an active auction!");
                     return;

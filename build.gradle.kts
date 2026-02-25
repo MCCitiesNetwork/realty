@@ -33,6 +33,10 @@ dependencies {
     implementation("org.spongepowered:configurate-yaml:4.2.0")
     implementation("org.mybatis:mybatis:3.5.19")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.5.6")
+
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 
@@ -41,6 +45,10 @@ val targetJavaVersion = 21
 java.toolchain.languageVersion.set(JavaLanguageVersion.of(targetJavaVersion))
 
 tasks {
+
+    test {
+        useJUnitPlatform()
+    }
 
     withType(JavaCompile::class) {
         options.release.set(targetJavaVersion)
