@@ -88,7 +88,15 @@ ALTER TABLE SaleContractAuction
         CONSTRAINT chk_valid_minBid CHECK (minBid > 0),
         CONSTRAINT chk_valid_minStep CHECK (minStep > 0),
         CONSTRAINT chk_valid_biddingDuration CHECK ( biddingDurationSeconds > 0 ),
-        CONSTRAINT chk_valid_paymentDuration CHECK ( paymentDurationSeconds > 0 )
+        CONSTRAINT chk_valid_paymentDuration CHECK ( paymentDurationSeconds > 0 ),
+        CONSTRAINT chk_unique_active_auction_per_region CHECK (
+            ended = TRUE OR NOT EXISTS (
+                SELECT 1 FROM SaleContractAuction sca
+                WHERE sca.realtyRegionId = realtyRegionId
+                AND sca.saleContractAuctionId != saleContractAuctionId
+                AND sca.ended = FALSE
+            )
+        )
         );
 
 ALTER TABLE SaleContractBid
