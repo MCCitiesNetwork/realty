@@ -64,6 +64,7 @@ public record BidCommand(
                     return;
                 }
                 bidMapper.performContractBid(new SaleContractBid(auction.saleContractAuctionId(), sender.getUniqueId(), bidAmount, LocalDateTime.now()));
+                wrapper.session().commit();
             } catch (PersistenceException ex) {
                 sender.sendMessage("Failed to perform bid: " + ex.getMessage());
             }
