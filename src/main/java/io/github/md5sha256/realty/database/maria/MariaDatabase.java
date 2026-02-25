@@ -10,6 +10,7 @@ import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractBidMapp
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.ExecutorType;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
@@ -50,5 +51,10 @@ public class MariaDatabase implements Database {
     @Override
     public @NotNull SqlSessionWrapper openSession(boolean autoCommit) {
         return new MariaSqlSession(this.sessionFactory.openSession(autoCommit));
+    }
+
+    @Override
+    public @NotNull SqlSessionWrapper openSession(@NotNull ExecutorType executorType, boolean autoCommit) {
+        return new MariaSqlSession(this.sessionFactory.openSession(executorType, autoCommit));
     }
 }
