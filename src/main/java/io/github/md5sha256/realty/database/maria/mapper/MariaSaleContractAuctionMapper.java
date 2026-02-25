@@ -2,10 +2,7 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
-import org.apache.ibatis.annotations.Arg;
-import org.apache.ibatis.annotations.ConstructorArgs;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,5 +37,29 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
     })
     @Nullable SaleContractAuctionEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                        @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Insert("""
+            INSERT INTO SaleContractAuction (startDate, biddingDurationSeconds, paymentDurationSeconds, minBid, minStep)
+            VALUES (#{startDate}, #{biddingDurationSeconds}, #{paymentDurationSeconds}, #{minBid}, #{minStep})
+            """)
+    @Options(useGeneratedKeys = true, keyProperty = "saleContractAuctionId")
+    int createAuction(@Param("startDate") @NotNull LocalDateTime startDate,
+                      @Param("biddingDurationSeconds") long biddingDurationSeconds,
+                      @Param("paymentDurationSeconds") long paymentDurationSeconds,
+                      @Param("minBid") double minBid,
+                      @Param("minStep") double minStep);
+
+    @Override
+    @Update("""
+            UPDATE SaleContractAuction sca
+            INNER JOIN Contract c ON c.contractId = sca.saleContractAuctionId
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET sca.paymentDeadline = sca.paymentDeadline + INTERVAL sca.paymentDurationSeconds SECOND
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int postponeAuctionPaymentDeadline(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                       @Param("worldId") @NotNull UUID worldId);
 
 }

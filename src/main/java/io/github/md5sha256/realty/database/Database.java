@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import org.apache.ibatis.session.ExecutorType;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -16,11 +17,14 @@ public interface Database {
 
     @NotNull SqlSessionWrapper openSession(boolean autoCommit);
 
+    @NotNull SqlSessionWrapper openSession(@NotNull ExecutorType executorType, boolean autoCommit);
+
     default void initializeSchema(@NotNull InputStream ddlResource) throws IOException, SQLException {
         String ddl = new String(ddlResource.readAllBytes(), StandardCharsets.UTF_8);
-        try (SqlSession session = openSession().session();
+        try (SqlSessionWrapper wrapper = openSession();
+             SqlSession session = wrapper.session();
              Connection connection = session.getConnection();
-             Statement statement = connection.createStatement();) {
+             Statement statement = connection.createStatement()) {
             statement.execute(ddl);
         }
     }
