@@ -4,8 +4,10 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
@@ -41,9 +43,9 @@ public record BidCommand(
                                 .executes(this::execute)));
     }
 
-    private int execute(@NotNull CommandContext<CommandSourceStack> ctx) {
+    private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         double bidAmount = ctx.getArgument("bid", Double.class);
-        WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegion.class);
+        WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
         Player sender = (Player) ctx.getSource().getSender();
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper wrapper = database.openSession()) {
