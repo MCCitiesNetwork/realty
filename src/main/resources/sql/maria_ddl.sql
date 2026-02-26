@@ -57,6 +57,32 @@ CREATE TABLE IF NOT EXISTS SaleContractBid
     PRIMARY KEY (saleContractAuctionId, bidderId, bidPrice)
     );
 
+CREATE TABLE IF NOT EXISTS SaleContractOffer
+(
+    offerId INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    realtyRegionId INT NOT NULL
+    offererId UUID NOT NULL
+    offerPrice DOUBLE NOT NULL,
+    offerTime DATETIME NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE SaleContractOffer
+ ADD (
+        CONSTRAINT RealtyRegion_SaleContractOffer_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion(realtyRegionId),
+        CONSTRAINT unique_offer UNIQUE (realtyRegionId, offererId),
+        CONSTRAINT chk_valid_offerPrice CHECK (offerPrice > 0),
+        CONSTRAINT chk_offerer_not_authority CHECK (
+            NOT EXISTS (
+                SELECT 1
+                FROM RealtyRegion rr
+                         JOIN Contract c ON c.contractId = rr.contractId AND c.contractType = 'sale'
+                         JOIN SaleContract sc ON sc.saleContractId = c.contractId
+                WHERE rr.realtyRegionId = realtyRegionId
+                  AND sc.authorityId = offererId
+            )
+        )
+     );
+
 ALTER TABLE RealtyRegion
     ADD (
         CONSTRAINT RealtyRegion_Contract_contractId_fk FOREIGN KEY (contractId) REFERENCES Contract (contractId),

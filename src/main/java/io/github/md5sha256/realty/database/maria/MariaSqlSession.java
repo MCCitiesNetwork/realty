@@ -7,12 +7,14 @@ import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
+import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractAuctionMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractBidMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractOfferMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -46,6 +48,11 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     @Override
     public @NotNull SaleContractMapper saleContractMapper() {
         return session.getMapper(MariaSaleContractMapper.class);
+    }
+
+    @Override
+    public @NotNull SaleContractOfferMapper saleContractOfferMapper() {
+        return session.getMapper(MariaSaleContractOfferMapper.class);
     }
 
     @Override
