@@ -4,7 +4,6 @@ import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -15,15 +14,12 @@ import java.util.UUID;
  */
 public interface RealtyRegionMapper {
 
-    void insert(@NotNull RealtyRegionEntity entity);
+    int registerWorldGuardRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    @Nullable RealtyRegionEntity selectById(int id);
+    @Nullable RealtyRegionEntity selectByWorldGuardRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    @NotNull List<RealtyRegionEntity> selectByWorldId(@NotNull UUID worldId);
+    int deleteByWorldGuardRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    @NotNull List<RealtyRegionEntity> selectAll();
+    int deleteByRealtyRegionId(int realtyRegionId);
 
-    void update(@NotNull RealtyRegionEntity entity);
-
-    void deleteById(int id);
 }

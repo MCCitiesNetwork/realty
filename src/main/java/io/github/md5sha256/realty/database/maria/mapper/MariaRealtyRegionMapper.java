@@ -6,7 +6,6 @@ import org.apache.ibatis.annotations.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -17,51 +16,44 @@ import java.util.UUID;
 public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
 
     @Override
-    @Insert("INSERT INTO RealtyRegion (worldGuardRegionId, worldId, contractId) " +
-            "VALUES (#{worldGuardRegionId}, #{worldId}, #{contractId})")
-    @Options(useGeneratedKeys = true, keyProperty = "realtyRegionId")
-    void insert(@NotNull RealtyRegionEntity entity);
+    @Insert("""
+            INSERT INTO RealtyRegion (worldGuardRegionId, worldId)
+            VALUES (#{worldGuardRegionId}, #{worldId})
+            """)
+    @Options(useGeneratedKeys = true, keyProperty = "realtyRegionId", keyColumn = "realtyRegionId")
+    int registerWorldGuardRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                 @Param("worldId") @NotNull UUID worldId);
 
     @Override
-    @Select("SELECT realtyRegionId, worldGuardRegionId, worldId, contractId " +
-            "FROM RealtyRegion WHERE realtyRegionId = #{id}")
+    @Select("""
+            SELECT realtyRegionId, worldGuardRegionId, worldId, contractId
+            FROM RealtyRegion
+            WHERE worldGuardRegionId = #{worldGuardRegionId}
+            AND worldId = #{worldId}
+            """)
     @ConstructorArgs({
             @Arg(column = "realtyRegionId", javaType = int.class),
             @Arg(column = "worldGuardRegionId", javaType = String.class),
             @Arg(column = "worldId", javaType = UUID.class),
             @Arg(column = "contractId", javaType = Integer.class)
     })
-    @Nullable RealtyRegionEntity selectById(@Param("id") int id);
+    @Nullable RealtyRegionEntity selectByWorldGuardRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                                         @Param("worldId") @NotNull UUID worldId);
 
     @Override
-    @Select("SELECT realtyRegionId, worldGuardRegionId, worldId, contractId " +
-            "FROM RealtyRegion WHERE worldId = #{worldId}")
-    @ConstructorArgs({
-            @Arg(column = "realtyRegionId", javaType = int.class),
-            @Arg(column = "worldGuardRegionId", javaType = String.class),
-            @Arg(column = "worldId", javaType = UUID.class),
-            @Arg(column = "contractId", javaType = Integer.class)
-    })
-    @NotNull List<RealtyRegionEntity> selectByWorldId(@Param("worldId") @NotNull UUID worldId);
+    @Delete("""
+            DELETE FROM RealtyRegion
+            WHERE worldGuardRegionId = #{worldGuardRegionId}
+            AND worldId = #{worldId}
+            """)
+    int deleteByWorldGuardRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                 @Param("worldId") @NotNull UUID worldId);
 
     @Override
-    @Select("SELECT realtyRegionId, worldGuardRegionId, worldId, contractId " +
-            "FROM RealtyRegion")
-    @ConstructorArgs({
-            @Arg(column = "realtyRegionId", javaType = int.class),
-            @Arg(column = "worldGuardRegionId", javaType = String.class),
-            @Arg(column = "worldId", javaType = UUID.class),
-            @Arg(column = "contractId", javaType = Integer.class)
-    })
-    @NotNull List<RealtyRegionEntity> selectAll();
+    @Delete("""
+            DELETE FROM RealtyRegion
+            WHERE realtyRegionId = #{realtyRegionId}
+            """)
+    int deleteByRealtyRegionId(@Param("realtyRegionId") int realtyRegionId);
 
-    @Override
-    @Update("UPDATE RealtyRegion SET worldGuardRegionId = #{worldGuardRegionId}, " +
-            "worldId = #{worldId}, contractId = #{contractId} " +
-            "WHERE realtyRegionId = #{realtyRegionId}")
-    void update(@NotNull RealtyRegionEntity entity);
-
-    @Override
-    @Delete("DELETE FROM RealtyRegion WHERE realtyRegionId = #{id}")
-    void deleteById(@Param("id") int id);
 }
