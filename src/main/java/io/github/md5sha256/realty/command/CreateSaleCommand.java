@@ -47,6 +47,8 @@ public record CreateSaleCommand(@NotNull ExecutorState executorState,
         UUID authority = ctx.getArgument("authority", UUID.class);
         WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegion.class);
         CommandSender sender = ctx.getSource().getSender();
+        // The executing player is the current title-holder creating the sale listing.
+        UUID titleHolder = ((Player) sender).getUniqueId();
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
@@ -59,7 +61,7 @@ public record CreateSaleCommand(@NotNull ExecutorState executorState,
                 }
 
                 int regionId = regionMapper.registerWorldGuardRegion(region.region().getId(), region.world().getUID());
-                saleContractMapper.insertSale(regionId, price, authority);
+                saleContractMapper.insertSale(regionId, price, authority, titleHolder);
                 session.commit();
                 sender.sendMessage("Sale region created successfully!");
             } catch (PersistenceException ex) {

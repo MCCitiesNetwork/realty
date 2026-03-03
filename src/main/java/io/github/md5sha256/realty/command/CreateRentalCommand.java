@@ -66,7 +66,7 @@ public record CreateRentalCommand(@NotNull ExecutorState executorState,
                 }
 
                 int regionId = regionMapper.registerWorldGuardRegion(region.region().getId(), region.world().getUID());
-                leaseContractMapper.insertLease(regionId, price, period, maxRenewals, landlord);
+                leaseContractMapper.insertLease(regionId, price, period.toSeconds(), maxRenewals, landlord);
                 session.commit();
                 sender.sendMessage("Rental region created successfully!");
             } catch (PersistenceException ex) {
