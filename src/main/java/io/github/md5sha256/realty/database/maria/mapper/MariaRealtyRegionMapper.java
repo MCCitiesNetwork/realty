@@ -2,7 +2,13 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
-import org.apache.ibatis.annotations.*;
+import org.apache.ibatis.annotations.Arg;
+import org.apache.ibatis.annotations.ConstructorArgs;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,7 +32,7 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
 
     @Override
     @Select("""
-            SELECT realtyRegionId, worldGuardRegionId, worldId, contractId
+            SELECT realtyRegionId, worldGuardRegionId, worldId
             FROM RealtyRegion
             WHERE worldGuardRegionId = #{worldGuardRegionId}
             AND worldId = #{worldId}
@@ -34,8 +40,7 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
     @ConstructorArgs({
             @Arg(column = "realtyRegionId", javaType = int.class),
             @Arg(column = "worldGuardRegionId", javaType = String.class),
-            @Arg(column = "worldId", javaType = UUID.class),
-            @Arg(column = "contractId", javaType = Integer.class)
+            @Arg(column = "worldId", javaType = UUID.class)
     })
     @Nullable RealtyRegionEntity selectByWorldGuardRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                          @Param("worldId") @NotNull UUID worldId);

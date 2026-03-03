@@ -2,8 +2,7 @@ CREATE TABLE IF NOT EXISTS RealtyRegion
 (
     realtyRegionId     INT PRIMARY KEY AUTO_INCREMENT,
     worldGuardRegionId VARCHAR(255) NOT NULL,
-    worldId            UUID         NOT NULL,
-    contractId         INT
+    worldId            UUID         NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS Contract
@@ -59,23 +58,24 @@ CREATE TABLE IF NOT EXISTS SaleContractBid
 
 CREATE TABLE IF NOT EXISTS SaleContractOffer
 (
-    offerId INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    realtyRegionId INT NOT NULL
-    offererId UUID NOT NULL
-    offerPrice DOUBLE NOT NULL,
-    offerTime DATETIME NOT NULL DEFAULT NOW()
+    offerId        INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    realtyRegionId INT      NOT NULL,
+    offererId      UUID     NOT NULL,
+    offerPrice     DOUBLE   NOT NULL,
+    offerTime      DATETIME NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE SaleContractOffer
- ADD (
-        CONSTRAINT RealtyRegion_SaleContractOffer_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion(realtyRegionId),
+    ADD (
+        -- Cascade: deleting a RealtyRegion removes all its pending offers.
+        CONSTRAINT RealtyRegion_SaleContractOffer_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
         CONSTRAINT unique_offer UNIQUE (realtyRegionId, offererId),
         CONSTRAINT chk_valid_offerPrice CHECK (offerPrice > 0),
         CONSTRAINT chk_offerer_not_authority CHECK (
             NOT EXISTS (
                 SELECT 1
                 FROM RealtyRegion rr
-                         JOIN Contract c ON c.contractId = rr.contractId AND c.contractType = 'sale'
+                         JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
                          JOIN SaleContract sc ON sc.saleContractId = c.contractId
                 WHERE rr.realtyRegionId = realtyRegionId
                   AND sc.authorityId = offererId
@@ -85,13 +85,13 @@ ALTER TABLE SaleContractOffer
 
 ALTER TABLE RealtyRegion
     ADD (
-        CONSTRAINT RealtyRegion_Contract_contractId_fk FOREIGN KEY (contractId) REFERENCES Contract (contractId),
         CONSTRAINT unique_worldGuardRegionId_worldId UNIQUE (worldGuardRegionId, worldId)
         );
 
 ALTER TABLE Contract
     ADD (
-        CONSTRAINT Contract_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId)
+        -- Cascade: deleting a RealtyRegion removes all its Contract records.
+        CONSTRAINT Contract_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE
         );
 
 ALTER TABLE LeaseContract
@@ -110,7 +110,8 @@ ALTER TABLE SaleContract
 
 ALTER TABLE SaleContractAuction
     ADD (
-        CONSTRAINT SaleContractAuction_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId),
+        -- Cascade: deleting a RealtyRegion removes all its auctions.
+        CONSTRAINT SaleContractAuction_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
         CONSTRAINT chk_valid_minBid CHECK (minBid > 0),
         CONSTRAINT chk_valid_minStep CHECK (minStep > 0),
         CONSTRAINT chk_valid_biddingDuration CHECK ( biddingDurationSeconds > 0 ),
@@ -127,6 +128,7 @@ ALTER TABLE SaleContractAuction
 
 ALTER TABLE SaleContractBid
     ADD (
-        CONSTRAINT SaleContractAuction_SaleContractBid_saleContractAuctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId),
+        -- Cascade: deleting an auction removes all its bids.
+        CONSTRAINT SaleContractAuction_SaleContractBid_saleContractAuctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId) ON DELETE CASCADE,
         CONSTRAINT chk_valid_bidPrice CHECK (bidPrice > 0)
         );
