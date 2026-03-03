@@ -13,6 +13,23 @@ import java.util.UUID;
  */
 public interface SaleContractMapper {
 
-    void insertSale(int regionId, double price, @NotNull UUID authority);
+    /**
+     * Inserts a new row into the {@code SaleContract} table.
+     *
+     * <p>The {@code regionId} parameter identifies the {@code RealtyRegion} this contract belongs
+     * to. It is not stored directly on the {@code SaleContract} row (that association lives in the
+     * {@code Contract} table), but implementations may use it for subquery-based validation or
+     * linking.
+     *
+     * @param regionId    the {@code realtyRegionId} of the region being sold
+     * @param price       the agreed sale price (must be &gt; 0)
+     * @param authority   UUID of the authority overseeing the sale
+     * @param titleHolder UUID of the current title holder
+     * @return number of rows inserted (1 on success)
+     */
+    int insertSale(int regionId,
+                   double price,
+                   @NotNull UUID authority,
+                   @NotNull UUID titleHolder);
 
 }

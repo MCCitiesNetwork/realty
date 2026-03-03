@@ -3,7 +3,6 @@ package io.github.md5sha256.realty.database.mapper;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.Duration;
 import java.util.UUID;
 
 /**
@@ -14,11 +13,34 @@ import java.util.UUID;
  */
 public interface LeaseContractMapper {
 
-    void insertLease(
-            int regionId,
-            double price,
-            @NotNull Duration period,
-            int maxRenewals,
-            @NotNull UUID landlord
-    );
+    /**
+     * Inserts a new row into the {@code LeaseContract} table.
+     *
+     * <p>The {@code regionId} parameter identifies the {@code RealtyRegion} this lease belongs to.
+     * It is not stored directly on the {@code LeaseContract} row (that association lives in the
+     * {@code Contract} table), but implementations may use it for subquery-based validation or
+     * linking.
+     *
+     * <p>{@code durationSeconds} is used rather than {@link java.time.Duration} so that the value
+     * maps cleanly to the {@code durationSeconds LONG} column without a custom type-handler.
+     * Convert via {@link java.time.Duration#getSeconds()} before calling.
+     *
+     * <p>When {@code maxRenewals} is negative the lease is treated as having unlimited renewals;
+     * both {@code currentMaxExtensions} and {@code maxExtensions} are stored as {@code NULL}.
+     * Otherwise {@code currentMaxExtensions} is initialised to {@code 0} and {@code maxExtensions}
+     * is set to {@code maxRenewals}.
+     *
+     * @param regionId        the {@code realtyRegionId} of the region being leased
+     * @param price           the periodic rental price (must be &gt; 0)
+     * @param durationSeconds lease period in seconds (must be &gt; 0)
+     * @param maxRenewals     maximum number of renewals, or negative for unlimited
+     * @param tenantId        UUID of the tenant taking on the lease
+     * @return number of rows inserted (1 on success)
+     */
+    int insertLease(int regionId,
+                    double price,
+                    long durationSeconds,
+                    int maxRenewals,
+                    @NotNull UUID tenantId);
+
 }
