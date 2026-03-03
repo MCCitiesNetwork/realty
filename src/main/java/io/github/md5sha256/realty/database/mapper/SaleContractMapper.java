@@ -2,9 +2,7 @@ package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -15,15 +13,6 @@ import java.util.UUID;
  */
 public interface SaleContractMapper {
 
-    void insert(@NotNull SaleContractEntity entity);
+    void insertSale(int regionId, double price, @NotNull UUID authority);
 
-    @Nullable SaleContractEntity selectById(int id);
-
-    @NotNull List<SaleContractEntity> selectByTitleHolderId(@NotNull UUID titleHolderId);
-
-    @NotNull List<SaleContractEntity> selectAll();
-
-    void update(@NotNull SaleContractEntity entity);
-
-    void deleteById(int id);
 }

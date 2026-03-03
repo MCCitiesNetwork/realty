@@ -17,6 +17,7 @@ import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import org.apache.ibatis.exceptions.PersistenceException;
 import org.apache.ibatis.session.SqlSession;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -68,6 +69,9 @@ public record CreateRentalCommand(@NotNull ExecutorState executorState,
                 leaseContractMapper.insertLease(regionId, price, period, maxRenewals, landlord);
                 session.commit();
                 sender.sendMessage("Rental region created successfully!");
+            } catch (PersistenceException ex) {
+                ex.printStackTrace();
+                sender.sendMessage("Failed to create rental region: " + ex.getMessage());
             }
         }, executorState.dbExec());
         return Command.SINGLE_SUCCESS;
