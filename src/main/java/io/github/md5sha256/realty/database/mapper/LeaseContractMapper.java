@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -56,5 +57,15 @@ public interface LeaseContractMapper {
     boolean existsByRegionAndTenant(@NotNull String worldGuardRegionId,
                                     @NotNull UUID worldId,
                                     @NotNull UUID playerId);
+
+    /**
+     * Selects the lease contract associated with a WorldGuard region, joining through
+     * the {@code RealtyRegion} and {@code Contract} tables.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @return the lease contract, or {@code null} if none exists
+     */
+    @Nullable LeaseContractEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
 }

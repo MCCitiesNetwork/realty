@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -45,5 +46,15 @@ public interface SaleContractMapper {
     boolean existsByRegionAndAuthority(@NotNull String worldGuardRegionId,
                                        @NotNull UUID worldId,
                                        @NotNull UUID playerId);
+
+    /**
+     * Selects the sale contract associated with a WorldGuard region, joining through
+     * the {@code RealtyRegion} and {@code Contract} tables.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @return the sale contract, or {@code null} if none exists
+     */
+    @Nullable SaleContractEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
 }

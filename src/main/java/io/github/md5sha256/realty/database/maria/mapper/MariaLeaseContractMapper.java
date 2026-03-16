@@ -2,12 +2,16 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
+import org.apache.ibatis.annotations.Arg;
+import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -75,5 +79,27 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
     boolean existsByRegionAndTenant(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                     @Param("worldId") @NotNull UUID worldId,
                                     @Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
+            SELECT lc.leaseContractId, lc.tenantId, lc.price, lc.durationSeconds,
+                   lc.startDate, lc.currentMaxExtensions, lc.maxExtensions
+            FROM LeaseContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "leaseContractId", javaType = int.class),
+            @Arg(column = "tenantId", javaType = UUID.class),
+            @Arg(column = "price", javaType = double.class),
+            @Arg(column = "durationSeconds", javaType = long.class),
+            @Arg(column = "startDate", javaType = LocalDateTime.class),
+            @Arg(column = "currentMaxExtensions", javaType = Integer.class),
+            @Arg(column = "maxExtensions", javaType = Integer.class)
+    })
+    @Nullable LeaseContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                                @Param("worldId") @NotNull UUID worldId);
 
 }

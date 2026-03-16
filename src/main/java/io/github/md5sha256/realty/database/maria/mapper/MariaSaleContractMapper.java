@@ -2,11 +2,14 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
+import org.apache.ibatis.annotations.Arg;
+import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -60,5 +63,23 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
     boolean existsByRegionAndAuthority(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                        @Param("worldId") @NotNull UUID worldId,
                                        @Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
+            SELECT sc.saleContractId, sc.authorityId, sc.titleHolderId, sc.price
+            FROM SaleContract sc
+            INNER JOIN Contract c ON c.contractId = sc.saleContractId AND c.contractType = 'sale'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "saleContractId", javaType = int.class),
+            @Arg(column = "authorityId", javaType = UUID.class),
+            @Arg(column = "titleHolderId", javaType = UUID.class),
+            @Arg(column = "price", javaType = double.class)
+    })
+    @Nullable SaleContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                               @Param("worldId") @NotNull UUID worldId);
 
 }
