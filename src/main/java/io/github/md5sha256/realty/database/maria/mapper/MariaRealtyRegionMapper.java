@@ -12,6 +12,7 @@ import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -60,5 +61,89 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             WHERE realtyRegionId = #{realtyRegionId}
             """)
     int deleteByRealtyRegionId(@Param("realtyRegionId") int realtyRegionId);
+
+    @Override
+    @Select("""
+            SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
+            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
+            WHERE sc.titleHolderId = #{playerId}
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<RealtyRegionEntity> selectRegionsByTitleHolder(@Param("playerId") @NotNull UUID playerId,
+                                                                 @Param("limit") int limit,
+                                                                 @Param("offset") int offset);
+
+    @Override
+    @Select("""
+            SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
+            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
+            WHERE sc.authorityId = #{playerId}
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<RealtyRegionEntity> selectRegionsByAuthority(@Param("playerId") @NotNull UUID playerId,
+                                                               @Param("limit") int limit,
+                                                               @Param("offset") int offset);
+
+    @Override
+    @Select("""
+            SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'contract'
+            INNER JOIN LeaseContract lc ON lc.leaseContractId = c.contractId
+            WHERE lc.tenantId = #{playerId}
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<RealtyRegionEntity> selectRegionsByTenant(@Param("playerId") @NotNull UUID playerId,
+                                                            @Param("limit") int limit,
+                                                            @Param("offset") int offset);
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
+            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
+            WHERE sc.titleHolderId = #{playerId}
+            """)
+    int countRegionsByTitleHolder(@Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
+            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
+            WHERE sc.authorityId = #{playerId}
+            """)
+    int countRegionsByAuthority(@Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'contract'
+            INNER JOIN LeaseContract lc ON lc.leaseContractId = c.contractId
+            WHERE lc.tenantId = #{playerId}
+            """)
+    int countRegionsByTenant(@Param("playerId") @NotNull UUID playerId);
 
 }
