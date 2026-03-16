@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
@@ -80,8 +81,16 @@ public class RealtyLogicImpl {
             if (highestBid != null && bidAmount < highestBid.bidAmount()) {
                 return new BidResult.BidTooLowCurrent(highestBid.bidAmount());
             }
-            bidMapper.performContractBid(new SaleContractBid(
+            int inserted = bidMapper.performContractBid(new SaleContractBid(
                     auction.saleContractAuctionId(), bidderId, bidAmount, LocalDateTime.now()));
+            if (inserted == 0) {
+                // Re-fetch highest bid in case it was inserted concurrently
+                SaleContractBid current = bidMapper.selectHighestBid(worldGuardRegionId, worldId);
+                if (current != null && bidAmount < current.bidAmount()) {
+                    return new BidResult.BidTooLowCurrent(current.bidAmount());
+                }
+                return new BidResult.BidTooLowMinimum(auction.minBid());
+            }
             wrapper.session().commit();
             return new BidResult.Success();
         }
@@ -101,7 +110,8 @@ public class RealtyLogicImpl {
                 return false;
             }
             int regionId = regionMapper.registerWorldGuardRegion(worldGuardRegionId, worldId);
-            wrapper.saleContractMapper().insertSale(regionId, price, authority, titleHolder);
+            int saleContractId = wrapper.saleContractMapper().insertSale(regionId, price, authority, titleHolder);
+            wrapper.contractMapper().insert(new ContractEntity(saleContractId, "sale", regionId));
             session.commit();
             return true;
         }
@@ -122,7 +132,8 @@ public class RealtyLogicImpl {
                 return false;
             }
             int regionId = regionMapper.registerWorldGuardRegion(worldGuardRegionId, worldId);
-            wrapper.leaseContractMapper().insertLease(regionId, price, durationSeconds, maxRenewals, landlord);
+            int leaseContractId = wrapper.leaseContractMapper().insertLease(regionId, price, durationSeconds, maxRenewals, landlord);
+            wrapper.contractMapper().insert(new ContractEntity(leaseContractId, "contract", regionId));
             session.commit();
             return true;
         }

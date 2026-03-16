@@ -4,8 +4,6 @@ import io.github.md5sha256.realty.database.entity.SaleContractEntity;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -39,11 +37,11 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
      * {@code useGeneratedKeys}.
      */
     @Override
-    @Insert("""
+    @Select("""
             INSERT INTO SaleContract (authorityId, titleHolderId, price)
             VALUES (#{authority}, #{titleHolder}, #{price})
+            RETURNING saleContractId
             """)
-    @Options(useGeneratedKeys = true, keyProperty = "saleContractId", keyColumn = "saleContractId")
     int insertSale(@Param("regionId") int regionId,
                    @Param("price") double price,
                    @Param("authority") @NotNull UUID authority,

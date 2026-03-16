@@ -4,8 +4,6 @@ import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
@@ -46,7 +44,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
      * {@code useGeneratedKeys}.
      */
     @Override
-    @Insert("""
+    @Select("""
             INSERT INTO LeaseContract (tenantId, price, durationSeconds, startDate, currentMaxExtensions, maxExtensions)
             VALUES (
                 #{tenantId},
@@ -56,8 +54,8 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
                 CASE WHEN #{maxRenewals} >= 0 THEN 0     ELSE NULL END,
                 CASE WHEN #{maxRenewals} >= 0 THEN #{maxRenewals} ELSE NULL END
             )
+            RETURNING leaseContractId
             """)
-    @Options(useGeneratedKeys = true, keyProperty = "leaseContractId", keyColumn = "leaseContractId")
     int insertLease(@Param("regionId") int regionId,
                     @Param("price") double price,
                     @Param("durationSeconds") long durationSeconds,

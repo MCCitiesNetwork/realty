@@ -5,8 +5,6 @@ import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
@@ -23,11 +21,11 @@ import java.util.UUID;
 public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
 
     @Override
-    @Insert("""
+    @Select("""
             INSERT INTO RealtyRegion (worldGuardRegionId, worldId)
             VALUES (#{worldGuardRegionId}, #{worldId})
+            RETURNING realtyRegionId
             """)
-    @Options(useGeneratedKeys = true, keyProperty = "realtyRegionId", keyColumn = "realtyRegionId")
     int registerWorldGuardRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                  @Param("worldId") @NotNull UUID worldId);
 

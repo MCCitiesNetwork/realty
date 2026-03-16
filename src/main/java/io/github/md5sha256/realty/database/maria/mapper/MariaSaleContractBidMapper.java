@@ -17,10 +17,10 @@ public interface MariaSaleContractBidMapper extends SaleContractBidMapper {
 
     @Override
     @Select("""
-            SELECT scb.saleContractAuctionId, scb.bidderId, scb.bidPrice
+            SELECT scb.saleContractAuctionId, scb.bidderId, scb.bidPrice, scb.bidTime
             FROM SaleContractBid scb
-            INNER JOIN Contract c ON c.contractId = scb.saleContractAuctionId
-            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            INNER JOIN SaleContractAuction sca ON sca.saleContractAuctionId = scb.saleContractAuctionId
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             ORDER BY scb.bidPrice DESC
@@ -29,7 +29,8 @@ public interface MariaSaleContractBidMapper extends SaleContractBidMapper {
     @ConstructorArgs({
             @Arg(column = "saleContractAuctionId", javaType = int.class),
             @Arg(column = "bidderId", javaType = UUID.class),
-            @Arg(column = "bidPrice", javaType = double.class)
+            @Arg(column = "bidPrice", javaType = double.class),
+            @Arg(column = "bidTime", javaType = java.time.LocalDateTime.class)
     })
     @Nullable SaleContractBid selectHighestBid(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                @Param("worldId") @NotNull UUID worldId);

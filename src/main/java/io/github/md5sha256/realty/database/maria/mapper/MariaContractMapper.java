@@ -20,9 +20,10 @@ import java.util.List;
 public interface MariaContractMapper extends ContractMapper {
 
     @Override
-    @Insert("INSERT INTO Contract (contractType, realtyRegionId) " +
-            "VALUES (#{contractType}, #{realtyRegionId})")
-    @Options(useGeneratedKeys = true, keyProperty = "contractId")
+    @Insert("""
+            INSERT INTO Contract (contractId, contractType, realtyRegionId)
+            VALUES (#{contractId}, #{contractType}, #{realtyRegionId})
+            """)
     void insert(@NotNull ContractEntity entity);
 
     @Override
