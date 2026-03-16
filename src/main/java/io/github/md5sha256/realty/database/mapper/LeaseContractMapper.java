@@ -43,4 +43,18 @@ public interface LeaseContractMapper {
                     int maxRenewals,
                     @NotNull UUID tenantId);
 
+    /**
+     * Checks whether the given player is the tenant on any lease contract for the
+     * specified WorldGuard region, joining through the {@code RealtyRegion} and
+     * {@code Contract} tables.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param playerId           UUID of the player to check
+     * @return {@code true} if the player is a tenant on at least one lease contract
+     */
+    boolean existsByRegionAndTenant(@NotNull String worldGuardRegionId,
+                                    @NotNull UUID worldId,
+                                    @NotNull UUID playerId);
+
 }

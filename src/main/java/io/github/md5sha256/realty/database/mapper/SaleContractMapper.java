@@ -32,4 +32,18 @@ public interface SaleContractMapper {
                    @NotNull UUID authority,
                    @NotNull UUID titleHolder);
 
+    /**
+     * Checks whether the given player is the authority on any sale contract for the
+     * specified WorldGuard region, joining through the {@code RealtyRegion} and
+     * {@code Contract} tables.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param playerId           UUID of the player to check
+     * @return {@code true} if the player is an authority on at least one sale contract
+     */
+    boolean existsByRegionAndAuthority(@NotNull String worldGuardRegionId,
+                                       @NotNull UUID worldId,
+                                       @NotNull UUID playerId);
+
 }

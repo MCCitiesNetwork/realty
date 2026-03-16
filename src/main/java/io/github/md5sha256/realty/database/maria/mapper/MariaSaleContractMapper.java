@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
@@ -43,5 +44,21 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
                    @Param("price") double price,
                    @Param("authority") @NotNull UUID authority,
                    @Param("titleHolder") @NotNull UUID titleHolder);
+
+    @Override
+    @Select("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM SaleContract sc
+                INNER JOIN Contract c ON c.contractId = sc.saleContractId AND c.contractType = 'sale'
+                INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+                WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+                AND rr.worldId = #{worldId}
+                AND sc.authorityId = #{playerId}
+            )
+            """)
+    boolean existsByRegionAndAuthority(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                       @Param("worldId") @NotNull UUID worldId,
+                                       @Param("playerId") @NotNull UUID playerId);
 
 }
