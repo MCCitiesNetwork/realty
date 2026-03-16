@@ -6,7 +6,6 @@ import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
@@ -49,7 +48,6 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
-    @Options(useGeneratedKeys = true, keyProperty = "offerId")
     int insertOffer(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                     @Param("worldId") @NotNull UUID worldId,
                     @Param("offererId") @NotNull UUID offererId,

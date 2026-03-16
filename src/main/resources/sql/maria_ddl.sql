@@ -69,17 +69,8 @@ ALTER TABLE SaleContractOffer
         -- Cascade: deleting a RealtyRegion removes all its pending offers.
         CONSTRAINT RealtyRegion_SaleContractOffer_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
         CONSTRAINT unique_offer UNIQUE (realtyRegionId, offererId),
-        CONSTRAINT chk_valid_offerPrice CHECK (offerPrice > 0),
-        CONSTRAINT chk_offerer_not_authority CHECK (
-            NOT EXISTS (
-                SELECT 1
-                FROM RealtyRegion rr
-                         JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
-                         JOIN SaleContract sc ON sc.saleContractId = c.contractId
-                WHERE rr.realtyRegionId = realtyRegionId
-                  AND sc.authorityId = offererId
-            )
-        )
+        CONSTRAINT chk_valid_offerPrice CHECK (offerPrice > 0)
+        -- chk_offerer_not_authority: enforced in application logic (MariaDB does not support subqueries in CHECK)
      );
 
 ALTER TABLE RealtyRegion
@@ -114,15 +105,8 @@ ALTER TABLE SaleContractAuction
         CONSTRAINT chk_valid_minBid CHECK (minBid > 0),
         CONSTRAINT chk_valid_minStep CHECK (minStep > 0),
         CONSTRAINT chk_valid_biddingDuration CHECK ( biddingDurationSeconds > 0 ),
-        CONSTRAINT chk_valid_paymentDuration CHECK ( paymentDurationSeconds > 0 ),
-        CONSTRAINT chk_unique_active_auction_per_region CHECK (
-            ended = TRUE OR NOT EXISTS (
-                SELECT 1 FROM SaleContractAuction sca
-                WHERE sca.realtyRegionId = realtyRegionId
-                AND sca.saleContractAuctionId != saleContractAuctionId
-                AND sca.ended = FALSE
-            )
-        )
+        CONSTRAINT chk_valid_paymentDuration CHECK ( paymentDurationSeconds > 0 )
+        -- chk_unique_active_auction_per_region: enforced in application logic (MariaDB does not support subqueries in CHECK)
         );
 
 ALTER TABLE SaleContractBid

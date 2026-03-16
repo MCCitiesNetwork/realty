@@ -6,7 +6,6 @@ import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -51,12 +50,11 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
     @Override
     @Insert("""
             INSERT INTO SaleContractAuction (realtyRegionId, startDate, biddingDurationSeconds, paymentDurationSeconds, minBid, minStep)
-            SELECT rr.realtyRegionId, #{startDate}, #{biddingDurationSeconds}, #{paymentDurationSeconds}, #{minBid}, #{minStep}
+            SELECT rr.realtyRegionId, NOW(), #{biddingDurationSeconds}, #{paymentDurationSeconds}, #{minBid}, #{minStep}
             FROM RealtyRegion rr
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
-    @Options(useGeneratedKeys = true, keyProperty = "saleContractAuctionId")
     int createAuction(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                       @Param("worldId") @NotNull UUID worldId,
                       @Param("startDate") @NotNull LocalDateTime startDate,

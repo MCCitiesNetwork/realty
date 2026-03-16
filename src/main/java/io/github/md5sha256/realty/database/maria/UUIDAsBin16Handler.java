@@ -29,13 +29,14 @@ public class UUIDAsBin16Handler extends BaseTypeHandler<UUID> {
      * Convert a 16-byte array back to a UUID.
      */
     private static UUID fromBytes(byte[] bytes) {
-        if (bytes.length != 16) {
-            throw new IllegalArgumentException("Invalid UUID byte array length: " + bytes.length);
+        if (bytes.length == 16) {
+            ByteBuffer buffer = ByteBuffer.wrap(bytes);
+            long high = buffer.getLong();
+            long low = buffer.getLong();
+            return new UUID(high, low);
         }
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-        long high = buffer.getLong();
-        long low = buffer.getLong();
-        return new UUID(high, low);
+        // MariaDB UUID columns may return the string representation as bytes
+        return UUID.fromString(new String(bytes));
     }
 
     @Override
@@ -48,16 +49,19 @@ public class UUIDAsBin16Handler extends BaseTypeHandler<UUID> {
 
     @Override
     public UUID getNullableResult(ResultSet rs, String columnName) throws SQLException {
-        return fromBytes(rs.getBytes(columnName));
+        byte[] bytes = rs.getBytes(columnName);
+        return bytes == null ? null : fromBytes(bytes);
     }
 
     @Override
     public UUID getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
-        return fromBytes(rs.getBytes(columnIndex));
+        byte[] bytes = rs.getBytes(columnIndex);
+        return bytes == null ? null : fromBytes(bytes);
     }
 
     @Override
     public UUID getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
-        return fromBytes(cs.getBytes(columnIndex));
+        byte[] bytes = cs.getBytes(columnIndex);
+        return bytes == null ? null : fromBytes(bytes);
     }
 }
