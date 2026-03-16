@@ -121,3 +121,5 @@ runs/
 # Cline
 memory-bank
 .clinerules
+.claude
+CLAUDE.md
