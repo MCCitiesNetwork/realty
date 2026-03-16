@@ -8,12 +8,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractBid;
-import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -21,7 +16,6 @@ import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -31,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record BidCommand(
         @NotNull ExecutorState executorState,
-        @NotNull Database database
+        @NotNull RealtyLogicImpl logic
 ) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
@@ -48,25 +42,19 @@ public record BidCommand(
         WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
         Player sender = (Player) ctx.getSource().getSender();
         CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractBidMapper bidMapper = wrapper.saleContractBidMapper();
-                SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
-                SaleContractAuctionEntity auction = auctionMapper.selectActiveByRegion(region.region().getId(), region.world().getUID());
-                if (auction == null) {
-                    sender.sendMessage("That region does not have an active auction!");
-                    return;
+            try {
+                RealtyLogicImpl.BidResult result = logic.performBid(
+                        region.region().getId(), region.world().getUID(),
+                        sender.getUniqueId(), bidAmount);
+                switch (result) {
+                    case RealtyLogicImpl.BidResult.Success ignored -> {}
+                    case RealtyLogicImpl.BidResult.NoAuction ignored ->
+                            sender.sendMessage("That region does not have an active auction!");
+                    case RealtyLogicImpl.BidResult.BidTooLowMinimum r ->
+                            sender.sendMessage("Bid too low, the minimum bid is " + r.minBid());
+                    case RealtyLogicImpl.BidResult.BidTooLowCurrent r ->
+                            sender.sendMessage("Bid too low, the next highest bid is " + r.currentHighest());
                 }
-                if (bidAmount < auction.minBid()) {
-                    sender.sendMessage("Bid too low, the minimum bid is " + auction.minBid());
-                    return;
-                }
-                SaleContractBid bid = bidMapper.selectHighestBid(region.region().getId(), region.world().getUID());
-                if (bid != null && bidAmount < bid.bidAmount()) {
-                    sender.sendMessage("Bid too low, the next highest bid is " + bid.bidAmount());
-                    return;
-                }
-                bidMapper.performContractBid(new SaleContractBid(auction.saleContractAuctionId(), sender.getUniqueId(), bidAmount, LocalDateTime.now()));
-                wrapper.session().commit();
             } catch (PersistenceException ex) {
                 sender.sendMessage("Failed to perform bid: " + ex.getMessage());
             }

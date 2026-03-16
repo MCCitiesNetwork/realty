@@ -10,15 +10,11 @@ import io.github.md5sha256.realty.command.util.AuthorityArgument;
 import io.github.md5sha256.realty.command.util.DurationArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
-import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import org.apache.ibatis.exceptions.PersistenceException;
-import org.apache.ibatis.session.SqlSession;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -33,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.createrental}.</p>
  */
 public record CreateRentalCommand(@NotNull ExecutorState executorState,
-                                  @NotNull Database database) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                                  @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -55,20 +51,15 @@ public record CreateRentalCommand(@NotNull ExecutorState executorState,
         WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegion.class);
         CommandSender sender = ctx.getSource().getSender();
         CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession();
-                 SqlSession session = wrapper.session();) {
-                RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
-                LeaseContractMapper leaseContractMapper = wrapper.leaseContractMapper();
-
-                if (regionMapper.selectByWorldGuardRegion(region.region().getId(), region.world().getUID()) != null) {
+            try {
+                boolean created = logic.createRental(
+                        region.region().getId(), region.world().getUID(),
+                        price, period.toSeconds(), maxRenewals, landlord);
+                if (created) {
+                    sender.sendMessage("Rental region created successfully!");
+                } else {
                     sender.sendMessage("Region already registered!");
-                    return;
                 }
-
-                int regionId = regionMapper.registerWorldGuardRegion(region.region().getId(), region.world().getUID());
-                leaseContractMapper.insertLease(regionId, price, period.toSeconds(), maxRenewals, landlord);
-                session.commit();
-                sender.sendMessage("Rental region created successfully!");
             } catch (PersistenceException ex) {
                 ex.printStackTrace();
                 sender.sendMessage("Failed to create rental region: " + ex.getMessage());

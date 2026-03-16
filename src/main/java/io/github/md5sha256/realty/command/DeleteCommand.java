@@ -12,14 +12,11 @@ import com.sk89q.worldguard.protection.managers.storage.StorageException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import org.apache.ibatis.exceptions.PersistenceException;
-import org.apache.ibatis.session.SqlSession;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
 
@@ -33,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
  * {@code realty.command.delete.includeworldguard}.</p>
  */
 public record DeleteCommand(@NotNull ExecutorState executorState,
-                            @NotNull Database database) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                            @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -47,10 +44,8 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
     }
 
     private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        // Region resolution must happen on the game thread before the async block.
         WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
 
-        // The includeworldguard argument is optional; default to false when omitted.
         boolean includeWorldGuard;
         try {
             includeWorldGuard = BoolArgumentType.getBool(ctx, "includeworldguard");
@@ -61,12 +56,8 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
 
         CommandSender sender = ctx.getSource().getSender();
         CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession();
-                 SqlSession session = wrapper.session()) {
-                RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
-
-                int deleted = regionMapper.deleteByWorldGuardRegion(
-                        region.region().getId(), region.world().getUID());
+            try {
+                int deleted = logic.deleteRegion(region.region().getId(), region.world().getUID());
                 if (deleted == 0) {
                     sender.sendMessage("Region is not registered in Realty!");
                     return;
@@ -89,7 +80,6 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                     }
                 }
 
-                session.commit();
                 sender.sendMessage("Region deleted successfully!");
             } catch (PersistenceException ex) {
                 ex.printStackTrace();

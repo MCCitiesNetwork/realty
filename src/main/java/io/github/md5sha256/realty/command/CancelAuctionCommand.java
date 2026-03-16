@@ -7,9 +7,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -26,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record CancelAuctionCommand(
         @NotNull ExecutorState executorState,
-        @NotNull Database database
+        @NotNull RealtyLogicImpl logic
 ) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
@@ -41,10 +39,8 @@ public record CancelAuctionCommand(
         WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
         Player sender = (Player) ctx.getSource().getSender();
         CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
-                int deleted = auctionMapper.deleteActiveAuctionByRegion(region.region().getId(), region.world().getUID());
-                wrapper.session().commit();
+            try {
+                int deleted = logic.cancelAuction(region.region().getId(), region.world().getUID());
                 if (deleted == 0) {
                     sender.sendMessage("That region does not have an active auction!");
                     return;

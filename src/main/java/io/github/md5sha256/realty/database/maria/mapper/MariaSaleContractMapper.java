@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -81,5 +82,19 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
     })
     @Nullable SaleContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Update("""
+            UPDATE SaleContract sc
+            INNER JOIN Contract c ON c.contractId = sc.saleContractId AND c.contractType = 'sale'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET sc.price = #{price}, sc.titleHolderId = #{titleHolder}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int updateSaleByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                           @Param("worldId") @NotNull UUID worldId,
+                           @Param("price") double price,
+                           @Param("titleHolder") @NotNull UUID titleHolder);
 
 }

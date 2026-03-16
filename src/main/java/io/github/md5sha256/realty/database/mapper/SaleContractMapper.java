@@ -57,4 +57,19 @@ public interface SaleContractMapper {
      */
     @Nullable SaleContractEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
+    /**
+     * Updates the price and title holder on the sale contract associated with a
+     * WorldGuard region, joining through the {@code RealtyRegion} and {@code Contract} tables.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param price              the new sale price (must be &gt; 0)
+     * @param titleHolder        UUID of the new title holder
+     * @return number of rows updated (1 on success, 0 if no matching contract)
+     */
+    int updateSaleByRegion(@NotNull String worldGuardRegionId,
+                           @NotNull UUID worldId,
+                           double price,
+                           @NotNull UUID titleHolder);
+
 }

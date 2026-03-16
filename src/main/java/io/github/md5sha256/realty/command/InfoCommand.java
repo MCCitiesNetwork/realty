@@ -7,8 +7,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
@@ -30,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.info}.</p>
  */
 public record InfoCommand(@NotNull ExecutorState executorState,
-                           @NotNull Database database) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                           @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -48,14 +47,16 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         UUID worldId = region.world().getUID();
 
         CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractEntity sale = wrapper.saleContractMapper().selectByRegion(regionId, worldId);
-                LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(regionId, worldId);
-                SaleContractAuctionEntity auction = wrapper.saleContractAuctionMapper().selectActiveByRegion(regionId, worldId);
+            try {
+                RealtyLogicImpl.RegionInfo info = logic.getRegionInfo(regionId, worldId);
 
                 StringBuilder sb = new StringBuilder();
                 sb.append("--- Region Info: ").append(regionId).append(" ---\n");
                 sb.append("World: ").append(region.world().getName()).append("\n");
+
+                SaleContractEntity sale = info.sale();
+                LeaseContractEntity lease = info.lease();
+                SaleContractAuctionEntity auction = info.auction();
 
                 if (sale == null && lease == null && auction == null) {
                     sb.append("No contracts or auctions found for this region.");

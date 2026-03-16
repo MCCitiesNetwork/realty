@@ -5,10 +5,8 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
-import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -30,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record ListCommand(
         @NotNull ExecutorState executorState,
-        @NotNull Database database
+        @NotNull RealtyLogicImpl logic
 ) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     private static final int PAGE_SIZE = 10;
@@ -74,14 +72,11 @@ public record ListCommand(
     private void listRegions(@NotNull CommandSender sender, @NotNull UUID targetId,
                              @NotNull String targetName, int page) {
         CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession()) {
-                RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
+            try {
+                int globalOffset = (page - 1) * PAGE_SIZE;
+                RealtyLogicImpl.ListResult result = logic.listRegions(targetId, PAGE_SIZE, globalOffset);
 
-                int ownedCount = regionMapper.countRegionsByTitleHolder(targetId);
-                int landlordCount = regionMapper.countRegionsByAuthority(targetId);
-                int rentedCount = regionMapper.countRegionsByTenant(targetId);
-                int totalCount = ownedCount + landlordCount + rentedCount;
-
+                int totalCount = result.totalCount();
                 if (totalCount == 0) {
                     sender.sendMessage("No regions found for " + targetName + ".");
                     return;
@@ -93,29 +88,12 @@ public record ListCommand(
                     return;
                 }
 
-                int globalOffset = (page - 1) * PAGE_SIZE;
-                int remaining = PAGE_SIZE;
-
                 StringBuilder sb = new StringBuilder();
                 sb.append("--- Regions for ").append(targetName).append(" ---");
 
-                // Walk through categories in order, advancing the global offset across them
-                int catOffset = globalOffset;
-
-                remaining = appendCategory(sb, "Owned",
-                        regionMapper.selectRegionsByTitleHolder(targetId, remaining, catOffset), remaining);
-                catOffset = Math.max(0, catOffset - ownedCount);
-
-                if (remaining > 0) {
-                    remaining = appendCategory(sb, "Landlord",
-                            regionMapper.selectRegionsByAuthority(targetId, remaining, catOffset), remaining);
-                    catOffset = Math.max(0, catOffset - landlordCount);
-                }
-
-                if (remaining > 0) {
-                    appendCategory(sb, "Rented",
-                            regionMapper.selectRegionsByTenant(targetId, remaining, catOffset), remaining);
-                }
+                appendCategory(sb, "Owned", result.owned());
+                appendCategory(sb, "Landlord", result.landlord());
+                appendCategory(sb, "Rented", result.rented());
 
                 sb.append("\nPage ").append(page).append(" of ").append(totalPages);
                 sb.append(" — /realty list ").append(targetName).append(" <page>");
@@ -126,16 +104,15 @@ public record ListCommand(
         }, executorState.dbExec());
     }
 
-    private static int appendCategory(@NotNull StringBuilder sb, @NotNull String label,
-                                       @NotNull List<RealtyRegionEntity> regions, int remaining) {
+    private static void appendCategory(@NotNull StringBuilder sb, @NotNull String label,
+                                        @NotNull List<RealtyRegionEntity> regions) {
         if (regions.isEmpty()) {
-            return remaining;
+            return;
         }
         sb.append("\n").append(label).append(":");
         for (RealtyRegionEntity region : regions) {
             sb.append("\n  - ").append(region.worldGuardRegionId());
         }
-        return remaining - regions.size();
     }
 
 }

@@ -25,4 +25,6 @@ public interface SaleContractOfferMapper {
 
     boolean existsByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
 
+    @Nullable SaleContractOfferEntity selectByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
+
 }

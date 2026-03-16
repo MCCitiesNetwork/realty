@@ -9,18 +9,14 @@ import io.github.md5sha256.realty.command.util.DurationArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
-import org.apache.ibatis.session.SqlSession;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -30,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
  * Auctioning on behalf of another player additionally requires {@code realty.command.auction.others}.</p>
  */
 public record AuctionCommand(@NotNull ExecutorState executorState,
-                             @NotNull Database database) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                             @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -51,19 +47,14 @@ public record AuctionCommand(@NotNull ExecutorState executorState,
         double minBidStep = ctx.getArgument("minBidStep", Double.class);
         WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
         CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession(); SqlSession session = wrapper.session()) {
-                SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
-                auctionMapper.createAuction(
-                        region.region().getId(),
-                        region.world().getUID(),
-                        LocalDateTime.now(),
-                        bidDuration.toSeconds(),
-                        paymentDuration.toSeconds(),
-                        minBid,
-                        minBidStep
-                );
-                session.commit();
-            }
+            logic.createAuction(
+                    region.region().getId(),
+                    region.world().getUID(),
+                    bidDuration.toSeconds(),
+                    paymentDuration.toSeconds(),
+                    minBid,
+                    minBidStep
+            );
         }, executorState.dbExec());
         return Command.SINGLE_SUCCESS;
     }

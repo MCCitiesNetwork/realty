@@ -9,10 +9,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -32,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * Acting on another player's region additionally requires {@code realty.command.add.others}.</p>
  */
 public record AddCommand(@NotNull ExecutorState executorState,
-                         @NotNull Database database) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                         @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -55,16 +52,11 @@ public record AddCommand(@NotNull ExecutorState executorState,
         UUID worldId = region.world().getUID();
 
         CompletableFuture.supplyAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession()) {
+            try {
                 if (sender.hasPermission("realty.command.add.others")) {
                     return true;
                 }
-                SaleContractMapper saleMapper = wrapper.saleContractMapper();
-                if (saleMapper.existsByRegionAndAuthority(regionId, worldId, playerId)) {
-                    return true;
-                }
-                LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-                return leaseMapper.existsByRegionAndTenant(regionId, worldId, playerId);
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
             } catch (PersistenceException ex) {
                 ex.printStackTrace();
                 sender.sendMessage("Failed to check permissions: " + ex.getMessage());

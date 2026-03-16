@@ -7,9 +7,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
+import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -26,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record WithdrawOfferCommand(
         @NotNull ExecutorState executorState,
-        @NotNull Database database
+        @NotNull RealtyLogicImpl logic
 ) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
@@ -41,10 +39,8 @@ public record WithdrawOfferCommand(
         WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
         Player sender = (Player) ctx.getSource().getSender();
         CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractOfferMapper offerMapper = wrapper.saleContractOfferMapper();
-                int deleted = offerMapper.deleteOfferByOfferer(region.region().getId(), region.world().getUID(), sender.getUniqueId());
-                wrapper.session().commit();
+            try {
+                int deleted = logic.withdrawOffer(region.region().getId(), region.world().getUID(), sender.getUniqueId());
                 if (deleted == 0) {
                     sender.sendMessage("You do not have an offer on region " + region.region().getId() + ".");
                     return;
