@@ -41,7 +41,6 @@ public record RemoveCommand(@NotNull ExecutorState executorState,
                         "realty.command.remove"))
                 .then(Commands.argument("player", StringArgumentType.word())
                         .suggests(ArgumentTypes.player()::listSuggestions)
-                        .executes(this::execute)
                         .then(Commands.argument("region", new WorldGuardRegionArgument())
                                 .executes(this::execute)));
     }

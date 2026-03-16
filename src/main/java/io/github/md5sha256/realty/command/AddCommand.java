@@ -41,7 +41,6 @@ public record AddCommand(@NotNull ExecutorState executorState,
                         "realty.command.add"))
                 .then(Commands.argument("player", StringArgumentType.word())
                         .suggests(ArgumentTypes.player()::listSuggestions)
-                        .executes(this::execute)
                         .then(Commands.argument("region", new WorldGuardRegionArgument())
                                 .executes(this::execute)));
     }
