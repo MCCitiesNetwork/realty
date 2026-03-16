@@ -30,4 +30,6 @@ public interface SaleContractAuctionMapper {
     int markEnded(@Param("saleContractAuctionId") int saleContractAuctionId);
 
     int deleteAuction(int saleContractAuctionId);
+
+    int deleteActiveAuctionByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 }
