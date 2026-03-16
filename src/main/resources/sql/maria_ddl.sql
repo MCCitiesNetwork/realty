@@ -52,8 +52,7 @@ CREATE TABLE IF NOT EXISTS SaleContractBid
     saleContractAuctionId INT      NOT NULL,
     bidderId              UUID     NOT NULL,
     bidPrice              DOUBLE   NOT NULL,
-    bidTime               DATETIME NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (saleContractAuctionId, bidderId, bidPrice)
+    bidTime               DATETIME NOT NULL DEFAULT NOW()
     );
 
 CREATE TABLE IF NOT EXISTS SaleContractOffer
@@ -130,5 +129,6 @@ ALTER TABLE SaleContractBid
     ADD (
         -- Cascade: deleting an auction removes all its bids.
         CONSTRAINT SaleContractAuction_SaleContractBid_saleContractAuctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId) ON DELETE CASCADE,
-        CONSTRAINT chk_valid_bidPrice CHECK (bidPrice > 0)
+        CONSTRAINT chk_valid_bidPrice CHECK (bidPrice > 0),
+        CONSTRAINT unique_sale_contract UNIQUE (saleContractAuctionId, bidderId, bidPrice)
         );
