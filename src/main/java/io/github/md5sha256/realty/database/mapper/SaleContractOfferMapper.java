@@ -23,4 +23,6 @@ public interface SaleContractOfferMapper {
 
     int deleteOfferByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
 
+    boolean existsByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
+
 }
