@@ -60,6 +60,7 @@ abstract class AbstractDatabaseTest {
              Statement stmt = conn.createStatement()) {
             stmt.execute("""
                     SET FOREIGN_KEY_CHECKS = 0;
+                    TRUNCATE TABLE SaleContractBidPayment;
                     TRUNCATE TABLE SaleContractBid;
                     TRUNCATE TABLE SaleContractOfferPayment;
                     TRUNCATE TABLE SaleContractOffer;

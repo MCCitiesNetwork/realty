@@ -2,15 +2,23 @@ package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.database.RealtyLogicImpl.AcceptOfferResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.BidResult;
+import io.github.md5sha256.realty.database.RealtyLogicImpl.ExpiredBidPayment;
+import io.github.md5sha256.realty.database.RealtyLogicImpl.ExpiredOfferPayment;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.ListResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.OfferResult;
+import io.github.md5sha256.realty.database.RealtyLogicImpl.PayBidResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.PayOfferResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.RegionInfo;
+import io.github.md5sha256.realty.database.entity.SaleContractBidPaymentEntity;
+import io.github.md5sha256.realty.database.entity.SaleContractOfferPaymentEntity;
+import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,6 +42,40 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
     private static void createAuctionOnRegion(String regionId, UUID worldId) {
         logic.createAuction(regionId, worldId, 3600, 3600, 100.0, 10.0);
+    }
+
+    private static void insertBidPaymentWithDeadline(String regionId, UUID worldId, UUID bidderId,
+                                                      LocalDateTime deadline) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            wrapper.saleContractBidPaymentMapper().insertPayment(regionId, worldId, bidderId, 0, deadline);
+            session.commit();
+        }
+    }
+
+    private static void applyPartialBidPayment(String regionId, UUID worldId, UUID bidderId, double amount) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            wrapper.saleContractBidPaymentMapper().updatePayment(regionId, worldId, bidderId, amount);
+            session.commit();
+        }
+    }
+
+    private static void insertOfferPaymentWithDeadline(String regionId, UUID worldId, UUID offererId,
+                                                        LocalDateTime deadline) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            wrapper.saleContractOfferPaymentMapper().insertPayment(regionId, worldId, offererId, 0, deadline);
+            session.commit();
+        }
+    }
+
+    private static void applyPartialOfferPayment(String regionId, UUID worldId, UUID offererId, double amount) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            wrapper.saleContractOfferPaymentMapper().updatePayment(regionId, worldId, offererId, amount);
+            session.commit();
+        }
     }
 
     private static void placeAndAcceptOffer(String regionId, UUID worldId, UUID offererId, double price) {
@@ -597,6 +639,251 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
             int withdrawn = logic.withdrawOffer(regionId, WORLD_ID, playerC);
             Assertions.assertEquals(0, withdrawn);
+        }
+    }
+
+    // --- Clear Expired Bid Payments ---
+
+    @Nested
+    @DisplayName("clearExpiredBidPayments")
+    class ClearExpiredBidPayments {
+
+        @Test
+        @DisplayName("returns empty list when no payments exist")
+        void noPayments() {
+            List<ExpiredBidPayment> refunds = logic.clearExpiredBidPayments();
+            Assertions.assertTrue(refunds.isEmpty());
+        }
+
+        @Test
+        @DisplayName("returns empty list when no payments are expired")
+        void noExpired() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusHours(1));
+
+            List<ExpiredBidPayment> refunds = logic.clearExpiredBidPayments();
+            Assertions.assertTrue(refunds.isEmpty());
+        }
+
+        @Test
+        @DisplayName("clears expired payment and returns refund with zero amount when no partial payment")
+        void expiredNoPartialPayment() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+
+            List<ExpiredBidPayment> refunds = logic.clearExpiredBidPayments();
+            Assertions.assertEquals(1, refunds.size());
+            Assertions.assertEquals(PLAYER_B, refunds.getFirst().bidderId());
+            Assertions.assertEquals(0.0, refunds.getFirst().refundAmount());
+        }
+
+        @Test
+        @DisplayName("clears expired payment and returns partial payment as refund")
+        void expiredWithPartialPayment() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusHours(1));
+            applyPartialBidPayment(regionId, WORLD_ID, PLAYER_B, 75.0);
+
+            // Now expire it by updating the deadline directly
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                SaleContractBidPaymentEntity payment = wrapper.saleContractBidPaymentMapper()
+                        .selectByRegion(regionId, WORLD_ID);
+                Assertions.assertNotNull(payment);
+                wrapper.saleContractBidPaymentMapper().deleteByBidId(payment.bidId());
+                wrapper.saleContractBidPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
+                        LocalDateTime.now().minusDays(1));
+                wrapper.saleContractBidPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 75.0);
+                session.commit();
+            }
+
+            List<ExpiredBidPayment> refunds = logic.clearExpiredBidPayments();
+            Assertions.assertEquals(1, refunds.size());
+            Assertions.assertEquals(PLAYER_B, refunds.getFirst().bidderId());
+            Assertions.assertEquals(75.0, refunds.getFirst().refundAmount());
+        }
+
+        @Test
+        @DisplayName("expired payment record is deleted")
+        void paymentRecordDeleted() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+
+            logic.clearExpiredBidPayments();
+
+            PayBidResult result = logic.payBid(regionId, WORLD_ID, PLAYER_B, 1.0);
+            Assertions.assertInstanceOf(PayBidResult.NoPaymentRecord.class, result);
+        }
+
+        @Test
+        @DisplayName("promotes next highest bidder after expiry")
+        void promotesNextBidder() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, PLAYER_A, 150.0);
+            logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
+            // PLAYER_B is highest bidder — create an expired payment for them
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+
+            logic.clearExpiredBidPayments();
+
+            // PLAYER_A should now have a payment record as the next highest bidder
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                SaleContractBidPaymentEntity nextPayment = wrapper.saleContractBidPaymentMapper()
+                        .selectByRegion(regionId, WORLD_ID);
+                Assertions.assertNotNull(nextPayment, "Next highest bidder should have a payment record");
+                Assertions.assertEquals(PLAYER_A, nextPayment.bidderId());
+                Assertions.assertEquals(150.0, nextPayment.bidPrice());
+                Assertions.assertEquals(0.0, nextPayment.currentPayment());
+                Assertions.assertTrue(nextPayment.paymentDeadline().isAfter(LocalDateTime.now()));
+            }
+        }
+
+        @Test
+        @DisplayName("no promotion when only one bidder exists")
+        void noPromotionSingleBidder() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+
+            logic.clearExpiredBidPayments();
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                SaleContractBidPaymentEntity nextPayment = wrapper.saleContractBidPaymentMapper()
+                        .selectByRegion(regionId, WORLD_ID);
+                Assertions.assertNull(nextPayment, "No payment should exist when there is no next bidder");
+            }
+        }
+
+        @Test
+        @DisplayName("handles multiple expired payments across different regions")
+        void multipleExpired() {
+            String regionId1 = uniqueRegionId();
+            String regionId2 = uniqueRegionId();
+            createSaleRegion(regionId1, WORLD_ID, AUTHORITY, PLAYER_A);
+            createSaleRegion(regionId2, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId1, WORLD_ID);
+            createAuctionOnRegion(regionId2, WORLD_ID);
+            logic.performBid(regionId1, WORLD_ID, PLAYER_A, 150.0);
+            logic.performBid(regionId2, WORLD_ID, PLAYER_B, 250.0);
+            insertBidPaymentWithDeadline(regionId1, WORLD_ID, PLAYER_A, LocalDateTime.now().minusDays(1));
+            insertBidPaymentWithDeadline(regionId2, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+
+            List<ExpiredBidPayment> refunds = logic.clearExpiredBidPayments();
+            Assertions.assertEquals(2, refunds.size());
+        }
+    }
+
+    // --- Clear Expired Offer Payments ---
+
+    @Nested
+    @DisplayName("clearExpiredOfferPayments")
+    class ClearExpiredOfferPayments {
+
+        @Test
+        @DisplayName("returns empty list when no payments exist")
+        void noPayments() {
+            List<ExpiredOfferPayment> refunds = logic.clearExpiredOfferPayments();
+            Assertions.assertTrue(refunds.isEmpty());
+        }
+
+        @Test
+        @DisplayName("returns empty list when no payments are expired")
+        void noExpired() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusHours(1));
+
+            List<ExpiredOfferPayment> refunds = logic.clearExpiredOfferPayments();
+            Assertions.assertTrue(refunds.isEmpty());
+        }
+
+        @Test
+        @DisplayName("clears expired payment and returns refund with zero amount when no partial payment")
+        void expiredNoPartialPayment() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+
+            List<ExpiredOfferPayment> refunds = logic.clearExpiredOfferPayments();
+            Assertions.assertEquals(1, refunds.size());
+            Assertions.assertEquals(PLAYER_B, refunds.getFirst().offererId());
+            Assertions.assertEquals(0.0, refunds.getFirst().refundAmount());
+        }
+
+        @Test
+        @DisplayName("clears expired payment and returns partial payment as refund")
+        void expiredWithPartialPayment() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusHours(1));
+            applyPartialOfferPayment(regionId, WORLD_ID, PLAYER_B, 150.0);
+
+            // Expire it by re-inserting with past deadline
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                SaleContractOfferPaymentEntity payment = wrapper.saleContractOfferPaymentMapper()
+                        .selectByRegion(regionId, WORLD_ID);
+                Assertions.assertNotNull(payment);
+                wrapper.saleContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
+                wrapper.saleContractOfferPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
+                        LocalDateTime.now().minusDays(1));
+                wrapper.saleContractOfferPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 150.0);
+                session.commit();
+            }
+
+            List<ExpiredOfferPayment> refunds = logic.clearExpiredOfferPayments();
+            Assertions.assertEquals(1, refunds.size());
+            Assertions.assertEquals(PLAYER_B, refunds.getFirst().offererId());
+            Assertions.assertEquals(150.0, refunds.getFirst().refundAmount());
+        }
+
+        @Test
+        @DisplayName("expired payment record is deleted")
+        void paymentRecordDeleted() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+
+            logic.clearExpiredOfferPayments();
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 1.0);
+            Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
+        }
+
+        @Test
+        @DisplayName("handles multiple expired payments across different regions")
+        void multipleExpired() {
+            String regionId1 = uniqueRegionId();
+            String regionId2 = uniqueRegionId();
+            createSaleRegion(regionId1, WORLD_ID, AUTHORITY, PLAYER_A);
+            createSaleRegion(regionId2, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId1, WORLD_ID, PLAYER_A, 400.0);
+            logic.placeOffer(regionId2, WORLD_ID, PLAYER_B, 600.0);
+            insertOfferPaymentWithDeadline(regionId1, WORLD_ID, PLAYER_A, LocalDateTime.now().minusDays(1));
+            insertOfferPaymentWithDeadline(regionId2, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+
+            List<ExpiredOfferPayment> refunds = logic.clearExpiredOfferPayments();
+            Assertions.assertEquals(2, refunds.size());
         }
     }
 }
