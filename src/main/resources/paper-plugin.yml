@@ -3,4 +3,11 @@ version: "${version}"
 main: io.github.md5sha256.realty.Realty
 api-version: "1.21.8"
 authors: [ md5sha256 ]
-depend: [Vault, WorldGuard]
+dependencies:
+  server:
+    Vault:
+      join-classpath: true
+      required: true
+    WorldGuard:
+      join-classpath: true
+      required: true

@@ -72,7 +72,7 @@ tasks {
     }
 
     processResources {
-        filesMatching("plugin.yml") {
+        filesMatching("paper-plugin.yml") {
             expand("version" to project.version)
         }
     }
@@ -84,6 +84,8 @@ tasks {
         // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion("1.21.8")
         downloadPlugins {
+            // WorldEdit 7.4.0
+            url("https://mediafilez.forgecdn.net/files/7479/274/worldedit-bukkit-7.4.0.jar")
             // WorldGuard 7.0.14
             url("https://mediafilez.forgecdn.net/files/6643/567/worldguard-bukkit-7.0.14-dist.jar")
             // EssX
