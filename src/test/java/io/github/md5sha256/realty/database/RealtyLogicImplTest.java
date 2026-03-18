@@ -473,17 +473,6 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("withdrawOffer returns 1 when offer exists")
-        void withdrawExisting() {
-            String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
-            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
-
-            int withdrawn = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
-            Assertions.assertEquals(1, withdrawn);
-        }
-
-        @Test
         @DisplayName("placeOffer returns AuctionExists when auction exists on region")
         void auctionExists() {
             String regionId = uniqueRegionId();
@@ -493,15 +482,79 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             Assertions.assertInstanceOf(OfferResult.AuctionExists.class, result);
         }
+    }
+
+    // --- Withdraw Offer ---
+
+    @Nested
+    @DisplayName("withdrawOffer")
+    class WithdrawOffer {
 
         @Test
-        @DisplayName("withdrawOffer returns 0 when no offer exists")
+        @DisplayName("returns Success when offer exists and is not accepted")
+        void withdrawExisting() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("returns NoOffer when no offer exists")
         void withdrawNonExistent() {
             String regionId = uniqueRegionId();
             createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
-            int withdrawn = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
-            Assertions.assertEquals(0, withdrawn);
+            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, result);
+        }
+
+        @Test
+        @DisplayName("returns OfferAccepted when the offerer's offer has been accepted")
+        void withdrawAccepted() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.OfferAccepted.class, result);
+        }
+
+        @Test
+        @DisplayName("returns NoOffer when another offer on the region has been accepted")
+        void withdrawAfterOtherOfferAccepted() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            UUID playerC = UUID.randomUUID();
+            logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, playerC);
+            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, result);
+        }
+    }
+
+    // --- Accept Offer ---
+
+    @Nested
+    @DisplayName("acceptOffer")
+    class AcceptOffer {
+
+        @Test
+        @DisplayName("removes other offers on the region")
+        void removesOtherOffers() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            UUID playerC = UUID.randomUUID();
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
+
+            logic.acceptOffer(regionId, WORLD_ID, PLAYER_B);
+
+            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, playerC);
+            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, result);
         }
     }
 
@@ -626,19 +679,16 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("full payment removes all offers on the region")
-        void clearsOffers() {
+        @DisplayName("full payment removes accepted offer")
+        void clearsAcceptedOffer() {
             String regionId = uniqueRegionId();
             createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
-
-            UUID playerC = UUID.randomUUID();
-            logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            int withdrawn = logic.withdrawOffer(regionId, WORLD_ID, playerC);
-            Assertions.assertEquals(0, withdrawn);
+            RealtyLogicImpl.WithdrawOfferResult withdrawn = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, withdrawn);
         }
     }
 

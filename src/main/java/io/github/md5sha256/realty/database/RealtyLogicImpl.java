@@ -238,13 +238,25 @@ public class RealtyLogicImpl {
 
     // --- Withdraw Offer ---
 
-    public int withdrawOffer(@NotNull String worldGuardRegionId,
-                             @NotNull UUID worldId,
-                             @NotNull UUID offererId) {
+    public sealed interface WithdrawOfferResult {
+        record Success() implements WithdrawOfferResult {}
+        record NoOffer() implements WithdrawOfferResult {}
+        record OfferAccepted() implements WithdrawOfferResult {}
+    }
+
+    public @NotNull WithdrawOfferResult withdrawOffer(@NotNull String worldGuardRegionId,
+                                                       @NotNull UUID worldId,
+                                                       @NotNull UUID offererId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            int deleted = wrapper.saleContractOfferMapper().deleteOfferByOfferer(worldGuardRegionId, worldId, offererId);
+            if (!wrapper.saleContractOfferMapper().existsByOfferer(worldGuardRegionId, worldId, offererId)) {
+                return new WithdrawOfferResult.NoOffer();
+            }
+            if (wrapper.saleContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new WithdrawOfferResult.OfferAccepted();
+            }
+            wrapper.saleContractOfferMapper().deleteOfferByOfferer(worldGuardRegionId, worldId, offererId);
             wrapper.session().commit();
-            return deleted;
+            return new WithdrawOfferResult.Success();
         }
     }
 
@@ -318,10 +330,11 @@ public class RealtyLogicImpl {
             }
             LocalDateTime paymentDeadline = LocalDateTime.now().plusSeconds(offerPaymentDurationSeconds);
             int inserted = paymentMapper.insertPayment(worldGuardRegionId, worldId, offererId, 0, paymentDeadline);
-            wrapper.session().commit();
             if (inserted == 0) {
                 return new AcceptOfferResult.InsertFailed();
             }
+            offerMapper.deleteOtherOffers(worldGuardRegionId, worldId, offererId);
+            wrapper.session().commit();
             return new AcceptOfferResult.Success();
         }
     }

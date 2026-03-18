@@ -121,5 +121,6 @@ remove:
 
 withdraw-offer:
   no-offer: "You do not have an offer on region <region>."
+  accepted: "Your offer on region <region> has been accepted and cannot be withdrawn."
   success: "Your offer on region <region> has been withdrawn."
   error: "Failed to withdraw offer: <error>"

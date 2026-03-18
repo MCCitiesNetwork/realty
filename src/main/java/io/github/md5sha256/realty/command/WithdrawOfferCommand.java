@@ -44,14 +44,18 @@ public record WithdrawOfferCommand(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                int deleted = logic.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId());
-                if (deleted == 0) {
-                    sender.sendMessage(messages.messageFor("withdraw-offer.no-offer",
-                            Placeholder.unparsed("region", regionId)));
-                    return;
+                RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId());
+                switch (result) {
+                    case RealtyLogicImpl.WithdrawOfferResult.Success() ->
+                            sender.sendMessage(messages.messageFor("withdraw-offer.success",
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.WithdrawOfferResult.NoOffer() ->
+                            sender.sendMessage(messages.messageFor("withdraw-offer.no-offer",
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.WithdrawOfferResult.OfferAccepted() ->
+                            sender.sendMessage(messages.messageFor("withdraw-offer.accepted",
+                                    Placeholder.unparsed("region", regionId)));
                 }
-                sender.sendMessage(messages.messageFor("withdraw-offer.success",
-                        Placeholder.unparsed("region", regionId)));
             } catch (PersistenceException ex) {
                 sender.sendMessage(messages.messageFor("withdraw-offer.error",
                         Placeholder.unparsed("error", ex.getMessage())));

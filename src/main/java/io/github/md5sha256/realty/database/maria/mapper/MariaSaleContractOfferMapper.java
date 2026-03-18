@@ -78,6 +78,19 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
                              @Param("offererId") @NotNull UUID offererId);
 
     @Override
+    @Delete("""
+            DELETE sco
+            FROM SaleContractOffer sco
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND sco.offererId != #{excludedOffererId}
+            """)
+    int deleteOtherOffers(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                          @Param("worldId") @NotNull UUID worldId,
+                          @Param("excludedOffererId") @NotNull UUID excludedOffererId);
+
+    @Override
     @Select("""
             SELECT COUNT(*) > 0
             FROM SaleContractOffer sco
