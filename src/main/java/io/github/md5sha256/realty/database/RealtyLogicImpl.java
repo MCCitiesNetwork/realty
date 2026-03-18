@@ -12,6 +12,7 @@ import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
+import io.github.md5sha256.realty.database.mapper.SaleContractOfferPaymentMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -23,9 +24,15 @@ import java.util.UUID;
 public class RealtyLogicImpl {
 
     private final Database database;
+    // TODO: load from configuration
+    private long offerPaymentDurationSeconds = 86400;
 
     public RealtyLogicImpl(@NotNull Database database) {
         this.database = database;
+    }
+
+    public void setOfferPaymentDurationSeconds(long offerPaymentDurationSeconds) {
+        this.offerPaymentDurationSeconds = offerPaymentDurationSeconds;
     }
 
     // --- Auction ---
@@ -275,6 +282,43 @@ public class RealtyLogicImpl {
                 return new OfferResult.InsertFailed();
             }
             return new OfferResult.Success();
+        }
+    }
+
+    // --- Accept Offer ---
+
+    public sealed interface AcceptOfferResult {
+        record Success() implements AcceptOfferResult {}
+        record NoOffer() implements AcceptOfferResult {}
+        record AuctionExists() implements AcceptOfferResult {}
+        record AlreadyAccepted() implements AcceptOfferResult {}
+        record InsertFailed() implements AcceptOfferResult {}
+    }
+
+    public @NotNull AcceptOfferResult acceptOffer(@NotNull String worldGuardRegionId,
+                                                   @NotNull UUID worldId,
+                                                   @NotNull UUID offererId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractOfferMapper offerMapper = wrapper.saleContractOfferMapper();
+            SaleContractOfferPaymentMapper paymentMapper = wrapper.saleContractOfferPaymentMapper();
+            SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
+
+            if (offerMapper.selectByOfferer(worldGuardRegionId, worldId, offererId) == null) {
+                return new AcceptOfferResult.NoOffer();
+            }
+            if (auctionMapper.existsByRegion(worldGuardRegionId, worldId)) {
+                return new AcceptOfferResult.AuctionExists();
+            }
+            if (paymentMapper.existsByRegion(worldGuardRegionId, worldId)) {
+                return new AcceptOfferResult.AlreadyAccepted();
+            }
+            LocalDateTime paymentDeadline = LocalDateTime.now().plusSeconds(offerPaymentDurationSeconds);
+            int inserted = paymentMapper.insertPayment(worldGuardRegionId, worldId, offererId, 0, paymentDeadline);
+            wrapper.session().commit();
+            if (inserted == 0) {
+                return new AcceptOfferResult.InsertFailed();
+            }
+            return new AcceptOfferResult.Success();
         }
     }
 
