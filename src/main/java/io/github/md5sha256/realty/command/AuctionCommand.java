@@ -10,9 +10,13 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.apache.ibatis.exceptions.PersistenceException;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
@@ -26,7 +30,8 @@ import java.util.concurrent.CompletableFuture;
  * Auctioning on behalf of another player additionally requires {@code realty.command.auction.others}.</p>
  */
 public record AuctionCommand(@NotNull ExecutorState executorState,
-                             @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                             @NotNull RealtyLogicImpl logic,
+                             @NotNull MessageContainer messages) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -46,15 +51,24 @@ public record AuctionCommand(@NotNull ExecutorState executorState,
         double minBid = ctx.getArgument("minBid", Double.class);
         double minBidStep = ctx.getArgument("minBidStep", Double.class);
         WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
+        CommandSender sender = ctx.getSource().getSender();
+        String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
-            logic.createAuction(
-                    region.region().getId(),
-                    region.world().getUID(),
-                    bidDuration.toSeconds(),
-                    paymentDuration.toSeconds(),
-                    minBid,
-                    minBidStep
-            );
+            try {
+                logic.createAuction(
+                        regionId,
+                        region.world().getUID(),
+                        bidDuration.toSeconds(),
+                        paymentDuration.toSeconds(),
+                        minBid,
+                        minBidStep
+                );
+                sender.sendMessage(messages.messageFor("auction.success",
+                        Placeholder.unparsed("region", regionId)));
+            } catch (PersistenceException ex) {
+                sender.sendMessage(messages.messageFor("auction.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
+            }
         }, executorState.dbExec());
         return Command.SINGLE_SUCCESS;
     }

@@ -11,9 +11,12 @@ import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -29,7 +32,8 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.info}.</p>
  */
 public record InfoCommand(@NotNull ExecutorState executorState,
-                           @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                           @NotNull RealtyLogicImpl logic,
+                           @NotNull MessageContainer messages) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -50,53 +54,91 @@ public record InfoCommand(@NotNull ExecutorState executorState,
             try {
                 RealtyLogicImpl.RegionInfo info = logic.getRegionInfo(regionId, worldId);
 
-                StringBuilder sb = new StringBuilder();
-                sb.append("--- Region Info: ").append(regionId).append(" ---\n");
-                sb.append("World: ").append(region.world().getName()).append("\n");
+                Component output = messages.messageFor("info.header",
+                                Placeholder.unparsed("region", regionId))
+                        .appendNewline()
+                        .append(messages.messageFor("info.world",
+                                Placeholder.unparsed("world", region.world().getName())));
 
                 SaleContractEntity sale = info.sale();
                 LeaseContractEntity lease = info.lease();
                 SaleContractAuctionEntity auction = info.auction();
 
                 if (sale == null && lease == null && auction == null) {
-                    sb.append("No contracts or auctions found for this region.");
-                    sender.sendMessage(sb.toString());
+                    output = output.appendNewline()
+                            .append(messages.messageFor("info.no-contracts"));
+                    sender.sendMessage(output);
                     return;
                 }
 
                 if (sale != null) {
-                    sb.append("\nSale Contract #").append(sale.saleContractId()).append(":\n");
-                    sb.append("  Authority: ").append(sale.authorityId()).append("\n");
-                    sb.append("  Title Holder: ").append(sale.titleHolderId()).append("\n");
-                    sb.append("  Price: ").append(sale.price()).append("\n");
+                    output = output.appendNewline().appendNewline()
+                            .append(messages.messageFor("info.sale-header",
+                                    Placeholder.unparsed("id", String.valueOf(sale.saleContractId()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.sale-authority",
+                                    Placeholder.unparsed("authority", String.valueOf(sale.authorityId()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.sale-title-holder",
+                                    Placeholder.unparsed("title_holder", String.valueOf(sale.titleHolderId()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.sale-price",
+                                    Placeholder.unparsed("price", String.valueOf(sale.price()))));
                 }
 
                 if (lease != null) {
-                    sb.append("\nLease Contract #").append(lease.leaseContractId()).append(":\n");
-                    sb.append("  Tenant: ").append(lease.tenantId()).append("\n");
-                    sb.append("  Price: ").append(lease.price()).append("\n");
-                    sb.append("  Duration: ").append(formatDuration(Duration.ofSeconds(lease.durationSeconds()))).append("\n");
-                    sb.append("  Start Date: ").append(lease.startDate()).append("\n");
+                    output = output.appendNewline().appendNewline()
+                            .append(messages.messageFor("info.lease-header",
+                                    Placeholder.unparsed("id", String.valueOf(lease.leaseContractId()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.lease-tenant",
+                                    Placeholder.unparsed("tenant", String.valueOf(lease.tenantId()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.lease-price",
+                                    Placeholder.unparsed("price", String.valueOf(lease.price()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.lease-duration",
+                                    Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(lease.durationSeconds())))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.lease-start-date",
+                                    Placeholder.unparsed("start_date", String.valueOf(lease.startDate()))));
                     if (lease.maxExtensions() != null) {
-                        sb.append("  Extensions: ").append(lease.currentMaxExtensions()).append("/").append(lease.maxExtensions()).append("\n");
+                        output = output.appendNewline()
+                                .append(messages.messageFor("info.lease-extensions",
+                                        Placeholder.unparsed("current", String.valueOf(lease.currentMaxExtensions())),
+                                        Placeholder.unparsed("max", String.valueOf(lease.maxExtensions()))));
                     } else {
-                        sb.append("  Extensions: unlimited\n");
+                        output = output.appendNewline()
+                                .append(messages.messageFor("info.lease-extensions-unlimited"));
                     }
                 }
 
                 if (auction != null) {
-                    sb.append("\nActive Auction #").append(auction.saleContractAuctionId()).append(":\n");
-                    sb.append("  Start Date: ").append(auction.startDate()).append("\n");
-                    sb.append("  Bidding Duration: ").append(formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))).append("\n");
-                    sb.append("  Payment Deadline: ").append(auction.paymentDeadline()).append("\n");
-                    sb.append("  Min Bid: ").append(auction.minBid()).append("\n");
-                    sb.append("  Min Step: ").append(auction.minStep()).append("\n");
+                    output = output.appendNewline().appendNewline()
+                            .append(messages.messageFor("info.auction-header",
+                                    Placeholder.unparsed("id", String.valueOf(auction.saleContractAuctionId()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.auction-start-date",
+                                    Placeholder.unparsed("start_date", String.valueOf(auction.startDate()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.auction-bidding-duration",
+                                    Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds())))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.auction-payment-deadline",
+                                    Placeholder.unparsed("deadline", String.valueOf(auction.paymentDeadline()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.auction-min-bid",
+                                    Placeholder.unparsed("amount", String.valueOf(auction.minBid()))))
+                            .appendNewline()
+                            .append(messages.messageFor("info.auction-min-step",
+                                    Placeholder.unparsed("amount", String.valueOf(auction.minStep()))));
                 }
 
-                sender.sendMessage(sb.toString());
+                sender.sendMessage(output);
             } catch (PersistenceException ex) {
                 ex.printStackTrace();
-                sender.sendMessage("Failed to retrieve region info: " + ex.getMessage());
+                sender.sendMessage(messages.messageFor("info.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
 

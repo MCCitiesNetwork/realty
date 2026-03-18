@@ -9,9 +9,11 @@ import io.github.md5sha256.realty.command.util.AuthorityArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -26,7 +28,8 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.createsale}.</p>
  */
 public record CreateSaleCommand(@NotNull ExecutorState executorState,
-                                @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                                @NotNull RealtyLogicImpl logic,
+                                @NotNull MessageContainer messages) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -50,13 +53,14 @@ public record CreateSaleCommand(@NotNull ExecutorState executorState,
                         region.region().getId(), region.world().getUID(),
                         price, authority, titleHolder);
                 if (created) {
-                    sender.sendMessage("Sale region created successfully!");
+                    sender.sendMessage(messages.messageFor("create-sale.success"));
                 } else {
-                    sender.sendMessage("Region already registered!");
+                    sender.sendMessage(messages.messageFor("create-sale.already-registered"));
                 }
             } catch (PersistenceException ex) {
                 ex.printStackTrace();
-                sender.sendMessage("Failed to create sale region: " + ex.getMessage());
+                sender.sendMessage(messages.messageFor("create-sale.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
         return Command.SINGLE_SUCCESS;

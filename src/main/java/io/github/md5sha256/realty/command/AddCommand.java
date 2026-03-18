@@ -10,10 +10,12 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -29,7 +31,8 @@ import java.util.concurrent.CompletableFuture;
  * Acting on another player's region additionally requires {@code realty.command.add.others}.</p>
  */
 public record AddCommand(@NotNull ExecutorState executorState,
-                         @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                         @NotNull RealtyLogicImpl logic,
+                         @NotNull MessageContainer messages) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -59,12 +62,13 @@ public record AddCommand(@NotNull ExecutorState executorState,
                 return logic.checkRegionAuthority(regionId, worldId, playerId);
             } catch (PersistenceException ex) {
                 ex.printStackTrace();
-                sender.sendMessage("Failed to check permissions: " + ex.getMessage());
+                sender.sendMessage(messages.messageFor("add.check-permissions-error",
+                        Placeholder.unparsed("error", ex.getMessage())));
                 return false;
             }
         }, executorState.dbExec()).thenAcceptAsync(success -> {
             if (!success) {
-                sender.sendMessage("You do not have permission to add players to this region!");
+                sender.sendMessage(messages.messageFor("add.no-permission"));
                 return;
             }
             ProtectedRegion protectedRegion = region.region();
@@ -73,7 +77,9 @@ public record AddCommand(@NotNull ExecutorState executorState,
             } else {
                 protectedRegion.getMembers().addPlayer(playerOrGroup);
             }
-            sender.sendMessage("Successfully added " + playerOrGroup + " to region " + regionId + "!");
+            sender.sendMessage(messages.messageFor("add.success",
+                    Placeholder.unparsed("target", playerOrGroup),
+                    Placeholder.unparsed("region", regionId)));
         }, executorState.mainThreadExec());
 
         return Command.SINGLE_SUCCESS;

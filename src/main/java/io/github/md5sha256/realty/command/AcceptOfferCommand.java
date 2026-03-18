@@ -9,10 +9,12 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -28,7 +30,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public record AcceptOfferCommand(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic
+        @NotNull RealtyLogicImpl logic,
+        @NotNull MessageContainer messages
 ) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
@@ -48,7 +51,8 @@ public record AcceptOfferCommand(
         CommandSender sender = ctx.getSource().getSender();
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
-            sender.sendMessage("Player " + playerName + " has never played on this server.");
+            sender.sendMessage(messages.messageFor("common.player-not-found",
+                    Placeholder.unparsed("player", playerName)));
             return Command.SINGLE_SUCCESS;
         }
         String regionId = region.region().getId();
@@ -59,18 +63,26 @@ public record AcceptOfferCommand(
                         target.getUniqueId());
                 switch (result) {
                     case RealtyLogicImpl.AcceptOfferResult.Success ignored ->
-                            sender.sendMessage("Accepted offer from " + playerName + " on region " + regionId + ".");
+                            sender.sendMessage(messages.messageFor("accept-offer.success",
+                                    Placeholder.unparsed("player", playerName),
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.AcceptOfferResult.NoOffer ignored ->
-                            sender.sendMessage("Player " + playerName + " does not have an offer on region " + regionId + ".");
+                            sender.sendMessage(messages.messageFor("accept-offer.no-offer",
+                                    Placeholder.unparsed("player", playerName),
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.AcceptOfferResult.AuctionExists ignored ->
-                            sender.sendMessage("Region " + regionId + " has an auction. Offers cannot be accepted while an auction exists.");
+                            sender.sendMessage(messages.messageFor("accept-offer.auction-exists",
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.AcceptOfferResult.AlreadyAccepted ignored ->
-                            sender.sendMessage("Region " + regionId + " already has an accepted offer.");
+                            sender.sendMessage(messages.messageFor("accept-offer.already-accepted",
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.AcceptOfferResult.InsertFailed ignored ->
-                            sender.sendMessage("Failed to accept offer on region " + regionId + ".");
+                            sender.sendMessage(messages.messageFor("accept-offer.insert-failed",
+                                    Placeholder.unparsed("region", regionId)));
                 }
             } catch (PersistenceException ex) {
-                sender.sendMessage("Failed to accept offer: " + ex.getMessage());
+                sender.sendMessage(messages.messageFor("accept-offer.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
         return Command.SINGLE_SUCCESS;

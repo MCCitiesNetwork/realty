@@ -13,9 +13,11 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
@@ -30,7 +32,8 @@ import java.util.concurrent.CompletableFuture;
  * {@code realty.command.delete.includeworldguard}.</p>
  */
 public record DeleteCommand(@NotNull ExecutorState executorState,
-                            @NotNull RealtyLogicImpl logic) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                            @NotNull RealtyLogicImpl logic,
+                            @NotNull MessageContainer messages) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
     public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
@@ -59,7 +62,7 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
             try {
                 int deleted = logic.deleteRegion(region.region().getId(), region.world().getUID());
                 if (deleted == 0) {
-                    sender.sendMessage("Region is not registered in Realty!");
+                    sender.sendMessage(messages.messageFor("delete.not-registered"));
                     return;
                 }
 
@@ -74,16 +77,18 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                             regionManager.save();
                         } catch (StorageException ex) {
                             ex.printStackTrace();
-                            sender.sendMessage("Failed to save WorldGuard regions: " + ex.getMessage());
+                            sender.sendMessage(messages.messageFor("delete.worldguard-save-error",
+                                    Placeholder.unparsed("error", ex.getMessage())));
                             return;
                         }
                     }
                 }
 
-                sender.sendMessage("Region deleted successfully!");
+                sender.sendMessage(messages.messageFor("delete.success"));
             } catch (PersistenceException ex) {
                 ex.printStackTrace();
-                sender.sendMessage("Failed to delete region: " + ex.getMessage());
+                sender.sendMessage(messages.messageFor("delete.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
         return Command.SINGLE_SUCCESS;

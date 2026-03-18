@@ -2,8 +2,8 @@ package io.github.md5sha256.realty.localisation;
 
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
@@ -14,10 +14,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class MessageContainer {
 
-    private final Map<String, Component> messages = new ConcurrentHashMap<>();
+    private final Map<String, String> rawMessages = new ConcurrentHashMap<>();
 
     public String plaintextMessageFor(@Nonnull String key) {
         return PlainTextComponentSerializer.plainText().serialize(messageFor(key));
@@ -28,12 +29,29 @@ public class MessageContainer {
     }
 
     public Component prefix() {
-        return this.messages.getOrDefault("prefix", Component.empty());
+        String raw = this.rawMessages.get("prefix");
+        if (raw == null) {
+            return Component.empty();
+        }
+        return MiniMessage.miniMessage().deserialize(raw);
     }
 
     @Nonnull
     public Component messageFor(@Nonnull String key) {
-        return this.messages.getOrDefault(key, Component.text(key));
+        String raw = this.rawMessages.get(key);
+        if (raw == null) {
+            return Component.text(key);
+        }
+        return MiniMessage.miniMessage().deserialize(raw);
+    }
+
+    @Nonnull
+    public Component messageFor(@Nonnull String key, @Nonnull TagResolver... resolvers) {
+        String raw = this.rawMessages.get(key);
+        if (raw == null) {
+            return Component.text(key);
+        }
+        return MiniMessage.miniMessage().deserialize(raw, resolvers);
     }
 
     @Nonnull
@@ -42,54 +60,52 @@ public class MessageContainer {
     }
 
     @Nonnull
-    public String miniMessageFormattedFor(@Nonnull String key) {
-        return MiniMessage.miniMessage().serialize(messageFor(key));
+    public Component prefixedMessageFor(@Nonnull String key, @Nonnull TagResolver... resolvers) {
+        return prefix().appendSpace().append(messageFor(key, resolvers));
     }
 
-    public void setMessage(@Nonnull String key, @Nonnull Component message) {
-        this.messages.put(key, message);
+    @Nonnull
+    public String miniMessageFormattedFor(@Nonnull String key) {
+        return this.rawMessages.getOrDefault(key, key);
+    }
+
+    public void setMessage(@Nonnull String key, @Nonnull String rawMiniMessage) {
+        this.rawMessages.put(key, rawMiniMessage);
     }
 
     public void clear() {
-        this.messages.clear();
+        this.rawMessages.clear();
     }
 
     public void load(@Nonnull ConfigurationNode root) throws ConfigurateException {
-        Map<String, Component> temp = new HashMap<>();
+        Map<String, String> temp = new HashMap<>();
         loadInto("", root, temp);
-        this.messages.putAll(temp);
+        this.rawMessages.putAll(temp);
     }
 
     public void save(@Nonnull ConfigurationNode root) throws ConfigurateException {
-        for (Map.Entry<String, Component> entry : this.messages.entrySet()) {
+        for (Map.Entry<String, String> entry : this.rawMessages.entrySet()) {
             root.node((Object[]) entry.getKey().split("\\.")).set(entry.getValue());
         }
     }
 
     private void loadInto(String path,
                           ConfigurationNode root,
-                          Map<String, Component> temp) throws ConfigurateException {
+                          Map<String, String> temp) throws ConfigurateException {
         if (!root.empty()) {
             if (root.isList()) {
                 List<String> strings = root.getList(String.class, Collections.emptyList());
-                TextComponent.Builder builder = Component.text();
-                var iterator = strings.iterator();
-                while (iterator.hasNext()) {
-                    String line = iterator.next().trim();
-                    if (line.isEmpty()) {
-                        continue;
-                    }
-                    builder.append(MiniMessage.miniMessage().deserialize(line));
-                    if (iterator.hasNext()) {
-                        builder.appendNewline();
-                    }
+                String joined = strings.stream()
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.joining("\n"));
+                if (!joined.isEmpty()) {
+                    temp.put(path, joined);
                 }
-                temp.put(path, builder.build());
             } else {
                 String raw = root.getString();
                 if (raw != null) {
-                    Component component = MiniMessage.miniMessage().deserialize(raw.trim());
-                    temp.put(path, component);
+                    temp.put(path, raw.trim());
                 }
             }
         }

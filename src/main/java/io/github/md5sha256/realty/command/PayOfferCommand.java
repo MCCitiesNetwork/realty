@@ -8,15 +8,16 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
-import com.sk89q.worldguard.protection.managers.storage.StorageException;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.apache.ibatis.exceptions.PersistenceException;
@@ -35,7 +36,8 @@ import java.util.concurrent.CompletableFuture;
 public record PayOfferCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
-        @NotNull Economy economy
+        @NotNull Economy economy,
+        @NotNull MessageContainer messages
 ) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
@@ -56,12 +58,14 @@ public record PayOfferCommand(
         // Balance check on main thread
         double balance = economy.getBalance(sender);
         if (balance < amount) {
-            sender.sendMessage("You do not have enough funds. Your balance: " + balance + ".");
+            sender.sendMessage(messages.messageFor("pay-offer.insufficient-funds",
+                    Placeholder.unparsed("balance", String.valueOf(balance))));
             return Command.SINGLE_SUCCESS;
         }
         EconomyResponse response = economy.withdrawPlayer(sender, amount);
         if (!response.transactionSuccess()) {
-            sender.sendMessage("Payment failed: " + response.errorMessage);
+            sender.sendMessage(messages.messageFor("pay-offer.payment-failed",
+                    Placeholder.unparsed("error", response.errorMessage)));
             return Command.SINGLE_SUCCESS;
         }
         // DB logic on async thread
@@ -72,27 +76,35 @@ public record PayOfferCommand(
                         sender.getUniqueId(), amount);
                 return switch (result) {
                     case RealtyLogicImpl.PayOfferResult.Success success -> {
-                        sender.sendMessage("Payment of " + amount + " applied to region " + regionId
-                                + ". Total paid: " + success.newTotal() + ". Remaining: " + success.remaining() + ".");
+                        sender.sendMessage(messages.messageFor("pay-offer.success",
+                                Placeholder.unparsed("amount", String.valueOf(amount)),
+                                Placeholder.unparsed("region", regionId),
+                                Placeholder.unparsed("total", String.valueOf(success.newTotal())),
+                                Placeholder.unparsed("remaining", String.valueOf(success.remaining()))));
                         yield null;
                     }
                     case RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid -> {
-                        sender.sendMessage("Payment of " + amount + " applied to region " + regionId
-                                + ". Offer fully paid! Region ownership will be transferred to you.");
+                        sender.sendMessage(messages.messageFor("pay-offer.fully-paid",
+                                Placeholder.unparsed("amount", String.valueOf(amount)),
+                                Placeholder.unparsed("region", regionId)));
                         yield fullyPaid;
                     }
                     case RealtyLogicImpl.PayOfferResult.NoPaymentRecord ignored -> {
-                        sender.sendMessage("You do not have an accepted offer on region " + regionId + ". Payment refunded.");
+                        sender.sendMessage(messages.messageFor("pay-offer.no-payment-record",
+                                Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.PayOfferResult.ExceedsAmountOwed exceeds -> {
-                        sender.sendMessage("Payment of " + amount + " exceeds the remaining amount owed ("
-                                + exceeds.amountOwed() + ") on region " + regionId + ". Payment refunded.");
+                        sender.sendMessage(messages.messageFor("pay-offer.exceeds-owed",
+                                Placeholder.unparsed("amount", String.valueOf(amount)),
+                                Placeholder.unparsed("owed", String.valueOf(exceeds.amountOwed())),
+                                Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                 };
             } catch (PersistenceException ex) {
-                sender.sendMessage("Failed to process payment: " + ex.getMessage() + ". Payment refunded.");
+                sender.sendMessage(messages.messageFor("pay-offer.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
         }, executorState.dbExec()).thenAcceptAsync(fullyPaid -> {
@@ -106,14 +118,15 @@ public record PayOfferCommand(
                         .getRegionContainer()
                         .get(BukkitAdapter.adapt(region.world()));
                 if (regionManager == null) {
-                    sender.sendMessage("Failed to transfer region: WorldGuard region manager not available.");
+                    sender.sendMessage(messages.messageFor("pay-offer.transfer-failed"));
                     return;
                 }
                 ProtectedRegion protectedRegion = region.region();
                 protectedRegion.getOwners().clear();
                 protectedRegion.getOwners().addPlayer(sender.getUniqueId());
                 protectedRegion.getMembers().clear();
-                sender.sendMessage("Region " + regionId + " ownership has been transferred to you.");
+                sender.sendMessage(messages.messageFor("pay-offer.transfer-success",
+                        Placeholder.unparsed("region", regionId)));
             }
         }, executorState.mainThreadExec());
         return Command.SINGLE_SUCCESS;

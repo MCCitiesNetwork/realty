@@ -1,0 +1,125 @@
+prefix: "[Realty]"
+
+common:
+  player-not-found: "Player <player> has never played on this server."
+  error: "An error occurred: <error>"
+
+accept-offer:
+  success: "Accepted offer from <player> on region <region>."
+  no-offer: "Player <player> does not have an offer on region <region>."
+  auction-exists: "Region <region> has an auction. Offers cannot be accepted while an auction exists."
+  already-accepted: "Region <region> already has an accepted offer."
+  insert-failed: "Failed to accept offer on region <region>."
+  error: "Failed to accept offer: <error>"
+
+add:
+  check-permissions-error: "Failed to check permissions: <error>"
+  no-permission: "You do not have permission to add players to this region!"
+  success: "Successfully added <target> to region <region>!"
+
+auction:
+  success: "Auction created for region <region>."
+  error: "Failed to create auction: <error>"
+
+bid:
+  no-auction: "That region does not have an active auction!"
+  too-low-minimum: "Bid too low, the minimum bid is <amount>."
+  too-low-current: "Bid too low, the next highest bid is <amount>."
+  success: "Bid of <amount> placed on region <region>."
+  error: "Failed to perform bid: <error>"
+
+cancel-auction:
+  no-auction: "That region does not have an active auction!"
+  success: "Auction for region <region> has been cancelled."
+  error: "Failed to cancel auction: <error>"
+
+create-rental:
+  success: "Rental region created successfully!"
+  already-registered: "Region already registered!"
+  error: "Failed to create rental region: <error>"
+
+create-sale:
+  success: "Sale region created successfully!"
+  already-registered: "Region already registered!"
+  error: "Failed to create sale region: <error>"
+
+delete:
+  not-registered: "Region is not registered in Realty!"
+  worldguard-save-error: "Failed to save WorldGuard regions: <error>"
+  success: "Region deleted successfully!"
+  error: "Failed to delete region: <error>"
+
+info:
+  header: "--- Region Info: <region> ---"
+  world: "World: <world>"
+  no-contracts: "No contracts or auctions found for this region."
+  sale-header: "Sale Contract #<id>:"
+  sale-authority: "  Authority: <authority>"
+  sale-title-holder: "  Title Holder: <title_holder>"
+  sale-price: "  Price: <price>"
+  lease-header: "Lease Contract #<id>:"
+  lease-tenant: "  Tenant: <tenant>"
+  lease-price: "  Price: <price>"
+  lease-duration: "  Duration: <duration>"
+  lease-start-date: "  Start Date: <start_date>"
+  lease-extensions: "  Extensions: <current>/<max>"
+  lease-extensions-unlimited: "  Extensions: unlimited"
+  auction-header: "Active Auction #<id>:"
+  auction-start-date: "  Start Date: <start_date>"
+  auction-bidding-duration: "  Bidding Duration: <duration>"
+  auction-payment-deadline: "  Payment Deadline: <deadline>"
+  auction-min-bid: "  Min Bid: <amount>"
+  auction-min-step: "  Min Step: <amount>"
+  error: "Failed to retrieve region info: <error>"
+
+list:
+  players-only: "Only players can use this command without specifying a player."
+  no-regions: "No regions found for <player>."
+  invalid-page: "Page <page> does not exist. There are <total> page(s)."
+  header: "--- Regions for <player> ---"
+  category: "<label>:"
+  entry: "  - <region>"
+  footer: "Page <page> of <total> — /realty list <player> <page>"
+  error: "Failed to list regions: <error>"
+
+offer:
+  success: "Offer of <price> placed on region <region>."
+  no-sale-contract: "Region <region> does not have an active sale contract."
+  is-authority: "You cannot place an offer on a region where you are the authority."
+  already-has-offer: "You already have an offer on region <region>. Withdraw it first before placing a new one."
+  auction-exists: "Region <region> has an auction. Offers cannot be placed while an auction exists."
+  insert-failed: "Failed to place offer on region <region>."
+  error: "Failed to place offer: <error>"
+
+pay-bid:
+  insufficient-funds: "You do not have enough funds. Your balance: <balance>."
+  payment-failed: "Payment failed: <error>"
+  success: "Payment of <amount> applied to region <region>. Total paid: <total>. Remaining: <remaining>."
+  fully-paid: "Payment of <amount> applied to region <region>. Bid fully paid! Region ownership will be transferred to you."
+  no-payment-record: "You do not have a winning bid on region <region>. Payment refunded."
+  payment-expired: "The payment deadline for region <region> has passed. Payment refunded."
+  exceeds-owed: "Payment of <amount> exceeds the remaining amount owed (<owed>) on region <region>. Payment refunded."
+  error: "Failed to process payment: <error>. Payment refunded."
+  transfer-failed: "Failed to transfer region: WorldGuard region manager not available."
+  transfer-success: "Region <region> ownership has been transferred to you."
+
+pay-offer:
+  insufficient-funds: "You do not have enough funds. Your balance: <balance>."
+  payment-failed: "Payment failed: <error>"
+  success: "Payment of <amount> applied to region <region>. Total paid: <total>. Remaining: <remaining>."
+  fully-paid: "Payment of <amount> applied to region <region>. Offer fully paid! Region ownership will be transferred to you."
+  no-payment-record: "You do not have an accepted offer on region <region>. Payment refunded."
+  exceeds-owed: "Payment of <amount> exceeds the remaining amount owed (<owed>) on region <region>. Payment refunded."
+  error: "Failed to process payment: <error>. Payment refunded."
+  transfer-failed: "Failed to transfer region: WorldGuard region manager not available."
+  transfer-success: "Region <region> ownership has been transferred to you."
+
+remove:
+  check-permissions-error: "Failed to check permissions: <error>"
+  no-permission: "You do not have permission to remove players from this region!"
+  success: "Successfully removed <target> from region <region>!"
+
+withdraw-offer:
+  no-offer: "You do not have an offer on region <region>."
+  success: "Your offer on region <region> has been withdrawn."
+  error: "Failed to withdraw offer: <error>"

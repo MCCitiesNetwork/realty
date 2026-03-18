@@ -9,9 +9,11 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -25,7 +27,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public record OfferCommand(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic
+        @NotNull RealtyLogicImpl logic,
+        @NotNull MessageContainer messages
 ) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
@@ -50,20 +53,27 @@ public record OfferCommand(
                         sender.getUniqueId(), price);
                 switch (result) {
                     case RealtyLogicImpl.OfferResult.Success ignored ->
-                            sender.sendMessage("Offer of " + price + " placed on region " + regionId + ".");
+                            sender.sendMessage(messages.messageFor("offer.success",
+                                    Placeholder.unparsed("price", String.valueOf(price)),
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.NoSaleContract ignored ->
-                            sender.sendMessage("Region " + regionId + " does not have an active sale contract.");
+                            sender.sendMessage(messages.messageFor("offer.no-sale-contract",
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.IsAuthority ignored ->
-                            sender.sendMessage("You cannot place an offer on a region where you are the authority.");
+                            sender.sendMessage(messages.messageFor("offer.is-authority"));
                     case RealtyLogicImpl.OfferResult.AlreadyHasOffer ignored ->
-                            sender.sendMessage("You already have an offer on region " + regionId + ". Withdraw it first before placing a new one.");
+                            sender.sendMessage(messages.messageFor("offer.already-has-offer",
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.AuctionExists ignored ->
-                            sender.sendMessage("Region " + regionId + " has an auction. Offers cannot be placed while an auction exists.");
+                            sender.sendMessage(messages.messageFor("offer.auction-exists",
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.InsertFailed ignored ->
-                            sender.sendMessage("Failed to place offer on region " + regionId + ".");
+                            sender.sendMessage(messages.messageFor("offer.insert-failed",
+                                    Placeholder.unparsed("region", regionId)));
                 }
             } catch (PersistenceException ex) {
-                sender.sendMessage("Failed to place offer: " + ex.getMessage());
+                sender.sendMessage(messages.messageFor("offer.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
         return Command.SINGLE_SUCCESS;

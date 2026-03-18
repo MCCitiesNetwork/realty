@@ -7,9 +7,12 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -28,7 +31,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public record ListCommand(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic
+        @NotNull RealtyLogicImpl logic,
+        @NotNull MessageContainer messages
 ) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
 
     private static final int PAGE_SIZE = 10;
@@ -49,7 +53,7 @@ public record ListCommand(
     private int executeSelf(@NotNull CommandContext<CommandSourceStack> ctx, int page) {
         CommandSender sender = ctx.getSource().getSender();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Only players can use this command without specifying a player.");
+            sender.sendMessage(messages.messageFor("list.players-only"));
             return Command.SINGLE_SUCCESS;
         }
         listRegions(sender, player.getUniqueId(), player.getName(), page);
@@ -62,7 +66,8 @@ public record ListCommand(
         @SuppressWarnings("deprecation")
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
-            sender.sendMessage("Player " + playerName + " has never played on this server.");
+            sender.sendMessage(messages.messageFor("common.player-not-found",
+                    Placeholder.unparsed("player", playerName)));
             return Command.SINGLE_SUCCESS;
         }
         listRegions(sender, target.getUniqueId(), target.getName() != null ? target.getName() : playerName, page);
@@ -78,41 +83,53 @@ public record ListCommand(
 
                 int totalCount = result.totalCount();
                 if (totalCount == 0) {
-                    sender.sendMessage("No regions found for " + targetName + ".");
+                    sender.sendMessage(messages.messageFor("list.no-regions",
+                            Placeholder.unparsed("player", targetName)));
                     return;
                 }
 
                 int totalPages = (totalCount + PAGE_SIZE - 1) / PAGE_SIZE;
                 if (page > totalPages) {
-                    sender.sendMessage("Page " + page + " does not exist. There are " + totalPages + " page(s).");
+                    sender.sendMessage(messages.messageFor("list.invalid-page",
+                            Placeholder.unparsed("page", String.valueOf(page)),
+                            Placeholder.unparsed("total", String.valueOf(totalPages))));
                     return;
                 }
 
-                StringBuilder sb = new StringBuilder();
-                sb.append("--- Regions for ").append(targetName).append(" ---");
+                Component output = messages.messageFor("list.header",
+                        Placeholder.unparsed("player", targetName));
 
-                appendCategory(sb, "Owned", result.owned());
-                appendCategory(sb, "Landlord", result.landlord());
-                appendCategory(sb, "Rented", result.rented());
+                output = appendCategory(output, "Owned", result.owned());
+                output = appendCategory(output, "Landlord", result.landlord());
+                output = appendCategory(output, "Rented", result.rented());
 
-                sb.append("\nPage ").append(page).append(" of ").append(totalPages);
-                sb.append(" — /realty list ").append(targetName).append(" <page>");
-                sender.sendMessage(sb.toString());
+                output = output.appendNewline()
+                        .append(messages.messageFor("list.footer",
+                                Placeholder.unparsed("page", String.valueOf(page)),
+                                Placeholder.unparsed("total", String.valueOf(totalPages)),
+                                Placeholder.unparsed("player", targetName)));
+                sender.sendMessage(output);
             } catch (PersistenceException ex) {
-                sender.sendMessage("Failed to list regions: " + ex.getMessage());
+                sender.sendMessage(messages.messageFor("list.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
     }
 
-    private static void appendCategory(@NotNull StringBuilder sb, @NotNull String label,
-                                        @NotNull List<RealtyRegionEntity> regions) {
+    private @NotNull Component appendCategory(@NotNull Component output, @NotNull String label,
+                                               @NotNull List<RealtyRegionEntity> regions) {
         if (regions.isEmpty()) {
-            return;
+            return output;
         }
-        sb.append("\n").append(label).append(":");
+        output = output.appendNewline()
+                .append(messages.messageFor("list.category",
+                        Placeholder.unparsed("label", label)));
         for (RealtyRegionEntity region : regions) {
-            sb.append("\n  - ").append(region.worldGuardRegionId());
+            output = output.appendNewline()
+                    .append(messages.messageFor("list.entry",
+                            Placeholder.unparsed("region", region.worldGuardRegionId())));
         }
+        return output;
     }
 
 }
