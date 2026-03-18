@@ -114,6 +114,10 @@ pay-offer:
   transfer-failed: "Failed to transfer region: WorldGuard region manager not available."
   transfer-success: "Region <region> ownership has been transferred to you."
 
+reload:
+  success: "Messages reloaded successfully."
+  error: "Failed to reload messages: <error>"
+
 remove:
   check-permissions-error: "Failed to check permissions: <error>"
   no-permission: "You do not have permission to remove players from this region!"
