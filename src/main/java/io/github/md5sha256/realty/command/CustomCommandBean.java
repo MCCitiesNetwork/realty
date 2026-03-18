@@ -8,14 +8,13 @@ import java.util.List;
 
 public interface CustomCommandBean<C> {
 
-    @NotNull Collection<LiteralArgumentBuilder<? extends C>> commands();
+    @NotNull Collection<LiteralArgumentBuilder<C>> commands();
 
     interface Single<C> extends CustomCommandBean<C> {
-        @NotNull LiteralArgumentBuilder<? extends C> command();
+        @NotNull LiteralArgumentBuilder<C> command();
 
         @Override
-        @NotNull
-        default Collection<LiteralArgumentBuilder<? extends C>> commands() {
+        default @NotNull Collection<LiteralArgumentBuilder<C>> commands() {
             return List.of(command());
         }
     }

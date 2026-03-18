@@ -28,10 +28,10 @@ public record WithdrawOfferCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull MessageContainer messages
-) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+) implements CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
+    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
         return Commands.literal("withdrawoffer")
                 .requires(source -> source.getSender() instanceof Player player && player.hasPermission("realty.command.withdrawoffer"))
                 .then(Commands.argument("region", new WorldGuardRegionArgument())

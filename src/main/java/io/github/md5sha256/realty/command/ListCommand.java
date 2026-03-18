@@ -33,12 +33,12 @@ public record ListCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull MessageContainer messages
-) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+) implements CustomCommandBean.Single<CommandSourceStack> {
 
     private static final int PAGE_SIZE = 10;
 
     @Override
-    public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
+    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
         return Commands.literal("list")
                 .requires(source -> source.getSender().hasPermission("realty.command.list"))
                 .executes(ctx -> executeSelf(ctx, 1))
