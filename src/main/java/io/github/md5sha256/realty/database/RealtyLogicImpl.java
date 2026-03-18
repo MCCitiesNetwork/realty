@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractBid;
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
+import io.github.md5sha256.realty.database.entity.SaleContractBidPaymentEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractOfferPaymentEntity;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
@@ -13,6 +14,7 @@ import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
+import io.github.md5sha256.realty.database.mapper.SaleContractBidPaymentMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferPaymentMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
@@ -360,6 +362,48 @@ public class RealtyLogicImpl {
             }
             wrapper.session().commit();
             return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal);
+        }
+    }
+
+    // --- Pay Bid ---
+
+    public sealed interface PayBidResult {
+        record Success(double newTotal, double remaining) implements PayBidResult {}
+        record FullyPaid() implements PayBidResult {}
+        record NoPaymentRecord() implements PayBidResult {}
+        record PaymentExpired() implements PayBidResult {}
+        record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
+    }
+
+    public @NotNull PayBidResult payBid(@NotNull String worldGuardRegionId,
+                                         @NotNull UUID worldId,
+                                         @NotNull UUID bidderId,
+                                         double amount) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractBidPaymentMapper paymentMapper = wrapper.saleContractBidPaymentMapper();
+            SaleContractBidPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (payment == null || !payment.bidderId().equals(bidderId)) {
+                return new PayBidResult.NoPaymentRecord();
+            }
+            if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
+                return new PayBidResult.PaymentExpired();
+            }
+            double amountOwed = payment.bidPrice() - payment.currentPayment();
+            if (amount > amountOwed) {
+                return new PayBidResult.ExceedsAmountOwed(amountOwed);
+            }
+            double newTotal = payment.currentPayment() + amount;
+            if (newTotal == payment.bidPrice()) {
+                // Fully paid — transfer ownership
+                SaleContractMapper saleMapper = wrapper.saleContractMapper();
+                saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
+                paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
+                wrapper.session().commit();
+                return new PayBidResult.FullyPaid();
+            }
+            paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, newTotal);
+            wrapper.session().commit();
+            return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal);
         }
     }
 

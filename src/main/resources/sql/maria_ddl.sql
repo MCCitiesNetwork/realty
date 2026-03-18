@@ -74,6 +74,19 @@ CREATE TABLE IF NOT EXISTS SaleContractOfferPayment
     currentPayment  DOUBLE   NOT NULL
 );
 
+
+CREATE TABLE IF NOT EXISTS SaleContractBidPayment
+(
+    bidId                 INT      NOT NULL PRIMARY KEY,
+    saleContractAuctionId INT      NOT NULL,
+    realtyRegionId        INT      NOT NULL,
+    bidderId              UUID     NOT NULL,
+    bidPrice              DOUBLE   NOT NULL,
+    paymentDeadline       DATETIME NOT NULL,
+    currentPayment        DOUBLE   NOT NULL
+);
+
+
 ALTER TABLE SaleContractOfferPayment
     ADD (
         CONSTRAINT SaleContractOffer_SaleContractOfferPayment_offerId_fk FOREIGN KEY (offerId) REFERENCES SaleContractOffer (offerId) ON DELETE CASCADE,
@@ -134,4 +147,14 @@ ALTER TABLE SaleContractBid
         CONSTRAINT SaleContractAuction_SaleContractBid_saleContractAuctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId) ON DELETE CASCADE,
         CONSTRAINT chk_valid_bidPrice CHECK (bidPrice > 0),
         CONSTRAINT unique_sale_contract UNIQUE (saleContractAuctionId, bidderId, bidPrice)
+        );
+
+ALTER TABLE SaleContractBidPayment
+    ADD (
+        CONSTRAINT SaleContractBid_BidPayment_bidId_fk FOREIGN KEY (bidId) REFERENCES SaleContractBid (bidId) ON DELETE CASCADE,
+        CONSTRAINT SaleContractAuction_BidPayment_auctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId) ON DELETE CASCADE,
+        CONSTRAINT RealtyRegion_BidPayment_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
+        CONSTRAINT unique_bid_payment UNIQUE (saleContractAuctionId, bidderId),
+        CONSTRAINT chk_valid_bid_payment_bidPrice CHECK (bidPrice > 0),
+        CONSTRAINT chk_valid_bid_payment_currentPayment CHECK (currentPayment >= 0 AND currentPayment <= bidPrice)
         );
