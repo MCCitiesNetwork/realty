@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -17,9 +18,13 @@ public interface SaleContractOfferPaymentMapper {
 
     @Nullable SaleContractOfferPaymentEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
+    @NotNull List<SaleContractOfferPaymentEntity> selectAllExpired();
+
     int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double offerPrice, @NotNull LocalDateTime paymentDeadline);
 
     int updatePayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double payment);
+
+    int deleteByOfferId(int offerId);
 
     int deleteByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 

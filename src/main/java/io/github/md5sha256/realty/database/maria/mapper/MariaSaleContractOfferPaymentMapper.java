@@ -13,6 +13,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -43,6 +44,23 @@ public interface MariaSaleContractOfferPaymentMapper extends SaleContractOfferPa
                                                              @Param("worldId") @NotNull UUID worldId);
 
     @Override
+    @Select("""
+            SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
+                   scop.paymentDeadline, scop.currentPayment
+            FROM SaleContractOfferPayment scop
+            WHERE scop.paymentDeadline < NOW()
+            """)
+    @ConstructorArgs({
+            @Arg(column = "offerId", javaType = int.class),
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "offererId", javaType = UUID.class),
+            @Arg(column = "offerPrice", javaType = double.class),
+            @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
+            @Arg(column = "currentPayment", javaType = double.class)
+    })
+    @NotNull List<SaleContractOfferPaymentEntity> selectAllExpired();
+
+    @Override
     @Insert("""
             INSERT INTO SaleContractOfferPayment (offerId, realtyRegionId, offererId, offerPrice, paymentDeadline, currentPayment)
             SELECT sco.offerId, rr.realtyRegionId, sco.offererId, sco.offerPrice, #{paymentDeadline}, 0
@@ -71,6 +89,13 @@ public interface MariaSaleContractOfferPaymentMapper extends SaleContractOfferPa
                       @Param("worldId") @NotNull UUID worldId,
                       @Param("offererId") @NotNull UUID offererId,
                       @Param("payment") double payment);
+
+    @Override
+    @Delete("""
+            DELETE FROM SaleContractOfferPayment
+            WHERE offerId = #{offerId}
+            """)
+    int deleteByOfferId(@Param("offerId") int offerId);
 
     @Override
     @Delete("""

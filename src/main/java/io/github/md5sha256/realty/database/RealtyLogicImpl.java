@@ -12,15 +12,16 @@ import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
+import io.github.md5sha256.realty.database.mapper.SaleContractBidPaymentMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractBidPaymentMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferPaymentMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -409,6 +410,56 @@ public class RealtyLogicImpl {
             wrapper.session().commit();
             return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal);
         }
+    }
+
+    // --- Expired Bid Payments ---
+
+    public record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount) {}
+
+    public @NotNull List<ExpiredBidPayment> clearExpiredBidPayments() {
+        List<SaleContractBidPaymentEntity> expired;
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            expired = wrapper.saleContractBidPaymentMapper().selectAllExpired();
+        }
+        List<ExpiredBidPayment> refunds = new ArrayList<>();
+        for (SaleContractBidPaymentEntity payment : expired) {
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                SaleContractBidPaymentMapper paymentMapper = wrapper.saleContractBidPaymentMapper();
+                SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
+                paymentMapper.deleteByBidId(payment.bidId());
+                refunds.add(new ExpiredBidPayment(payment.bidderId(), payment.currentPayment()));
+                SaleContractAuctionEntity auction = auctionMapper.selectById(payment.saleContractAuctionId());
+                if (auction != null) {
+                    LocalDateTime nextDeadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
+                    paymentMapper.insertNextPayment(
+                            payment.saleContractAuctionId(),
+                            payment.bidderId(),
+                            nextDeadline);
+                }
+                wrapper.session().commit();
+            }
+        }
+        return refunds;
+    }
+
+    // --- Expired Offer Payments ---
+
+    public record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount) {}
+
+    public @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments() {
+        List<SaleContractOfferPaymentEntity> expired;
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            expired = wrapper.saleContractOfferPaymentMapper().selectAllExpired();
+        }
+        List<ExpiredOfferPayment> refunds = new ArrayList<>();
+        for (SaleContractOfferPaymentEntity payment : expired) {
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                wrapper.saleContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
+                wrapper.session().commit();
+                refunds.add(new ExpiredOfferPayment(payment.offererId(), payment.currentPayment()));
+            }
+        }
+        return refunds;
     }
 
 }

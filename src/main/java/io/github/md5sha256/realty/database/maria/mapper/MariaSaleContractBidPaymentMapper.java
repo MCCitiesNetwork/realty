@@ -13,6 +13,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -44,6 +45,24 @@ public interface MariaSaleContractBidPaymentMapper extends SaleContractBidPaymen
                                                            @Param("worldId") @NotNull UUID worldId);
 
     @Override
+    @Select("""
+            SELECT scbp.bidId, scbp.saleContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment
+            FROM SaleContractBidPayment scbp
+            WHERE scbp.paymentDeadline < NOW()
+            """)
+    @ConstructorArgs({
+            @Arg(column = "bidId", javaType = int.class),
+            @Arg(column = "saleContractAuctionId", javaType = int.class),
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "bidderId", javaType = UUID.class),
+            @Arg(column = "bidPrice", javaType = double.class),
+            @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
+            @Arg(column = "currentPayment", javaType = double.class)
+    })
+    @NotNull List<SaleContractBidPaymentEntity> selectAllExpired();
+
+    @Override
     @Insert("""
             INSERT INTO SaleContractBidPayment (bidId, saleContractAuctionId, realtyRegionId, bidderId, bidPrice, paymentDeadline, currentPayment)
             SELECT scb.bidId, scb.saleContractAuctionId, sca.realtyRegionId, scb.bidderId, scb.bidPrice, #{paymentDeadline}, 0
@@ -63,6 +82,21 @@ public interface MariaSaleContractBidPaymentMapper extends SaleContractBidPaymen
                       @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline);
 
     @Override
+    @Insert("""
+            INSERT INTO SaleContractBidPayment (bidId, saleContractAuctionId, realtyRegionId, bidderId, bidPrice, paymentDeadline, currentPayment)
+            SELECT scb.bidId, scb.saleContractAuctionId, sca.realtyRegionId, scb.bidderId, scb.bidPrice, #{paymentDeadline}, 0
+            FROM SaleContractBid scb
+            INNER JOIN SaleContractAuction sca ON sca.saleContractAuctionId = scb.saleContractAuctionId
+            WHERE scb.saleContractAuctionId = #{saleContractAuctionId}
+            AND scb.bidderId != #{excludeBidderId}
+            ORDER BY scb.bidPrice DESC
+            LIMIT 1
+            """)
+    int insertNextPayment(@Param("saleContractAuctionId") int saleContractAuctionId,
+                          @Param("excludeBidderId") @NotNull UUID excludeBidderId,
+                          @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline);
+
+    @Override
     @Update("""
             UPDATE SaleContractBidPayment scbp
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scbp.realtyRegionId
@@ -75,6 +109,13 @@ public interface MariaSaleContractBidPaymentMapper extends SaleContractBidPaymen
                       @Param("worldId") @NotNull UUID worldId,
                       @Param("bidderId") @NotNull UUID bidderId,
                       @Param("payment") double payment);
+
+    @Override
+    @Delete("""
+            DELETE FROM SaleContractBidPayment
+            WHERE bidId = #{bidId}
+            """)
+    int deleteByBidId(@Param("bidId") int bidId);
 
     @Override
     @Delete("""

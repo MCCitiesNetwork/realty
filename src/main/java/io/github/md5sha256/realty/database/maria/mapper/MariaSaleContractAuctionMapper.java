@@ -28,6 +28,26 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
             SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
             FROM SaleContractAuction sca
+            WHERE sca.saleContractAuctionId = #{saleContractAuctionId}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "saleContractAuctionId", javaType = int.class),
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "startDate", javaType = LocalDateTime.class),
+            @Arg(column = "biddingDurationSeconds", javaType = long.class),
+            @Arg(column = "paymentDurationSeconds", javaType = long.class),
+            @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
+            @Arg(column = "minBid", javaType = double.class),
+            @Arg(column = "minStep", javaType = double.class),
+            @Arg(column = "ended", javaType = boolean.class)
+    })
+    @Nullable SaleContractAuctionEntity selectById(@Param("saleContractAuctionId") int saleContractAuctionId);
+
+    @Override
+    @Select("""
+            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.startDate, sca.biddingDurationSeconds,
+                   sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
+            FROM SaleContractAuction sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}

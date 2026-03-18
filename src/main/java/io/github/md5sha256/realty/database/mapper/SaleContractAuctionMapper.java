@@ -17,6 +17,8 @@ import java.util.UUID;
  */
 public interface SaleContractAuctionMapper {
 
+    @Nullable SaleContractAuctionEntity selectById(int saleContractAuctionId);
+
     @Nullable SaleContractAuctionEntity selectActiveByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     int createAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull LocalDateTime startDate, long biddingDurationSeconds, long paymentDurationSeconds, double minBid, double minStep);
