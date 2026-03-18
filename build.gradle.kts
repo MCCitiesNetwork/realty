@@ -81,7 +81,15 @@ tasks {
     runServer {
         // Configure the Minecraft version for our task.
         // This is the only required configuration besides applying the plugin.
-        // Your plugin"s jar (or shadowJar if present) will be used automatically.
+        // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion("1.21.8")
+        downloadPlugins {
+            // WorldGuard 7.0.14
+            url("https://mediafilez.forgecdn.net/files/6643/567/worldguard-bukkit-7.0.14-dist.jar")
+            // EssX
+            url("https://ci.ender.zone/job/EssentialsX/1774/artifact/jars/EssentialsX-2.22.0-dev+74-d7452bf.jar")
+            // Vault
+            url("https://mediafilez.forgecdn.net/files/3007/470/Vault.jar")
+        }
     }
 }
