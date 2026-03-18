@@ -23,19 +23,30 @@ import org.apache.ibatis.type.JdbcType;
 import org.jetbrains.annotations.NotNull;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.sql.SQLException;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 public class MariaDatabase implements Database {
 
+    private final DataSource dataSource;
     private final SqlSessionFactory sessionFactory;
+    private final Logger logger;
 
-    public MariaDatabase(@NotNull DatabaseSettings settings) {
-        this.sessionFactory = buildSessionFactory(settings);
+    public MariaDatabase(@NotNull DatabaseSettings settings, @NotNull Logger logger) {
+        this.dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", "jdbc:" + settings.url(), settings.username(), settings.password());
+        this.sessionFactory = buildSessionFactory(this.dataSource);
+        this.logger = logger;
+    }
+
+    public @NotNull DataSource dataSource() {
+        return this.dataSource;
     }
 
     @NotNull
-    private static SqlSessionFactory buildSessionFactory(@NotNull DatabaseSettings settings) {
-        DataSource dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", "jdbc:" + settings.url(), settings.username(), settings.password());
+    private static SqlSessionFactory buildSessionFactory(@NotNull DataSource dataSource) {
         Environment environment = new Environment("production", new JdbcTransactionFactory(), dataSource);
         Configuration configuration = new Configuration(environment);
         configuration.getTypeHandlerRegistry().register(UUID.class, JdbcType.OTHER, UUIDAsBin16Handler.class);
@@ -51,6 +62,10 @@ public class MariaDatabase implements Database {
         return new SqlSessionFactoryBuilder().build(configuration);
     }
 
+    @Override
+    public void initializeSchema(@NotNull Path schemaFilesDirectory) throws IOException, SQLException {
+        MariaSchemaMigrator.migrate(this.dataSource, schemaFilesDirectory, MariaSchemaMigrator.defaultMigrations(), this.logger);
+    }
 
     @Override
     public @NotNull SqlSessionWrapper openSession() {

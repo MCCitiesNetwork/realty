@@ -2,6 +2,8 @@ package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.DatabaseSettings;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.database.maria.MariaSchemaMigrator;
+import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.testcontainers.containers.MariaDBContainer;
@@ -9,12 +11,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.logging.Logger;
 
 @Testcontainers
 abstract class AbstractDatabaseTest {
@@ -30,21 +32,17 @@ abstract class AbstractDatabaseTest {
 
     @BeforeAll
     static void initDatabase() throws IOException, SQLException {
-        // Run DDL as root to avoid privilege issues with ALTER/CHECK constraints
+        // Run migrations as root to avoid privilege issues with ALTER/CHECK constraints
         String baseJdbcUrl = CONTAINER.getJdbcUrl();
         String rootJdbcUrl = baseJdbcUrl + (baseJdbcUrl.contains("?") ? "&" : "?") + "allowMultiQueries=true";
-        try (InputStream ddlStream = AbstractDatabaseTest.class.getClassLoader().getResourceAsStream("sql/maria_ddl.sql")) {
-            String ddl = new String(ddlStream.readAllBytes(), StandardCharsets.UTF_8);
-            try (Connection conn = DriverManager.getConnection(rootJdbcUrl, "root", ROOT_PASSWORD);
-                 Statement stmt = conn.createStatement()) {
-                stmt.execute(ddl);
-            }
-        }
+        PooledDataSource rootDs = new PooledDataSource("org.mariadb.jdbc.Driver", rootJdbcUrl, "root", ROOT_PASSWORD);
+        MariaSchemaMigrator.migrate(rootDs, Path.of("sql/migrations"), MariaSchemaMigrator.defaultMigrations(), Logger.getLogger("test"));
+
         String jdbcUrl = CONTAINER.getJdbcUrl();
         // MariaDatabase prepends "jdbc:" to settings.url(), so strip the jdbc: prefix
         String url = jdbcUrl.substring("jdbc:".length());
         DatabaseSettings settings = new DatabaseSettings(url, CONTAINER.getUsername(), CONTAINER.getPassword());
-        database = new MariaDatabase(settings);
+        database = new MariaDatabase(settings, Logger.getLogger("test"));
         logic = new RealtyLogicImpl(database);
     }
 

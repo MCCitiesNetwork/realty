@@ -17,7 +17,6 @@ import io.github.md5sha256.realty.command.PayBidCommand;
 import io.github.md5sha256.realty.command.PayOfferCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.WithdrawOfferCommand;
-import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -39,6 +38,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -73,10 +74,17 @@ public final class Realty extends JavaPlugin {
         // Plugin startup logic
         this.executorState = new ExecutorState(getServer().getScheduler()
                 .getMainThreadExecutor(this), Executors.newVirtualThreadPerTaskExecutor());
-        Database database = new MariaDatabase(this.databaseSettings);
-        this.logic = new RealtyLogicImpl(database);
+        MariaDatabase mariaDatabase = new MariaDatabase(this.databaseSettings, getLogger());
+        try {
+            mariaDatabase.initializeSchema(Path.of("sql/migrations"));
+        } catch (IOException | SQLException ex) {
+            getLogger().severe("Schema migration failed!");
+            ex.printStackTrace();
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        this.logic = new RealtyLogicImpl(mariaDatabase);
         var economyProvider = getServer().getServicesManager().getRegistration(Economy.class);
-        ;
         if (economyProvider == null) {
             getLogger().severe("Economy not found, plugin will now disable!");
             getServer().getPluginManager().disablePlugin(this);
