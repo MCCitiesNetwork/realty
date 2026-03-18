@@ -11,3 +11,58 @@ dependencies:
     WorldGuard:
       join-classpath: true
       required: true
+permissions:
+  realty.command.add:
+    description: Allows using /realty add
+    default: op
+  realty.command.add.others:
+    description: Allows adding players/groups to regions you don't own
+    default: op
+  realty.command.remove:
+    description: Allows using /realty remove
+    default: op
+  realty.command.remove.others:
+    description: Allows removing players/groups from regions you don't own
+    default: op
+  realty.command.info:
+    description: Allows using /realty info
+    default: true
+  realty.command.list:
+    description: Allows using /realty list
+    default: true
+  realty.command.delete:
+    description: Allows using /realty delete
+    default: op
+  realty.command.delete.includeworldguard:
+    description: Allows deleting WorldGuard regions alongside realty regions
+    default: op
+  realty.command.createsale:
+    description: Allows using /realty createsale
+    default: op
+  realty.command.createrental:
+    description: Allows using /realty createrental
+    default: op
+  realty.command.offer:
+    description: Allows using /realty offer
+    default: true
+  realty.command.payoffer:
+    description: Allows using /realty payoffer
+    default: true
+  realty.command.acceptoffer:
+    description: Allows using /realty acceptoffer
+    default: op
+  realty.command.withdrawoffer:
+    description: Allows using /realty withdrawoffer
+    default: true
+  realty.command.auction:
+    description: Allows using /realty auction
+    default: op
+  realty.command.bid:
+    description: Allows using /realty bid
+    default: true
+  realty.command.paybid:
+    description: Allows using /realty paybid
+    default: true
+  realty.command.cancelauction:
+    description: Allows using /realty cancelauction
+    default: op
