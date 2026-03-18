@@ -329,7 +329,7 @@ public class RealtyLogicImpl {
 
     public sealed interface PayOfferResult {
         record Success(double newTotal, double remaining) implements PayOfferResult {}
-        record FullyPaid() implements PayOfferResult {}
+        record FullyPaid(@NotNull UUID authorityId) implements PayOfferResult {}
         record NoPaymentRecord() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
     }
@@ -352,11 +352,13 @@ public class RealtyLogicImpl {
             if (newTotal == payment.offerPrice()) {
                 // Fully paid — transfer ownership
                 SaleContractMapper saleMapper = wrapper.saleContractMapper();
+                SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
+                UUID authorityId = sale.authorityId();
                 saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
                 wrapper.session().commit();
-                return new PayOfferResult.FullyPaid();
+                return new PayOfferResult.FullyPaid(authorityId);
             } else {
                 paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, newTotal);
             }
@@ -369,7 +371,7 @@ public class RealtyLogicImpl {
 
     public sealed interface PayBidResult {
         record Success(double newTotal, double remaining) implements PayBidResult {}
-        record FullyPaid() implements PayBidResult {}
+        record FullyPaid(@NotNull UUID authorityId) implements PayBidResult {}
         record NoPaymentRecord() implements PayBidResult {}
         record PaymentExpired() implements PayBidResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
@@ -396,10 +398,12 @@ public class RealtyLogicImpl {
             if (newTotal == payment.bidPrice()) {
                 // Fully paid — transfer ownership
                 SaleContractMapper saleMapper = wrapper.saleContractMapper();
+                SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
+                UUID authorityId = sale.authorityId();
                 saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.session().commit();
-                return new PayBidResult.FullyPaid();
+                return new PayBidResult.FullyPaid(authorityId);
             }
             paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, newTotal);
             wrapper.session().commit();

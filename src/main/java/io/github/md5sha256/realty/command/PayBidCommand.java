@@ -20,6 +20,8 @@ import io.papermc.paper.command.brigadier.Commands;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.apache.ibatis.exceptions.PersistenceException;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
@@ -72,35 +74,37 @@ public record PayBidCommand(
                     case RealtyLogicImpl.PayBidResult.Success success -> {
                         sender.sendMessage("Payment of " + amount + " applied to region " + regionId
                                 + ". Total paid: " + success.newTotal() + ". Remaining: " + success.remaining() + ".");
-                        yield false;
+                        yield null;
                     }
-                    case RealtyLogicImpl.PayBidResult.FullyPaid ignored -> {
+                    case RealtyLogicImpl.PayBidResult.FullyPaid fullyPaid -> {
                         sender.sendMessage("Payment of " + amount + " applied to region " + regionId
                                 + ". Bid fully paid! Region ownership will be transferred to you.");
-                        yield true;
+                        yield fullyPaid;
                     }
                     case RealtyLogicImpl.PayBidResult.NoPaymentRecord ignored -> {
                         sender.sendMessage("You do not have a winning bid on region " + regionId + ". Payment refunded.");
-                        yield false;
+                        yield null;
                     }
                     case RealtyLogicImpl.PayBidResult.PaymentExpired ignored -> {
                         sender.sendMessage("The payment deadline for region " + regionId + " has passed. Payment refunded.");
-                        yield false;
+                        yield null;
                     }
                     case RealtyLogicImpl.PayBidResult.ExceedsAmountOwed exceeds -> {
                         sender.sendMessage("Payment of " + amount + " exceeds the remaining amount owed ("
                                 + exceeds.amountOwed() + ") on region " + regionId + ". Payment refunded.");
-                        yield false;
+                        yield null;
                     }
                 };
             } catch (PersistenceException ex) {
                 sender.sendMessage("Failed to process payment: " + ex.getMessage() + ". Payment refunded.");
-                return false;
+                return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(shouldTransfer -> {
-            if (Boolean.FALSE.equals(shouldTransfer)) {
+        }, executorState.dbExec()).thenAcceptAsync(fullyPaid -> {
+            if (fullyPaid == null) {
                 economy.depositPlayer(sender, amount);
             } else {
+                OfflinePlayer authority = Bukkit.getOfflinePlayer(fullyPaid.authorityId());
+                economy.depositPlayer(authority, amount);
                 RegionManager regionManager = WorldGuard.getInstance()
                         .getPlatform()
                         .getRegionContainer()
