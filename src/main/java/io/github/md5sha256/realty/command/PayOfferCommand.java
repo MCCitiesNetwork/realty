@@ -109,12 +109,7 @@ public record PayOfferCommand(
                 protectedRegion.getOwners().clear();
                 protectedRegion.getOwners().addPlayer(sender.getUniqueId());
                 protectedRegion.getMembers().clear();
-                try {
-                    regionManager.save();
-                    sender.sendMessage("Region " + regionId + " ownership has been transferred to you.");
-                } catch (StorageException ex) {
-                    sender.sendMessage("Region paid but failed to save WorldGuard changes: " + ex.getMessage());
-                }
+                sender.sendMessage("Region " + regionId + " ownership has been transferred to you.");
             }
         }, executorState.mainThreadExec());
         return Command.SINGLE_SUCCESS;
