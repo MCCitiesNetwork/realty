@@ -32,4 +32,6 @@ public interface SaleContractAuctionMapper {
     int deleteAuction(int saleContractAuctionId);
 
     int deleteActiveAuctionByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    boolean existsByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 }

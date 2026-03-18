@@ -244,6 +244,7 @@ public class RealtyLogicImpl {
         record NoSaleContract() implements OfferResult {}
         record IsAuthority() implements OfferResult {}
         record AlreadyHasOffer() implements OfferResult {}
+        record AuctionExists() implements OfferResult {}
         record InsertFailed() implements OfferResult {}
     }
 
@@ -254,9 +255,13 @@ public class RealtyLogicImpl {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             SaleContractMapper saleMapper = wrapper.saleContractMapper();
             SaleContractOfferMapper offerMapper = wrapper.saleContractOfferMapper();
+            SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
 
             if (saleMapper.selectByRegion(worldGuardRegionId, worldId) == null) {
                 return new OfferResult.NoSaleContract();
+            }
+            if (auctionMapper.existsByRegion(worldGuardRegionId, worldId)) {
+                return new OfferResult.AuctionExists();
             }
             if (saleMapper.existsByRegionAndAuthority(worldGuardRegionId, worldId, offererId)) {
                 return new OfferResult.IsAuthority();
