@@ -3,7 +3,6 @@ package io.github.md5sha256.realty.database;
 import io.github.md5sha256.realty.DatabaseSettings;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.database.maria.MariaSchemaMigrator;
-import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.testcontainers.containers.MariaDBContainer;
@@ -34,9 +33,8 @@ abstract class AbstractDatabaseTest {
     static void initDatabase() throws IOException, SQLException {
         // Run migrations as root to avoid privilege issues with ALTER/CHECK constraints
         String baseJdbcUrl = CONTAINER.getJdbcUrl();
-        String rootJdbcUrl = baseJdbcUrl + (baseJdbcUrl.contains("?") ? "&" : "?") + "allowMultiQueries=true";
-        PooledDataSource rootDs = new PooledDataSource("org.mariadb.jdbc.Driver", rootJdbcUrl, "root", ROOT_PASSWORD);
-        MariaSchemaMigrator.migrate(rootDs, Path.of("sql/migrations"), MariaSchemaMigrator.defaultMigrations(), Logger.getLogger("test"));
+        MariaSchemaMigrator.migrate(baseJdbcUrl, "root", ROOT_PASSWORD,
+                Path.of("sql/migrations"), MariaSchemaMigrator.defaultMigrations(), Logger.getLogger("test"));
 
         String jdbcUrl = CONTAINER.getJdbcUrl();
         // MariaDatabase prepends "jdbc:" to settings.url(), so strip the jdbc: prefix
