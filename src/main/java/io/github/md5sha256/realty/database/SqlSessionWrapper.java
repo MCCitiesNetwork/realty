@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
+import io.github.md5sha256.realty.database.mapper.SaleContractOfferPaymentMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,6 +30,8 @@ public interface SqlSessionWrapper extends Closeable {
     @NotNull SaleContractMapper saleContractMapper();
 
     @NotNull SaleContractOfferMapper saleContractOfferMapper();
+
+    @NotNull SaleContractOfferPaymentMapper saleContractOfferPaymentMapper();
 
     @Override
     void close();

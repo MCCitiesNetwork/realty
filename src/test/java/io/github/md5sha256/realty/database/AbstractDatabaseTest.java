@@ -2,7 +2,6 @@ package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.DatabaseSettings;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
-import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.testcontainers.containers.MariaDBContainer;
@@ -49,21 +48,28 @@ abstract class AbstractDatabaseTest {
         logic = new RealtyLogicImpl(database);
     }
 
+    private static String truncateUrl;
+
     @BeforeEach
     void truncateTables() throws SQLException {
-        try (SqlSessionWrapper wrapper = database.openSession(true);
-             SqlSession session = wrapper.session();
-             Connection conn = session.getConnection();
+        if (truncateUrl == null) {
+            String baseJdbcUrl = CONTAINER.getJdbcUrl();
+            truncateUrl = baseJdbcUrl + (baseJdbcUrl.contains("?") ? "&" : "?") + "allowMultiQueries=true";
+        }
+        try (Connection conn = DriverManager.getConnection(truncateUrl, "root", ROOT_PASSWORD);
              Statement stmt = conn.createStatement()) {
-            stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
-            stmt.execute("TRUNCATE TABLE SaleContractBid");
-            stmt.execute("TRUNCATE TABLE SaleContractOffer");
-            stmt.execute("TRUNCATE TABLE SaleContractAuction");
-            stmt.execute("TRUNCATE TABLE LeaseContract");
-            stmt.execute("TRUNCATE TABLE SaleContract");
-            stmt.execute("TRUNCATE TABLE Contract");
-            stmt.execute("TRUNCATE TABLE RealtyRegion");
-            stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
+            stmt.execute("""
+                    SET FOREIGN_KEY_CHECKS = 0;
+                    TRUNCATE TABLE SaleContractBid;
+                    TRUNCATE TABLE SaleContractOfferPayment;
+                    TRUNCATE TABLE SaleContractOffer;
+                    TRUNCATE TABLE SaleContractAuction;
+                    TRUNCATE TABLE LeaseContract;
+                    TRUNCATE TABLE SaleContract;
+                    TRUNCATE TABLE Contract;
+                    TRUNCATE TABLE RealtyRegion;
+                    SET FOREIGN_KEY_CHECKS = 1;
+                    """);
         }
     }
 }

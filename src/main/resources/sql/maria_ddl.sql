@@ -64,6 +64,25 @@ CREATE TABLE IF NOT EXISTS SaleContractOffer
     offerTime      DATETIME NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS SaleContractOfferPayment
+(
+    offerId         INT      NOT NULL PRIMARY KEY,
+    realtyRegionId  INT      NOT NULL,
+    offererId       UUID     NOT NULL,
+    offerPrice      DOUBLE   NOT NULL,
+    paymentDeadline DATETIME NOT NULL,
+    currentPayment  DOUBLE   NOT NULL
+);
+
+ALTER TABLE SaleContractOfferPayment
+    ADD (
+        CONSTRAINT SaleContractOffer_SaleContractOfferPayment_offerId_fk FOREIGN KEY (offerId) REFERENCES SaleContractOffer (offerId) ON DELETE CASCADE,
+        CONSTRAINT RealtyRegion_SaleContractOfferPayment_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
+        CONSTRAINT unique_payment UNIQUE (realtyRegionId, offererId),
+        CONSTRAINT chk_valid_offerPrice CHECK (offerPrice > 0),
+        CONSTRAINT chk_valid_currentPayment CHECK (currentPayment >= 0 AND currentPayment <= offerPrice)
+        );
+
 ALTER TABLE SaleContractOffer
     ADD (
         -- Cascade: deleting a RealtyRegion removes all its pending offers.
