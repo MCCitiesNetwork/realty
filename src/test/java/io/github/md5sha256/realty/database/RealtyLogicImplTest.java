@@ -433,6 +433,17 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("placeOffer returns AuctionExists when auction exists on region")
+        void auctionExists() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+
+            OfferResult result = logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            Assertions.assertInstanceOf(OfferResult.AuctionExists.class, result);
+        }
+
+        @Test
         @DisplayName("withdrawOffer returns 0 when no offer exists")
         void withdrawNonExistent() {
             String regionId = uniqueRegionId();

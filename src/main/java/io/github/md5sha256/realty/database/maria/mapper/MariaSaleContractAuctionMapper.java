@@ -135,4 +135,15 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
     int deleteActiveAuctionByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                     @Param("worldId") @NotNull UUID worldId);
 
+    @Override
+    @Select("""
+            SELECT COUNT(*) > 0
+            FROM SaleContractAuction sca
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    boolean existsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                           @Param("worldId") @NotNull UUID worldId);
+
 }

@@ -57,6 +57,8 @@ public record OfferCommand(
                             sender.sendMessage("You cannot place an offer on a region where you are the authority.");
                     case RealtyLogicImpl.OfferResult.AlreadyHasOffer ignored ->
                             sender.sendMessage("You already have an offer on region " + regionId + ". Withdraw it first before placing a new one.");
+                    case RealtyLogicImpl.OfferResult.AuctionExists ignored ->
+                            sender.sendMessage("Region " + regionId + " has an auction. Offers cannot be placed while an auction exists.");
                     case RealtyLogicImpl.OfferResult.InsertFailed ignored ->
                             sender.sendMessage("Failed to place offer on region " + regionId + ".");
                 }
