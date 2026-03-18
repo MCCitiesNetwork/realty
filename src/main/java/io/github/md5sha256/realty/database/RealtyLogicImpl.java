@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractBid;
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
+import io.github.md5sha256.realty.database.entity.SaleContractOfferPaymentEntity;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
@@ -319,6 +320,46 @@ public class RealtyLogicImpl {
                 return new AcceptOfferResult.InsertFailed();
             }
             return new AcceptOfferResult.Success();
+        }
+    }
+
+    // --- Pay Offer ---
+
+    public sealed interface PayOfferResult {
+        record Success(double newTotal, double remaining) implements PayOfferResult {}
+        record FullyPaid() implements PayOfferResult {}
+        record NoPaymentRecord() implements PayOfferResult {}
+        record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
+    }
+
+    public @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
+                                             @NotNull UUID worldId,
+                                             @NotNull UUID offererId,
+                                             double amount) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractOfferPaymentMapper paymentMapper = wrapper.saleContractOfferPaymentMapper();
+            SaleContractOfferPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (payment == null || !payment.offererId().equals(offererId)) {
+                return new PayOfferResult.NoPaymentRecord();
+            }
+            double amountOwed = payment.offerPrice() - payment.currentPayment();
+            if (amount > amountOwed) {
+                return new PayOfferResult.ExceedsAmountOwed(amountOwed);
+            }
+            double newTotal = payment.currentPayment() + amount;
+            if (newTotal == payment.offerPrice()) {
+                // Fully paid — transfer ownership
+                SaleContractMapper saleMapper = wrapper.saleContractMapper();
+                saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
+                paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
+                wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
+                wrapper.session().commit();
+                return new PayOfferResult.FullyPaid();
+            } else {
+                paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, newTotal);
+            }
+            wrapper.session().commit();
+            return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal);
         }
     }
 

@@ -1,8 +1,10 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.database.RealtyLogicImpl.AcceptOfferResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.BidResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.ListResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.OfferResult;
+import io.github.md5sha256.realty.database.RealtyLogicImpl.PayOfferResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.RegionInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +34,13 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
     private static void createAuctionOnRegion(String regionId, UUID worldId) {
         logic.createAuction(regionId, worldId, 3600, 3600, 100.0, 10.0);
+    }
+
+    private static void placeAndAcceptOffer(String regionId, UUID worldId, UUID offererId, double price) {
+        OfferResult offerResult = logic.placeOffer(regionId, worldId, offererId, price);
+        Assertions.assertInstanceOf(OfferResult.Success.class, offerResult);
+        AcceptOfferResult acceptResult = logic.acceptOffer(regionId, worldId, offererId);
+        Assertions.assertInstanceOf(AcceptOfferResult.Success.class, acceptResult);
     }
 
     // --- CreateSale ---
@@ -450,6 +459,143 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             int withdrawn = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertEquals(0, withdrawn);
+        }
+    }
+
+    // --- Pay Offer ---
+
+    @Nested
+    @DisplayName("payOffer")
+    class PayOffer {
+
+        @Test
+        @DisplayName("returns NoPaymentRecord when no accepted offer exists")
+        void noPaymentRecord() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 100.0);
+            Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
+        }
+
+        @Test
+        @DisplayName("returns NoPaymentRecord when offerer does not match")
+        void wrongOfferer() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            UUID otherPlayer = UUID.randomUUID();
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, otherPlayer, 100.0);
+            Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
+        }
+
+        @Test
+        @DisplayName("returns ExceedsAmountOwed when payment exceeds remaining")
+        void exceedsAmountOwed() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 501.0);
+            Assertions.assertInstanceOf(PayOfferResult.ExceedsAmountOwed.class, result);
+            Assertions.assertEquals(500.0, ((PayOfferResult.ExceedsAmountOwed) result).amountOwed());
+        }
+
+        @Test
+        @DisplayName("returns Success for partial payment")
+        void partialPayment() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 200.0);
+            Assertions.assertInstanceOf(PayOfferResult.Success.class, result);
+            PayOfferResult.Success success = (PayOfferResult.Success) result;
+            Assertions.assertEquals(200.0, success.newTotal());
+            Assertions.assertEquals(300.0, success.remaining());
+        }
+
+        @Test
+        @DisplayName("returns ExceedsAmountOwed after partial payment reduces remaining")
+        void exceedsAfterPartialPayment() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            logic.payOffer(regionId, WORLD_ID, PLAYER_B, 300.0);
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 201.0);
+            Assertions.assertInstanceOf(PayOfferResult.ExceedsAmountOwed.class, result);
+            Assertions.assertEquals(200.0, ((PayOfferResult.ExceedsAmountOwed) result).amountOwed());
+        }
+
+        @Test
+        @DisplayName("returns FullyPaid when exact amount is paid")
+        void fullyPaidExact() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            Assertions.assertInstanceOf(PayOfferResult.FullyPaid.class, result);
+        }
+
+        @Test
+        @DisplayName("returns FullyPaid after multiple partial payments")
+        void fullyPaidAfterPartials() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            PayOfferResult first = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 200.0);
+            Assertions.assertInstanceOf(PayOfferResult.Success.class, first);
+
+            PayOfferResult second = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 300.0);
+            Assertions.assertInstanceOf(PayOfferResult.FullyPaid.class, second);
+        }
+
+        @Test
+        @DisplayName("full payment transfers title holder to offerer")
+        void transfersTitleHolder() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
+            Assertions.assertNotNull(info.sale());
+            Assertions.assertEquals(PLAYER_B, info.sale().titleHolderId());
+        }
+
+        @Test
+        @DisplayName("full payment clears payment record")
+        void clearsPaymentRecord() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 1.0);
+            Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
+        }
+
+        @Test
+        @DisplayName("full payment removes all offers on the region")
+        void clearsOffers() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+
+            UUID playerC = UUID.randomUUID();
+            logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            int withdrawn = logic.withdrawOffer(regionId, WORLD_ID, playerC);
             Assertions.assertEquals(0, withdrawn);
         }
     }
