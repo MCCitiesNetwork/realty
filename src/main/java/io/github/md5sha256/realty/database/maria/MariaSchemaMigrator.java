@@ -1,9 +1,9 @@
 package io.github.md5sha256.realty.database.maria;
 
 import io.github.md5sha256.realty.database.migration.MigrationStep;
+import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.jetbrains.annotations.NotNull;
 
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -14,9 +14,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.util.Properties;
 import java.util.logging.Logger;
 
 public final class MariaSchemaMigrator {
+
+    private static final String DRIVER_CLASS = "org.mariadb.jdbc.Driver";
 
     private static final String BOOTSTRAP_DDL = """
             CREATE TABLE IF NOT EXISTS schema_version
@@ -47,11 +50,18 @@ public final class MariaSchemaMigrator {
     }
 
     public static void migrate(
-            @NotNull DataSource dataSource,
+            @NotNull String jdbcUrl,
+            @NotNull String username,
+            @NotNull String password,
             @NotNull Path baseResourceDir,
             @NotNull List<MigrationStep> steps,
             @NotNull Logger logger
     ) throws IOException, SQLException {
+        Properties props = new Properties();
+        props.setProperty("user", username);
+        props.setProperty("password", password);
+        props.setProperty("allowMultiQueries", "true");
+        PooledDataSource dataSource = new PooledDataSource(DRIVER_CLASS, jdbcUrl, props);
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try (Statement statement = connection.createStatement()) {
@@ -72,15 +82,8 @@ public final class MariaSchemaMigrator {
                 }
                 String resourcePath = baseResourceDir.resolve(step.resourcePath()).toString().replace('\\', '/');
                 String sql = loadResource(resourcePath);
-                String[] statements = sql.split(";\\s*\\n");
-                for (String single : statements) {
-                    String trimmed = single.trim();
-                    if (trimmed.isEmpty()) {
-                        continue;
-                    }
-                    try (Statement statement = connection.createStatement()) {
-                        statement.execute(trimmed);
-                    }
+                try (Statement statement = connection.createStatement()) {
+                    statement.execute(sql);
                 }
                 try (PreparedStatement ps = connection.prepareStatement(INSERT_VERSION)) {
                     ps.setInt(1, step.version());
@@ -90,6 +93,8 @@ public final class MariaSchemaMigrator {
                 connection.commit();
                 logger.info("Applied migration V" + step.version() + ": " + step.description());
             }
+        } finally {
+            dataSource.forceCloseAll();
         }
     }
 

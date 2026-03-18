@@ -31,18 +31,15 @@ import java.util.logging.Logger;
 
 public class MariaDatabase implements Database {
 
-    private final DataSource dataSource;
+    private final DatabaseSettings settings;
     private final SqlSessionFactory sessionFactory;
     private final Logger logger;
 
     public MariaDatabase(@NotNull DatabaseSettings settings, @NotNull Logger logger) {
-        this.dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", "jdbc:" + settings.url(), settings.username(), settings.password());
-        this.sessionFactory = buildSessionFactory(this.dataSource);
+        this.settings = settings;
+        DataSource dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", "jdbc:" + settings.url(), settings.username(), settings.password());
+        this.sessionFactory = buildSessionFactory(dataSource);
         this.logger = logger;
-    }
-
-    public @NotNull DataSource dataSource() {
-        return this.dataSource;
     }
 
     @NotNull
@@ -64,7 +61,8 @@ public class MariaDatabase implements Database {
 
     @Override
     public void initializeSchema(@NotNull Path schemaFilesDirectory) throws IOException, SQLException {
-        MariaSchemaMigrator.migrate(this.dataSource, schemaFilesDirectory, MariaSchemaMigrator.defaultMigrations(), this.logger);
+        MariaSchemaMigrator.migrate("jdbc:" + this.settings.url(), this.settings.username(), this.settings.password(),
+                schemaFilesDirectory, MariaSchemaMigrator.defaultMigrations(), this.logger);
     }
 
     @Override
