@@ -58,6 +58,10 @@ public final class Realty extends JavaPlugin {
             initDataFolder();
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
+            if (this.databaseSettings.url().isEmpty()) {
+                getLogger().severe("Database url is empty!");
+                getServer().getPluginManager().disablePlugin(this);
+            }
         } catch (IOException ex) {
             ex.printStackTrace();
             getServer().getPluginManager().disablePlugin(this);
