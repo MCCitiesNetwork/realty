@@ -32,10 +32,10 @@ public record AcceptOfferCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull MessageContainer messages
-) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+) implements CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
+    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
         return Commands.literal("acceptoffer")
                 .requires(source -> source.getSender().hasPermission("realty.command.acceptoffer"))
                 .then(Commands.argument("player", StringArgumentType.word())

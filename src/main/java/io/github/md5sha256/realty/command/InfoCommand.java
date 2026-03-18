@@ -33,10 +33,10 @@ import java.util.concurrent.CompletableFuture;
  */
 public record InfoCommand(@NotNull ExecutorState executorState,
                            @NotNull RealtyLogicImpl logic,
-                           @NotNull MessageContainer messages) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+                           @NotNull MessageContainer messages) implements CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
+    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
         return Commands.literal("info")
                 .requires(source -> source.getSender() instanceof Player player && player.hasPermission(
                         "realty.command.info"))

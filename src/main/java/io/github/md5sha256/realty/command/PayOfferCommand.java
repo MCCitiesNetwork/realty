@@ -38,10 +38,10 @@ public record PayOfferCommand(
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
         @NotNull MessageContainer messages
-) implements RealtyCommandBean, CustomCommandBean.Single<CommandSourceStack> {
+) implements CustomCommandBean.Single<CommandSourceStack> {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<? extends CommandSourceStack> command() {
+    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
         return Commands.literal("payoffer")
                 .requires(source -> source.getSender() instanceof Player player && player.hasPermission(
                         "realty.command.payoffer"))
