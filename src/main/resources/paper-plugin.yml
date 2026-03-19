@@ -11,6 +11,9 @@ dependencies:
     WorldGuard:
       join-classpath: true
       required: true
+    Essentials:
+      join-classpath: true
+      required: false
 permissions:
   realty.command.add:
     description: Allows using /realty add

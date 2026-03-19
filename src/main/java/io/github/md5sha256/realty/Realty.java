@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty;
 
+import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.AcceptOfferCommand;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AuctionCommand;
@@ -23,14 +24,14 @@ import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
+import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.ExecutorState;
+import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.CommandManager;
-import org.incendo.cloud.brigadier.BrigadierSetting;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
 import org.jetbrains.annotations.NotNull;
@@ -58,6 +59,7 @@ public final class Realty extends JavaPlugin {
     private ExecutorState executorState;
     private RealtyLogicImpl logic;
     private DatabaseSettings databaseSettings;
+    private NotificationService notificationService;
 
     @Override
     public void onLoad() {
@@ -96,6 +98,13 @@ public final class Realty extends JavaPlugin {
             getLogger().severe("Economy not found, plugin will now disable!");
             getServer().getPluginManager().disablePlugin(this);
             return;
+        }
+        if (getServer().getPluginManager().isPluginEnabled("Essentials")) {
+            getLogger().info("Detected Essentials, using essentials as the mail service");
+            this.notificationService = new EssentialsNotificationService();
+        } else {
+            getLogger().info("Using the transient notification service");
+            this.notificationService = new TransientNotificationService();
         }
         registerCommands(this.executorState,
                 this.logic,
