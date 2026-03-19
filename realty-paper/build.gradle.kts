@@ -1,4 +1,5 @@
 plugins {
+    `java-library`
     `realty-conventions`
     `maven-publish`
     id("xyz.jpenilla.run-paper") version "2.3.1"
@@ -6,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":realty-common"))
+    api(project(":realty-common"))
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
