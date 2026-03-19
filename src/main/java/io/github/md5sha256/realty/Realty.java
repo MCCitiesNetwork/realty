@@ -12,8 +12,8 @@ import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
-import io.github.md5sha256.realty.command.OffersCommand;
 import io.github.md5sha256.realty.command.OfferCommand;
+import io.github.md5sha256.realty.command.OffersCommand;
 import io.github.md5sha256.realty.command.PayBidCommand;
 import io.github.md5sha256.realty.command.PayOfferCommand;
 import io.github.md5sha256.realty.command.ReloadCommand;
@@ -22,6 +22,7 @@ import io.github.md5sha256.realty.command.WithdrawOfferCommand;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -53,7 +54,7 @@ public final class Realty extends JavaPlugin {
     private ExecutorState executorState;
     private RealtyLogicImpl logic;
     private DatabaseSettings databaseSettings;
-
+    private Settings settings;
 
     @Override
     public void onLoad() {
@@ -61,6 +62,7 @@ public final class Realty extends JavaPlugin {
             initDataFolder();
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
+            this.settings = loadSettings();
             if (this.databaseSettings.url().isEmpty()) {
                 getLogger().severe("Database url is empty!");
                 getServer().getPluginManager().disablePlugin(this);
@@ -123,6 +125,11 @@ public final class Realty extends JavaPlugin {
         }
     }
 
+    private Settings loadSettings() throws IOException {
+        ConfigurationNode settingsRoot = copyDefaultsYaml("settings");
+        return settingsRoot.get(Settings.class);
+    }
+
     private DatabaseSettings loadDatabaseSettings() throws IOException {
         ConfigurationNode settingsRoot = copyDefaultsYaml("database-settings");
         return settingsRoot.get(DatabaseSettings.class);
@@ -131,6 +138,11 @@ public final class Realty extends JavaPlugin {
     private void reloadMessages() throws IOException {
         ConfigurationNode node = copyDefaultsYaml("messages");
         this.messageContainer.load(node);
+    }
+
+    private void performReload() throws IOException {
+        this.settings = loadSettings();
+        reloadMessages();
     }
 
     private void registerCommands(
@@ -155,7 +167,7 @@ public final class Realty extends JavaPlugin {
                 new PayBidCommand(executorState, logic, economy, messageContainer),
                 new PayOfferCommand(executorState, logic, economy, messageContainer),
                 new ReloadCommand(executorState, () -> {
-                    reloadMessages();
+                    performReload();
                     return null;
                 }, messageContainer),
                 new RemoveCommand(executorState, logic, messageContainer),
