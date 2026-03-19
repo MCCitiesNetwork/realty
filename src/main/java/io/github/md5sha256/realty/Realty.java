@@ -30,6 +30,7 @@ import net.milkbowl.vault.economy.Economy;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.brigadier.BrigadierSetting;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
 import org.jetbrains.annotations.NotNull;
@@ -176,9 +177,10 @@ public final class Realty extends JavaPlugin {
                 new WithdrawOfferCommand(executorState, logic, messageContainer)
         );
 
-        CommandManager<CommandSourceStack> manager = PaperCommandManager.builder()
+        var manager = PaperCommandManager.builder()
                 .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
                 .buildOnEnable(this);
+        manager.brigadierManager().setNativeNumberSuggestions(true);
         for (CustomCommandBean bean : commands) {
             for (Command<CommandSourceStack> cmd : bean.commands(manager)) {
                 manager.command(cmd);
