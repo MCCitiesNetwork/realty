@@ -22,6 +22,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * Handles {@code /realty createsale <price> <region> [authority]}.
@@ -48,22 +49,28 @@ public record CreateSaleCommand(@NotNull ExecutorState executorState,
         WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegionResolver.class).resolve();
         CommandSender sender = ctx.getSource().getSender();
         UUID titleHolder = ((Player) sender).getUniqueId();
-        CompletableFuture.runAsync(() -> {
+        CompletableFuture.supplyAsync(() -> {
             try {
-                boolean created = logic.createSale(
+                return logic.createSale(
                         region.region().getId(), region.world().getUID(),
                         price, authority, titleHolder);
-                if (created) {
-                    sender.sendMessage(messages.messageFor("create-sale.success"));
-                } else {
-                    sender.sendMessage(messages.messageFor("create-sale.already-registered"));
-                }
             } catch (PersistenceException ex) {
-                ex.printStackTrace();
-                sender.sendMessage(messages.messageFor("create-sale.error",
-                        Placeholder.unparsed("error", ex.getMessage())));
+                throw new CompletionException(ex);
             }
-        }, executorState.dbExec());
+        }, executorState.dbExec()).thenAcceptAsync(created -> {
+            if (created) {
+                region.region().getMembers().addPlayer(authority);
+                sender.sendMessage(messages.messageFor("create-sale.success"));
+            } else {
+                sender.sendMessage(messages.messageFor("create-sale.already-registered"));
+            }
+        }, executorState.mainThreadExec()).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            cause.printStackTrace();
+            sender.sendMessage(messages.messageFor("create-sale.error",
+                    Placeholder.unparsed("error", cause.getMessage())));
+            return null;
+        });
         return Command.SINGLE_SUCCESS;
     }
 

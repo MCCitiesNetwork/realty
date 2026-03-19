@@ -25,6 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * Handles {@code /realty createrental <price> <period> <maxrenewals> <landlord> <region>}.
@@ -54,22 +55,28 @@ public record CreateRentalCommand(@NotNull ExecutorState executorState,
         UUID landlord = ctx.getArgument("landlord", UUID.class);
         WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegionResolver.class).resolve();
         CommandSender sender = ctx.getSource().getSender();
-        CompletableFuture.runAsync(() -> {
+        CompletableFuture.supplyAsync(() -> {
             try {
-                boolean created = logic.createRental(
+                return logic.createRental(
                         region.region().getId(), region.world().getUID(),
                         price, period.toSeconds(), maxRenewals, landlord);
-                if (created) {
-                    sender.sendMessage(messages.messageFor("create-rental.success"));
-                } else {
-                    sender.sendMessage(messages.messageFor("create-rental.already-registered"));
-                }
             } catch (PersistenceException ex) {
-                ex.printStackTrace();
-                sender.sendMessage(messages.messageFor("create-rental.error",
-                        Placeholder.unparsed("error", ex.getMessage())));
+                throw new CompletionException(ex);
             }
-        }, executorState.dbExec());
+        }, executorState.dbExec()).thenAcceptAsync(created -> {
+            if (created) {
+                region.region().getMembers().addPlayer(landlord);
+                sender.sendMessage(messages.messageFor("create-rental.success"));
+            } else {
+                sender.sendMessage(messages.messageFor("create-rental.already-registered"));
+            }
+        }, executorState.mainThreadExec()).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            cause.printStackTrace();
+            sender.sendMessage(messages.messageFor("create-rental.error",
+                    Placeholder.unparsed("error", cause.getMessage())));
+            return null;
+        });
         return Command.SINGLE_SUCCESS;
     }
 
