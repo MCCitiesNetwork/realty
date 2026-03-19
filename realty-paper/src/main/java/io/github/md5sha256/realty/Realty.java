@@ -65,6 +65,10 @@ public final class Realty extends JavaPlugin {
     private DatabaseSettings databaseSettings;
     private NotificationService notificationService;
 
+    public RealtyLogicImpl logic() {
+        return this.logic;
+    }
+
     @Override
     public void onLoad() {
         try {
