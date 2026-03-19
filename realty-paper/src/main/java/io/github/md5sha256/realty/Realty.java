@@ -17,6 +17,7 @@ import io.github.md5sha256.realty.command.OffersCommand;
 import io.github.md5sha256.realty.command.PayBidCommand;
 import io.github.md5sha256.realty.command.PayOfferCommand;
 import io.github.md5sha256.realty.command.ReloadCommand;
+import io.github.md5sha256.realty.command.RenewLeaseCommand;
 import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.WithdrawOfferCommand;
@@ -232,6 +233,7 @@ public final class Realty extends JavaPlugin {
                         economy,
                         notificationService,
                         messageContainer),
+                new RenewLeaseCommand(executorState, logic, economy, messageContainer),
                 new RentCommand(executorState, logic, economy, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();

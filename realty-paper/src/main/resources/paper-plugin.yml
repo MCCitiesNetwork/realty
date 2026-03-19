@@ -72,6 +72,9 @@ permissions:
   realty.command.paybid:
     description: Allows using /realty paybid
     default: true
+  realty.command.renewlease:
+    description: Allows using /realty renewlease
+    default: true
   realty.command.rent:
     description: Allows using /realty rent
     default: true
