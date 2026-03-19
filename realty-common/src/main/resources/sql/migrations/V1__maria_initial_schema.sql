@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS Contract
 CREATE TABLE IF NOT EXISTS LeaseContract
 (
     leaseContractId      INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    tenantId             UUID     NOT NULL,
+    tenantId             UUID,
     price                DOUBLE   NOT NULL,
     durationSeconds      LONG     NOT NULL,
     startDate            DATETIME NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS SaleContract
 (
     saleContractId INT    NOT NULL PRIMARY KEY AUTO_INCREMENT,
     authorityId    UUID   NOT NULL,
-    titleHolderId  UUID   NOT NULL,
+    titleHolderId  UUID,
     price          DOUBLE NOT NULL
 );
 

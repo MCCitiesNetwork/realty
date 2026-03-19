@@ -81,7 +81,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                                     Placeholder.unparsed("authority", String.valueOf(sale.authorityId()))))
                             .appendNewline()
                             .append(messages.messageFor("info.sale-title-holder",
-                                    Placeholder.unparsed("title_holder", String.valueOf(sale.titleHolderId()))))
+                                    Placeholder.unparsed("title_holder", sale.titleHolderId() != null ? String.valueOf(sale.titleHolderId()) : "N/A")))
                             .appendNewline()
                             .append(messages.messageFor("info.sale-price",
                                     Placeholder.unparsed("price", String.valueOf(sale.price()))));
@@ -93,7 +93,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                                     Placeholder.unparsed("id", String.valueOf(lease.leaseContractId()))))
                             .appendNewline()
                             .append(messages.messageFor("info.lease-tenant",
-                                    Placeholder.unparsed("tenant", String.valueOf(lease.tenantId()))))
+                                    Placeholder.unparsed("tenant", lease.tenantId() != null ? String.valueOf(lease.tenantId()) : "N/A")))
                             .appendNewline()
                             .append(messages.messageFor("info.lease-price",
                                     Placeholder.unparsed("price", String.valueOf(lease.price()))))

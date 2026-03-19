@@ -60,7 +60,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
                     @Param("price") double price,
                     @Param("durationSeconds") long durationSeconds,
                     @Param("maxRenewals") int maxRenewals,
-                    @Param("tenantId") @NotNull UUID tenantId);
+                    @Param("tenantId") @Nullable UUID tenantId);
 
     @Override
     @Select("""

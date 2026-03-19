@@ -111,6 +111,18 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             boolean second = logic.createSale(regionId, WORLD_ID, 800.0, AUTHORITY, PLAYER_B);
             Assertions.assertFalse(second);
         }
+
+        @Test
+        @DisplayName("succeeds with null titleholder (for sale)")
+        void succeedsWithNullTitleHolder() {
+            String regionId = uniqueRegionId();
+            boolean result = logic.createSale(regionId, WORLD_ID, 500.0, AUTHORITY, null);
+            Assertions.assertTrue(result);
+
+            RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
+            Assertions.assertNotNull(info.sale());
+            Assertions.assertNull(info.sale().titleHolderId());
+        }
     }
 
     // --- CreateRental ---
@@ -138,6 +150,18 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
             boolean second = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_B);
             Assertions.assertFalse(second);
+        }
+
+        @Test
+        @DisplayName("succeeds with null tenant (for rent)")
+        void succeedsWithNullTenant() {
+            String regionId = uniqueRegionId();
+            boolean result = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, null);
+            Assertions.assertTrue(result);
+
+            RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
+            Assertions.assertNotNull(info.lease());
+            Assertions.assertNull(info.lease().tenantId());
         }
     }
 

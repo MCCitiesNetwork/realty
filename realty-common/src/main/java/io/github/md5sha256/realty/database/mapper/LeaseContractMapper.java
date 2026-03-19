@@ -42,7 +42,7 @@ public interface LeaseContractMapper {
                     double price,
                     long durationSeconds,
                     int maxRenewals,
-                    @NotNull UUID tenantId);
+                    @Nullable UUID tenantId);
 
     /**
      * Checks whether the given player is the tenant on any lease contract for the

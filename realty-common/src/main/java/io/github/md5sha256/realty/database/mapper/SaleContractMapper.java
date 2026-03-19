@@ -31,7 +31,7 @@ public interface SaleContractMapper {
     int insertSale(int regionId,
                    double price,
                    @NotNull UUID authority,
-                   @NotNull UUID titleHolder);
+                   @Nullable UUID titleHolder);
 
     /**
      * Checks whether the given player is the authority on any sale contract for the
@@ -70,6 +70,6 @@ public interface SaleContractMapper {
     int updateSaleByRegion(@NotNull String worldGuardRegionId,
                            @NotNull UUID worldId,
                            double price,
-                           @NotNull UUID titleHolder);
+                           @Nullable UUID titleHolder);
 
 }

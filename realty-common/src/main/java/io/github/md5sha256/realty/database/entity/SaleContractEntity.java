@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database.entity;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -9,14 +10,14 @@ import java.util.UUID;
  *
  * @param saleContractId Auto-increment primary key
  * @param authorityId    UUID of the authority overseeing the sale
- * @param titleHolderId  UUID of the current title holder
+ * @param titleHolderId  UUID of the current title holder, or {@code null} if the region is for sale
  * @param price          Sale price (must be &gt; 0)
  * @see io.github.md5sha256.realty.api.SaleContract
  */
 public record SaleContractEntity(
         int saleContractId,
         @NotNull UUID authorityId,
-        @NotNull UUID titleHolderId,
+        @Nullable UUID titleHolderId,
         double price
 ) {
 }

@@ -45,7 +45,7 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
     int insertSale(@Param("regionId") int regionId,
                    @Param("price") double price,
                    @Param("authority") @NotNull UUID authority,
-                   @Param("titleHolder") @NotNull UUID titleHolder);
+                   @Param("titleHolder") @Nullable UUID titleHolder);
 
     @Override
     @Select("""
@@ -93,6 +93,6 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
     int updateSaleByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                            @Param("worldId") @NotNull UUID worldId,
                            @Param("price") double price,
-                           @Param("titleHolder") @NotNull UUID titleHolder);
+                           @Param("titleHolder") @Nullable UUID titleHolder);
 
 }

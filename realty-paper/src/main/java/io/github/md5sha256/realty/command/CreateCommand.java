@@ -30,7 +30,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Handles {@code /realty create lease <price> <period> <maxrenewals> [--authority <name>] <region>}
+ * Handles {@code /realty create lease <price> <period> <maxrenewals> <region>}
  * and {@code /realty create sale <price> [--titleholder <name>] <region>}.
  *
  * <p>Permissions: {@code realty.command.create.lease} / {@code realty.command.create.sale}.</p>
@@ -45,10 +45,6 @@ public record CreateCommand(@NotNull ExecutorState executorState,
     private static final CloudKey<Integer> MAX_RENEWALS = CloudKey.of("maxrenewals", Integer.class);
     private static final CloudKey<WorldGuardRegion> REGION = CloudKey.of("region",
             WorldGuardRegion.class);
-    private static final CommandFlag<UUID> AUTHORITY_FLAG =
-            CommandFlag.<CommandSourceStack>builder("authority")
-                    .withComponent(AuthorityParser.authority())
-                    .build();
     private static final CommandFlag<UUID> TITLEHOLDER_FLAG =
             CommandFlag.<CommandSourceStack>builder("titleholder")
                     .withComponent(AuthorityParser.authority())
@@ -64,7 +60,6 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                         .required(PRICE, DoubleParser.doubleParser(0))
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_RENEWALS, IntegerParser.integerParser(-1))
-                        .flag(AUTHORITY_FLAG)
                         .required(REGION, WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeLease)
                         .build(),
@@ -86,19 +81,17 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxRenewals = ctx.get(MAX_RENEWALS);
-        UUID landlord = ctx.flags().getValue(AUTHORITY_FLAG, settings.get().defaultLeaseAuthority());
         WorldGuardRegion region = ctx.get(REGION);
         CompletableFuture.supplyAsync(() -> {
             try {
                 return logic.createRental(
                         region.region().getId(), region.world().getUID(),
-                        price, period.toSeconds(), maxRenewals, landlord);
+                        price, period.toSeconds(), maxRenewals, null);
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }
         }, executorState.dbExec()).thenAcceptAsync(created -> {
             if (created) {
-                region.region().getMembers().addPlayer(landlord);
                 sender.sendMessage(messages.messageFor("create-rental.success"));
             } else {
                 sender.sendMessage(messages.messageFor("create-rental.already-registered"));
@@ -114,19 +107,18 @@ public record CreateCommand(@NotNull ExecutorState executorState,
 
     private void executeSale(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player player)) {
+        if (!(sender instanceof Player)) {
             return;
         }
         double price = ctx.get(PRICE);
         UUID authority = ctx.flags()
                 .getValue(TITLEHOLDER_FLAG, settings.get().defaultSaleTitleholder());
         WorldGuardRegion region = ctx.get(REGION);
-        UUID titleHolder = player.getUniqueId();
         CompletableFuture.supplyAsync(() -> {
             try {
                 return logic.createSale(
                         region.region().getId(), region.world().getUID(),
-                        price, authority, titleHolder);
+                        price, authority, null);
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }

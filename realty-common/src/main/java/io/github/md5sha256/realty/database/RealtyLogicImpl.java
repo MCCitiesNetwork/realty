@@ -119,7 +119,7 @@ public class RealtyLogicImpl {
                               @NotNull UUID worldId,
                               double price,
                               @NotNull UUID authority,
-                              @NotNull UUID titleHolder) {
+                              @Nullable UUID titleHolder) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
@@ -141,7 +141,7 @@ public class RealtyLogicImpl {
                                 double price,
                                 long durationSeconds,
                                 int maxRenewals,
-                                @NotNull UUID landlord) {
+                                @Nullable UUID landlord) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
