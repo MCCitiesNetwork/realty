@@ -1,0 +1,59 @@
+package io.github.md5sha256.realty.util;
+
+import com.earth2me.essentials.Console;
+import com.earth2me.essentials.Essentials;
+import com.earth2me.essentials.IEssentials;
+import io.github.md5sha256.realty.api.NotificationService;
+import net.ess3.api.IUser;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.bukkit.Bukkit;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+public class EssentialsNotificationService implements NotificationService {
+
+    private final IEssentials essentials;
+
+    public EssentialsNotificationService() {
+        essentials = (Essentials) Bukkit.getPluginManager().getPlugin("Essentials");
+    }
+
+    @Override
+    public void queueNotification(@NotNull UUID authorityId,
+                                  @NotNull Component text,
+                                  long expiryEpochSecond) {
+        queueNotification(authorityId,
+                LegacyComponentSerializer.legacySection().serialize(text),
+                expiryEpochSecond);
+    }
+
+    @Override
+    public void queueNotification(@NotNull UUID authorityId,
+                                  @NotNull String plaintext,
+                                  long expiryEpochSecond) {
+        IUser user = essentials.getUser(authorityId);
+        if (user != null) {
+            essentials.getMail()
+                    .sendMail(user,
+                            Console.getInstance(),
+                            plaintext,
+                            TimeUnit.SECONDS.toMillis(expiryEpochSecond));
+        }
+    }
+
+    @Override
+    public void queueNotification(@NotNull UUID authorityId, @NotNull Component text) {
+        queueNotification(authorityId, LegacyComponentSerializer.legacySection().serialize(text));
+    }
+
+    @Override
+    public void queueNotification(@NotNull UUID authorityId, @NotNull String plaintext) {
+        IUser user = essentials.getUser(authorityId);
+        if (user != null) {
+            essentials.getMail().sendMail(user, Console.getInstance(), plaintext);
+        }
+    }
+}

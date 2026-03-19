@@ -21,6 +21,11 @@ repositories {
         name = "enginehub"
         url = uri("https://maven.enginehub.org/repo/")
     }
+
+    maven {
+        name = "eseentialsx"
+        url = uri("https://repo.essentialsx.net/releases/")
+    }
 }
 
 dependencies {
@@ -28,7 +33,12 @@ dependencies {
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15")
+    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
+    compileOnly("net.essentialsx:EssentialsX:2.19.0") {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.0-beta.10")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
