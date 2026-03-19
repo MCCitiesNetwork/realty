@@ -55,6 +55,11 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                     .withComponent(AuthorityParser.authority())
                     .build();
 
+    private static final CommandFlag<UUID> LANDLORD_FLAG =
+            CommandFlag.<CommandSourceStack>builder("landlord")
+                    .withComponent(AuthorityParser.authority())
+                    .build();
+
 
     @Override
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
@@ -66,6 +71,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                         .required(PRICE, DoubleParser.doubleParser(0))
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_RENEWALS, IntegerParser.integerParser(-1))
+                        .flag(LANDLORD_FLAG)
                         .required(REGION, WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeLease)
                         .build(),
@@ -88,12 +94,14 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxRenewals = ctx.get(MAX_RENEWALS);
+        UUID landlord = ctx.flags()
+                .getValue(LANDLORD_FLAG, settings.get().defaultLeaseAuthority());
         WorldGuardRegion region = ctx.get(REGION);
         CompletableFuture.supplyAsync(() -> {
             try {
                 return logic.createRental(
                         region.region().getId(), region.world().getUID(),
-                        price, period.toSeconds(), maxRenewals, null);
+                        price, period.toSeconds(), maxRenewals, landlord);
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }

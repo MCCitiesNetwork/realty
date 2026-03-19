@@ -141,7 +141,7 @@ public class RealtyLogicImpl {
                                 double price,
                                 long durationSeconds,
                                 int maxRenewals,
-                                @Nullable UUID landlord) {
+                                @NotNull UUID landlordId) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
@@ -149,10 +149,44 @@ public class RealtyLogicImpl {
                 return false;
             }
             int regionId = regionMapper.registerWorldGuardRegion(worldGuardRegionId, worldId);
-            int leaseContractId = wrapper.leaseContractMapper().insertLease(regionId, price, durationSeconds, maxRenewals, landlord);
+            int leaseContractId = wrapper.leaseContractMapper().insertLease(regionId, price, durationSeconds, maxRenewals, landlordId, null);
             wrapper.contractMapper().insert(new ContractEntity(leaseContractId, "contract", regionId));
             session.commit();
             return true;
+        }
+    }
+
+    // --- Rent ---
+
+    public sealed interface RentResult {
+        record Success(double price, @NotNull UUID landlordId) implements RentResult {}
+        record NoLeaseContract() implements RentResult {}
+        record IsLandlord() implements RentResult {}
+        record AlreadyOccupied() implements RentResult {}
+        record UpdateFailed() implements RentResult {}
+    }
+
+    public @NotNull RentResult rentRegion(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId,
+                                           @NotNull UUID tenantId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
+            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new RentResult.NoLeaseContract();
+            }
+            if (lease.landlordId().equals(tenantId)) {
+                return new RentResult.IsLandlord();
+            }
+            if (lease.tenantId() != null) {
+                return new RentResult.AlreadyOccupied();
+            }
+            int updated = leaseMapper.rentRegion(worldGuardRegionId, worldId, tenantId);
+            if (updated == 0) {
+                return new RentResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new RentResult.Success(lease.price(), lease.landlordId());
         }
     }
 
@@ -195,7 +229,11 @@ public class RealtyLogicImpl {
                 return true;
             }
             LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            return leaseMapper.existsByRegionAndTenant(worldGuardRegionId, worldId, playerId);
+            if (leaseMapper.existsByRegionAndTenant(worldGuardRegionId, worldId, playerId)) {
+                return true;
+            }
+            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            return lease != null && lease.landlordId().equals(playerId);
         }
     }
 

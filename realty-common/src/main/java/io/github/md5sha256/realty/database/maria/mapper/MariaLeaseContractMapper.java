@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,8 +46,9 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
      */
     @Override
     @Select("""
-            INSERT INTO LeaseContract (tenantId, price, durationSeconds, startDate, currentMaxExtensions, maxExtensions)
+            INSERT INTO LeaseContract (landlordId, tenantId, price, durationSeconds, startDate, currentMaxExtensions, maxExtensions)
             VALUES (
+                #{landlordId},
                 #{tenantId},
                 #{price},
                 #{durationSeconds},
@@ -60,6 +62,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
                     @Param("price") double price,
                     @Param("durationSeconds") long durationSeconds,
                     @Param("maxRenewals") int maxRenewals,
+                    @Param("landlordId") @NotNull UUID landlordId,
                     @Param("tenantId") @Nullable UUID tenantId);
 
     @Override
@@ -80,7 +83,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
 
     @Override
     @Select("""
-            SELECT lc.leaseContractId, lc.tenantId, lc.price, lc.durationSeconds,
+            SELECT lc.leaseContractId, lc.landlordId, lc.tenantId, lc.price, lc.durationSeconds,
                    lc.startDate, lc.currentMaxExtensions, lc.maxExtensions
             FROM LeaseContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
@@ -90,6 +93,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             """)
     @ConstructorArgs({
             @Arg(column = "leaseContractId", javaType = int.class),
+            @Arg(column = "landlordId", javaType = UUID.class),
             @Arg(column = "tenantId", javaType = UUID.class),
             @Arg(column = "price", javaType = double.class),
             @Arg(column = "durationSeconds", javaType = long.class),
@@ -99,5 +103,19 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
     })
     @Nullable LeaseContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                 @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.tenantId = #{tenantId}, lc.startDate = NOW(), lc.currentMaxExtensions = 0
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND lc.tenantId IS NULL
+            """)
+    int rentRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                   @Param("worldId") @NotNull UUID worldId,
+                   @Param("tenantId") @NotNull UUID tenantId);
 
 }

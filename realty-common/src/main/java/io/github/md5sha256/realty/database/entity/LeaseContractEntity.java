@@ -10,6 +10,7 @@ import java.util.UUID;
  * Internal entity record mapping to the {@code LeaseContract} DDL table.
  *
  * @param leaseContractId      Auto-increment primary key
+ * @param landlordId           UUID of the landlord (authority over the lease)
  * @param tenantId             UUID of the tenant, or {@code null} if the region is for rent
  * @param price                Rental price (must be &gt; 0)
  * @param durationSeconds      Lease duration in seconds (must be &gt; 0)
@@ -20,6 +21,7 @@ import java.util.UUID;
  */
 public record LeaseContractEntity(
         int leaseContractId,
+        @NotNull UUID landlordId,
         @Nullable UUID tenantId,
         double price,
         long durationSeconds,

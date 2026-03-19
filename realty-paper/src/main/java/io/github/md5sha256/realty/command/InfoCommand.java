@@ -92,6 +92,9 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                             .append(messages.messageFor("info.lease-header",
                                     Placeholder.unparsed("id", String.valueOf(lease.leaseContractId()))))
                             .appendNewline()
+                            .append(messages.messageFor("info.lease-landlord",
+                                    Placeholder.unparsed("landlord", String.valueOf(lease.landlordId()))))
+                            .appendNewline()
                             .append(messages.messageFor("info.lease-tenant",
                                     Placeholder.unparsed("tenant", lease.tenantId() != null ? String.valueOf(lease.tenantId()) : "N/A")))
                             .appendNewline()

@@ -58,6 +58,7 @@ info:
   sale-title-holder: "  Title Holder: <title_holder>"
   sale-price: "  Price: <price>"
   lease-header: "Lease Contract #<id>:"
+  lease-landlord: "  Landlord: <landlord>"
   lease-tenant: "  Tenant: <tenant>"
   lease-price: "  Price: <price>"
   lease-duration: "  Duration: <duration>"
@@ -132,10 +133,11 @@ help:
   - "<yellow>/realty info <region></yellow> <gray>- Display region info</gray>"
   - "<yellow>/realty list [player] [page]</yellow> <gray>- List regions</gray>"
   - "<yellow>/realty create sale <price> [--titleholder <name>] [--authority <name>] <region></yellow> <gray>- Create a sale</gray>"
-  - "<yellow>/realty create lease <price> <period> <maxrenewals> <region></yellow> <gray>- Create a lease</gray>"
+  - "<yellow>/realty create lease <price> <period> <maxrenewals> [--landlord <name>] <region></yellow> <gray>- Create a lease</gray>"
   - "<yellow>/realty delete <region> [includeworldguard]</yellow> <gray>- Delete a region</gray>"
   - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
   - "<yellow>/realty remove <player> <region></yellow> <gray>- Remove a player from a region</gray>"
+  - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
   - "<yellow>/realty offer <price> <region></yellow> <gray>- Make an offer on a region</gray>"
   - "<yellow>/realty offers outbound|inbound</yellow> <gray>- View your offers</gray>"
   - "<yellow>/realty acceptoffer <player> <region></yellow> <gray>- Accept an offer</gray>"
@@ -146,6 +148,16 @@ help:
   - "<yellow>/realty cancelauction <region></yellow> <gray>- Cancel an auction</gray>"
   - "<yellow>/realty paybid <amount> <region></yellow> <gray>- Pay for a winning bid</gray>"
   - "<yellow>/realty reload</yellow> <gray>- Reload configuration</gray>"
+
+rent:
+  success: "You are now renting region <region> for <price>."
+  no-lease-contract: "Region <region> does not have a lease contract."
+  is-landlord: "You cannot rent region <region> because you are the landlord."
+  already-occupied: "Region <region> already has a tenant."
+  update-failed: "Failed to rent region <region>."
+  insufficient-funds: "You do not have enough funds. Your balance: <balance>. Rental price: <price>."
+  payment-failed: "Payment failed: <error>"
+  error: "Failed to rent region: <error>"
 
 reload:
   success: "Messages reloaded successfully."

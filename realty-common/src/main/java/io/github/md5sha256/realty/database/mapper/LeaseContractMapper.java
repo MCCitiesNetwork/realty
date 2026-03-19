@@ -35,13 +35,15 @@ public interface LeaseContractMapper {
      * @param price           the periodic rental price (must be &gt; 0)
      * @param durationSeconds lease period in seconds (must be &gt; 0)
      * @param maxRenewals     maximum number of renewals, or negative for unlimited
-     * @param tenantId        UUID of the tenant taking on the lease
+     * @param landlordId      UUID of the landlord (authority over the lease)
+     * @param tenantId        UUID of the tenant taking on the lease, or {@code null} if vacant
      * @return number of rows inserted (1 on success)
      */
     int insertLease(int regionId,
                     double price,
                     long durationSeconds,
                     int maxRenewals,
+                    @NotNull UUID landlordId,
                     @Nullable UUID tenantId);
 
     /**
@@ -67,5 +69,18 @@ public interface LeaseContractMapper {
      * @return the lease contract, or {@code null} if none exists
      */
     @Nullable LeaseContractEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    /**
+     * Sets the tenant on a lease contract for the specified WorldGuard region and resets
+     * the start date to the current time. Only updates if the lease currently has no tenant.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param tenantId           UUID of the new tenant
+     * @return number of rows updated (1 on success, 0 if no vacant lease exists)
+     */
+    int rentRegion(@NotNull String worldGuardRegionId,
+                   @NotNull UUID worldId,
+                   @NotNull UUID tenantId);
 
 }
