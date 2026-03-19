@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Handles {@code /realty create lease <price> <period> <maxrenewals> <region>}
- * and {@code /realty create sale <price> [--titleholder <name>] [--authority <name>] <region>}.
+ * and {@code /realty create sale [--price <price>] [--titleholder <name>] [--authority <name>] <region>}.
  *
  * <p>Permissions: {@code realty.command.create.lease} / {@code realty.command.create.sale}.</p>
  */
@@ -53,6 +53,11 @@ public record CreateCommand(@NotNull ExecutorState executorState,
     private static final CommandFlag<UUID> TITLEHOLDER_FLAG =
             CommandFlag.<CommandSourceStack>builder("titleholder")
                     .withComponent(AuthorityParser.authority())
+                    .build();
+
+    private static final CommandFlag<Double> PRICE_FLAG =
+            CommandFlag.<CommandSourceStack>builder("price")
+                    .withComponent(DoubleParser.doubleParser(0))
                     .build();
 
     private static final CommandFlag<UUID> LANDLORD_FLAG =
@@ -77,7 +82,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                         .build(),
                 base.literal("sale")
                         .permission("realty.command.create.sale")
-                        .required(PRICE, DoubleParser.doubleParser(0))
+                        .flag(PRICE_FLAG)
                         .flag(TITLEHOLDER_FLAG)
                         .flag(AUTHORITY_FLAG)
                         .required(REGION, WorldGuardRegionParser.worldGuardRegion())
@@ -125,7 +130,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         if (!(sender instanceof Player)) {
             return;
         }
-        double price = ctx.get(PRICE);
+        Double price = ctx.flags().getValue(PRICE_FLAG, null);
         UUID authority = ctx.flags()
                 .getValue(AUTHORITY_FLAG, settings.get().defaultSaleAuthority());
         UUID titleholder = ctx.flags()

@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS SaleContract
     saleContractId INT    NOT NULL PRIMARY KEY AUTO_INCREMENT,
     authorityId    UUID   NOT NULL,
     titleHolderId  UUID,
-    price          DOUBLE NOT NULL
+    price          DOUBLE
 );
 
 CREATE TABLE IF NOT EXISTS SaleContractAuction
@@ -128,7 +128,7 @@ ALTER TABLE LeaseContract
 
 ALTER TABLE SaleContract
     ADD (
-        CONSTRAINT chk_price CHECK (price > 0)
+        CONSTRAINT chk_price CHECK (price IS NULL OR price > 0)
         );
 
 ALTER TABLE SaleContractAuction

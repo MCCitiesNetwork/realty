@@ -23,13 +23,13 @@ public interface SaleContractMapper {
      * linking.
      *
      * @param regionId    the {@code realtyRegionId} of the region being sold
-     * @param price       the agreed sale price (must be &gt; 0)
+     * @param price       the sale price (must be &gt; 0), or {@code null} if not for sale
      * @param authority   UUID of the authority overseeing the sale
      * @param titleHolder UUID of the current title holder
      * @return number of rows inserted (1 on success)
      */
     int insertSale(int regionId,
-                   double price,
+                   @Nullable Double price,
                    @NotNull UUID authority,
                    @Nullable UUID titleHolder);
 
@@ -71,5 +71,17 @@ public interface SaleContractMapper {
                            @NotNull UUID worldId,
                            double price,
                            @Nullable UUID titleHolder);
+
+    /**
+     * Updates only the price on the sale contract associated with a WorldGuard region.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param price              the new sale price (must be &gt; 0), or {@code null} to unset
+     * @return number of rows updated (1 on success, 0 if no matching contract)
+     */
+    int updatePriceByRegion(@NotNull String worldGuardRegionId,
+                            @NotNull UUID worldId,
+                            @Nullable Double price);
 
 }

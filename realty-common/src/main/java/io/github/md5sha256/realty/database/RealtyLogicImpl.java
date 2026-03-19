@@ -113,11 +113,82 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Set Price ---
+
+    public sealed interface SetPriceResult {
+        record Success() implements SetPriceResult {}
+        record NoSaleContract() implements SetPriceResult {}
+        record AuctionExists() implements SetPriceResult {}
+        record OfferPaymentInProgress() implements SetPriceResult {}
+        record BidPaymentInProgress() implements SetPriceResult {}
+        record UpdateFailed() implements SetPriceResult {}
+    }
+
+    public @NotNull SetPriceResult setPrice(@NotNull String worldGuardRegionId,
+                                             @NotNull UUID worldId,
+                                             double price) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractMapper saleMapper = wrapper.saleContractMapper();
+            SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (sale == null) {
+                return new SetPriceResult.NoSaleContract();
+            }
+            if (wrapper.saleContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new SetPriceResult.AuctionExists();
+            }
+            if (wrapper.saleContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new SetPriceResult.OfferPaymentInProgress();
+            }
+            if (wrapper.saleContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new SetPriceResult.BidPaymentInProgress();
+            }
+            int updated = saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, price);
+            if (updated == 0) {
+                return new SetPriceResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new SetPriceResult.Success();
+        }
+    }
+
+    // --- Unset Price ---
+
+    public sealed interface UnsetPriceResult {
+        record Success() implements UnsetPriceResult {}
+        record NoSaleContract() implements UnsetPriceResult {}
+        record OfferPaymentInProgress() implements UnsetPriceResult {}
+        record BidPaymentInProgress() implements UnsetPriceResult {}
+        record UpdateFailed() implements UnsetPriceResult {}
+    }
+
+    public @NotNull UnsetPriceResult unsetPrice(@NotNull String worldGuardRegionId,
+                                                  @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractMapper saleMapper = wrapper.saleContractMapper();
+            SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (sale == null) {
+                return new UnsetPriceResult.NoSaleContract();
+            }
+            if (wrapper.saleContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new UnsetPriceResult.OfferPaymentInProgress();
+            }
+            if (wrapper.saleContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new UnsetPriceResult.BidPaymentInProgress();
+            }
+            int updated = saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            if (updated == 0) {
+                return new UnsetPriceResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new UnsetPriceResult.Success();
+        }
+    }
+
     // --- Create Sale ---
 
     public boolean createSale(@NotNull String worldGuardRegionId,
                               @NotNull UUID worldId,
-                              double price,
+                              @Nullable Double price,
                               @NotNull UUID authority,
                               @Nullable UUID titleHolder) {
         try (SqlSessionWrapper wrapper = database.openSession();
@@ -460,11 +531,12 @@ public class RealtyLogicImpl {
             }
             double newTotal = payment.currentPayment() + amount;
             if (newTotal == payment.offerPrice()) {
-                // Fully paid — transfer ownership
+                // Fully paid — transfer ownership, reset price (not for sale)
                 SaleContractMapper saleMapper = wrapper.saleContractMapper();
                 SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
                 UUID authorityId = sale.authorityId();
                 saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
+                saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
                 wrapper.session().commit();
@@ -506,11 +578,12 @@ public class RealtyLogicImpl {
             }
             double newTotal = payment.currentPayment() + amount;
             if (newTotal == payment.bidPrice()) {
-                // Fully paid — transfer ownership
+                // Fully paid — transfer ownership, reset price (not for sale)
                 SaleContractMapper saleMapper = wrapper.saleContractMapper();
                 SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
                 UUID authorityId = sale.authorityId();
                 saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
+                saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.session().commit();
                 return new PayBidResult.FullyPaid(authorityId);

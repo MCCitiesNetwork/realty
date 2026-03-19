@@ -12,6 +12,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
+
 /**
  * MariaDB-specific MyBatis mapper for CRUD operations on the {@code SaleContract} table.
  *
@@ -43,7 +44,7 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
             RETURNING saleContractId
             """)
     int insertSale(@Param("regionId") int regionId,
-                   @Param("price") double price,
+                   @Param("price") @Nullable Double price,
                    @Param("authority") @NotNull UUID authority,
                    @Param("titleHolder") @Nullable UUID titleHolder);
 
@@ -76,7 +77,7 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
             @Arg(column = "saleContractId", javaType = int.class),
             @Arg(column = "authorityId", javaType = UUID.class),
             @Arg(column = "titleHolderId", javaType = UUID.class),
-            @Arg(column = "price", javaType = double.class)
+            @Arg(column = "price", javaType = Double.class)
     })
     @Nullable SaleContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                @Param("worldId") @NotNull UUID worldId);
@@ -94,5 +95,18 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
                            @Param("worldId") @NotNull UUID worldId,
                            @Param("price") double price,
                            @Param("titleHolder") @Nullable UUID titleHolder);
+
+    @Override
+    @Update("""
+            UPDATE SaleContract sc
+            INNER JOIN Contract c ON c.contractId = sc.saleContractId AND c.contractType = 'sale'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET sc.price = #{price}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int updatePriceByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                            @Param("worldId") @NotNull UUID worldId,
+                            @Param("price") @Nullable Double price);
 
 }
