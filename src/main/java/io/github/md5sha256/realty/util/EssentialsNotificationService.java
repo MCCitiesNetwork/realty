@@ -11,14 +11,17 @@ import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 public class EssentialsNotificationService implements NotificationService {
 
     private final IEssentials essentials;
+    private final Executor mainThreadExec;
 
-    public EssentialsNotificationService() {
+    public EssentialsNotificationService(@NotNull Executor executor) {
         essentials = (Essentials) Bukkit.getPluginManager().getPlugin("Essentials");
+        this.mainThreadExec = executor;
     }
 
     @Override
@@ -34,13 +37,20 @@ public class EssentialsNotificationService implements NotificationService {
     public void queueNotification(@NotNull UUID authorityId,
                                   @NotNull String plaintext,
                                   long expiryEpochSecond) {
-        IUser user = essentials.getUser(authorityId);
-        if (user != null) {
-            essentials.getMail()
-                    .sendMail(user,
-                            Console.getInstance(),
-                            plaintext,
-                            TimeUnit.SECONDS.toMillis(expiryEpochSecond));
+        Runnable runnable = () -> {
+            IUser user = essentials.getUser(authorityId);
+            if (user != null) {
+                essentials.getMail()
+                        .sendMail(user,
+                                Console.getInstance(),
+                                plaintext,
+                                TimeUnit.SECONDS.toMillis(expiryEpochSecond));
+            }
+        };
+        if (Bukkit.isPrimaryThread()) {
+            runnable.run();
+        } else {
+            this.mainThreadExec.execute(runnable);
         }
     }
 
@@ -51,9 +61,16 @@ public class EssentialsNotificationService implements NotificationService {
 
     @Override
     public void queueNotification(@NotNull UUID authorityId, @NotNull String plaintext) {
-        IUser user = essentials.getUser(authorityId);
-        if (user != null) {
-            essentials.getMail().sendMail(user, Console.getInstance(), plaintext);
+        Runnable runnable = () -> {
+            IUser user = essentials.getUser(authorityId);
+            if (user != null) {
+                essentials.getMail().sendMail(user, Console.getInstance(), plaintext);
+            }
+        };
+        if (Bukkit.isPrimaryThread()) {
+            runnable.run();
+        } else {
+            this.mainThreadExec.execute(runnable);
         }
     }
 }
