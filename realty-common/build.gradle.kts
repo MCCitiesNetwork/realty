@@ -1,4 +1,5 @@
 plugins {
+    `realty-conventions`
     `java-library`
     `maven-publish`
 }
