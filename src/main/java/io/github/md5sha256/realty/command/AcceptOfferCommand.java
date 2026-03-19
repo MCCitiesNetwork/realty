@@ -1,24 +1,23 @@
 package io.github.md5sha256.realty.command;
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
-import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.parser.standard.StringParser;
+import org.incendo.cloud.suggestion.Suggestion;
+import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.CompletableFuture;
@@ -32,28 +31,37 @@ public record AcceptOfferCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull MessageContainer messages
-) implements CustomCommandBean.Single<CommandSourceStack> {
+) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
-        return Commands.literal("acceptoffer")
-                .requires(source -> source.getSender().hasPermission("realty.command.acceptoffer"))
-                .then(Commands.argument("player", StringArgumentType.word())
-                        .suggests(ArgumentTypes.player()::listSuggestions)
-                        .then(Commands.argument("region", new WorldGuardRegionArgument())
-                                .executes(this::execute)));
+    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
+        return manager.commandBuilder("realty")
+                .literal("acceptoffer")
+                .permission("realty.command.acceptoffer")
+                .required("player", StringParser.stringParser(), playerSuggestions())
+                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .handler(this::execute)
+                .build();
     }
 
-    @SuppressWarnings("deprecation")
-    private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        String playerName = ctx.getArgument("player", String.class);
-        WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
-        CommandSender sender = ctx.getSource().getSender();
+    private static @NotNull SuggestionProvider<CommandSourceStack> playerSuggestions() {
+        return (ctx, input) -> CompletableFuture.completedFuture(
+                Bukkit.getOnlinePlayers().stream()
+                        .map(Player::getName)
+                        .map(Suggestion::suggestion)
+                        .toList()
+        );
+    }
+
+    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
+        String playerName = ctx.get("player");
+        WorldGuardRegion region = ctx.get("region");
+        CommandSender sender = ctx.sender().getSender();
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
             sender.sendMessage(messages.messageFor("common.player-not-found",
                     Placeholder.unparsed("player", playerName)));
-            return Command.SINGLE_SUCCESS;
+            return;
         }
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
@@ -85,7 +93,6 @@ public record AcceptOfferCommand(
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
-        return Command.SINGLE_SUCCESS;
     }
 
 }

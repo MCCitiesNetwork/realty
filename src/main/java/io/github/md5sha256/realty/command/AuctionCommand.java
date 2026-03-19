@@ -1,57 +1,59 @@
 package io.github.md5sha256.realty.command;
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.arguments.DoubleArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import io.github.md5sha256.realty.command.util.DurationArgument;
+import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.parser.standard.DoubleParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Handles {@code /realty auction <player> <duration> <paymentduration> <minimumbid> <minimumpricestep> [region]}.
+ * Handles {@code /realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region>}.
  *
  * <p>Base permission: {@code realty.command.auction}.
  * Auctioning on behalf of another player additionally requires {@code realty.command.auction.others}.</p>
  */
 public record AuctionCommand(@NotNull ExecutorState executorState,
                              @NotNull RealtyLogicImpl logic,
-                             @NotNull MessageContainer messages) implements CustomCommandBean.Single<CommandSourceStack> {
+                             @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
-        return Commands.literal("auction")
-                .requires(source -> source.getSender() instanceof Player player && player.hasPermission("realty.command.auction"))
-                .then(Commands.argument("bidDuration", DurationArgument.duration())
-                        .then(Commands.argument("paymentDuration", DurationArgument.duration())
-                                .then(Commands.argument("minBid", DoubleArgumentType.doubleArg(0))
-                                        .then(Commands.argument("minBidStep", DoubleArgumentType.doubleArg(0))
-                                                .then(Commands.argument("region", new WorldGuardRegionArgument())
-                                                        .executes(this::execute))))));
+    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
+        return manager.commandBuilder("realty")
+                .literal("auction")
+                .permission("realty.command.auction")
+                .required("bidDuration", DurationParser.duration())
+                .required("paymentDuration", DurationParser.duration())
+                .required("minBid", DoubleParser.doubleParser(0))
+                .required("minBidStep", DoubleParser.doubleParser(0))
+                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .handler(this::execute)
+                .build();
     }
 
-    private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        Duration bidDuration = ctx.getArgument("bidDuration", Duration.class);
-        Duration paymentDuration = ctx.getArgument("paymentDuration", Duration.class);
-        double minBid = ctx.getArgument("minBid", Double.class);
-        double minBidStep = ctx.getArgument("minBidStep", Double.class);
-        WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
-        CommandSender sender = ctx.getSource().getSender();
+    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
+        CommandSender sender = ctx.sender().getSender();
+        if (!(sender instanceof Player)) {
+            return;
+        }
+        Duration bidDuration = ctx.get("bidDuration");
+        Duration paymentDuration = ctx.get("paymentDuration");
+        double minBid = ctx.get("minBid");
+        double minBidStep = ctx.get("minBidStep");
+        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
@@ -70,7 +72,6 @@ public record AuctionCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
-        return Command.SINGLE_SUCCESS;
     }
 
 }

@@ -1,21 +1,22 @@
 package io.github.md5sha256.realty.command;
 
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collection;
 import java.util.List;
 
-public interface CustomCommandBean<C> {
+public interface CustomCommandBean {
 
-    @NotNull Collection<LiteralArgumentBuilder<C>> commands();
+    @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager);
 
-    interface Single<C> extends CustomCommandBean<C> {
-        @NotNull LiteralArgumentBuilder<C> command();
+    interface Single extends CustomCommandBean {
+        @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager);
 
         @Override
-        default @NotNull Collection<LiteralArgumentBuilder<C>> commands() {
-            return List.of(command());
+        default @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
+            return List.of(command(manager));
         }
     }
 

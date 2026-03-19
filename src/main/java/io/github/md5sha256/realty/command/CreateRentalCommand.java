@@ -1,25 +1,22 @@
 package io.github.md5sha256.realty.command;
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.arguments.DoubleArgumentType;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import io.github.md5sha256.realty.command.util.AuthorityArgument;
-import io.github.md5sha256.realty.command.util.DurationArgument;
+import io.github.md5sha256.realty.command.util.AuthorityParser;
+import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.parser.standard.DoubleParser;
+import org.incendo.cloud.parser.standard.IntegerParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
@@ -34,27 +31,32 @@ import java.util.concurrent.CompletionException;
  */
 public record CreateRentalCommand(@NotNull ExecutorState executorState,
                                   @NotNull RealtyLogicImpl logic,
-                                  @NotNull MessageContainer messages) implements CustomCommandBean.Single<CommandSourceStack> {
+                                  @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
-        return Commands.literal("createrental")
-                .requires(source -> source.getSender() instanceof Player player && player.hasPermission("realty.command.createrental"))
-                .then(Commands.argument("price", DoubleArgumentType.doubleArg(0))
-                        .then(Commands.argument("period", DurationArgument.duration())
-                                .then(Commands.argument("maxrenewals", IntegerArgumentType.integer(-1))
-                                        .then(Commands.argument("landlord", new AuthorityArgument())
-                                                .then(Commands.argument("region", new WorldGuardRegionArgument())
-                                                        .executes(this::execute))))));
+    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
+        return manager.commandBuilder("realty")
+                .literal("createrental")
+                .permission("realty.command.createrental")
+                .required("price", DoubleParser.doubleParser(0))
+                .required("period", DurationParser.duration())
+                .required("maxrenewals", IntegerParser.integerParser(-1))
+                .required("landlord", AuthorityParser.authority())
+                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .handler(this::execute)
+                .build();
     }
 
-    private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        double price = DoubleArgumentType.getDouble(ctx, "price");
-        Duration period = ctx.getArgument("period", Duration.class);
-        int maxRenewals = IntegerArgumentType.getInteger(ctx, "maxrenewals");
-        UUID landlord = ctx.getArgument("landlord", UUID.class);
-        WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegionResolver.class).resolve();
-        CommandSender sender = ctx.getSource().getSender();
+    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
+        CommandSender sender = ctx.sender().getSender();
+        if (!(sender instanceof Player)) {
+            return;
+        }
+        double price = ctx.get("price");
+        Duration period = ctx.get("period");
+        int maxRenewals = ctx.get("maxrenewals");
+        UUID landlord = ctx.get("landlord");
+        WorldGuardRegion region = ctx.get("region");
         CompletableFuture.supplyAsync(() -> {
             try {
                 return logic.createRental(
@@ -77,7 +79,6 @@ public record CreateRentalCommand(@NotNull ExecutorState executorState,
                     Placeholder.unparsed("error", cause.getMessage())));
             return null;
         });
-        return Command.SINGLE_SUCCESS;
     }
 
 }
