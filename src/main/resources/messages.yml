@@ -126,6 +126,27 @@ pay-offer:
   transfer-failed: "Failed to transfer region: WorldGuard region manager not available."
   transfer-success: "Region <region> ownership has been transferred to you."
 
+help:
+  - "<gold>--- Realty Commands ---</gold>"
+  - "<yellow>/realty help</yellow> <gray>- Show this help message</gray>"
+  - "<yellow>/realty info <region></yellow> <gray>- Display region info</gray>"
+  - "<yellow>/realty list [player] [page]</yellow> <gray>- List regions</gray>"
+  - "<yellow>/realty create sale <price> [--titleholder <name>] <region></yellow> <gray>- Create a sale</gray>"
+  - "<yellow>/realty create lease <price> <period> <maxrenewals> [--authority <name>] <region></yellow> <gray>- Create a lease</gray>"
+  - "<yellow>/realty delete <region> [includeworldguard]</yellow> <gray>- Delete a region</gray>"
+  - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
+  - "<yellow>/realty remove <player> <region></yellow> <gray>- Remove a player from a region</gray>"
+  - "<yellow>/realty offer <price> <region></yellow> <gray>- Make an offer on a region</gray>"
+  - "<yellow>/realty offers outbound|inbound</yellow> <gray>- View your offers</gray>"
+  - "<yellow>/realty acceptoffer <player> <region></yellow> <gray>- Accept an offer</gray>"
+  - "<yellow>/realty withdrawoffer <region></yellow> <gray>- Withdraw your offer</gray>"
+  - "<yellow>/realty payoffer <amount> <region></yellow> <gray>- Pay for an accepted offer</gray>"
+  - "<yellow>/realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region></yellow> <gray>- Create an auction</gray>"
+  - "<yellow>/realty bid <amount> <region></yellow> <gray>- Bid on an auction</gray>"
+  - "<yellow>/realty cancelauction <region></yellow> <gray>- Cancel an auction</gray>"
+  - "<yellow>/realty paybid <amount> <region></yellow> <gray>- Pay for a winning bid</gray>"
+  - "<yellow>/realty reload</yellow> <gray>- Reload configuration</gray>"
+
 reload:
   success: "Messages reloaded successfully."
   error: "Failed to reload messages: <error>"

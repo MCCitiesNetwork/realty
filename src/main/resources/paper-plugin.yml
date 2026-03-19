@@ -24,6 +24,9 @@ permissions:
   realty.command.remove.others:
     description: Allows removing players/groups from regions you don't own
     default: op
+  realty.command.help:
+    description: Allows using /realty help
+    default: true
   realty.command.info:
     description: Allows using /realty info
     default: true
