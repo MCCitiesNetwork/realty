@@ -10,6 +10,7 @@ import io.github.md5sha256.realty.command.util.AuthorityArgument;
 import io.github.md5sha256.realty.command.util.DurationArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -51,7 +52,7 @@ public record CreateRentalCommand(@NotNull ExecutorState executorState,
         Duration period = ctx.getArgument("period", Duration.class);
         int maxRenewals = IntegerArgumentType.getInteger(ctx, "maxrenewals");
         UUID landlord = ctx.getArgument("landlord", UUID.class);
-        WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegion.class);
+        WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegionResolver.class).resolve();
         CommandSender sender = ctx.getSource().getSender();
         CompletableFuture.runAsync(() -> {
             try {

@@ -8,6 +8,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.md5sha256.realty.command.util.AuthorityArgument;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -44,7 +45,7 @@ public record CreateSaleCommand(@NotNull ExecutorState executorState,
     private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         double price = DoubleArgumentType.getDouble(ctx, "price");
         UUID authority = ctx.getArgument("authority", UUID.class);
-        WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegion.class);
+        WorldGuardRegion region = ctx.getArgument("region", WorldGuardRegionResolver.class).resolve();
         CommandSender sender = ctx.getSource().getSender();
         UUID titleHolder = ((Player) sender).getUniqueId();
         CompletableFuture.runAsync(() -> {
