@@ -10,6 +10,7 @@ import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import me.wiefferink.areashop.AreaShop;
 import me.wiefferink.areashop.managers.IFileManager;
+import me.wiefferink.areashop.regions.GeneralRegion;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -85,6 +86,7 @@ public class ImportJob {
                                 lease.price(),
                                 lease.durationSeconds(),
                                 lease.maxRenewals(),
+                                lease.landlordId(),
                                 lease.tenantId());
                         contractMapper.insert(new ContractEntity(leaseContractId,
                                 "contract",
@@ -123,9 +125,11 @@ public class ImportJob {
                         return null;
                     }
                     UUID owner = region.getOwner();
+                    Double price = region.getState() == GeneralRegion.RegionState.FORSALE ?
+                            region.getPrice() : null;
                     return new SaleDto(protectedRegion.getId(),
                             world.getUID(),
-                            region.getPrice(),
+                            price,
                             landlord,
                             owner);
                 })
@@ -171,7 +175,7 @@ public class ImportJob {
 
     private record SaleDto(@NotNull String worldGuardRegionId,
                            @NotNull UUID worldId,
-                           double price,
+                           @Nullable Double price,
                            @NotNull UUID authority,
                            @Nullable UUID titleHolder) {
     }
@@ -182,7 +186,7 @@ public class ImportJob {
                             long durationSeconds,
                             int maxRenewals,
                             int currentRenewals,
-                            @NotNull UUID authorityId,
+                            @NotNull UUID landlordId,
                             @Nullable UUID tenantId) {
     }
 
