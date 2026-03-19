@@ -105,7 +105,7 @@ public final class Realty extends JavaPlugin {
         }
         if (getServer().getPluginManager().isPluginEnabled("Essentials")) {
             getLogger().info("Detected Essentials, using essentials as the mail service");
-            this.notificationService = new EssentialsNotificationService();
+            this.notificationService = new EssentialsNotificationService(this.executorState.mainThreadExec());
         } else {
             getLogger().info("Using the transient notification service");
             this.notificationService = new TransientNotificationService();
