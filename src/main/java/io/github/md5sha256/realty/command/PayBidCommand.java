@@ -1,22 +1,15 @@
 package io.github.md5sha256.realty.command;
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.arguments.DoubleArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
@@ -24,6 +17,10 @@ import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.parser.standard.DoubleParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.CompletableFuture;
@@ -38,35 +35,39 @@ public record PayBidCommand(
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
         @NotNull MessageContainer messages
-) implements CustomCommandBean.Single<CommandSourceStack> {
+) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
-        return Commands.literal("paybid")
-                .requires(source -> source.getSender() instanceof Player player && player.hasPermission(
-                        "realty.command.paybid"))
-                .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0, Double.MAX_VALUE))
-                        .then(Commands.argument("region", new WorldGuardRegionArgument())
-                                .executes(this::execute)));
+    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
+        return manager.commandBuilder("realty")
+                .literal("paybid")
+                .permission("realty.command.paybid")
+                .required("amount", DoubleParser.doubleParser(0, Double.MAX_VALUE))
+                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .handler(this::execute)
+                .build();
     }
 
-    private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        double amount = DoubleArgumentType.getDouble(ctx, "amount");
-        WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
-        Player sender = (Player) ctx.getSource().getSender();
+    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor("common.players-only"));
+            return;
+        }
+        double amount = ctx.get("amount");
+        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         // Balance check on main thread
         double balance = economy.getBalance(sender);
         if (balance < amount) {
             sender.sendMessage(messages.messageFor("pay-bid.insufficient-funds",
                     Placeholder.unparsed("balance", String.valueOf(balance))));
-            return Command.SINGLE_SUCCESS;
+            return;
         }
         EconomyResponse response = economy.withdrawPlayer(sender, amount);
         if (!response.transactionSuccess()) {
             sender.sendMessage(messages.messageFor("pay-bid.payment-failed",
                     Placeholder.unparsed("error", response.errorMessage)));
-            return Command.SINGLE_SUCCESS;
+            return;
         }
         // DB logic on async thread
         CompletableFuture.supplyAsync(() -> {
@@ -134,7 +135,6 @@ public record PayBidCommand(
                         Placeholder.unparsed("region", regionId)));
             }
         }, executorState.mainThreadExec());
-        return Command.SINGLE_SUCCESS;
     }
 
 }

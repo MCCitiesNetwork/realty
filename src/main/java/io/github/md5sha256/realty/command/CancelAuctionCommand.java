@@ -1,20 +1,17 @@
 package io.github.md5sha256.realty.command;
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.entity.Player;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.CompletableFuture;
@@ -28,19 +25,23 @@ public record CancelAuctionCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull MessageContainer messages
-) implements CustomCommandBean.Single<CommandSourceStack> {
+) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
-        return Commands.literal("cancelauction")
-                .requires(source -> source.getSender() instanceof Player player && player.hasPermission("realty.command.cancelauction"))
-                .then(Commands.argument("region", new WorldGuardRegionArgument())
-                        .executes(this::execute));
+    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
+        return manager.commandBuilder("realty")
+                .literal("cancelauction")
+                .permission("realty.command.cancelauction")
+                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .handler(this::execute)
+                .build();
     }
 
-    private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
-        Player sender = (Player) ctx.getSource().getSender();
+    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            return;
+        }
+        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
@@ -56,7 +57,6 @@ public record CancelAuctionCommand(
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
-        return Command.SINGLE_SUCCESS;
     }
 
 }

@@ -30,6 +30,7 @@ dependencies {
     }
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
+    implementation("org.incendo:cloud-paper:2.0.0-beta.10")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
     implementation("org.mybatis:mybatis:3.5.19")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.5.6")
@@ -69,6 +70,8 @@ tasks {
         relocate("org.apache.ibatis", "${base}.org.apache.ibatis")
         relocate("org.jetbrains.annotations", "${base}.org.jetbrains.annotations")
         relocate("org.intellij.lang", "${base}.org.intellij.lang")
+        relocate("net.kyori.option", "${base}.net.kyori.option")
+        relocate("org.incendo.cloud", "${base}.org.incendo.cloud")
     }
 
     processResources {

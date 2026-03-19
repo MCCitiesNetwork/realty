@@ -1,25 +1,22 @@
 package io.github.md5sha256.realty.command;
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.arguments.BoolArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.managers.storage.StorageException;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionArgument;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.command.CommandSender;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.parser.standard.BooleanParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.CompletableFuture;
@@ -33,31 +30,30 @@ import java.util.concurrent.CompletableFuture;
  */
 public record DeleteCommand(@NotNull ExecutorState executorState,
                             @NotNull RealtyLogicImpl logic,
-                            @NotNull MessageContainer messages) implements CustomCommandBean.Single<CommandSourceStack> {
+                            @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
-        return Commands.literal("delete")
-                .requires(source -> source.getSender().hasPermission("realty.command.delete"))
-                .then(Commands.argument("region", new WorldGuardRegionArgument())
-                        .executes(this::execute)
-                        .then(Commands.argument("includeworldguard", BoolArgumentType.bool())
-                                .requires(source -> source.getSender().hasPermission("realty.command.delete.includeworldguard"))
-                                .executes(this::execute)));
+    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
+        return manager.commandBuilder("realty")
+                .literal("delete")
+                .permission("realty.command.delete")
+                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .optional("includeworldguard", BooleanParser.booleanParser())
+                .handler(this::execute)
+                .build();
     }
 
-    private int execute(@NotNull CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        WorldGuardRegion region = WorldGuardRegionResolver.resolve(ctx, "region").resolve();
+    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
+        WorldGuardRegion region = ctx.get("region");
+        boolean includeWorldGuard = ctx.getOrDefault("includeworldguard", false);
 
-        boolean includeWorldGuard;
-        try {
-            includeWorldGuard = BoolArgumentType.getBool(ctx, "includeworldguard");
-        } catch (IllegalArgumentException ignored) {
-            includeWorldGuard = false;
+        CommandSender sender = ctx.sender().getSender();
+
+        if (includeWorldGuard && !sender.hasPermission("realty.command.delete.includeworldguard")) {
+            sender.sendMessage(messages.messageFor("common.no-permission"));
+            return;
         }
-        boolean finalIncludeWorldGuard = includeWorldGuard;
 
-        CommandSender sender = ctx.getSource().getSender();
         CompletableFuture.runAsync(() -> {
             try {
                 int deleted = logic.deleteRegion(region.region().getId(), region.world().getUID());
@@ -66,7 +62,7 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                     return;
                 }
 
-                if (finalIncludeWorldGuard) {
+                if (includeWorldGuard) {
                     RegionManager regionManager = WorldGuard.getInstance()
                             .getPlatform()
                             .getRegionContainer()
@@ -91,7 +87,6 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
-        return Command.SINGLE_SUCCESS;
     }
 
 }

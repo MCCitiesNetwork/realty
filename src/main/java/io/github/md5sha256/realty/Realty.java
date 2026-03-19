@@ -1,13 +1,11 @@
 package io.github.md5sha256.realty;
 
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import io.github.md5sha256.realty.command.AcceptOfferCommand;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AuctionCommand;
 import io.github.md5sha256.realty.command.BidCommand;
 import io.github.md5sha256.realty.command.CancelAuctionCommand;
-import io.github.md5sha256.realty.command.CreateRentalCommand;
-import io.github.md5sha256.realty.command.CreateSaleCommand;
+import io.github.md5sha256.realty.command.CreateCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
@@ -26,11 +24,14 @@ import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
-import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.Component;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.brigadier.BrigadierSetting;
+import org.incendo.cloud.execution.ExecutionCoordinator;
+import org.incendo.cloud.paper.PaperCommandManager;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.configurate.ConfigurationNode;
 import org.spongepowered.configurate.yaml.NodeStyle;
@@ -152,14 +153,13 @@ public final class Realty extends JavaPlugin {
             @NotNull MessageContainer messageContainer,
             @NotNull Economy economy
     ) {
-        List<CustomCommandBean<CommandSourceStack>> commands = List.of(
+        List<CustomCommandBean> commands = List.of(
                 new AcceptOfferCommand(executorState, logic, messageContainer),
                 new AddCommand(executorState, logic, messageContainer),
                 new AuctionCommand(executorState, logic, messageContainer),
                 new BidCommand(executorState, logic, messageContainer),
                 new CancelAuctionCommand(executorState, logic, messageContainer),
-                new CreateRentalCommand(executorState, logic, messageContainer),
-                new CreateSaleCommand(executorState, logic, messageContainer),
+                new CreateCommand(executorState, logic, this.settings, messageContainer),
                 new DeleteCommand(executorState, logic, messageContainer),
                 new InfoCommand(executorState, logic, messageContainer),
                 new ListCommand(executorState, logic, messageContainer),
@@ -175,14 +175,15 @@ public final class Realty extends JavaPlugin {
                 new WithdrawOfferCommand(executorState, logic, messageContainer)
         );
 
-        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, handler -> {
-            var registrar = handler.registrar();
-            var root = Commands.literal("realty");
-            commands.stream().flatMap(bean -> bean.commands().stream())
-                    .map(root::then)
-                    .map(LiteralArgumentBuilder::build)
-                    .forEach(registrar::register);
-        });
+        var manager = PaperCommandManager.builder()
+                .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
+                .buildOnEnable(this);
+        manager.brigadierManager().setNativeNumberSuggestions(true);
+        for (CustomCommandBean bean : commands) {
+            for (Command<CommandSourceStack> cmd : bean.commands(manager)) {
+                manager.command(cmd);
+            }
+        }
     }
 
     private ConfigurationNode copyDefaultsYaml(@NotNull String resourceName) throws IOException {

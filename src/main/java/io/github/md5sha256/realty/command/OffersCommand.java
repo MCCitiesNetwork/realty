@@ -1,21 +1,20 @@
 package io.github.md5sha256.realty.command;
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.CommandManager;
+import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.format.DateTimeFormatter;
@@ -31,21 +30,26 @@ public record OffersCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull MessageContainer messages
-) implements CustomCommandBean.Single<CommandSourceStack> {
+) implements CustomCommandBean {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     @Override
-    public @NotNull LiteralArgumentBuilder<CommandSourceStack> command() {
-        return Commands.literal("offers")
-                .requires(source -> source.getSender() instanceof Player player
-                        && player.hasPermission("realty.command.offers"))
-                .then(Commands.literal("outbound").executes(this::executeOutbound))
-                .then(Commands.literal("inbound").executes(this::executeInbound));
+    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
+        var base = manager.commandBuilder("realty")
+                .literal("offers")
+                .permission("realty.command.offers");
+        return List.of(
+                base.literal("outbound").handler(this::executeOutbound).build(),
+                base.literal("inbound").handler(this::executeInbound).build()
+        );
     }
 
-    private int executeOutbound(@NotNull CommandContext<CommandSourceStack> ctx) {
-        Player sender = (Player) ctx.getSource().getSender();
+    private void executeOutbound(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor("common.players-only"));
+            return;
+        }
         CompletableFuture.runAsync(() -> {
             try {
                 List<OutboundOfferView> offers = logic.listOutboundOffers(sender.getUniqueId());
@@ -81,11 +85,13 @@ public record OffersCommand(
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
-        return Command.SINGLE_SUCCESS;
     }
 
-    private int executeInbound(@NotNull CommandContext<CommandSourceStack> ctx) {
-        Player sender = (Player) ctx.getSource().getSender();
+    private void executeInbound(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor("common.players-only"));
+            return;
+        }
         CompletableFuture.runAsync(() -> {
             try {
                 List<InboundOfferView> offers = logic.listInboundOffers(sender.getUniqueId());
@@ -125,7 +131,6 @@ public record OffersCommand(
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
-        return Command.SINGLE_SUCCESS;
     }
 
 }
