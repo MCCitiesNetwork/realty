@@ -47,14 +47,15 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class Realty extends JavaPlugin {
 
     private final MessageContainer messageContainer = new MessageContainer();
+    private final AtomicReference<Settings> settings = new AtomicReference<>();
     private ExecutorState executorState;
     private RealtyLogicImpl logic;
     private DatabaseSettings databaseSettings;
-    private Settings settings;
 
     @Override
     public void onLoad() {
@@ -62,7 +63,7 @@ public final class Realty extends JavaPlugin {
             initDataFolder();
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
-            this.settings = loadSettings();
+            this.settings.set(loadSettings());
             if (this.databaseSettings.url().isEmpty()) {
                 getLogger().severe("Database url is empty!");
                 getServer().getPluginManager().disablePlugin(this);
@@ -141,7 +142,7 @@ public final class Realty extends JavaPlugin {
     }
 
     private void performReload() throws IOException {
-        this.settings = loadSettings();
+        this.settings.set(loadSettings());
         reloadMessages();
     }
 
