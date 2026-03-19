@@ -1,5 +1,6 @@
 plugins {
     java
+    `maven-publish`
     id("xyz.jpenilla.run-paper") version "2.3.1"
     id("com.gradleup.shadow") version "9.3.1"
 }
@@ -85,6 +86,10 @@ tasks {
         relocate("org.incendo.cloud", "${base}.org.incendo.cloud")
     }
 
+    publish {
+        dependsOn(shadowJar)
+    }
+
     processResources {
         filesMatching("paper-plugin.yml") {
             expand("version" to project.version)
@@ -106,6 +111,31 @@ tasks {
             url("https://ci.ender.zone/job/EssentialsX/1774/artifact/jars/EssentialsX-2.22.0-dev+74-d7452bf.jar")
             // Vault
             url("https://mediafilez.forgecdn.net/files/3007/470/Vault.jar")
+        }
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            artifact(tasks.jar)
+            pom {
+                name.set("Realty")
+                description.set("PaperMC plugin for real estate economy on WorldGuard regions")
+                url.set("https://github.com/MCCitiesNetwork/realty")
+                developers {
+                    developer {
+                        id.set("md5sha256")
+                        name.set("Andrew Wong")
+                        email.set("42793301+md5sha256@users.noreply.github.com")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:git://github.com/MCCitiesNetwork/realty.git")
+                    developerConnection.set("scm:git:ssh://github.com/MCCitiesNetwork/realty.git")
+                    url.set("https://github.com/MCCitiesNetwork/realty")
+                }
+            }
         }
     }
 }
