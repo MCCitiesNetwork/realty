@@ -69,6 +69,9 @@ permissions:
   realty.command.bid:
     description: Allows using /realty bid
     default: true
+  realty.command.buy:
+    description: Allows using /realty buy
+    default: true
   realty.command.paybid:
     description: Allows using /realty paybid
     default: true

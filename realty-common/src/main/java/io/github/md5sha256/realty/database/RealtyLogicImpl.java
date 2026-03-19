@@ -184,6 +184,65 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Buy (fixed-price) ---
+
+    public sealed interface BuyValidation {
+        record Eligible(double price, @NotNull UUID authorityId) implements BuyValidation {}
+        record NoSaleContract() implements BuyValidation {}
+        record NotForSale() implements BuyValidation {}
+        record IsAuthority() implements BuyValidation {}
+        record IsTitleHolder() implements BuyValidation {}
+    }
+
+    public @NotNull BuyValidation validateBuy(@NotNull String worldGuardRegionId,
+                                               @NotNull UUID worldId,
+                                               @NotNull UUID buyerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractMapper saleMapper = wrapper.saleContractMapper();
+            SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (sale == null) {
+                return new BuyValidation.NoSaleContract();
+            }
+            if (sale.price() == null) {
+                return new BuyValidation.NotForSale();
+            }
+            if (sale.authorityId().equals(buyerId)) {
+                return new BuyValidation.IsAuthority();
+            }
+            if (buyerId.equals(sale.titleHolderId())) {
+                return new BuyValidation.IsTitleHolder();
+            }
+            return new BuyValidation.Eligible(sale.price(), sale.authorityId());
+        }
+    }
+
+    public sealed interface BuyResult {
+        record Success(@NotNull UUID authorityId) implements BuyResult {}
+        record NoSaleContract() implements BuyResult {}
+        record NotForSale() implements BuyResult {}
+    }
+
+    public @NotNull BuyResult executeBuy(@NotNull String worldGuardRegionId,
+                                          @NotNull UUID worldId,
+                                          @NotNull UUID buyerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractMapper saleMapper = wrapper.saleContractMapper();
+            SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (sale == null) {
+                return new BuyResult.NoSaleContract();
+            }
+            if (sale.price() == null) {
+                return new BuyResult.NotForSale();
+            }
+            UUID authorityId = sale.authorityId();
+            saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, sale.price(), buyerId);
+            saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
+            wrapper.session().commit();
+            return new BuyResult.Success(authorityId);
+        }
+    }
+
     // --- Create Sale ---
 
     public boolean createSale(@NotNull String worldGuardRegionId,
