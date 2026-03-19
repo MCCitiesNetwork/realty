@@ -58,18 +58,21 @@ public class RealtyLogicImpl {
         }
     }
 
-    public int cancelAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+    public record CancelAuctionResult(int deleted, @NotNull List<UUID> bidderIds) {}
+
+    public @NotNull CancelAuctionResult cancelAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
+            List<UUID> bidderIds = wrapper.saleContractBidMapper().selectDistinctBidders(worldGuardRegionId, worldId);
             int deleted = wrapper.saleContractAuctionMapper().deleteActiveAuctionByRegion(worldGuardRegionId, worldId);
             wrapper.session().commit();
-            return deleted;
+            return new CancelAuctionResult(deleted, bidderIds);
         }
     }
 
     // --- Bid ---
 
     public sealed interface BidResult {
-        record Success() implements BidResult {}
+        record Success(@Nullable UUID previousBidderId) implements BidResult {}
         record NoAuction() implements BidResult {}
         record BidTooLowMinimum(double minBid) implements BidResult {}
         record BidTooLowCurrent(double currentHighest) implements BidResult {}
@@ -94,6 +97,7 @@ public class RealtyLogicImpl {
             if (highestBid != null && bidAmount < highestBid.bidAmount()) {
                 return new BidResult.BidTooLowCurrent(highestBid.bidAmount());
             }
+            UUID previousBidderId = highestBid != null ? highestBid.bidderId() : null;
             int inserted = bidMapper.performContractBid(new SaleContractBid(
                     auction.saleContractAuctionId(), bidderId, bidAmount, LocalDateTime.now()));
             if (inserted == 0) {
@@ -105,7 +109,7 @@ public class RealtyLogicImpl {
                 return new BidResult.BidTooLowMinimum(auction.minBid());
             }
             wrapper.session().commit();
-            return new BidResult.Success();
+            return new BidResult.Success(previousBidderId);
         }
     }
 
@@ -257,7 +261,7 @@ public class RealtyLogicImpl {
     // --- Withdraw Offer ---
 
     public sealed interface WithdrawOfferResult {
-        record Success() implements WithdrawOfferResult {}
+        record Success(@NotNull UUID authorityId) implements WithdrawOfferResult {}
         record NoOffer() implements WithdrawOfferResult {}
         record OfferAccepted() implements WithdrawOfferResult {}
     }
@@ -272,16 +276,17 @@ public class RealtyLogicImpl {
             if (wrapper.saleContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new WithdrawOfferResult.OfferAccepted();
             }
+            SaleContractEntity sale = wrapper.saleContractMapper().selectByRegion(worldGuardRegionId, worldId);
             wrapper.saleContractOfferMapper().deleteOfferByOfferer(worldGuardRegionId, worldId, offererId);
             wrapper.session().commit();
-            return new WithdrawOfferResult.Success();
+            return new WithdrawOfferResult.Success(sale.authorityId());
         }
     }
 
     // --- Place Offer ---
 
     public sealed interface OfferResult {
-        record Success() implements OfferResult {}
+        record Success(@NotNull UUID authorityId) implements OfferResult {}
         record NoSaleContract() implements OfferResult {}
         record IsAuthority() implements OfferResult {}
         record AlreadyHasOffer() implements OfferResult {}
@@ -298,13 +303,14 @@ public class RealtyLogicImpl {
             SaleContractOfferMapper offerMapper = wrapper.saleContractOfferMapper();
             SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
 
-            if (saleMapper.selectByRegion(worldGuardRegionId, worldId) == null) {
+            SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (sale == null) {
                 return new OfferResult.NoSaleContract();
             }
             if (auctionMapper.existsByRegion(worldGuardRegionId, worldId)) {
                 return new OfferResult.AuctionExists();
             }
-            if (saleMapper.existsByRegionAndAuthority(worldGuardRegionId, worldId, offererId)) {
+            if (sale.authorityId().equals(offererId)) {
                 return new OfferResult.IsAuthority();
             }
             if (offerMapper.existsByOfferer(worldGuardRegionId, worldId, offererId)) {
@@ -315,7 +321,7 @@ public class RealtyLogicImpl {
             if (inserted == 0) {
                 return new OfferResult.InsertFailed();
             }
-            return new OfferResult.Success();
+            return new OfferResult.Success(sale.authorityId());
         }
     }
 

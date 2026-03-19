@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -25,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 public record OfferCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
+        @NotNull NotificationService notificationService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -52,10 +54,16 @@ public record OfferCommand(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(), price);
                 switch (result) {
-                    case RealtyLogicImpl.OfferResult.Success ignored ->
+                    case RealtyLogicImpl.OfferResult.Success success -> {
                             sender.sendMessage(messages.messageFor("offer.success",
                                     Placeholder.unparsed("price", String.valueOf(price)),
                                     Placeholder.unparsed("region", regionId)));
+                            notificationService.queueNotification(success.authorityId(),
+                                    messages.prefixedMessageFor("notification.offer-placed",
+                                            Placeholder.unparsed("player", sender.getName()),
+                                            Placeholder.unparsed("price", String.valueOf(price)),
+                                            Placeholder.unparsed("region", regionId)));
+                    }
                     case RealtyLogicImpl.OfferResult.NoSaleContract ignored ->
                             sender.sendMessage(messages.messageFor("offer.no-sale-contract",
                                     Placeholder.unparsed("region", regionId)));

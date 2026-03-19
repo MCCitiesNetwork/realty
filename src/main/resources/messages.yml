@@ -161,3 +161,11 @@ withdraw-offer:
   accepted: "Your offer on region <region> has been accepted and cannot be withdrawn."
   success: "Your offer on region <region> has been withdrawn."
   error: "Failed to withdraw offer: <error>"
+
+notification:
+  offer-placed: "<player> placed an offer of <price> on region <region>."
+  offer-accepted: "Your offer on region <region> has been accepted."
+  offer-withdrawn: "<player> withdrew their offer on region <region>."
+  ownership-transferred: "Region <region> ownership has been transferred to <player>."
+  outbid: "You have been outbid on region <region>. New highest bid: <amount>."
+  auction-cancelled: "The auction for region <region> has been cancelled."

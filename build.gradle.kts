@@ -38,6 +38,7 @@ dependencies {
     }
     compileOnly("net.essentialsx:EssentialsX:2.19.0") {
         exclude(group = "org.bukkit", module = "bukkit")
+        exclude(group = "org.spigotmc", module = "spigot-api")
     }
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.0-beta.10")

@@ -109,7 +109,8 @@ public final class Realty extends JavaPlugin {
         registerCommands(this.executorState,
                 this.logic,
                 this.messageContainer,
-                economyProvider.getProvider());
+                economyProvider.getProvider(),
+                this.notificationService);
         getLogger().info("Plugin enabled successfully");
     }
 
@@ -161,29 +162,30 @@ public final class Realty extends JavaPlugin {
             @NotNull ExecutorState executorState,
             @NotNull RealtyLogicImpl logic,
             @NotNull MessageContainer messageContainer,
-            @NotNull Economy economy
+            @NotNull Economy economy,
+            @NotNull NotificationService notificationService
     ) {
         List<CustomCommandBean> commands = List.of(
-                new AcceptOfferCommand(executorState, logic, messageContainer),
+                new AcceptOfferCommand(executorState, logic, notificationService, messageContainer),
                 new AddCommand(executorState, logic, messageContainer),
                 new AuctionCommand(executorState, logic, messageContainer),
-                new BidCommand(executorState, logic, messageContainer),
-                new CancelAuctionCommand(executorState, logic, messageContainer),
+                new BidCommand(executorState, logic, notificationService, messageContainer),
+                new CancelAuctionCommand(executorState, logic, notificationService, messageContainer),
                 new CreateCommand(executorState, logic, this.settings, messageContainer),
                 new DeleteCommand(executorState, logic, messageContainer),
                 new HelpCommand(messageContainer),
                 new InfoCommand(executorState, logic, messageContainer),
                 new ListCommand(executorState, logic, messageContainer),
                 new OffersCommand(executorState, logic, messageContainer),
-                new OfferCommand(executorState, logic, messageContainer),
-                new PayBidCommand(executorState, logic, economy, messageContainer),
-                new PayOfferCommand(executorState, logic, economy, messageContainer),
+                new OfferCommand(executorState, logic, notificationService, messageContainer),
+                new PayBidCommand(executorState, logic, economy, notificationService, messageContainer),
+                new PayOfferCommand(executorState, logic, economy, notificationService, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();
                     return null;
                 }, messageContainer),
                 new RemoveCommand(executorState, logic, messageContainer),
-                new WithdrawOfferCommand(executorState, logic, messageContainer)
+                new WithdrawOfferCommand(executorState, logic, notificationService, messageContainer)
         );
 
         var manager = PaperCommandManager.builder()

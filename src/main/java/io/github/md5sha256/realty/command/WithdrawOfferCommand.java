@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -24,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 public record WithdrawOfferCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
+        @NotNull NotificationService notificationService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -47,9 +49,14 @@ public record WithdrawOfferCommand(
             try {
                 RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId());
                 switch (result) {
-                    case RealtyLogicImpl.WithdrawOfferResult.Success() ->
+                    case RealtyLogicImpl.WithdrawOfferResult.Success(var authorityId) -> {
                             sender.sendMessage(messages.messageFor("withdraw-offer.success",
                                     Placeholder.unparsed("region", regionId)));
+                            notificationService.queueNotification(authorityId,
+                                    messages.prefixedMessageFor("notification.offer-withdrawn",
+                                            Placeholder.unparsed("player", sender.getName()),
+                                            Placeholder.unparsed("region", regionId)));
+                    }
                     case RealtyLogicImpl.WithdrawOfferResult.NoOffer() ->
                             sender.sendMessage(messages.messageFor("withdraw-offer.no-offer",
                                     Placeholder.unparsed("region", regionId)));

@@ -10,6 +10,7 @@ import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 
@@ -34,6 +35,18 @@ public interface MariaSaleContractBidMapper extends SaleContractBidMapper {
     })
     @Nullable SaleContractBid selectHighestBid(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Select("""
+            SELECT DISTINCT scb.bidderId
+            FROM SaleContractBid scb
+            INNER JOIN SaleContractAuction sca ON sca.saleContractAuctionId = scb.saleContractAuctionId
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    @NotNull List<UUID> selectDistinctBidders(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                              @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Insert("""

@@ -4,6 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -34,6 +35,7 @@ public record PayOfferCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
+        @NotNull NotificationService notificationService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -128,6 +130,10 @@ public record PayOfferCommand(
                 protectedRegion.getMembers().clear();
                 sender.sendMessage(messages.messageFor("pay-offer.transfer-success",
                         Placeholder.unparsed("region", regionId)));
+                notificationService.queueNotification(fullyPaid.authorityId(),
+                        messages.prefixedMessageFor("notification.ownership-transferred",
+                                Placeholder.unparsed("player", sender.getName()),
+                                Placeholder.unparsed("region", regionId)));
             }
         }, executorState.mainThreadExec());
     }

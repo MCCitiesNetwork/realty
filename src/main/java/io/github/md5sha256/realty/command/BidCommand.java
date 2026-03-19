@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -25,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 public record BidCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
+        @NotNull NotificationService notificationService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -52,10 +54,17 @@ public record BidCommand(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(), bidAmount);
                 switch (result) {
-                    case RealtyLogicImpl.BidResult.Success ignored ->
+                    case RealtyLogicImpl.BidResult.Success success -> {
                             sender.sendMessage(messages.messageFor("bid.success",
                                     Placeholder.unparsed("amount", String.valueOf(bidAmount)),
                                     Placeholder.unparsed("region", regionId)));
+                            if (success.previousBidderId() != null) {
+                                notificationService.queueNotification(success.previousBidderId(),
+                                        messages.prefixedMessageFor("notification.outbid",
+                                                Placeholder.unparsed("region", regionId),
+                                                Placeholder.unparsed("amount", String.valueOf(bidAmount))));
+                            }
+                    }
                     case RealtyLogicImpl.BidResult.NoAuction ignored ->
                             sender.sendMessage(messages.messageFor("bid.no-auction"));
                     case RealtyLogicImpl.BidResult.BidTooLowMinimum r ->
