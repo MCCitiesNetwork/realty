@@ -1,2 +1,4 @@
-default-sale-titleholder-uuid: "00000000-0000-0000-0000-000000000000"
+# default-sale-titleholder-uuid is optional, leave it blank to default to no-titleholder
+# default-sale-titleholder-uuid: "00000000-0000-0000-0000-000000000000"
+default-sale-authority-uuid: "00000000-0000-0000-0000-000000000000"
 default-lease-authority-uuid: "00000000-0000-0000-0000-000000000000"

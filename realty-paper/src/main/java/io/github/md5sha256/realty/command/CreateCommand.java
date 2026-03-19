@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Handles {@code /realty create lease <price> <period> <maxrenewals> <region>}
- * and {@code /realty create sale <price> [--titleholder <name>] <region>}.
+ * and {@code /realty create sale <price> [--titleholder <name>] [--authority <name>] <region>}.
  *
  * <p>Permissions: {@code realty.command.create.lease} / {@code realty.command.create.sale}.</p>
  */
@@ -45,10 +45,16 @@ public record CreateCommand(@NotNull ExecutorState executorState,
     private static final CloudKey<Integer> MAX_RENEWALS = CloudKey.of("maxrenewals", Integer.class);
     private static final CloudKey<WorldGuardRegion> REGION = CloudKey.of("region",
             WorldGuardRegion.class);
+    private static final CommandFlag<UUID> AUTHORITY_FLAG =
+            CommandFlag.<CommandSourceStack>builder("authority")
+                    .withComponent(AuthorityParser.authority())
+                    .build();
+
     private static final CommandFlag<UUID> TITLEHOLDER_FLAG =
             CommandFlag.<CommandSourceStack>builder("titleholder")
                     .withComponent(AuthorityParser.authority())
                     .build();
+
 
     @Override
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
@@ -67,6 +73,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                         .permission("realty.command.create.sale")
                         .required(PRICE, DoubleParser.doubleParser(0))
                         .flag(TITLEHOLDER_FLAG)
+                        .flag(AUTHORITY_FLAG)
                         .required(REGION, WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeSale)
                         .build()
@@ -112,13 +119,15 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         }
         double price = ctx.get(PRICE);
         UUID authority = ctx.flags()
+                .getValue(AUTHORITY_FLAG, settings.get().defaultSaleAuthority());
+        UUID titleholder = ctx.flags()
                 .getValue(TITLEHOLDER_FLAG, settings.get().defaultSaleTitleholder());
         WorldGuardRegion region = ctx.get(REGION);
         CompletableFuture.supplyAsync(() -> {
             try {
                 return logic.createSale(
                         region.region().getId(), region.world().getUID(),
-                        price, authority, null);
+                        price, authority, titleholder);
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }
