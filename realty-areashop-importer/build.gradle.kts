@@ -16,3 +16,7 @@ dependencies {
     }
     implementation(project(":realty-paper"))
 }
+
+tasks {
+    jar
+}
