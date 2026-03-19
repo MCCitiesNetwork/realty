@@ -33,6 +33,19 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
     @Select("""
             SELECT realtyRegionId, worldGuardRegionId, worldId
             FROM RealtyRegion
+            WHERE realtyRegionId = #{realtyRegionId}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @Nullable RealtyRegionEntity selectById(@Param("realtyRegionId") int realtyRegionId);
+
+    @Override
+    @Select("""
+            SELECT realtyRegionId, worldGuardRegionId, worldId
+            FROM RealtyRegion
             WHERE worldGuardRegionId = #{worldGuardRegionId}
             AND worldId = #{worldId}
             """)

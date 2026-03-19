@@ -169,3 +169,5 @@ notification:
   ownership-transferred: "Region <region> ownership has been transferred to <player>."
   outbid: "You have been outbid on region <region>. New highest bid: <amount>."
   auction-cancelled: "The auction for region <region> has been cancelled."
+  bid-payment-expired: "Your bid payment for region <region> has expired. <amount> has been refunded."
+  offer-payment-expired: "Your offer payment for region <region> has expired. <amount> has been refunded."
