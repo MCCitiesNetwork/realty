@@ -19,6 +19,7 @@ import io.github.md5sha256.realty.command.PayOfferCommand;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.WithdrawOfferCommand;
+import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -51,6 +52,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -64,6 +66,13 @@ public final class Realty extends JavaPlugin {
     private RealtyLogicImpl logic;
     private DatabaseSettings databaseSettings;
     private NotificationService notificationService;
+
+    private Database database;
+
+    @NotNull
+    public Database database() {
+        return Objects.requireNonNull(this.database, "Database not initialized!");
+    }
 
     public RealtyLogicImpl logic() {
         return this.logic;
@@ -92,6 +101,7 @@ public final class Realty extends JavaPlugin {
         this.executorState = new ExecutorState(getServer().getScheduler()
                 .getMainThreadExecutor(this), Executors.newVirtualThreadPerTaskExecutor());
         MariaDatabase mariaDatabase = new MariaDatabase(this.databaseSettings, getLogger());
+        this.database = mariaDatabase;
         try {
             mariaDatabase.initializeSchema(Path.of("sql/migrations"));
         } catch (IOException | SQLException ex) {

@@ -1,0 +1,17 @@
+name: RealtyAreaShopImporter
+version: "${version}"
+main: io.github.md5sha256.realty.importer.RealtyAreaShopImportPlugin
+api-version: "1.21.8"
+authors: [ md5sha256 ]
+permissions:
+  realty.import:
+    description: Allows importing AreaShop regions into Realty
+    default: op
+dependencies:
+  server:
+    Realty:
+      join-classpath: true
+      required: true
+    AreaShop:
+      join-classpath: true
+      required: true
