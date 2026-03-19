@@ -17,6 +17,8 @@ public interface RealtyRegionMapper {
 
     int registerWorldGuardRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
+    @Nullable RealtyRegionEntity selectById(int realtyRegionId);
+
     @Nullable RealtyRegionEntity selectByWorldGuardRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     int deleteByWorldGuardRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);

@@ -28,9 +28,12 @@ import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitScheduler;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
@@ -46,6 +49,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -106,6 +110,7 @@ public final class Realty extends JavaPlugin {
             getLogger().info("Using the transient notification service");
             this.notificationService = new TransientNotificationService();
         }
+        scheduleTasks();
         registerCommands(this.executorState,
                 this.logic,
                 this.messageContainer,
@@ -129,6 +134,27 @@ public final class Realty extends JavaPlugin {
             }
         }
         getLogger().info("Plugin disabled successfully");
+    }
+
+    private void scheduleTasks() {
+        BukkitScheduler scheduler = getServer().getScheduler();
+        scheduler.runTaskLaterAsynchronously(this, () -> {
+            if (this.logic == null) {
+                return;
+            }
+            for (RealtyLogicImpl.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
+                this.notificationService.queueNotification(payment.bidderId(),
+                        this.messageContainer.prefixedMessageFor("notification.bid-payment-expired",
+                                Placeholder.unparsed("region", payment.regionId()),
+                                Placeholder.unparsed("amount", String.valueOf(payment.refundAmount()))));
+            }
+            for (RealtyLogicImpl.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
+                this.notificationService.queueNotification(payment.offererId(),
+                        this.messageContainer.prefixedMessageFor("notification.offer-payment-expired",
+                                Placeholder.unparsed("region", payment.regionId()),
+                                Placeholder.unparsed("amount", String.valueOf(payment.refundAmount()))));
+            }
+        }, Tick.tick().fromDuration(Duration.ofMinutes(1)));
     }
 
     private void initDataFolder() throws IOException {
@@ -170,7 +196,10 @@ public final class Realty extends JavaPlugin {
                 new AddCommand(executorState, logic, messageContainer),
                 new AuctionCommand(executorState, logic, messageContainer),
                 new BidCommand(executorState, logic, notificationService, messageContainer),
-                new CancelAuctionCommand(executorState, logic, notificationService, messageContainer),
+                new CancelAuctionCommand(executorState,
+                        logic,
+                        notificationService,
+                        messageContainer),
                 new CreateCommand(executorState, logic, this.settings, messageContainer),
                 new DeleteCommand(executorState, logic, messageContainer),
                 new HelpCommand(messageContainer),
@@ -178,14 +207,25 @@ public final class Realty extends JavaPlugin {
                 new ListCommand(executorState, logic, messageContainer),
                 new OffersCommand(executorState, logic, messageContainer),
                 new OfferCommand(executorState, logic, notificationService, messageContainer),
-                new PayBidCommand(executorState, logic, economy, notificationService, messageContainer),
-                new PayOfferCommand(executorState, logic, economy, notificationService, messageContainer),
+                new PayBidCommand(executorState,
+                        logic,
+                        economy,
+                        notificationService,
+                        messageContainer),
+                new PayOfferCommand(executorState,
+                        logic,
+                        economy,
+                        notificationService,
+                        messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();
                     return null;
                 }, messageContainer),
                 new RemoveCommand(executorState, logic, messageContainer),
-                new WithdrawOfferCommand(executorState, logic, notificationService, messageContainer)
+                new WithdrawOfferCommand(executorState,
+                        logic,
+                        notificationService,
+                        messageContainer)
         );
 
         var manager = PaperCommandManager.builder()

@@ -451,7 +451,7 @@ public class RealtyLogicImpl {
 
     // --- Expired Bid Payments ---
 
-    public record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount) {}
+    public record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId) {}
 
     public @NotNull List<ExpiredBidPayment> clearExpiredBidPayments() {
         List<SaleContractBidPaymentEntity> expired;
@@ -463,8 +463,10 @@ public class RealtyLogicImpl {
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 SaleContractBidPaymentMapper paymentMapper = wrapper.saleContractBidPaymentMapper();
                 SaleContractAuctionMapper auctionMapper = wrapper.saleContractAuctionMapper();
+                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
                 paymentMapper.deleteByBidId(payment.bidId());
-                refunds.add(new ExpiredBidPayment(payment.bidderId(), payment.currentPayment()));
+                String regionName = region != null ? region.worldGuardRegionId() : "unknown";
+                refunds.add(new ExpiredBidPayment(payment.bidderId(), payment.currentPayment(), regionName));
                 SaleContractAuctionEntity auction = auctionMapper.selectById(payment.saleContractAuctionId());
                 if (auction != null) {
                     LocalDateTime nextDeadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
@@ -481,7 +483,7 @@ public class RealtyLogicImpl {
 
     // --- Expired Offer Payments ---
 
-    public record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount) {}
+    public record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount, @NotNull String regionId) {}
 
     public @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments() {
         List<SaleContractOfferPaymentEntity> expired;
@@ -491,9 +493,11 @@ public class RealtyLogicImpl {
         List<ExpiredOfferPayment> refunds = new ArrayList<>();
         for (SaleContractOfferPaymentEntity payment : expired) {
             try (SqlSessionWrapper wrapper = database.openSession()) {
+                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
                 wrapper.saleContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
                 wrapper.session().commit();
-                refunds.add(new ExpiredOfferPayment(payment.offererId(), payment.currentPayment()));
+                String regionName = region != null ? region.worldGuardRegionId() : "unknown";
+                refunds.add(new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), regionName));
             }
         }
         return refunds;
