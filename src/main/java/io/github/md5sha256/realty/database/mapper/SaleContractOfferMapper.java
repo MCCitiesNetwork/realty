@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.database.mapper;
 
+import io.github.md5sha256.realty.database.entity.InboundOfferView;
+import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.SaleContractOfferEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,5 +30,9 @@ public interface SaleContractOfferMapper {
     boolean existsByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
 
     @Nullable SaleContractOfferEntity selectByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
+
+    @NotNull List<OutboundOfferView> selectAllByOfferer(@NotNull UUID offererId);
+
+    @NotNull List<InboundOfferView> selectAllByAuthority(@NotNull UUID authorityId);
 
 }

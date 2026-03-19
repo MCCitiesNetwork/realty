@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
+import io.github.md5sha256.realty.database.entity.InboundOfferView;
+import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.SaleContractOfferEntity;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
 import org.apache.ibatis.annotations.Arg;
@@ -122,5 +124,47 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
     @Nullable SaleContractOfferEntity selectByOfferer(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                       @Param("worldId") @NotNull UUID worldId,
                                                       @Param("offererId") @NotNull UUID offererId);
+
+    @Override
+    @Select("""
+            SELECT rr.worldGuardRegionId, rr.worldId, sco.offerPrice, sco.offerTime,
+                   scop.currentPayment, scop.paymentDeadline
+            FROM SaleContractOffer sco
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
+            LEFT JOIN SaleContractOfferPayment scop ON scop.offerId = sco.offerId
+            WHERE sco.offererId = #{offererId}
+            ORDER BY sco.offerTime DESC
+            """)
+    @ConstructorArgs({
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "offerPrice", javaType = double.class),
+            @Arg(column = "offerTime", javaType = LocalDateTime.class),
+            @Arg(column = "currentPayment", javaType = Double.class),
+            @Arg(column = "paymentDeadline", javaType = LocalDateTime.class)
+    })
+    @NotNull List<OutboundOfferView> selectAllByOfferer(@Param("offererId") @NotNull UUID offererId);
+
+    @Override
+    @Select("""
+            SELECT rr.worldGuardRegionId, rr.worldId, sco.offererId, sco.offerPrice, sco.offerTime,
+                   scop.currentPayment, scop.paymentDeadline
+            FROM SaleContractOffer sco
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
+            INNER JOIN SaleContract sc ON sc.realtyRegionId = sco.realtyRegionId
+            LEFT JOIN SaleContractOfferPayment scop ON scop.offerId = sco.offerId
+            WHERE sc.authorityId = #{authorityId}
+            ORDER BY sco.offerTime DESC
+            """)
+    @ConstructorArgs({
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "offererId", javaType = UUID.class),
+            @Arg(column = "offerPrice", javaType = double.class),
+            @Arg(column = "offerTime", javaType = LocalDateTime.class),
+            @Arg(column = "currentPayment", javaType = Double.class),
+            @Arg(column = "paymentDeadline", javaType = LocalDateTime.class)
+    })
+    @NotNull List<InboundOfferView> selectAllByAuthority(@Param("authorityId") @NotNull UUID authorityId);
 
 }

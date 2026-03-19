@@ -2,6 +2,8 @@ package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
+import io.github.md5sha256.realty.database.entity.InboundOfferView;
+import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractBid;
@@ -233,6 +235,22 @@ public class RealtyLogicImpl {
                     : List.of();
 
             return new ListResult(ownedCount, landlordCount, rentedCount, owned, landlordRegions, rented);
+        }
+    }
+
+    // --- List Outbound Offers ---
+
+    public @NotNull List<OutboundOfferView> listOutboundOffers(@NotNull UUID offererId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.saleContractOfferMapper().selectAllByOfferer(offererId);
+        }
+    }
+
+    // --- List Inbound Offers ---
+
+    public @NotNull List<InboundOfferView> listInboundOffers(@NotNull UUID authorityId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.saleContractOfferMapper().selectAllByAuthority(authorityId);
         }
     }
 

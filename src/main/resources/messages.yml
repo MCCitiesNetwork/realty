@@ -82,6 +82,18 @@ list:
   footer: "Page <page> of <total> — /realty list <player> <page>"
   error: "Failed to list regions: <error>"
 
+offers-list:
+  no-offers: "You have no outbound offers."
+  header: "--- Your Outbound Offers ---"
+  entry: "  <region>: <price> (<date>) — <status>"
+  error: "Failed to list offers: <error>"
+
+offers-inbound:
+  no-offers: "You have no inbound offers."
+  header: "--- Inbound Offers on Your Regions ---"
+  entry: "  <region>: <player> offered <price> (<date>) — <status>"
+  error: "Failed to list inbound offers: <error>"
+
 offer:
   success: "Offer of <price> placed on region <region>."
   no-sale-contract: "Region <region> does not have an active sale contract."
