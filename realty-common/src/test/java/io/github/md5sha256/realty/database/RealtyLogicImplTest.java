@@ -156,7 +156,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("succeeds with null tenant (for rent)")
         void succeedsWithNullTenant() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, null);
+            boolean result = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
@@ -325,8 +325,9 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         void rentedRegion() {
             String regionId = uniqueRegionId();
             logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
-            ListResult result = logic.listRegions(PLAYER_A, 10, 0);
+            ListResult result = logic.listRegions(PLAYER_B, 10, 0);
             Assertions.assertEquals(1, result.rentedCount());
         }
 

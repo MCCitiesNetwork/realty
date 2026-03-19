@@ -5,9 +5,9 @@ import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.database.maria.MariaSchemaMigrator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.testcontainers.containers.MariaDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.mariadb.MariaDBContainer;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -23,7 +23,7 @@ abstract class AbstractDatabaseTest {
     private static final String ROOT_PASSWORD = "rootpass";
 
     @Container
-    protected static final MariaDBContainer<?> CONTAINER = new MariaDBContainer<>("mariadb:11.7")
+    protected static final MariaDBContainer CONTAINER = new MariaDBContainer("mariadb:11.7")
             .withEnv("MARIADB_ROOT_PASSWORD", ROOT_PASSWORD);
 
     protected static Database database;
