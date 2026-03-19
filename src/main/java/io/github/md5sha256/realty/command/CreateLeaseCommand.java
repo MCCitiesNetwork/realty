@@ -33,10 +33,10 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>Permission: {@code realty.command.createrental}.</p>
  */
-public record CreateRentalCommand(@NotNull ExecutorState executorState,
-                                  @NotNull RealtyLogicImpl logic,
-                                  @NotNull AtomicReference<Settings> settings,
-                                  @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+public record CreateLeaseCommand(@NotNull ExecutorState executorState,
+                                 @NotNull RealtyLogicImpl logic,
+                                 @NotNull AtomicReference<Settings> settings,
+                                 @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
@@ -51,8 +51,8 @@ public record CreateRentalCommand(@NotNull ExecutorState executorState,
     @Override
     public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
         return manager.commandBuilder("realty")
-                .literal("createrental")
-                .permission("realty.command.createrental")
+                .literal("createlease")
+                .permission("realty.command.createlease")
                 .required(PRICE, DoubleParser.doubleParser(0))
                 .required(PERIOD, DurationParser.duration())
                 .required(MAX_RENEWALS, IntegerParser.integerParser(-1))
@@ -70,7 +70,7 @@ public record CreateRentalCommand(@NotNull ExecutorState executorState,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxRenewals = ctx.get(MAX_RENEWALS);
-        UUID landlord = ctx.flags().getValue(AUTHORITY_FLAG, settings.get().defaultRentAuthority());
+        UUID landlord = ctx.flags().getValue(AUTHORITY_FLAG, settings.get().defaultLeaseAuthority());
         WorldGuardRegion region = ctx.get(REGION);
         CompletableFuture.supplyAsync(() -> {
             try {

@@ -5,7 +5,7 @@ import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AuctionCommand;
 import io.github.md5sha256.realty.command.BidCommand;
 import io.github.md5sha256.realty.command.CancelAuctionCommand;
-import io.github.md5sha256.realty.command.CreateRentalCommand;
+import io.github.md5sha256.realty.command.CreateLeaseCommand;
 import io.github.md5sha256.realty.command.CreateSaleCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
@@ -159,7 +159,7 @@ public final class Realty extends JavaPlugin {
                 new AuctionCommand(executorState, logic, messageContainer),
                 new BidCommand(executorState, logic, messageContainer),
                 new CancelAuctionCommand(executorState, logic, messageContainer),
-                new CreateRentalCommand(executorState, logic, this.settings, messageContainer),
+                new CreateLeaseCommand(executorState, logic, this.settings, messageContainer),
                 new CreateSaleCommand(executorState, logic, this.settings, messageContainer),
                 new DeleteCommand(executorState, logic, messageContainer),
                 new InfoCommand(executorState, logic, messageContainer),

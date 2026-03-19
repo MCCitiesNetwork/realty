@@ -10,6 +10,6 @@ import java.util.UUID;
 @ConfigSerializable
 public record Settings(
         @Setting("default-sale-titleholder-uuid") @Required @NotNull UUID defaultSaleTitleholder,
-        @Setting("default-rent-authority-uuid") @Required @NotNull UUID defaultRentAuthority
+        @Setting("default-lease-authority-uuid") @Required @NotNull UUID defaultLeaseAuthority
 ) {
 }

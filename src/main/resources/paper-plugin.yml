@@ -39,8 +39,8 @@ permissions:
   realty.command.createsale:
     description: Allows using /realty createsale
     default: op
-  realty.command.createrental:
-    description: Allows using /realty createrental
+  realty.command.createlease:
+    description: Allows using /realty createlease
     default: op
   realty.command.offer:
     description: Allows using /realty offer
