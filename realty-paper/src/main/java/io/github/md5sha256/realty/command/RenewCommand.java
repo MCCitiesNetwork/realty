@@ -21,11 +21,11 @@ import org.jetbrains.annotations.NotNull;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Handles {@code /realty renewlease <region>}.
+ * Handles {@code /realty renew <region>}.
  *
- * <p>Permission: {@code realty.command.renewlease}.</p>
+ * <p>Permission: {@code realty.command.renew}.</p>
  */
-public record RenewLeaseCommand(
+public record RenewCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
@@ -35,8 +35,8 @@ public record RenewLeaseCommand(
     @Override
     public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
         return manager.commandBuilder("realty")
-                .literal("renewlease")
-                .permission("realty.command.renewlease")
+                .literal("renew")
+                .permission("realty.command.renew")
                 .required("region", WorldGuardRegionParser.worldGuardRegion())
                 .handler(this::execute)
                 .build();
@@ -55,28 +55,28 @@ public record RenewLeaseCommand(
                 return switch (result) {
                     case RealtyLogicImpl.RenewLeaseResult.Success success -> success;
                     case RealtyLogicImpl.RenewLeaseResult.NoLeaseContract ignored -> {
-                        sender.sendMessage(messages.messageFor("renewlease.no-lease-contract",
+                        sender.sendMessage(messages.messageFor("renew.no-lease-contract",
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.RenewLeaseResult.NotTenant ignored -> {
-                        sender.sendMessage(messages.messageFor("renewlease.not-tenant",
+                        sender.sendMessage(messages.messageFor("renew.not-tenant",
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.RenewLeaseResult.NoExtensionsRemaining ignored -> {
-                        sender.sendMessage(messages.messageFor("renewlease.no-extensions",
+                        sender.sendMessage(messages.messageFor("renew.no-extensions",
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.RenewLeaseResult.UpdateFailed ignored -> {
-                        sender.sendMessage(messages.messageFor("renewlease.update-failed",
+                        sender.sendMessage(messages.messageFor("renew.update-failed",
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                 };
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("renewlease.error",
+                sender.sendMessage(messages.messageFor("renew.error",
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
@@ -87,20 +87,20 @@ public record RenewLeaseCommand(
             double price = success.price();
             double balance = economy.getBalance(sender);
             if (balance < price) {
-                sender.sendMessage(messages.messageFor("renewlease.insufficient-funds",
+                sender.sendMessage(messages.messageFor("renew.insufficient-funds",
                         Placeholder.unparsed("balance", String.valueOf(balance)),
                         Placeholder.unparsed("price", String.valueOf(price))));
                 return;
             }
             EconomyResponse response = economy.withdrawPlayer(sender, price);
             if (!response.transactionSuccess()) {
-                sender.sendMessage(messages.messageFor("renewlease.payment-failed",
+                sender.sendMessage(messages.messageFor("renew.payment-failed",
                         Placeholder.unparsed("error", response.errorMessage)));
                 return;
             }
             OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
             economy.depositPlayer(landlord, price);
-            sender.sendMessage(messages.messageFor("renewlease.success",
+            sender.sendMessage(messages.messageFor("renew.success",
                     Placeholder.unparsed("region", regionId),
                     Placeholder.unparsed("price", String.valueOf(price))));
         }, executorState.mainThreadExec());

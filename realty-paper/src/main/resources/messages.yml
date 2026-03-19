@@ -138,7 +138,7 @@ help:
   - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
   - "<yellow>/realty remove <player> <region></yellow> <gray>- Remove a player from a region</gray>"
   - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
-  - "<yellow>/realty renewlease <region></yellow> <gray>- Renew a lease</gray>"
+  - "<yellow>/realty renew <region></yellow> <gray>- Renew a lease</gray>"
   - "<yellow>/realty offer <price> <region></yellow> <gray>- Make an offer on a region</gray>"
   - "<yellow>/realty offers outbound|inbound</yellow> <gray>- View your offers</gray>"
   - "<yellow>/realty acceptoffer <player> <region></yellow> <gray>- Accept an offer</gray>"
@@ -150,7 +150,7 @@ help:
   - "<yellow>/realty paybid <amount> <region></yellow> <gray>- Pay for a winning bid</gray>"
   - "<yellow>/realty reload</yellow> <gray>- Reload configuration</gray>"
 
-renewlease:
+renew:
   success: "Lease for region <region> has been renewed for <price>."
   no-lease-contract: "Region <region> does not have a lease contract."
   not-tenant: "You are not the tenant of region <region>."
