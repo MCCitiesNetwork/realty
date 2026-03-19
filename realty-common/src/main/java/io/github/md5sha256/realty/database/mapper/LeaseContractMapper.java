@@ -83,4 +83,19 @@ public interface LeaseContractMapper {
                    @NotNull UUID worldId,
                    @NotNull UUID tenantId);
 
+    /**
+     * Renews a lease contract by resetting the start date and incrementing the extension count.
+     * For leases with unlimited extensions ({@code currentMaxExtensions IS NULL}), only the
+     * start date is reset. For limited leases, the update only succeeds if
+     * {@code currentMaxExtensions < maxExtensions}.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param tenantId           UUID of the tenant requesting renewal
+     * @return number of rows updated (1 on success, 0 if renewal is not possible)
+     */
+    int renewLease(@NotNull String worldGuardRegionId,
+                   @NotNull UUID worldId,
+                   @NotNull UUID tenantId);
+
 }

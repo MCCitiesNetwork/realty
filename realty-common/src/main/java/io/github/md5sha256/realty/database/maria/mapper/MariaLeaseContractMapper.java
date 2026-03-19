@@ -118,4 +118,23 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
                    @Param("worldId") @NotNull UUID worldId,
                    @Param("tenantId") @NotNull UUID tenantId);
 
+    @Override
+    @Update("""
+            UPDATE LeaseContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.startDate = NOW(),
+                lc.currentMaxExtensions = CASE
+                    WHEN lc.currentMaxExtensions IS NULL THEN NULL
+                    ELSE lc.currentMaxExtensions + 1
+                END
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND lc.tenantId = #{tenantId}
+            AND (lc.currentMaxExtensions IS NULL OR lc.currentMaxExtensions < lc.maxExtensions)
+            """)
+    int renewLease(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                   @Param("worldId") @NotNull UUID worldId,
+                   @Param("tenantId") @NotNull UUID tenantId);
+
 }

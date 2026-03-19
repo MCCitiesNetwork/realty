@@ -190,6 +190,40 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Renew Lease ---
+
+    public sealed interface RenewLeaseResult {
+        record Success(double price, @NotNull UUID landlordId) implements RenewLeaseResult {}
+        record NoLeaseContract() implements RenewLeaseResult {}
+        record NotTenant() implements RenewLeaseResult {}
+        record NoExtensionsRemaining() implements RenewLeaseResult {}
+        record UpdateFailed() implements RenewLeaseResult {}
+    }
+
+    public @NotNull RenewLeaseResult renewLease(@NotNull String worldGuardRegionId,
+                                                 @NotNull UUID worldId,
+                                                 @NotNull UUID tenantId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
+            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new RenewLeaseResult.NoLeaseContract();
+            }
+            if (!tenantId.equals(lease.tenantId())) {
+                return new RenewLeaseResult.NotTenant();
+            }
+            if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
+                return new RenewLeaseResult.NoExtensionsRemaining();
+            }
+            int updated = leaseMapper.renewLease(worldGuardRegionId, worldId, tenantId);
+            if (updated == 0) {
+                return new RenewLeaseResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new RenewLeaseResult.Success(lease.price(), lease.landlordId());
+        }
+    }
+
     // --- Delete ---
 
     public int deleteRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
