@@ -275,7 +275,7 @@ public final class Realty extends JavaPlugin {
     }
 
     private RegionProfileSettings loadRegionFlagSettings() throws IOException {
-        ConfigurationNode settingsRoot = copyDefaultsYaml("states");
+        ConfigurationNode settingsRoot = copyDefaultsYaml("profiles");
         return settingsRoot.get(RegionProfileSettings.class);
     }
 
