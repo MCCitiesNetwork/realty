@@ -206,6 +206,11 @@ public final class Realty extends JavaPlugin {
             }
             List<RealtyLogicImpl.ExpiredLease> expiredLeases = this.logic.clearExpiredLeases();
             if (!expiredLeases.isEmpty()) {
+                Map<String, Map<String, String>> leaseePlaceholders = new HashMap<>();
+                for (RealtyLogicImpl.ExpiredLease lease : expiredLeases) {
+                    leaseePlaceholders.put(lease.worldGuardRegionId(),
+                            this.logic.getRegionPlaceholders(lease.worldGuardRegionId(), lease.worldId()));
+                }
                 scheduler.runTask(this, () -> {
                     for (RealtyLogicImpl.ExpiredLease lease : expiredLeases) {
                         World world = getServer().getWorld(lease.worldId());
@@ -220,7 +225,8 @@ public final class Realty extends JavaPlugin {
                                     protectedRegion.getMembers().removePlayer(lease.tenantId());
                                     regionProfileService.applyFlags(
                                             new WorldGuardRegion(protectedRegion, world),
-                                            RegionState.FOR_RENT);
+                                            RegionState.FOR_RENT,
+                                            leaseePlaceholders.getOrDefault(lease.worldGuardRegionId(), Map.of()));
                                 }
                             }
                         }
@@ -287,7 +293,7 @@ public final class Realty extends JavaPlugin {
                         }
                         WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
                         regionProfileService.clearAllFlags(wgRegion);
-                        regionProfileService.applyFlags(wgRegion, rws.state());
+                        regionProfileService.applyFlags(wgRegion, rws.state(), rws.placeholders());
                     }
                 }, executorState.mainThreadExec());
     }

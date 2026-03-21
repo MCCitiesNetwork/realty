@@ -23,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -194,8 +195,9 @@ public record SetCommandGroup(
                         regionId, region.world().getUID(), titleHolderId);
                 switch (result) {
                     case RealtyLogicImpl.SetTitleHolderResult.Success ignored -> {
+                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                             executorState.mainThreadExec().execute(
-                                    () -> regionProfileService.applyFlags(region, RegionState.SOLD));
+                                    () -> regionProfileService.applyFlags(region, RegionState.SOLD, placeholders));
                             sender.sendMessage(messages.messageFor("set-titleholder.success",
                                     Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
                                     Placeholder.unparsed("region", regionId)));
@@ -227,8 +229,9 @@ public record SetCommandGroup(
                         regionId, region.world().getUID(), tenantId);
                 switch (result) {
                     case RealtyLogicImpl.SetTenantResult.Success ignored -> {
+                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                             executorState.mainThreadExec().execute(
-                                    () -> regionProfileService.applyFlags(region, RegionState.RENTED));
+                                    () -> regionProfileService.applyFlags(region, RegionState.RENTED, placeholders));
                             sender.sendMessage(messages.messageFor("set-tenant.success",
                                     Placeholder.unparsed("tenant", resolveName(tenantId)),
                                     Placeholder.unparsed("region", regionId)));

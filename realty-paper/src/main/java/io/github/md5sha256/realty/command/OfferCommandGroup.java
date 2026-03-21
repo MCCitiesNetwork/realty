@@ -36,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -352,7 +353,8 @@ public record OfferCommandGroup(
                         sender.sendMessage(messages.messageFor("pay-offer.fully-paid",
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("region", regionId)));
-                        yield fullyPaid;
+                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                        yield Map.entry(fullyPaid, placeholders);
                     }
                     case RealtyLogicImpl.PayOfferResult.NoPaymentRecord ignored -> {
                         sender.sendMessage(messages.messageFor("pay-offer.no-payment-record",
@@ -372,10 +374,11 @@ public record OfferCommandGroup(
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(fullyPaid -> {
-            if (fullyPaid == null) {
+        }, executorState.dbExec()).thenAcceptAsync(entry -> {
+            if (entry == null) {
                 economy.depositPlayer(sender, amount);
             } else {
+                RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid = entry.getKey();
                 OfflinePlayer authority = Bukkit.getOfflinePlayer(fullyPaid.authorityId());
                 economy.depositPlayer(authority, amount);
                 RegionManager regionManager = WorldGuard.getInstance()
@@ -390,7 +393,7 @@ public record OfferCommandGroup(
                 protectedRegion.getOwners().clear();
                 protectedRegion.getOwners().addPlayer(sender.getUniqueId());
                 protectedRegion.getMembers().clear();
-                regionProfileService.applyFlags(region, RegionState.SOLD);
+                regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
                 sender.sendMessage(messages.messageFor("pay-offer.transfer-success",
                         Placeholder.unparsed("region", regionId)));
                 if (fullyPaid.titleHolderId() != null) {

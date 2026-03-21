@@ -26,9 +26,12 @@ import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class RealtyLogicImpl {
@@ -582,9 +585,75 @@ public class RealtyLogicImpl {
         }
     }
 
+    /**
+     * Builds a placeholder map for the given region, containing all info-level
+     * properties: region, title_holder, authority, price, last_sold_price,
+     * landlord, tenant, duration, start_date, end_date, extensions, has_auction.
+     */
+    public @NotNull Map<String, String> getRegionPlaceholders(@NotNull String worldGuardRegionId,
+                                                              @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            Map<String, String> placeholders = new LinkedHashMap<>();
+            placeholders.put("region", worldGuardRegionId);
+
+            SaleContractEntity sale = wrapper.saleContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (sale != null) {
+                placeholders.put("title_holder", sale.titleHolderId() != null ? sale.titleHolderId().toString() : "");
+                placeholders.put("authority", sale.authorityId().toString());
+                placeholders.put("price", sale.price() != null ? String.valueOf(sale.price()) : "");
+                Double lastSoldPrice = wrapper.saleHistoryMapper().selectLastSalePrice(worldGuardRegionId, worldId);
+                placeholders.put("last_sold_price", lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "");
+            }
+
+            LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (lease != null) {
+                placeholders.put("landlord", lease.landlordId().toString());
+                placeholders.put("tenant", lease.tenantId() != null ? lease.tenantId().toString() : "");
+                placeholders.put("price", String.valueOf(lease.price()));
+                placeholders.put("duration", formatDuration(Duration.ofSeconds(lease.durationSeconds())));
+                placeholders.put("start_date", lease.startDate().toString());
+                LocalDateTime endDate = lease.startDate().plusSeconds(lease.durationSeconds());
+                placeholders.put("end_date", endDate.toString());
+                if (lease.maxExtensions() != null) {
+                    placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
+                } else {
+                    placeholders.put("extensions", "unlimited");
+                }
+            }
+
+            SaleContractAuctionEntity auction = wrapper.saleContractAuctionMapper()
+                    .selectActiveByRegion(worldGuardRegionId, worldId);
+            placeholders.put("has_auction", auction != null ? "true" : "false");
+
+            return placeholders;
+        }
+    }
+
+    private static @NotNull String formatDuration(@NotNull Duration duration) {
+        long days = duration.toDays();
+        long hours = duration.toHoursPart();
+        long minutes = duration.toMinutesPart();
+        long seconds = duration.toSecondsPart();
+        StringBuilder sb = new StringBuilder();
+        if (days > 0) {
+            sb.append(days).append("d ");
+        }
+        if (hours > 0) {
+            sb.append(hours).append("h ");
+        }
+        if (minutes > 0) {
+            sb.append(minutes).append("m ");
+        }
+        if (seconds > 0 || sb.isEmpty()) {
+            sb.append(seconds).append("s");
+        }
+        return sb.toString().trim();
+    }
+
     public record RegionWithState(
             @NotNull RealtyRegionEntity region,
-            @NotNull RegionState state
+            @NotNull RegionState state,
+            @NotNull Map<String, String> placeholders
     ) {}
 
     public @NotNull List<RegionWithState> getAllRegionsWithState() {
@@ -592,18 +661,22 @@ public class RealtyLogicImpl {
             List<RealtyRegionEntity> regions = wrapper.realtyRegionMapper().selectAll();
             List<RegionWithState> result = new ArrayList<>();
             for (RealtyRegionEntity region : regions) {
+                Map<String, String> placeholders = getRegionPlaceholders(
+                        region.worldGuardRegionId(), region.worldId());
                 SaleContractEntity sale = wrapper.saleContractMapper()
                         .selectByRegion(region.worldGuardRegionId(), region.worldId());
                 if (sale != null) {
                     result.add(new RegionWithState(region,
-                            sale.titleHolderId() != null ? RegionState.SOLD : RegionState.FOR_SALE));
+                            sale.titleHolderId() != null ? RegionState.SOLD : RegionState.FOR_SALE,
+                            placeholders));
                     continue;
                 }
                 LeaseContractEntity lease = wrapper.leaseContractMapper()
                         .selectByRegion(region.worldGuardRegionId(), region.worldId());
                 if (lease != null) {
                     result.add(new RegionWithState(region,
-                            lease.tenantId() != null ? RegionState.RENTED : RegionState.FOR_RENT));
+                            lease.tenantId() != null ? RegionState.RENTED : RegionState.FOR_RENT,
+                            placeholders));
                 }
             }
             return result;
