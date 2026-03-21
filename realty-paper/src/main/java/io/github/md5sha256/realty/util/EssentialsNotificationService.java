@@ -40,14 +40,12 @@ public class EssentialsNotificationService implements NotificationService {
     public void queueNotification(@NotNull UUID authorityId,
                                   @NotNull String plaintext,
                                   long expiryEpochSecond) {
-        logger.info("[Mail] Queuing mail for " + authorityId + ": " + plaintext);
         Runnable runnable = () -> {
             IUser user = essentials.getUser(authorityId);
             if (user == null) {
-                logger.warning("[Mail] Failed to resolve Essentials user for UUID " + authorityId);
+                logger.warning("Failed to resolve Essentials user for UUID " + authorityId);
                 return;
             }
-            logger.info("[Mail] Sending mail to " + user.getName() + " (" + authorityId + ")");
             essentials.getMail()
                     .sendMail(user,
                             Console.getInstance(),
@@ -68,14 +66,12 @@ public class EssentialsNotificationService implements NotificationService {
 
     @Override
     public void queueNotification(@NotNull UUID authorityId, @NotNull String plaintext) {
-        logger.info("[Mail] Queuing mail for " + authorityId + ": " + plaintext);
         Runnable runnable = () -> {
             IUser user = essentials.getUser(authorityId);
             if (user == null) {
-                logger.warning("[Mail] Failed to resolve Essentials user for UUID " + authorityId);
+                logger.warning("Failed to resolve Essentials user for UUID " + authorityId);
                 return;
             }
-            logger.info("[Mail] Sending mail to " + user.getName() + " (" + authorityId + ")");
             essentials.getMail().sendMail(user, Console.getInstance(), plaintext);
         };
         if (Bukkit.isPrimaryThread()) {
