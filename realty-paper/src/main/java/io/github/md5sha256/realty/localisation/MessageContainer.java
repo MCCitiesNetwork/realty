@@ -87,8 +87,7 @@ public class MessageContainer {
             if (root.isList()) {
                 List<String> strings = root.getList(String.class, Collections.emptyList());
                 String joined = strings.stream()
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
+                        .filter(s -> !s.isBlank())
                         .collect(Collectors.joining("\n"));
                 if (!joined.isEmpty()) {
                     temp.put(path, joined);
@@ -96,7 +95,7 @@ public class MessageContainer {
             } else {
                 String raw = root.getString();
                 if (raw != null) {
-                    temp.put(path, raw.trim());
+                    temp.put(path, raw);
                 }
             }
         }
