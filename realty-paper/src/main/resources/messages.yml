@@ -101,7 +101,9 @@ list:
   header: "--- Regions for <player> ---"
   category: "<label>:"
   entry: "  - <region>"
-  footer: "Page <page> of <total> — /realty list <player> <page>"
+  footer: "Page <page> of <total> <previous><next>"
+  previous: "<click:run_command:/realty list <player> <previouspage>><yellow>< Previous</yellow></click> "
+  next: " <click:run_command:/realty list <player> <nextpage>><yellow>Next ></yellow></click>"
   error: "Failed to list regions: <error>"
 
 offers-list:
