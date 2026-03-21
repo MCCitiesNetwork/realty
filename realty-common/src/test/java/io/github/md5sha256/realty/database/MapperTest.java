@@ -967,15 +967,15 @@ class MapperTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("selectAllByAuthority returns inbound offers")
-        void selectAllByAuthority() {
+        @DisplayName("selectAllByTitleHolder returns inbound offers")
+        void selectAllByTitleHolder() {
             String regionId = uniqueRegionId();
             createSaleRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 List<InboundOfferView> offers = wrapper.saleContractOfferMapper()
-                        .selectAllByAuthority(AUTHORITY);
+                        .selectAllByTitleHolder(PLAYER_A);
                 Assertions.assertFalse(offers.isEmpty());
                 Assertions.assertEquals(regionId, offers.getFirst().worldGuardRegionId());
                 Assertions.assertEquals(PLAYER_B, offers.getFirst().offererId());

@@ -33,6 +33,6 @@ public interface SaleContractOfferMapper {
 
     @NotNull List<OutboundOfferView> selectAllByOfferer(@NotNull UUID offererId);
 
-    @NotNull List<InboundOfferView> selectAllByAuthority(@NotNull UUID authorityId);
+    @NotNull List<InboundOfferView> selectAllByTitleHolder(@NotNull UUID titleHolderId);
 
 }
