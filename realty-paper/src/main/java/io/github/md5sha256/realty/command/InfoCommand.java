@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -109,7 +110,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -121,7 +122,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                 RealtyLogicImpl.RegionInfo info = logic.getRegionInfo(regionId, worldId);
 
                 TextComponent.Builder builder = Component.text();
-                builder.append(messages.messageFor("info.header",
+                builder.append(messages.messageFor(MessageKeys.INFO_HEADER,
                         Placeholder.unparsed("region", regionId)));
 
                 FreeholdContractEntity freehold = info.freehold();
@@ -130,7 +131,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
                 if (freehold == null && lease == null && !hasAuction) {
                     builder.appendNewline()
-                            .append(messages.messageFor("info.no-contracts"));
+                            .append(messages.messageFor(MessageKeys.INFO_NO_CONTRACTS));
                     sender.sendMessage(builder.build());
                     return;
                 }
@@ -144,13 +145,13 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                 }
 
                 builder.appendNewline()
-                        .append(messages.messageFor("info.auction-active",
+                        .append(messages.messageFor(MessageKeys.INFO_AUCTION_ACTIVE,
                                 Placeholder.unparsed("has_auction", hasAuction ? "Yes" : "No")));
 
                 sender.sendMessage(builder.build());
             } catch (Exception ex) {
                 ex.printStackTrace();
-                sender.sendMessage(messages.messageFor("info.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.INFO_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -165,14 +166,14 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
         if (freehold.price() != null) {
             builder.appendNewline()
-                    .append(messages.messageFor("info.for-sale",
+                    .append(messages.messageFor(MessageKeys.INFO_FOR_SALE,
                             Placeholder.unparsed("title_holder", titleHolder),
                             Placeholder.unparsed("authority", authority),
                             Placeholder.unparsed("price", String.valueOf(freehold.price()))));
         } else {
             String lastSold = lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "N/A";
             builder.appendNewline()
-                    .append(messages.messageFor("info.sold",
+                    .append(messages.messageFor(MessageKeys.INFO_SOLD,
                             Placeholder.unparsed("title_holder", titleHolder),
                             Placeholder.unparsed("members", membersStr),
                             Placeholder.unparsed("authority", authority),
@@ -194,7 +195,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         LocalDateTime leaseEndDate = lease.startDate().plusSeconds(lease.durationSeconds());
 
         builder.appendNewline()
-                .append(messages.messageFor("info.lease",
+                .append(messages.messageFor(MessageKeys.INFO_LEASE,
                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
                         Placeholder.unparsed("members", membersStr),
                         Placeholder.unparsed("tenant", tenant),

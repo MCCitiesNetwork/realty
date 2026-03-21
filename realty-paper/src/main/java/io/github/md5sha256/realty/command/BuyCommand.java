@@ -11,6 +11,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -62,7 +63,7 @@ public record BuyCommand(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -71,7 +72,7 @@ public record BuyCommand(
             try {
                 return logic.validateBuy(regionId, region.world().getUID(), sender.getUniqueId());
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("buy.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.BUY_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
@@ -83,15 +84,15 @@ public record BuyCommand(
                 case RealtyLogicImpl.BuyValidation.Eligible eligible ->
                         handlePaymentAndTransfer(sender, region, regionId, eligible);
                 case RealtyLogicImpl.BuyValidation.NoFreeholdContract ignored ->
-                        sender.sendMessage(messages.messageFor("buy.no-freehold-contract",
+                        sender.sendMessage(messages.messageFor(MessageKeys.BUY_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyLogicImpl.BuyValidation.NotForFreehold ignored ->
-                        sender.sendMessage(messages.messageFor("buy.not-for-sale",
+                        sender.sendMessage(messages.messageFor(MessageKeys.BUY_NOT_FOR_SALE,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyLogicImpl.BuyValidation.IsAuthority ignored ->
-                        sender.sendMessage(messages.messageFor("buy.is-authority"));
+                        sender.sendMessage(messages.messageFor(MessageKeys.BUY_IS_AUTHORITY));
                 case RealtyLogicImpl.BuyValidation.IsTitleHolder ignored ->
-                        sender.sendMessage(messages.messageFor("buy.is-title-holder"));
+                        sender.sendMessage(messages.messageFor(MessageKeys.BUY_IS_TITLE_HOLDER));
             }
         }, executorState.mainThreadExec());
     }
@@ -104,14 +105,14 @@ public record BuyCommand(
         // Step 2: economy withdrawal (main thread)
         double balance = economy.getBalance(sender);
         if (balance < price) {
-            sender.sendMessage(messages.messageFor("buy.insufficient-funds",
+            sender.sendMessage(messages.messageFor(MessageKeys.BUY_INSUFFICIENT_FUNDS,
                     Placeholder.unparsed("price", String.valueOf(price)),
                     Placeholder.unparsed("balance", String.valueOf(balance))));
             return;
         }
         EconomyResponse response = economy.withdrawPlayer(sender, price);
         if (!response.transactionSuccess()) {
-            sender.sendMessage(messages.messageFor("buy.payment-failed",
+            sender.sendMessage(messages.messageFor(MessageKeys.BUY_PAYMENT_FAILED,
                     Placeholder.unparsed("error", response.errorMessage)));
             return;
         }
@@ -122,7 +123,7 @@ public record BuyCommand(
                 Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                 return Map.entry(result, placeholders);
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("buy.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.BUY_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
@@ -131,7 +132,7 @@ public record BuyCommand(
             if (entry == null || !(entry.getKey() instanceof RealtyLogicImpl.BuyResult.Success success)) {
                 // Transfer failed — refund
                 economy.depositPlayer(sender, price);
-                sender.sendMessage(messages.messageFor("buy.transfer-failed",
+                sender.sendMessage(messages.messageFor(MessageKeys.BUY_TRANSFER_FAILED,
                         Placeholder.unparsed("region", regionId)));
                 return;
             }
@@ -148,12 +149,12 @@ public record BuyCommand(
                 protectedRegion.getMembers().clear();
             }
             regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
-            sender.sendMessage(messages.messageFor("buy.success",
+            sender.sendMessage(messages.messageFor(MessageKeys.BUY_SUCCESS,
                     Placeholder.unparsed("price", String.valueOf(price)),
                     Placeholder.unparsed("region", regionId)));
             if (success.titleHolderId() != null) {
                 notificationService.queueNotification(success.titleHolderId(),
-                        messages.messageFor("notification.region-bought",
+                        messages.messageFor(MessageKeys.NOTIFICATION_REGION_BOUGHT,
                                 Placeholder.unparsed("player", sender.getName()),
                                 Placeholder.unparsed("price", String.valueOf(price)),
                                 Placeholder.unparsed("region", regionId)));

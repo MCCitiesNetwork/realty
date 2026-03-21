@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -72,13 +73,13 @@ public record AddCommand(@NotNull ExecutorState executorState,
                 return logic.checkRegionAuthority(regionId, worldId, playerId);
             } catch (Exception ex) {
                 ex.printStackTrace();
-                sender.sendMessage(messages.messageFor("add.check-permissions-error",
+                sender.sendMessage(messages.messageFor(MessageKeys.ADD_CHECK_PERMISSIONS_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return false;
             }
         }, executorState.dbExec()).thenAcceptAsync(success -> {
             if (!success) {
-                sender.sendMessage(messages.messageFor("add.no-permission"));
+                sender.sendMessage(messages.messageFor(MessageKeys.ADD_NO_PERMISSION));
                 return;
             }
             ProtectedRegion protectedRegion = region.region();
@@ -87,7 +88,7 @@ public record AddCommand(@NotNull ExecutorState executorState,
             } else {
                 protectedRegion.getMembers().addPlayer(playerOrGroup);
             }
-            sender.sendMessage(messages.messageFor("add.success",
+            sender.sendMessage(messages.messageFor(MessageKeys.ADD_SUCCESS,
                     Placeholder.unparsed("target", playerOrGroup),
                     Placeholder.unparsed("region", regionId)));
         }, executorState.mainThreadExec());

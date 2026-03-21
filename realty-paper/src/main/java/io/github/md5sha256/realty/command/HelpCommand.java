@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.command.CommandSender;
 import org.incendo.cloud.Command;
@@ -52,17 +53,24 @@ public record HelpCommand(
 
     private void executeMain(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        sender.sendMessage(messages.messageFor("help.main"));
+        sender.sendMessage(messages.messageFor(MessageKeys.HELP_MAIN));
     }
 
     private void executeCategory(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
         String category = ctx.<String>get("category").toLowerCase();
         if (!ALL_CATEGORIES.contains(category)) {
-            sender.sendMessage(messages.messageFor("help.unknown-category"));
+            sender.sendMessage(messages.messageFor(MessageKeys.HELP_UNKNOWN_CATEGORY));
             return;
         }
-        sender.sendMessage(messages.messageFor("help." + category));
+        String key = switch (category) {
+            case "basics" -> MessageKeys.HELP_BASICS;
+            case "offers" -> MessageKeys.HELP_OFFERS;
+            case "auctions" -> MessageKeys.HELP_AUCTIONS;
+            case "admin" -> MessageKeys.HELP_ADMIN;
+            default -> MessageKeys.HELP_UNKNOWN_CATEGORY;
+        };
+        sender.sendMessage(messages.messageFor(key));
     }
 
 }

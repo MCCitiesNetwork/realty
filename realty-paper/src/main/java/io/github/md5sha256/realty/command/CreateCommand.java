@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -121,14 +122,14 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         }, executorState.dbExec()).thenAcceptAsync(entry -> {
             if (entry.getKey()) {
                 regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
-                sender.sendMessage(messages.messageFor("create-rental.success"));
+                sender.sendMessage(messages.messageFor(MessageKeys.CREATE_RENTAL_SUCCESS));
             } else {
-                sender.sendMessage(messages.messageFor("create-rental.already-registered"));
+                sender.sendMessage(messages.messageFor(MessageKeys.CREATE_RENTAL_ALREADY_REGISTERED));
             }
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             cause.printStackTrace();
-            sender.sendMessage(messages.messageFor("create-rental.error",
+            sender.sendMessage(messages.messageFor(MessageKeys.CREATE_RENTAL_ERROR,
                     Placeholder.unparsed("error", cause.getMessage())));
             return null;
         });
@@ -162,14 +163,14 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                 region.region().getMembers().addPlayer(authority);
                 regionProfileService.applyFlags(region,
                         titleholder != null ? RegionState.SOLD : RegionState.FOR_SALE, entry.getValue());
-                sender.sendMessage(messages.messageFor("create-freehold.success"));
+                sender.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_SUCCESS));
             } else {
-                sender.sendMessage(messages.messageFor("create-freehold.already-registered"));
+                sender.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_ALREADY_REGISTERED));
             }
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             cause.printStackTrace();
-            sender.sendMessage(messages.messageFor("create-freehold.error",
+            sender.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_ERROR,
                     Placeholder.unparsed("error", cause.getMessage())));
             return null;
         });

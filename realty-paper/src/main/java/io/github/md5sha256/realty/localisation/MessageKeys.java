@@ -1,0 +1,275 @@
+package io.github.md5sha256.realty.localisation;
+
+public final class MessageKeys {
+
+    private MessageKeys() {}
+
+    // error
+    public static final String ERROR_NO_REGION = "error.no-region";
+
+    // common
+    public static final String COMMON_PLAYER_NOT_FOUND = "common.player-not-found";
+    public static final String COMMON_PLAYERS_ONLY = "common.players-only";
+    public static final String COMMON_NO_PERMISSION = "common.no-permission";
+    public static final String COMMON_ERROR = "common.error";
+
+    // accept-offer
+    public static final String ACCEPT_OFFER_SUCCESS = "accept-offer.success";
+    public static final String ACCEPT_OFFER_NO_OFFER = "accept-offer.no-offer";
+    public static final String ACCEPT_OFFER_AUCTION_EXISTS = "accept-offer.auction-exists";
+    public static final String ACCEPT_OFFER_ALREADY_ACCEPTED = "accept-offer.already-accepted";
+    public static final String ACCEPT_OFFER_INSERT_FAILED = "accept-offer.insert-failed";
+    public static final String ACCEPT_OFFER_ERROR = "accept-offer.error";
+
+    // add
+    public static final String ADD_CHECK_PERMISSIONS_ERROR = "add.check-permissions-error";
+    public static final String ADD_NO_PERMISSION = "add.no-permission";
+    public static final String ADD_SUCCESS = "add.success";
+
+    // agent-add
+    public static final String AGENT_ADD_SUCCESS = "agent-add.success";
+    public static final String AGENT_ADD_FAILED = "agent-add.failed";
+    public static final String AGENT_ADD_ERROR = "agent-add.error";
+
+    // agent-remove
+    public static final String AGENT_REMOVE_SUCCESS = "agent-remove.success";
+    public static final String AGENT_REMOVE_NOT_FOUND = "agent-remove.not-found";
+    public static final String AGENT_REMOVE_ERROR = "agent-remove.error";
+
+    // auction
+    public static final String AUCTION_SUCCESS = "auction.success";
+    public static final String AUCTION_NOT_SANCTIONED = "auction.not-sanctioned";
+    public static final String AUCTION_NO_FREEHOLD_CONTRACT = "auction.no-freehold-contract";
+    public static final String AUCTION_ERROR = "auction.error";
+
+    // auction-info
+    public static final String AUCTION_INFO_HEADER = "auction-info.header";
+    public static final String AUCTION_INFO_NO_AUCTION = "auction-info.no-auction";
+    public static final String AUCTION_INFO_DETAILS = "auction-info.details";
+    public static final String AUCTION_INFO_ERROR = "auction-info.error";
+
+    // bid
+    public static final String BID_NO_AUCTION = "bid.no-auction";
+    public static final String BID_IS_OWNER = "bid.is-owner";
+    public static final String BID_TOO_LOW_MINIMUM = "bid.too-low-minimum";
+    public static final String BID_TOO_LOW_CURRENT = "bid.too-low-current";
+    public static final String BID_ALREADY_HIGHEST = "bid.already-highest";
+    public static final String BID_SUCCESS = "bid.success";
+    public static final String BID_ERROR = "bid.error";
+
+    // buy
+    public static final String BUY_ERROR = "buy.error";
+    public static final String BUY_NO_FREEHOLD_CONTRACT = "buy.no-freehold-contract";
+    public static final String BUY_NOT_FOR_SALE = "buy.not-for-sale";
+    public static final String BUY_IS_AUTHORITY = "buy.is-authority";
+    public static final String BUY_IS_TITLE_HOLDER = "buy.is-title-holder";
+    public static final String BUY_INSUFFICIENT_FUNDS = "buy.insufficient-funds";
+    public static final String BUY_PAYMENT_FAILED = "buy.payment-failed";
+    public static final String BUY_SUCCESS = "buy.success";
+    public static final String BUY_TRANSFER_FAILED = "buy.transfer-failed";
+
+    // cancel-auction
+    public static final String CANCEL_AUCTION_NO_AUCTION = "cancel-auction.no-auction";
+    public static final String CANCEL_AUCTION_SUCCESS = "cancel-auction.success";
+    public static final String CANCEL_AUCTION_ERROR = "cancel-auction.error";
+
+    // create-freehold
+    public static final String CREATE_FREEHOLD_SUCCESS = "create-freehold.success";
+    public static final String CREATE_FREEHOLD_ALREADY_REGISTERED = "create-freehold.already-registered";
+    public static final String CREATE_FREEHOLD_ERROR = "create-freehold.error";
+
+    // create-rental
+    public static final String CREATE_RENTAL_SUCCESS = "create-rental.success";
+    public static final String CREATE_RENTAL_ALREADY_REGISTERED = "create-rental.already-registered";
+    public static final String CREATE_RENTAL_ERROR = "create-rental.error";
+
+    // delete
+    public static final String DELETE_NOT_REGISTERED = "delete.not-registered";
+    public static final String DELETE_WORLDGUARD_SAVE_ERROR = "delete.worldguard-save-error";
+    public static final String DELETE_SUCCESS = "delete.success";
+    public static final String DELETE_ERROR = "delete.error";
+
+    // help
+    public static final String HELP_MAIN = "help.main";
+    public static final String HELP_UNKNOWN_CATEGORY = "help.unknown-category";
+    public static final String HELP_BASICS = "help.basics";
+    public static final String HELP_OFFERS = "help.offers";
+    public static final String HELP_AUCTIONS = "help.auctions";
+    public static final String HELP_ADMIN = "help.admin";
+
+    // info
+    public static final String INFO_HEADER = "info.header";
+    public static final String INFO_NO_CONTRACTS = "info.no-contracts";
+    public static final String INFO_SOLD = "info.sold";
+    public static final String INFO_FOR_SALE = "info.for-sale";
+    public static final String INFO_LEASE = "info.lease";
+    public static final String INFO_AUCTION_ACTIVE = "info.auction-active";
+    public static final String INFO_ERROR = "info.error";
+
+    // list
+    public static final String LIST_PLAYERS_ONLY = "list.players-only";
+    public static final String LIST_NO_REGIONS = "list.no-regions";
+    public static final String LIST_INVALID_PAGE = "list.invalid-page";
+    public static final String LIST_HEADER = "list.header";
+    public static final String LIST_CATEGORY = "list.category";
+    public static final String LIST_ENTRY = "list.entry";
+    public static final String LIST_FOOTER = "list.footer";
+    public static final String LIST_PREVIOUS = "list.previous";
+    public static final String LIST_NEXT = "list.next";
+    public static final String LIST_ERROR = "list.error";
+
+    // offer
+    public static final String OFFER_SUCCESS = "offer.success";
+    public static final String OFFER_NO_FREEHOLD_CONTRACT = "offer.no-freehold-contract";
+    public static final String OFFER_IS_OWNER = "offer.is-owner";
+    public static final String OFFER_ALREADY_HAS_OFFER = "offer.already-has-offer";
+    public static final String OFFER_AUCTION_EXISTS = "offer.auction-exists";
+    public static final String OFFER_INSERT_FAILED = "offer.insert-failed";
+    public static final String OFFER_ERROR = "offer.error";
+
+    // offers-inbound
+    public static final String OFFERS_INBOUND_NO_OFFERS = "offers-inbound.no-offers";
+    public static final String OFFERS_INBOUND_HEADER = "offers-inbound.header";
+    public static final String OFFERS_INBOUND_ENTRY = "offers-inbound.entry";
+    public static final String OFFERS_INBOUND_ERROR = "offers-inbound.error";
+
+    // offers-list
+    public static final String OFFERS_LIST_NO_OFFERS = "offers-list.no-offers";
+    public static final String OFFERS_LIST_HEADER = "offers-list.header";
+    public static final String OFFERS_LIST_ENTRY = "offers-list.entry";
+    public static final String OFFERS_LIST_ERROR = "offers-list.error";
+
+    // pay-bid
+    public static final String PAY_BID_INSUFFICIENT_FUNDS = "pay-bid.insufficient-funds";
+    public static final String PAY_BID_PAYMENT_FAILED = "pay-bid.payment-failed";
+    public static final String PAY_BID_SUCCESS = "pay-bid.success";
+    public static final String PAY_BID_FULLY_PAID = "pay-bid.fully-paid";
+    public static final String PAY_BID_NO_PAYMENT_RECORD = "pay-bid.no-payment-record";
+    public static final String PAY_BID_PAYMENT_EXPIRED = "pay-bid.payment-expired";
+    public static final String PAY_BID_EXCEEDS_OWED = "pay-bid.exceeds-owed";
+    public static final String PAY_BID_ERROR = "pay-bid.error";
+    public static final String PAY_BID_TRANSFER_FAILED = "pay-bid.transfer-failed";
+    public static final String PAY_BID_TRANSFER_SUCCESS = "pay-bid.transfer-success";
+
+    // pay-offer
+    public static final String PAY_OFFER_INSUFFICIENT_FUNDS = "pay-offer.insufficient-funds";
+    public static final String PAY_OFFER_PAYMENT_FAILED = "pay-offer.payment-failed";
+    public static final String PAY_OFFER_SUCCESS = "pay-offer.success";
+    public static final String PAY_OFFER_FULLY_PAID = "pay-offer.fully-paid";
+    public static final String PAY_OFFER_NO_PAYMENT_RECORD = "pay-offer.no-payment-record";
+    public static final String PAY_OFFER_EXCEEDS_OWED = "pay-offer.exceeds-owed";
+    public static final String PAY_OFFER_ERROR = "pay-offer.error";
+    public static final String PAY_OFFER_TRANSFER_FAILED = "pay-offer.transfer-failed";
+    public static final String PAY_OFFER_TRANSFER_SUCCESS = "pay-offer.transfer-success";
+
+    // reject-offer
+    public static final String REJECT_OFFER_SUCCESS = "reject-offer.success";
+    public static final String REJECT_OFFER_ALL_SUCCESS = "reject-offer.all-success";
+    public static final String REJECT_OFFER_NO_OFFER = "reject-offer.no-offer";
+    public static final String REJECT_OFFER_NO_FREEHOLD_CONTRACT = "reject-offer.no-freehold-contract";
+    public static final String REJECT_OFFER_ACCEPTED = "reject-offer.accepted";
+    public static final String REJECT_OFFER_ERROR = "reject-offer.error";
+
+    // reload
+    public static final String RELOAD_SUCCESS = "reload.success";
+    public static final String RELOAD_ERROR = "reload.error";
+
+    // remove
+    public static final String REMOVE_CHECK_PERMISSIONS_ERROR = "remove.check-permissions-error";
+    public static final String REMOVE_NO_PERMISSION = "remove.no-permission";
+    public static final String REMOVE_SUCCESS = "remove.success";
+
+    // renew
+    public static final String RENEW_SUCCESS = "renew.success";
+    public static final String RENEW_NO_LEASE_CONTRACT = "renew.no-lease-contract";
+    public static final String RENEW_NOT_TENANT = "renew.not-tenant";
+    public static final String RENEW_NO_EXTENSIONS = "renew.no-extensions";
+    public static final String RENEW_UPDATE_FAILED = "renew.update-failed";
+    public static final String RENEW_INSUFFICIENT_FUNDS = "renew.insufficient-funds";
+    public static final String RENEW_PAYMENT_FAILED = "renew.payment-failed";
+    public static final String RENEW_ERROR = "renew.error";
+
+    // rent
+    public static final String RENT_SUCCESS = "rent.success";
+    public static final String RENT_NO_LEASE_CONTRACT = "rent.no-lease-contract";
+    public static final String RENT_IS_LANDLORD = "rent.is-landlord";
+    public static final String RENT_ALREADY_OCCUPIED = "rent.already-occupied";
+    public static final String RENT_UPDATE_FAILED = "rent.update-failed";
+    public static final String RENT_INSUFFICIENT_FUNDS = "rent.insufficient-funds";
+    public static final String RENT_PAYMENT_FAILED = "rent.payment-failed";
+    public static final String RENT_ERROR = "rent.error";
+
+    // set-duration
+    public static final String SET_DURATION_SUCCESS = "set-duration.success";
+    public static final String SET_DURATION_NO_LEASE_CONTRACT = "set-duration.no-lease-contract";
+    public static final String SET_DURATION_UPDATE_FAILED = "set-duration.update-failed";
+    public static final String SET_DURATION_ERROR = "set-duration.error";
+
+    // set-landlord
+    public static final String SET_LANDLORD_SUCCESS = "set-landlord.success";
+    public static final String SET_LANDLORD_NO_LEASE_CONTRACT = "set-landlord.no-lease-contract";
+    public static final String SET_LANDLORD_UPDATE_FAILED = "set-landlord.update-failed";
+    public static final String SET_LANDLORD_ERROR = "set-landlord.error";
+
+    // set-price
+    public static final String SET_PRICE_SUCCESS = "set-price.success";
+    public static final String SET_PRICE_NO_FREEHOLD_CONTRACT = "set-price.no-freehold-contract";
+    public static final String SET_PRICE_AUCTION_EXISTS = "set-price.auction-exists";
+    public static final String SET_PRICE_OFFER_PAYMENT_IN_PROGRESS = "set-price.offer-payment-in-progress";
+    public static final String SET_PRICE_BID_PAYMENT_IN_PROGRESS = "set-price.bid-payment-in-progress";
+    public static final String SET_PRICE_UPDATE_FAILED = "set-price.update-failed";
+    public static final String SET_PRICE_ERROR = "set-price.error";
+
+    // set-tenant
+    public static final String SET_TENANT_SUCCESS = "set-tenant.success";
+    public static final String SET_TENANT_NO_LEASE_CONTRACT = "set-tenant.no-lease-contract";
+    public static final String SET_TENANT_UPDATE_FAILED = "set-tenant.update-failed";
+    public static final String SET_TENANT_ERROR = "set-tenant.error";
+
+    // set-titleholder
+    public static final String SET_TITLEHOLDER_SUCCESS = "set-titleholder.success";
+    public static final String SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT = "set-titleholder.no-freehold-contract";
+    public static final String SET_TITLEHOLDER_UPDATE_FAILED = "set-titleholder.update-failed";
+    public static final String SET_TITLEHOLDER_ERROR = "set-titleholder.error";
+
+    // unset-price
+    public static final String UNSET_PRICE_SUCCESS = "unset-price.success";
+    public static final String UNSET_PRICE_NO_FREEHOLD_CONTRACT = "unset-price.no-freehold-contract";
+    public static final String UNSET_PRICE_OFFER_PAYMENT_IN_PROGRESS = "unset-price.offer-payment-in-progress";
+    public static final String UNSET_PRICE_BID_PAYMENT_IN_PROGRESS = "unset-price.bid-payment-in-progress";
+    public static final String UNSET_PRICE_UPDATE_FAILED = "unset-price.update-failed";
+    public static final String UNSET_PRICE_ERROR = "unset-price.error";
+
+    // unset-tenant
+    public static final String UNSET_TENANT_SUCCESS = "unset-tenant.success";
+    public static final String UNSET_TENANT_NO_LEASE_CONTRACT = "unset-tenant.no-lease-contract";
+    public static final String UNSET_TENANT_UPDATE_FAILED = "unset-tenant.update-failed";
+    public static final String UNSET_TENANT_ERROR = "unset-tenant.error";
+
+    // unset-titleholder
+    public static final String UNSET_TITLEHOLDER_SUCCESS = "unset-titleholder.success";
+    public static final String UNSET_TITLEHOLDER_NO_FREEHOLD_CONTRACT = "unset-titleholder.no-freehold-contract";
+    public static final String UNSET_TITLEHOLDER_UPDATE_FAILED = "unset-titleholder.update-failed";
+    public static final String UNSET_TITLEHOLDER_ERROR = "unset-titleholder.error";
+
+    // withdraw-offer
+    public static final String WITHDRAW_OFFER_NO_OFFER = "withdraw-offer.no-offer";
+    public static final String WITHDRAW_OFFER_ACCEPTED = "withdraw-offer.accepted";
+    public static final String WITHDRAW_OFFER_SUCCESS = "withdraw-offer.success";
+    public static final String WITHDRAW_OFFER_ERROR = "withdraw-offer.error";
+
+    // notification
+    public static final String NOTIFICATION_OFFER_PLACED = "notification.offer-placed";
+    public static final String NOTIFICATION_OFFER_ACCEPTED = "notification.offer-accepted";
+    public static final String NOTIFICATION_OFFER_REJECTED = "notification.offer-rejected";
+    public static final String NOTIFICATION_OFFER_WITHDRAWN = "notification.offer-withdrawn";
+    public static final String NOTIFICATION_OWNERSHIP_TRANSFERRED = "notification.ownership-transferred";
+    public static final String NOTIFICATION_OUTBID = "notification.outbid";
+    public static final String NOTIFICATION_AUCTION_CANCELLED = "notification.auction-cancelled";
+    public static final String NOTIFICATION_REGION_BOUGHT = "notification.region-bought";
+    public static final String NOTIFICATION_REGION_RENTED = "notification.region-rented";
+    public static final String NOTIFICATION_BID_PAYMENT_EXPIRED = "notification.bid-payment-expired";
+    public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED = "notification.offer-payment-expired";
+    public static final String NOTIFICATION_LEASE_EXPIRED = "notification.lease-expired";
+    public static final String NOTIFICATION_LEASE_EXPIRED_LANDLORD = "notification.lease-expired-landlord";
+}

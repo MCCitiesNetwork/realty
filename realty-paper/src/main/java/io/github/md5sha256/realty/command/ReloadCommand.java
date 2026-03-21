@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -39,11 +40,11 @@ public record ReloadCommand(
             try {
                 reloadTask.call();
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("reload.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.RELOAD_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return;
             }
-            sender.sendMessage(messages.messageFor("reload.success"));
+            sender.sendMessage(messages.messageFor(MessageKeys.RELOAD_SUCCESS));
         }, executorState.dbExec());
     }
 
