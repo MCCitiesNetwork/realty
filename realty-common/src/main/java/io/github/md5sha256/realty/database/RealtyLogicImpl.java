@@ -597,9 +597,9 @@ public class RealtyLogicImpl {
 
     // --- List Inbound Offers ---
 
-    public @NotNull List<InboundOfferView> listInboundOffers(@NotNull UUID authorityId) {
+    public @NotNull List<InboundOfferView> listInboundOffers(@NotNull UUID titleHolderId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.saleContractOfferMapper().selectAllByAuthority(authorityId);
+            return wrapper.saleContractOfferMapper().selectAllByTitleHolder(titleHolderId);
         }
     }
 

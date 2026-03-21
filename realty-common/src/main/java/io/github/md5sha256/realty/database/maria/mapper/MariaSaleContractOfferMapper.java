@@ -154,7 +154,7 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
             INNER JOIN Contract c ON c.realtyRegionId = sco.realtyRegionId AND c.contractType = 'sale'
             INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
             LEFT JOIN SaleContractOfferPayment scop ON scop.offerId = sco.offerId
-            WHERE sc.authorityId = #{authorityId}
+            WHERE sc.titleHolderId = #{titleHolderId}
             ORDER BY sco.offerTime DESC
             """)
     @ConstructorArgs({
@@ -166,6 +166,6 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
             @Arg(column = "currentPayment", javaType = Double.class),
             @Arg(column = "paymentDeadline", javaType = LocalDateTime.class)
     })
-    @NotNull List<InboundOfferView> selectAllByAuthority(@Param("authorityId") @NotNull UUID authorityId);
+    @NotNull List<InboundOfferView> selectAllByTitleHolder(@Param("titleHolderId") @NotNull UUID titleHolderId);
 
 }
