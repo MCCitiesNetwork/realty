@@ -18,7 +18,9 @@ import org.incendo.cloud.suggestion.Suggestion;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -78,13 +80,11 @@ public class WorldGuardRegionResolver implements ArgumentParser<CommandSourceSta
         }
         BlockVector3 position = BlockVector3.at(location.getBlockX(), location.getBlockY(), location.getBlockZ());
         ApplicableRegionSet applicable = regionManager.getApplicableRegions(position);
-        List<ProtectedRegion> regions = applicable.getRegions().stream().toList();
-        if (regions.isEmpty()) {
-            return null;
-        }
-        // Pick the highest-priority region (last in the sorted set)
-        ProtectedRegion best = regions.get(regions.size() - 1);
-        return new WorldGuardRegion(best, world);
+        return applicable.getRegions()
+                .stream()
+                .max(Comparator.comparingInt(ProtectedRegion::getPriority))
+                .map(best -> new WorldGuardRegion(best, world))
+                .orElse(null);
     }
 
     @Override
