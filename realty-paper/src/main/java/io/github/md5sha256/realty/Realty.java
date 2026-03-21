@@ -5,6 +5,7 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.NotificationService;
+import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.AddCommand;
@@ -29,12 +30,11 @@ import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
-import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
-import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.RegionProfile;
+import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
@@ -70,7 +70,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -84,6 +83,7 @@ public final class Realty extends JavaPlugin {
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private ExecutorState executorState;
     private RealtyLogicImpl logic;
+    private ProfileApplicator profileApplicator;
     private DatabaseSettings databaseSettings;
     private NotificationService notificationService;
     private Database database;
@@ -165,19 +165,24 @@ public final class Realty extends JavaPlugin {
             getLogger().info("Using the transient notification service");
             this.notificationService = new TransientNotificationService(this.executorState.mainThreadExec());
         }
+        this.profileApplicator = new ProfileApplicator(
+                this, this.regionProfileService, this.executorState, this.logic);
+        this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         scheduleTasks();
         registerCommands(this.executorState,
                 this.logic,
                 this.messageContainer,
                 economyProvider.getProvider(),
                 this.notificationService);
-        reapplyAllProfiles();
         getLogger().info("Plugin enabled successfully");
     }
 
     @Override
     public void onDisable() {
         // Plugin shutdown logic
+        if (this.profileApplicator != null) {
+            this.profileApplicator.cancel();
+        }
         if (this.executorState != null) {
             try (ExecutorService service = this.executorState.dbExec();) {
                 service.shutdownNow();
@@ -279,44 +284,9 @@ public final class Realty extends JavaPlugin {
         return settingsRoot.get(RegionProfileSettings.class);
     }
 
-    private void reapplyAllProfiles() {
-        int perTick = this.settings.get().profileReapplyPerTick();
-        CompletableFuture.supplyAsync(() -> logic.getAllRegionsWithState(), executorState.dbExec())
-                .thenAcceptAsync(regionsWithState -> {
-                    if (regionsWithState.isEmpty()) {
-                        return;
-                    }
-                    int[] index = {0};
-                    getServer().getScheduler().runTaskTimer(this, task -> {
-                        int processed = 0;
-                        while (index[0] < regionsWithState.size() && processed < perTick) {
-                            RealtyLogicImpl.RegionWithState rws = regionsWithState.get(index[0]++);
-                            RealtyRegionEntity entity = rws.region();
-                            World world = getServer().getWorld(entity.worldId());
-                            if (world == null) {
-                                continue;
-                            }
-                            RegionManager regionManager = WorldGuard.getInstance()
-                                    .getPlatform()
-                                    .getRegionContainer()
-                                    .get(BukkitAdapter.adapt(world));
-                            if (regionManager == null) {
-                                continue;
-                            }
-                            ProtectedRegion protectedRegion = regionManager.getRegion(entity.worldGuardRegionId());
-                            if (protectedRegion == null) {
-                                continue;
-                            }
-                            WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                            regionProfileService.clearAllFlags(wgRegion);
-                            regionProfileService.applyFlags(wgRegion, rws.state(), rws.placeholders());
-                            processed++;
-                        }
-                        if (index[0] >= regionsWithState.size()) {
-                            task.cancel();
-                        }
-                    }, 0L, 1L);
-                }, executorState.mainThreadExec());
+    private void reloadMessages() throws IOException {
+        ConfigurationNode node = copyDefaultsYaml("messages");
+        this.messageContainer.load(node);
     }
 
     private void configureRegionFlagService(@NotNull RegionProfileSettings settings) {
@@ -342,16 +312,11 @@ public final class Realty extends JavaPlugin {
         }
     }
 
-    private void reloadMessages() throws IOException {
-        ConfigurationNode node = copyDefaultsYaml("messages");
-        this.messageContainer.load(node);
-    }
-
     private void performReload() throws IOException {
         this.settings.set(loadSettings());
         this.regionFlagSettings.set(loadRegionFlagSettings());
         configureRegionFlagService(this.regionFlagSettings.get());
-        reapplyAllProfiles();
+        this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         reloadMessages();
     }
 

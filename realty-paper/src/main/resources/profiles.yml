@@ -64,6 +64,3 @@
 #       LEASED:
 #         flags:
 #           use: allow
-
-global: {}
-grouped: []
