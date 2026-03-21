@@ -44,7 +44,7 @@ public class RealtyAreaShopImportPlugin extends JavaPlugin {
                 .requires(source -> source.getSender().hasPermission("realty.import"))
                 .executes(ctx -> {
                     var sender = ctx.getSource().getSender();
-                    ImportJob.performImport(realty.database(), this.executorService, sender)
+                    ImportJob.performImport(realty.database(), realty.settings(), this.executorService, sender)
                             .thenAccept(result -> {
                                 sender.sendMessage(Component.text(
                                         "Import complete: " + result.imported() + " imported, "

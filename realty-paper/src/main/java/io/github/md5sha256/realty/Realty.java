@@ -83,6 +83,10 @@ public final class Realty extends JavaPlugin {
         return this.logic;
     }
 
+    public Settings settings() {
+        return this.settings.get();
+    }
+
     @Override
     public void onLoad() {
         try {

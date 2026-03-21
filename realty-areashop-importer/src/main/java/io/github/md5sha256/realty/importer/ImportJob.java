@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
+import io.github.md5sha256.realty.settings.Settings;
 import me.wiefferink.areashop.AreaShop;
 import me.wiefferink.areashop.managers.IFileManager;
 import me.wiefferink.areashop.regions.GeneralRegion;
@@ -112,19 +113,20 @@ public class ImportJob {
 
     @NotNull
     public static CompletableFuture<ImportResult> performImport(@NotNull Database database,
-                                                         @NotNull Executor executor,
-                                                         @NotNull Audience audience) {
+                                                                @NotNull Settings settings,
+                                                                @NotNull Executor executor,
+                                                                @NotNull Audience audience) {
         IFileManager fileManager = AreaShop.getInstance().getFileManager();
         List<SaleDto> buyRegions = fileManager.getBuysRef().stream()
                 .map(region -> {
                     ProtectedRegion protectedRegion = region.getRegion();
                     World world = region.getWorld();
-                    UUID landlord = region.getLandlord();
-                    if (protectedRegion == null || world == null || landlord == null) {
+                    if (protectedRegion == null || world == null) {
                         audience.sendMessage(Component.text("Skipping invalid buy region " + region.getName()));
                         return null;
                     }
-                    UUID owner = region.getOwner();
+                    UUID landlord = Objects.requireNonNullElse(region.getLandlord(), settings.defaultSaleAuthority());
+                    UUID owner = Objects.requireNonNullElse(region.getOwner(), settings.defaultSaleTitleholder());
                     Double price = region.getState() == GeneralRegion.RegionState.FORSALE ?
                             region.getPrice() : null;
                     return new SaleDto(protectedRegion.getId(),
@@ -139,11 +141,12 @@ public class ImportJob {
                 .map(region -> {
                     ProtectedRegion protectedRegion = region.getRegion();
                     World world = region.getWorld();
-                    UUID authorityId = region.getLandlord();
-                    if (protectedRegion == null || world == null || authorityId == null) {
+                    if (protectedRegion == null || world == null) {
                         audience.sendMessage(Component.text("Skipping invalid rent region " + region.getName()));
                         return null;
                     }
+
+                    UUID authorityId = Objects.requireNonNullElse(region.getLandlord(), settings.defaultLeaseAuthority());
                     UUID tenantId = region.getRenter();
                     return new LeaseDto(protectedRegion.getId(),
                             world.getUID(),
