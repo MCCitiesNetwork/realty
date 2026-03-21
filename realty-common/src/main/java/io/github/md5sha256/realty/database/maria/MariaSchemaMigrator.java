@@ -78,6 +78,19 @@ public final class MariaSchemaMigrator {
                 currentVersion = rs.getInt(1);
             }
 
+            int maxSupportedVersion = steps.stream()
+                    .mapToInt(MigrationStep::version)
+                    .max()
+                    .orElse(0);
+            if (currentVersion > maxSupportedVersion) {
+                throw new SQLException(
+                        "Database schema version " + currentVersion
+                                + " is newer than the maximum supported version "
+                                + maxSupportedVersion
+                                + ". Please update the plugin."
+                );
+            }
+
             for (MigrationStep step : steps) {
                 if (step.version() <= currentVersion) {
                     continue;
