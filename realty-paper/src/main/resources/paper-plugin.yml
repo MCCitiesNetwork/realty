@@ -54,32 +54,38 @@ permissions:
   realty.command.create.lease:
     description: Allows using /realty create lease
     default: op
-  realty.command.offer:
-    description: Allows using /realty offer
+  realty.command.offer.send:
+    description: Allows using /realty offer send
     default: true
-  realty.command.payoffer:
-    description: Allows using /realty payoffer
+  realty.command.offer.inbox:
+    description: Allows using /realty offer inbox
     default: true
-  realty.command.acceptoffer:
-    description: Allows using /realty acceptoffer
+  realty.command.offer.outbox:
+    description: Allows using /realty offer outbox
+    default: true
+  realty.command.offer.accept:
+    description: Allows using /realty offer accept
     default: op
-  realty.command.withdrawoffer:
-    description: Allows using /realty withdrawoffer
+  realty.command.offer.pay:
+    description: Allows using /realty offer pay
     default: true
-  realty.command.offers:
-    description: Allows using /realty offers (outbound/inbound)
+  realty.command.offer.withdraw:
+    description: Allows using /realty offer withdraw
     default: true
   realty.command.auction:
-    description: Allows using /realty auction
+    description: Allows using /realty auction (create)
     default: op
-  realty.command.bid:
-    description: Allows using /realty bid
+  realty.command.auction.cancel:
+    description: Allows using /realty auction cancel
+    default: op
+  realty.command.auction.bid:
+    description: Allows using /realty auction bid
     default: true
   realty.command.buy:
     description: Allows using /realty buy
     default: true
-  realty.command.paybid:
-    description: Allows using /realty paybid
+  realty.command.auction.paybid:
+    description: Allows using /realty auction paybid
     default: true
   realty.command.renewlease:
     description: Allows using /realty renewlease
@@ -95,7 +101,4 @@ permissions:
     default: op
   realty.command.reload:
     description: Allows using /realty reload
-    default: op
-  realty.command.cancelauction:
-    description: Allows using /realty cancelauction
     default: op

@@ -1,24 +1,18 @@
 package io.github.md5sha256.realty;
 
 import io.github.md5sha256.realty.api.NotificationService;
-import io.github.md5sha256.realty.command.AcceptOfferCommand;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentAddCommand;
 import io.github.md5sha256.realty.command.AgentRemoveCommand;
-import io.github.md5sha256.realty.command.AuctionCommand;
-import io.github.md5sha256.realty.command.BidCommand;
+import io.github.md5sha256.realty.command.AuctionCommandGroup;
 import io.github.md5sha256.realty.command.BuyCommand;
-import io.github.md5sha256.realty.command.CancelAuctionCommand;
 import io.github.md5sha256.realty.command.CreateCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
 import io.github.md5sha256.realty.command.HelpCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
-import io.github.md5sha256.realty.command.OfferCommand;
-import io.github.md5sha256.realty.command.OffersCommand;
-import io.github.md5sha256.realty.command.PayBidCommand;
-import io.github.md5sha256.realty.command.PayOfferCommand;
+import io.github.md5sha256.realty.command.OfferCommandGroup;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RenewCommand;
 import io.github.md5sha256.realty.command.RentCommand;
@@ -26,7 +20,6 @@ import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.SetPriceCommand;
 import io.github.md5sha256.realty.command.UnsetPriceCommand;
 import io.github.md5sha256.realty.command.VersionCommand;
-import io.github.md5sha256.realty.command.WithdrawOfferCommand;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
@@ -229,34 +222,17 @@ public final class Realty extends JavaPlugin {
         String version = getPluginMeta().getVersion();
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
-                new AcceptOfferCommand(executorState, logic, notificationService, messageContainer),
                 new AddCommand(executorState, logic, messageContainer),
                 new AgentAddCommand(executorState, logic, messageContainer),
                 new AgentRemoveCommand(executorState, logic, messageContainer),
-                new AuctionCommand(executorState, logic, messageContainer),
-                new BidCommand(executorState, logic, notificationService, messageContainer),
+                new AuctionCommandGroup(executorState, logic, economy, notificationService, messageContainer),
                 new BuyCommand(executorState, logic, economy, notificationService, messageContainer),
-                new CancelAuctionCommand(executorState,
-                        logic,
-                        notificationService,
-                        messageContainer),
                 new CreateCommand(executorState, logic, this.settings, messageContainer),
                 new DeleteCommand(executorState, logic, messageContainer),
                 new HelpCommand(messageContainer),
                 new InfoCommand(executorState, logic, this.settings.get(), messageContainer),
                 new ListCommand(executorState, logic, messageContainer),
-                new OffersCommand(executorState, logic, messageContainer),
-                new OfferCommand(executorState, logic, notificationService, messageContainer),
-                new PayBidCommand(executorState,
-                        logic,
-                        economy,
-                        notificationService,
-                        messageContainer),
-                new PayOfferCommand(executorState,
-                        logic,
-                        economy,
-                        notificationService,
-                        messageContainer),
+                new OfferCommandGroup(executorState, logic, economy, notificationService, messageContainer),
                 new RenewCommand(executorState, logic, economy, messageContainer),
                 new RentCommand(executorState, logic, economy, messageContainer),
                 new SetPriceCommand(executorState, logic, messageContainer),
@@ -265,11 +241,7 @@ public final class Realty extends JavaPlugin {
                     performReload();
                     return null;
                 }, messageContainer),
-                new RemoveCommand(executorState, logic, messageContainer),
-                new WithdrawOfferCommand(executorState,
-                        logic,
-                        notificationService,
-                        messageContainer)
+                new RemoveCommand(executorState, logic, messageContainer)
         );
 
         var manager = PaperCommandManager.builder()
