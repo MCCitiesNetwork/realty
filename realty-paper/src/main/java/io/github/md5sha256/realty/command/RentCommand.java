@@ -22,6 +22,7 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -64,7 +65,10 @@ public record RentCommand(
                 RealtyLogicImpl.RentResult result = logic.rentRegion(
                         regionId, region.world().getUID(), sender.getUniqueId());
                 return switch (result) {
-                    case RealtyLogicImpl.RentResult.Success success -> success;
+                    case RealtyLogicImpl.RentResult.Success success -> {
+                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                        yield Map.entry(success, placeholders);
+                    }
                     case RealtyLogicImpl.RentResult.NoLeaseContract ignored -> {
                         sender.sendMessage(messages.messageFor("rent.no-lease-contract",
                                 Placeholder.unparsed("region", regionId)));
@@ -91,10 +95,11 @@ public record RentCommand(
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(success -> {
-            if (success == null) {
+        }, executorState.dbExec()).thenAcceptAsync(entry -> {
+            if (entry == null) {
                 return;
             }
+            RealtyLogicImpl.RentResult.Success success = entry.getKey();
             double price = success.price();
             double balance = economy.getBalance(sender);
             if (balance < price) {
@@ -113,7 +118,7 @@ public record RentCommand(
             economy.depositPlayer(landlord, price);
             ProtectedRegion protectedRegion = region.region();
             protectedRegion.getMembers().addPlayer(sender.getUniqueId());
-            regionProfileService.applyFlags(region, RegionState.RENTED);
+            regionProfileService.applyFlags(region, RegionState.RENTED, entry.getValue());
             sender.sendMessage(messages.messageFor("rent.success",
                     Placeholder.unparsed("region", regionId),
                     Placeholder.unparsed("price", String.valueOf(price))));

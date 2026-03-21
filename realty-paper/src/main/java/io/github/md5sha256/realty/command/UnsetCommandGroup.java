@@ -17,6 +17,7 @@ import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -114,8 +115,9 @@ public record UnsetCommandGroup(
                         regionId, region.world().getUID(), null);
                 switch (result) {
                     case RealtyLogicImpl.SetTitleHolderResult.Success ignored -> {
+                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                             executorState.mainThreadExec().execute(
-                                    () -> regionProfileService.applyFlags(region, RegionState.FOR_SALE));
+                                    () -> regionProfileService.applyFlags(region, RegionState.FOR_SALE, placeholders));
                             sender.sendMessage(messages.messageFor("unset-titleholder.success",
                                     Placeholder.unparsed("region", regionId)));
                     }
@@ -150,8 +152,9 @@ public record UnsetCommandGroup(
                         regionId, region.world().getUID(), null);
                 switch (result) {
                     case RealtyLogicImpl.SetTenantResult.Success ignored -> {
+                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                             executorState.mainThreadExec().execute(
-                                    () -> regionProfileService.applyFlags(region, RegionState.FOR_RENT));
+                                    () -> regionProfileService.applyFlags(region, RegionState.FOR_RENT, placeholders));
                             sender.sendMessage(messages.messageFor("unset-tenant.success",
                                     Placeholder.unparsed("region", regionId)));
                     }

@@ -26,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -107,15 +108,19 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         WorldGuardRegion region = ctx.get(REGION);
         CompletableFuture.supplyAsync(() -> {
             try {
-                return logic.createRental(
+                boolean created = logic.createRental(
                         region.region().getId(), region.world().getUID(),
                         price, period.toSeconds(), maxRenewals, landlord);
+                Map<String, String> placeholders = created
+                        ? logic.getRegionPlaceholders(region.region().getId(), region.world().getUID())
+                        : Map.<String, String>of();
+                return Map.entry(created, placeholders);
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }
-        }, executorState.dbExec()).thenAcceptAsync(created -> {
-            if (created) {
-                regionProfileService.applyFlags(region, RegionState.FOR_RENT);
+        }, executorState.dbExec()).thenAcceptAsync(entry -> {
+            if (entry.getKey()) {
+                regionProfileService.applyFlags(region, RegionState.FOR_RENT, entry.getValue());
                 sender.sendMessage(messages.messageFor("create-rental.success"));
             } else {
                 sender.sendMessage(messages.messageFor("create-rental.already-registered"));
@@ -142,17 +147,21 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         WorldGuardRegion region = ctx.get(REGION);
         CompletableFuture.supplyAsync(() -> {
             try {
-                return logic.createSale(
+                boolean created = logic.createSale(
                         region.region().getId(), region.world().getUID(),
                         price, authority, titleholder);
+                Map<String, String> placeholders = created
+                        ? logic.getRegionPlaceholders(region.region().getId(), region.world().getUID())
+                        : Map.<String, String>of();
+                return Map.entry(created, placeholders);
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }
-        }, executorState.dbExec()).thenAcceptAsync(created -> {
-            if (created) {
+        }, executorState.dbExec()).thenAcceptAsync(entry -> {
+            if (entry.getKey()) {
                 region.region().getMembers().addPlayer(authority);
                 regionProfileService.applyFlags(region,
-                        titleholder != null ? RegionState.SOLD : RegionState.FOR_SALE);
+                        titleholder != null ? RegionState.SOLD : RegionState.FOR_SALE, entry.getValue());
                 sender.sendMessage(messages.messageFor("create-sale.success"));
             } else {
                 sender.sendMessage(messages.messageFor("create-sale.already-registered"));

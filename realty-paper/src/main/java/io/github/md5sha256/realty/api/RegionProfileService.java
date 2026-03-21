@@ -107,12 +107,17 @@ public class RegionProfileService {
     /**
      * Applies the global and grouped flag profiles for the given state to the
      * specified WorldGuard region. All existing flags on the region are cleared
-     * before the new profile is applied.
+     * before the new profile is applied. Placeholder tokens in flag values
+     * (e.g. {@code {region}}, {@code {price}}) are replaced with the
+     * corresponding values from the provided map before being parsed by WorldGuard.
      *
-     * @param region the WorldGuard region to apply flags to
-     * @param state  the region state whose flag profiles should be applied
+     * @param region       the WorldGuard region to apply flags to
+     * @param state        the region state whose flag profiles should be applied
+     * @param placeholders placeholder key-value pairs for substitution in flag values
      */
-    public void applyFlags(@NotNull WorldGuardRegion region, @NotNull RegionState state) {
+    public void applyFlags(@NotNull WorldGuardRegion region,
+                           @NotNull RegionState state,
+                           @NotNull Map<String, String> placeholders) {
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.setFlags(Map.of());
 
@@ -120,13 +125,13 @@ public class RegionProfileService {
         // Apply global ALL profile as base
         FlagProfile globalAll = this.globalFlagProfiles.get(RegionState.ALL);
         if (globalAll != null) {
-            priority = applyProfile(protectedRegion, globalAll, priority);
+            priority = applyProfile(protectedRegion, globalAll, placeholders, priority);
         }
         // Apply global state-specific profile on top
         if (state != RegionState.ALL) {
             FlagProfile globalState = this.globalFlagProfiles.get(state);
             if (globalState != null) {
-                priority = applyProfile(protectedRegion, globalState, priority);
+                priority = applyProfile(protectedRegion, globalState, placeholders, priority);
             }
         }
         EnumMap<RegionState, FlagProfile> grouped = this.groupedFlagProfiles.get(protectedRegion.getId());
@@ -134,13 +139,13 @@ public class RegionProfileService {
             // Apply grouped ALL profile
             FlagProfile groupedAll = grouped.get(RegionState.ALL);
             if (groupedAll != null) {
-                priority = applyProfile(protectedRegion, groupedAll, priority);
+                priority = applyProfile(protectedRegion, groupedAll, placeholders, priority);
             }
             // Apply grouped state-specific profile on top
             if (state != RegionState.ALL) {
                 FlagProfile groupedState = grouped.get(state);
                 if (groupedState != null) {
-                    priority = applyProfile(protectedRegion, groupedState, priority);
+                    priority = applyProfile(protectedRegion, groupedState, placeholders, priority);
                 }
             }
         }
@@ -151,9 +156,10 @@ public class RegionProfileService {
 
     private @Nullable Integer applyProfile(@NotNull ProtectedRegion region,
                                            @NotNull FlagProfile profile,
+                                           @NotNull Map<String, String> placeholders,
                                            @Nullable Integer currentPriority) {
         if (!profile.flags().isEmpty()) {
-            applyFlagMap(region, profile.flags());
+            applyFlagMap(region, profile.flags(), placeholders);
         }
         return profile.priority() != null ? profile.priority() : currentPriority;
     }
@@ -170,11 +176,12 @@ public class RegionProfileService {
     }
 
     private void applyFlagMap(@NotNull ProtectedRegion protectedRegion,
-                              @NotNull Map<String, String> flags) {
+                              @NotNull Map<String, String> flags,
+                              @NotNull Map<String, String> placeholders) {
         FlagRegistry registry = WorldGuard.getInstance().getFlagRegistry();
         for (Map.Entry<String, String> entry : flags.entrySet()) {
             String flagName = entry.getKey();
-            String rawValue = entry.getValue();
+            String rawValue = replacePlaceholders(entry.getValue(), placeholders);
 
             Flag<?> flag = resolveFlag(registry, flagName);
             if (flag == null) {
@@ -200,6 +207,18 @@ public class RegionProfileService {
                 }
             }
         }
+    }
+
+    private @NotNull String replacePlaceholders(@NotNull String value,
+                                                @NotNull Map<String, String> placeholders) {
+        if (placeholders.isEmpty() || value.indexOf('<') == -1) {
+            return value;
+        }
+        String result = value;
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            result = result.replace("<" + entry.getKey() + ">", entry.getValue());
+        }
+        return result;
     }
 
     /**

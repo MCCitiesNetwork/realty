@@ -25,6 +25,7 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -117,15 +118,17 @@ public record BuyCommand(
         // Step 3: execute DB transfer (async)
         CompletableFuture.supplyAsync(() -> {
             try {
-                return logic.executeBuy(regionId, region.world().getUID(), sender.getUniqueId());
+                RealtyLogicImpl.BuyResult result = logic.executeBuy(regionId, region.world().getUID(), sender.getUniqueId());
+                Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                return Map.entry(result, placeholders);
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor("buy.error",
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(result -> {
+        }, executorState.dbExec()).thenAcceptAsync(entry -> {
             // Step 4: finalize on main thread
-            if (result == null || !(result instanceof RealtyLogicImpl.BuyResult.Success success)) {
+            if (entry == null || !(entry.getKey() instanceof RealtyLogicImpl.BuyResult.Success success)) {
                 // Transfer failed — refund
                 economy.depositPlayer(sender, price);
                 sender.sendMessage(messages.messageFor("buy.transfer-failed",
@@ -144,7 +147,7 @@ public record BuyCommand(
                 protectedRegion.getOwners().addPlayer(sender.getUniqueId());
                 protectedRegion.getMembers().clear();
             }
-            regionProfileService.applyFlags(region, RegionState.SOLD);
+            regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
             sender.sendMessage(messages.messageFor("buy.success",
                     Placeholder.unparsed("price", String.valueOf(price)),
                     Placeholder.unparsed("region", regionId)));
