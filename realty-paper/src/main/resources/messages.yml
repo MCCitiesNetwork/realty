@@ -38,6 +38,7 @@ auction:
 
 bid:
   no-auction: "That region does not have an active auction!"
+  is-owner: "You cannot bid on a region you own."
   too-low-minimum: "Bid too low, the minimum bid is <amount>."
   too-low-current: "Bid too low, the next highest bid is <amount>."
   success: "Bid of <amount> placed on region <region>."
@@ -121,7 +122,7 @@ offers-inbound:
 offer:
   success: "Offer of <price> placed on region <region>."
   no-sale-contract: "Region <region> does not have an active sale contract."
-  is-authority: "You cannot place an offer on a region where you are the authority."
+  is-owner: "You cannot place an offer on a region you own."
   already-has-offer: "You already have an offer on region <region>. Withdraw it first before placing a new one."
   auction-exists: "Region <region> has an auction. Offers cannot be placed while an auction exists."
   insert-failed: "Failed to place offer on region <region>."

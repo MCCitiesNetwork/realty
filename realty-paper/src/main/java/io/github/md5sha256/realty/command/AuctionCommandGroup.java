@@ -187,6 +187,8 @@ public record AuctionCommandGroup(
                     }
                     case RealtyLogicImpl.BidResult.NoAuction ignored ->
                             sender.sendMessage(messages.messageFor("bid.no-auction"));
+                    case RealtyLogicImpl.BidResult.IsOwner ignored ->
+                            sender.sendMessage(messages.messageFor("bid.is-owner"));
                     case RealtyLogicImpl.BidResult.BidTooLowMinimum r ->
                             sender.sendMessage(messages.messageFor("bid.too-low-minimum",
                                     Placeholder.unparsed("amount", String.valueOf(r.minBid()))));

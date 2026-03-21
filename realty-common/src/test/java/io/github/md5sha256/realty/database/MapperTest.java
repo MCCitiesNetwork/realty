@@ -28,6 +28,7 @@ class MapperTest extends AbstractDatabaseTest {
     private static final UUID AUTHORITY = UUID.randomUUID();
     private static final UUID PLAYER_A = UUID.randomUUID();
     private static final UUID PLAYER_B = UUID.randomUUID();
+    private static final UUID PLAYER_C = UUID.randomUUID();
 
     private static final AtomicInteger REGION_COUNTER = new AtomicInteger();
 
@@ -772,7 +773,7 @@ class MapperTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createSaleRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
-            logic.performBid(regionId, WORLD_ID, PLAYER_A, 150.0);
+            logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -804,14 +805,14 @@ class MapperTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createSaleRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
-            logic.performBid(regionId, WORLD_ID, PLAYER_A, 150.0);
+            logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 List<UUID> bidders = wrapper.saleContractBidMapper()
                         .selectDistinctBidders(regionId, WORLD_ID);
                 Assertions.assertEquals(2, bidders.size());
-                Assertions.assertTrue(bidders.contains(PLAYER_A));
+                Assertions.assertTrue(bidders.contains(PLAYER_C));
                 Assertions.assertTrue(bidders.contains(PLAYER_B));
             }
         }
@@ -1303,7 +1304,7 @@ class MapperTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createSaleRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
-            logic.performBid(regionId, WORLD_ID, PLAYER_A, 150.0);
+            logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
@@ -1319,7 +1320,7 @@ class MapperTest extends AbstractDatabaseTest {
                 SaleContractBidPaymentEntity entity = wrapper.saleContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
-                Assertions.assertEquals(PLAYER_A, entity.bidderId());
+                Assertions.assertEquals(PLAYER_C, entity.bidderId());
                 Assertions.assertEquals(150.0, entity.bidPrice());
             }
         }

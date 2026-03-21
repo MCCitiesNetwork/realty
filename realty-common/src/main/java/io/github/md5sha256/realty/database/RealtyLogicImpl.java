@@ -120,6 +120,7 @@ public class RealtyLogicImpl {
     public sealed interface BidResult {
         record Success(@Nullable UUID previousBidderId) implements BidResult {}
         record NoAuction() implements BidResult {}
+        record IsOwner() implements BidResult {}
         record BidTooLowMinimum(double minBid) implements BidResult {}
         record BidTooLowCurrent(double currentHighest) implements BidResult {}
     }
@@ -135,6 +136,12 @@ public class RealtyLogicImpl {
             SaleContractAuctionEntity auction = auctionMapper.selectActiveByRegion(worldGuardRegionId, worldId);
             if (auction == null) {
                 return new BidResult.NoAuction();
+            }
+            SaleContractEntity sale = wrapper.saleContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (sale != null && (bidderId.equals(sale.authorityId())
+                    || bidderId.equals(sale.titleHolderId())
+                    || bidderId.equals(auction.auctioneerId()))) {
+                return new BidResult.IsOwner();
             }
             if (bidAmount < auction.minBid()) {
                 return new BidResult.BidTooLowMinimum(auction.minBid());
@@ -603,7 +610,7 @@ public class RealtyLogicImpl {
     public sealed interface OfferResult {
         record Success(@NotNull UUID authorityId) implements OfferResult {}
         record NoSaleContract() implements OfferResult {}
-        record IsAuthority() implements OfferResult {}
+        record IsOwner() implements OfferResult {}
         record AlreadyHasOffer() implements OfferResult {}
         record AuctionExists() implements OfferResult {}
         record InsertFailed() implements OfferResult {}
@@ -625,8 +632,8 @@ public class RealtyLogicImpl {
             if (auctionMapper.existsByRegion(worldGuardRegionId, worldId)) {
                 return new OfferResult.AuctionExists();
             }
-            if (sale.authorityId().equals(offererId)) {
-                return new OfferResult.IsAuthority();
+            if (offererId.equals(sale.authorityId()) || offererId.equals(sale.titleHolderId())) {
+                return new OfferResult.IsOwner();
             }
             if (offerMapper.existsByOfferer(worldGuardRegionId, worldId, offererId)) {
                 return new OfferResult.AlreadyHasOffer();
