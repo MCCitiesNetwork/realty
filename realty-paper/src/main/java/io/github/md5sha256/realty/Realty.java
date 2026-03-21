@@ -105,6 +105,8 @@ public final class Realty extends JavaPlugin {
         return this.regionFlagSettings.get();
     }
 
+    private boolean failedLoad = false;
+
     @Override
     public void onLoad() {
         try {
@@ -125,11 +127,15 @@ public final class Realty extends JavaPlugin {
         } catch (IOException ex) {
             ex.printStackTrace();
             getServer().getPluginManager().disablePlugin(this);
+            failedLoad = true;
         }
     }
 
     @Override
     public void onEnable() {
+        if (failedLoad) {
+            return;
+        }
         // Plugin startup logic
         this.executorState = new ExecutorState(getServer().getScheduler()
                 .getMainThreadExecutor(this), Executors.newVirtualThreadPerTaskExecutor());
