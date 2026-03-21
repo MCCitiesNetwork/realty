@@ -6,7 +6,7 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -46,7 +46,7 @@ public record BuyCommand(
         return manager.commandBuilder("realty")
                 .literal("buy")
                 .permission("realty.command.buy")
-                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();
     }
@@ -55,7 +55,12 @@ public record BuyCommand(
         if (!(ctx.sender().getSender() instanceof Player sender)) {
             return;
         }
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor("error.no-region"));
+            return;
+        }
         String regionId = region.region().getId();
         // Step 1: validate eligibility and get price (async)
         CompletableFuture.supplyAsync(() -> {

@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
@@ -24,7 +24,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Handles {@code /realty info <region>}.
+ * Handles {@code /realty info [region]}.
+ *
+ * <p>When the region argument is omitted, falls back to the WorldGuard region
+ * at the player's current location.</p>
  *
  * <p>Permission: {@code realty.command.info}.</p>
  */
@@ -37,17 +40,22 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         return manager.commandBuilder("realty")
                 .literal("info")
                 .permission("realty.command.info")
-                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();
     }
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player)) {
+        if (!(sender instanceof Player player)) {
             return;
         }
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor("error.no-region"));
+            return;
+        }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
 

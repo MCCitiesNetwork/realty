@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -34,7 +34,7 @@ public record WithdrawOfferCommand(
         return manager.commandBuilder("realty")
                 .literal("withdrawoffer")
                 .permission("realty.command.withdrawoffer")
-                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();
     }
@@ -43,7 +43,12 @@ public record WithdrawOfferCommand(
         if (!(ctx.sender().getSender() instanceof Player sender)) {
             return;
         }
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor("error.no-region"));
+            return;
+        }
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {

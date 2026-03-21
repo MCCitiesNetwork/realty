@@ -1,5 +1,8 @@
 prefix: "[Realty]"
 
+error:
+  no-region: "No region specified and you are not standing in a WorldGuard region."
+
 common:
   player-not-found: "Player <player> has never played on this server."
   error: "An error occurred: <error>"
