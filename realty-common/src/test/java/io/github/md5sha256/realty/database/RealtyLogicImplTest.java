@@ -41,7 +41,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
     }
 
     private static void createAuctionOnRegion(String regionId, UUID worldId) {
-        logic.createAuction(regionId, worldId, 3600, 3600, 100.0, 10.0);
+        logic.createAuction(regionId, worldId, AUTHORITY, 3600, 3600, 100.0, 10.0);
     }
 
     private static void insertBidPaymentWithDeadline(String regionId, UUID worldId, UUID bidderId,

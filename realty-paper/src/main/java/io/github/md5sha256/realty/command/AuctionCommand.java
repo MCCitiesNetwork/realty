@@ -46,7 +46,7 @@ public record AuctionCommand(@NotNull ExecutorState executorState,
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player)) {
+        if (!(sender instanceof Player player)) {
             return;
         }
         Duration bidDuration = ctx.get("bidDuration");
@@ -60,6 +60,7 @@ public record AuctionCommand(@NotNull ExecutorState executorState,
                 logic.createAuction(
                         regionId,
                         region.world().getUID(),
+                        player.getUniqueId(),
                         bidDuration.toSeconds(),
                         paymentDuration.toSeconds(),
                         minBid,

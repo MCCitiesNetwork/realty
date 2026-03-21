@@ -21,7 +21,7 @@ public interface SaleContractAuctionMapper {
 
     @Nullable SaleContractAuctionEntity selectActiveByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    int createAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull LocalDateTime startDate, long biddingDurationSeconds, long paymentDurationSeconds, double minBid, double minStep);
+    int createAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID auctioneerId, @NotNull LocalDateTime startDate, long biddingDurationSeconds, long paymentDurationSeconds, double minBid, double minStep);
 
     int postponeAuctionPaymentDeadline(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 

@@ -196,6 +196,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                                    @NotNull SaleContractAuctionEntity auction) {
         builder.appendNewline()
                 .append(messages.messageFor("info.auction",
+                        Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
                         Placeholder.unparsed("start_date", formatDate(auction.startDate())),
                         Placeholder.unparsed("duration",
                                 formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))),

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS SaleContractAuction
 (
     saleContractAuctionId  INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
     realtyRegionId         INT      NOT NULL,
+    auctioneerId           UUID     NOT NULL,
     startDate              DATETIME NOT NULL,
     biddingDurationSeconds LONG     NOT NULL,
     paymentDurationSeconds LONG     NOT NULL,

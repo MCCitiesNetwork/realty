@@ -25,7 +25,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
 
     @Override
     @Select("""
-            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.startDate, sca.biddingDurationSeconds,
+            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
             FROM SaleContractAuction sca
             WHERE sca.saleContractAuctionId = #{saleContractAuctionId}
@@ -33,6 +33,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
     @ConstructorArgs({
             @Arg(column = "saleContractAuctionId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "auctioneerId", javaType = UUID.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
             @Arg(column = "biddingDurationSeconds", javaType = long.class),
             @Arg(column = "paymentDurationSeconds", javaType = long.class),
@@ -45,7 +46,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
 
     @Override
     @Select("""
-            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.startDate, sca.biddingDurationSeconds,
+            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
             FROM SaleContractAuction sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
@@ -56,6 +57,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
     @ConstructorArgs({
             @Arg(column = "saleContractAuctionId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "auctioneerId", javaType = UUID.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
             @Arg(column = "biddingDurationSeconds", javaType = long.class),
             @Arg(column = "paymentDurationSeconds", javaType = long.class),
@@ -69,14 +71,15 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
 
     @Override
     @Insert("""
-            INSERT INTO SaleContractAuction (realtyRegionId, startDate, biddingDurationSeconds, paymentDurationSeconds, minBid, minStep)
-            SELECT rr.realtyRegionId, NOW(), #{biddingDurationSeconds}, #{paymentDurationSeconds}, #{minBid}, #{minStep}
+            INSERT INTO SaleContractAuction (realtyRegionId, auctioneerId, startDate, biddingDurationSeconds, paymentDurationSeconds, minBid, minStep)
+            SELECT rr.realtyRegionId, #{auctioneerId}, NOW(), #{biddingDurationSeconds}, #{paymentDurationSeconds}, #{minBid}, #{minStep}
             FROM RealtyRegion rr
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
     int createAuction(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                       @Param("worldId") @NotNull UUID worldId,
+                      @Param("auctioneerId") @NotNull UUID auctioneerId,
                       @Param("startDate") @NotNull LocalDateTime startDate,
                       @Param("biddingDurationSeconds") long biddingDurationSeconds,
                       @Param("paymentDurationSeconds") long paymentDurationSeconds,
@@ -96,7 +99,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
 
     @Override
     @Select("""
-            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.startDate, sca.biddingDurationSeconds,
+            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
             FROM SaleContractAuction sca
             WHERE sca.ended = FALSE
@@ -105,6 +108,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
     @ConstructorArgs({
             @Arg(column = "saleContractAuctionId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "auctioneerId", javaType = UUID.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
             @Arg(column = "biddingDurationSeconds", javaType = long.class),
             @Arg(column = "paymentDurationSeconds", javaType = long.class),
@@ -117,7 +121,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
 
     @Override
     @Select("""
-            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.startDate, sca.biddingDurationSeconds,
+            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
             FROM SaleContractAuction sca
             WHERE sca.ended = FALSE
@@ -126,6 +130,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
     @ConstructorArgs({
             @Arg(column = "saleContractAuctionId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "auctioneerId", javaType = UUID.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
             @Arg(column = "biddingDurationSeconds", javaType = long.class),
             @Arg(column = "paymentDurationSeconds", javaType = long.class),

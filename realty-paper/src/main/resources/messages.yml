@@ -71,6 +71,7 @@ info:
     - "Extensions: <extensions>"
   auction:
     - "Auction:"
+    - "Auctioneer: <auctioneer>"
     - "Start Date: <start_date>"
     - "Bidding Duration: <duration>"
     - "Payment Deadline: <deadline>"

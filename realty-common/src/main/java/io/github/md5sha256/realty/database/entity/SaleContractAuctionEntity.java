@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.database.entity;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Internal entity record mapping to the {@code SaleContractAuction} DDL table.
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 public record SaleContractAuctionEntity(
         int saleContractAuctionId,
         int realtyRegionId,
+        @NotNull UUID auctioneerId,
         @NotNull LocalDateTime startDate,
         long biddingDurationSeconds,
         long paymentDurationSeconds,

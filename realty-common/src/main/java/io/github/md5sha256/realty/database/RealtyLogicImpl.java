@@ -45,6 +45,7 @@ public class RealtyLogicImpl {
 
     public void createAuction(@NotNull String worldGuardRegionId,
                               @NotNull UUID worldId,
+                              @NotNull UUID auctioneerId,
                               long biddingDurationSeconds,
                               long paymentDurationSeconds,
                               double minBid,
@@ -52,7 +53,7 @@ public class RealtyLogicImpl {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             wrapper.saleContractAuctionMapper().createAuction(
-                    worldGuardRegionId, worldId, LocalDateTime.now(),
+                    worldGuardRegionId, worldId, auctioneerId, LocalDateTime.now(),
                     biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep);
             session.commit();
         }
