@@ -83,8 +83,6 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
                 if (sale != null) {
                     output = output.appendNewline().appendNewline()
-                            .append(messages.messageFor("info.sale-header"))
-                            .appendNewline()
                             .append(messages.messageFor("info.sale-authority",
                                     Placeholder.unparsed("authority", resolveName(sale.authorityId()))))
                             .appendNewline()
@@ -99,8 +97,6 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
                 if (lease != null) {
                     output = output.appendNewline().appendNewline()
-                            .append(messages.messageFor("info.lease-header"))
-                            .appendNewline()
                             .append(messages.messageFor("info.lease-landlord",
                                     Placeholder.unparsed("landlord", resolveName(lease.landlordId()))))
                             .appendNewline()
