@@ -11,9 +11,13 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
+import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
@@ -28,7 +32,11 @@ import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.jetbrains.annotations.NotNull;
 
+import java.text.DateFormat;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -48,6 +56,7 @@ public record AuctionCommandGroup(
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
+        @NotNull Settings settings,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -55,6 +64,11 @@ public record AuctionCommandGroup(
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
         var base = manager.commandBuilder("realty").literal("auction");
         return List.of(
+                base.literal("info")
+                        .permission("realty.command.auction.info")
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                        .handler(this::executeInfo)
+                        .build(),
                 base.permission("realty.command.auction")
                         .required("bidDuration", DurationParser.duration())
                         .required("paymentDuration", DurationParser.duration())
@@ -81,6 +95,86 @@ public record AuctionCommandGroup(
                         .handler(this::executePayBid)
                         .build()
         );
+    }
+
+    // ── /realty auction info [region] ──
+
+    private void executeInfo(@NotNull CommandContext<CommandSourceStack> ctx) {
+        CommandSender sender = ctx.sender().getSender();
+        if (!(sender instanceof Player player)) {
+            return;
+        }
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor("error.no-region"));
+            return;
+        }
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                SaleContractAuctionEntity auction = logic.getRegionInfo(regionId, worldId).auction();
+                if (auction == null) {
+                    sender.sendMessage(messages.messageFor("auction-info.no-auction",
+                            Placeholder.unparsed("region", regionId)));
+                    return;
+                }
+                LocalDateTime biddingEndDate = auction.startDate()
+                        .plusSeconds(auction.biddingDurationSeconds());
+
+                TextComponent.Builder builder = Component.text();
+                builder.append(messages.messageFor("auction-info.header",
+                        Placeholder.unparsed("region", regionId)));
+                builder.appendNewline()
+                        .append(messages.messageFor("auction-info.details",
+                                Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
+                                Placeholder.unparsed("start_date", formatDate(auction.startDate())),
+                                Placeholder.unparsed("duration",
+                                        formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))),
+                                Placeholder.unparsed("bidding_end_date", formatDate(biddingEndDate)),
+                                Placeholder.unparsed("deadline", formatDate(auction.paymentDeadline())),
+                                Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
+                                Placeholder.unparsed("min_step", String.valueOf(auction.minStep()))));
+                sender.sendMessage(builder.build());
+            } catch (Exception ex) {
+                sender.sendMessage(messages.messageFor("auction-info.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
+            }
+        }, executorState.dbExec());
+    }
+
+    private static @NotNull String resolveName(@NotNull UUID uuid) {
+        String name = Bukkit.getOfflinePlayer(uuid).getName();
+        return name != null ? name : uuid.toString();
+    }
+
+    private static @NotNull String formatDuration(@NotNull Duration duration) {
+        long days = duration.toDays();
+        long hours = duration.toHoursPart();
+        long minutes = duration.toMinutesPart();
+        long seconds = duration.toSecondsPart();
+        StringBuilder sb = new StringBuilder();
+        if (days > 0) {
+            sb.append(days).append("d ");
+        }
+        if (hours > 0) {
+            sb.append(hours).append("h ");
+        }
+        if (minutes > 0) {
+            sb.append(minutes).append("m ");
+        }
+        if (seconds > 0 || sb.isEmpty()) {
+            sb.append(seconds).append("s");
+        }
+        return sb.toString().trim();
+    }
+
+    private @NotNull String formatDate(@NotNull LocalDateTime dateTime) {
+        DateFormat dateFormat = settings.dateFormat();
+        Date date = Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
+        return dateFormat.format(date);
     }
 
     // ── /realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region> ──

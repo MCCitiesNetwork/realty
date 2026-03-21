@@ -81,6 +81,9 @@ permissions:
   realty.command.auction.cancel:
     description: Allows using /realty auction cancel
     default: op
+  realty.command.auction.info:
+    description: Allows using /realty auction info
+    default: true
   realty.command.auction.bid:
     description: Allows using /realty auction bid
     default: true

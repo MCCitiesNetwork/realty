@@ -89,16 +89,21 @@ info:
     - "Start Date: <start_date>"
     - "End Date: <end_date>"
     - "Extensions: <extensions>"
-  auction:
-    - "Auction:"
-    - "Auctioneer: <auctioneer>"
-    - "Start Date: <start_date>"
-    - "Bidding Duration: <duration>"
-    - "Bidding End Date: <bidding_end_date>"
-    - "Payment Deadline: <deadline>"
-    - "Min Bid: <min_bid>"
-    - "Min Step: <min_step>"
+  auction-active: "<#00aaff>►</#00aaff> Active Auction: <yellow><has_auction></yellow>"
   error: "Failed to retrieve region info: <error>"
+
+auction-info:
+  header: "--- Auction Info: <region> ---"
+  no-auction: "Region <region> does not have an active auction."
+  details:
+    - "<#00aaff>►</#00aaff> Auctioneer: <#00aaff><auctioneer></#00aaff>"
+    - "<#00aaff>►</#00aaff> Start Date: <yellow><start_date></yellow>"
+    - "<#00aaff>►</#00aaff> Bidding Duration: <yellow><duration></yellow>"
+    - "<#00aaff>►</#00aaff> Bidding End Date: <yellow><bidding_end_date></yellow>"
+    - "<#00aaff>►</#00aaff> Payment Deadline: <yellow><deadline></yellow>"
+    - "<#00aaff>►</#00aaff> Min Bid: <green>$<min_bid></green>"
+    - "<#00aaff>►</#00aaff> Min Step: <green>$<min_step></green>"
+  error: "Failed to retrieve auction info: <error>"
 
 list:
   players-only: "Only players can use this command without specifying a player."
@@ -196,6 +201,7 @@ help:
     - "<yellow>/realty offer rejectall [region]</yellow> <gray>- Reject all offers</gray>"
   auctions:
     - "<gold>--- Realty > Auctions ---</gold>"
+    - "<yellow>/realty auction info [region]</yellow> <gray>- View auction details</gray>"
     - "<yellow>/realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region></yellow> <gray>- Create an auction</gray>"
     - "<yellow>/realty auction bid <amount> <region></yellow> <gray>- Bid on an auction</gray>"
     - "<yellow>/realty auction paybid <amount> <region></yellow> <gray>- Pay for a winning bid</gray>"

@@ -256,7 +256,7 @@ public final class Realty extends JavaPlugin {
                 new AddCommand(executorState, logic, messageContainer),
                 new AgentAddCommand(executorState, logic, messageContainer),
                 new AgentRemoveCommand(executorState, logic, messageContainer),
-                new AuctionCommandGroup(executorState, logic, economy, notificationService, messageContainer),
+                new AuctionCommandGroup(executorState, logic, economy, notificationService, this.settings.get(), messageContainer),
                 new BuyCommand(executorState, logic, economy, notificationService, messageContainer),
                 new CreateCommand(executorState, logic, this.settings, messageContainer),
                 new DeleteCommand(executorState, logic, messageContainer),

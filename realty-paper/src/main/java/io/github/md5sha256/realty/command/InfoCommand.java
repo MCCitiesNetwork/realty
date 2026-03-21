@@ -4,7 +4,6 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.settings.Settings;
@@ -127,9 +126,9 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
                 SaleContractEntity sale = info.sale();
                 LeaseContractEntity lease = info.lease();
-                SaleContractAuctionEntity auction = info.auction();
+                boolean hasAuction = info.auction() != null;
 
-                if (sale == null && lease == null && auction == null) {
+                if (sale == null && lease == null && !hasAuction) {
                     builder.appendNewline()
                             .append(messages.messageFor("info.no-contracts"));
                     sender.sendMessage(builder.build());
@@ -144,9 +143,9 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                     appendLeaseInfo(builder, lease, membersStr);
                 }
 
-                if (auction != null) {
-                    appendAuctionInfo(builder, auction);
-                }
+                builder.appendNewline()
+                        .append(messages.messageFor("info.auction-active",
+                                Placeholder.unparsed("has_auction", hasAuction ? "Yes" : "No")));
 
                 sender.sendMessage(builder.build());
             } catch (Exception ex) {
@@ -205,22 +204,6 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("start_date", formatDate(lease.startDate())),
                         Placeholder.unparsed("end_date", formatDate(leaseEndDate)),
                         Placeholder.unparsed("extensions", extensions)));
-    }
-
-    private void appendAuctionInfo(@NotNull TextComponent.Builder builder,
-                                   @NotNull SaleContractAuctionEntity auction) {
-        LocalDateTime biddingEndDate = auction.startDate().plusSeconds(auction.biddingDurationSeconds());
-
-        builder.appendNewline()
-                .append(messages.messageFor("info.auction",
-                        Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
-                        Placeholder.unparsed("start_date", formatDate(auction.startDate())),
-                        Placeholder.unparsed("duration",
-                                formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))),
-                        Placeholder.unparsed("bidding_end_date", formatDate(biddingEndDate)),
-                        Placeholder.unparsed("deadline", formatDate(auction.paymentDeadline())),
-                        Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
-                        Placeholder.unparsed("min_step", String.valueOf(auction.minStep()))));
     }
 
     private @NotNull String formatDate(@NotNull LocalDateTime dateTime) {
