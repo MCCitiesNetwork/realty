@@ -191,7 +191,7 @@ rent:
   error: "Failed to rent region: <error>"
 
 reload:
-  success: "Messages reloaded successfully."
+  success: "Settings and messages reloaded successfully."
   error: "Failed to reload messages: <error>"
 
 remove:
