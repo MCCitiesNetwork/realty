@@ -31,6 +31,11 @@ public class MessageContainer {
         return Placeholder.component("prefix", prefix);
     }
 
+    @Nonnull
+    public Component deserializeRaw(@Nonnull String raw) {
+        return MiniMessage.miniMessage().deserialize(raw, prefixResolver());
+    }
+
     public String plaintextMessageFor(@Nonnull String key) {
         return PlainTextComponentSerializer.plainText().serialize(messageFor(key));
     }

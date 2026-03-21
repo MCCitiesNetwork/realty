@@ -7,7 +7,6 @@ import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
 import org.bukkit.Bukkit;
@@ -218,7 +217,7 @@ public record ListCommand(
         for (int i = 0; i < replacements.length; i += 2) {
             raw = raw.replace(replacements[i], replacements[i + 1]);
         }
-        return MiniMessage.miniMessage().deserialize(raw);
+        return messages.deserializeRaw(raw);
     }
 
 }
