@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
@@ -564,6 +565,20 @@ public class RealtyLogicImpl {
                     ? wrapper.saleHistoryMapper().selectLastSalePrice(worldGuardRegionId, worldId)
                     : null;
             return new RegionInfo(sale, lease, auction, lastSoldPrice);
+        }
+    }
+
+    public @Nullable RegionState getRegionState(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractEntity sale = wrapper.saleContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (sale != null) {
+                return sale.titleHolderId() != null ? RegionState.SOLD : RegionState.FOR_SALE;
+            }
+            LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (lease != null) {
+                return lease.tenantId() != null ? RegionState.RENTED : RegionState.FOR_RENT;
+            }
+            return null;
         }
     }
 
