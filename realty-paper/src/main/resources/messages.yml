@@ -233,6 +233,35 @@ remove:
   no-permission: "You do not have permission to remove players from this region!"
   success: "Successfully removed <target> from region <region>!"
 
+set-price:
+  success: "Price for region <region> set to <price>."
+  no-sale-contract: "Region <region> does not have a sale contract."
+  auction-exists: "Region <region> has an active auction. Price cannot be changed."
+  offer-payment-in-progress: "Region <region> has an offer payment in progress. Price cannot be changed."
+  bid-payment-in-progress: "Region <region> has a bid payment in progress. Price cannot be changed."
+  update-failed: "Failed to update price for region <region>."
+  error: "Failed to set price: <error>"
+
+unset-price:
+  success: "Price for region <region> has been cleared."
+  no-sale-contract: "Region <region> does not have a sale contract."
+  offer-payment-in-progress: "Region <region> has an offer payment in progress. Price cannot be cleared."
+  bid-payment-in-progress: "Region <region> has a bid payment in progress. Price cannot be cleared."
+  update-failed: "Failed to clear price for region <region>."
+  error: "Failed to unset price: <error>"
+
+set-duration:
+  success: "Duration for region <region> set to <duration>."
+  no-lease-contract: "Region <region> does not have a lease contract."
+  update-failed: "Failed to update duration for region <region>."
+  error: "Failed to set duration: <error>"
+
+set-landlord:
+  success: "Landlord for region <region> set to <landlord>."
+  no-lease-contract: "Region <region> does not have a lease contract."
+  update-failed: "Failed to update landlord for region <region>."
+  error: "Failed to set landlord: <error>"
+
 set-titleholder:
   success: "Title holder for region <region> set to <titleholder>."
   no-sale-contract: "Region <region> does not have a sale contract."
