@@ -117,30 +117,45 @@ public class RegionProfileService {
         protectedRegion.setFlags(Map.of());
 
         Integer priority = null;
-        FlagProfile globalProfile = this.globalFlagProfiles.get(state);
-        if (globalProfile != null) {
-            if (globalProfile.priority() != null) {
-                priority = globalProfile.priority();
-            }
-            if (!globalProfile.flags().isEmpty()) {
-                applyFlagMap(protectedRegion, globalProfile.flags());
+        // Apply global ALL profile as base
+        FlagProfile globalAll = this.globalFlagProfiles.get(RegionState.ALL);
+        if (globalAll != null) {
+            priority = applyProfile(protectedRegion, globalAll, priority);
+        }
+        // Apply global state-specific profile on top
+        if (state != RegionState.ALL) {
+            FlagProfile globalState = this.globalFlagProfiles.get(state);
+            if (globalState != null) {
+                priority = applyProfile(protectedRegion, globalState, priority);
             }
         }
         EnumMap<RegionState, FlagProfile> grouped = this.groupedFlagProfiles.get(protectedRegion.getId());
         if (grouped != null) {
-            FlagProfile groupedProfile = grouped.get(state);
-            if (groupedProfile != null) {
-                if (groupedProfile.priority() != null) {
-                    priority = groupedProfile.priority();
-                }
-                if (!groupedProfile.flags().isEmpty()) {
-                    applyFlagMap(protectedRegion, groupedProfile.flags());
+            // Apply grouped ALL profile
+            FlagProfile groupedAll = grouped.get(RegionState.ALL);
+            if (groupedAll != null) {
+                priority = applyProfile(protectedRegion, groupedAll, priority);
+            }
+            // Apply grouped state-specific profile on top
+            if (state != RegionState.ALL) {
+                FlagProfile groupedState = grouped.get(state);
+                if (groupedState != null) {
+                    priority = applyProfile(protectedRegion, groupedState, priority);
                 }
             }
         }
         if (priority != null) {
             protectedRegion.setPriority(priority);
         }
+    }
+
+    private @Nullable Integer applyProfile(@NotNull ProtectedRegion region,
+                                           @NotNull FlagProfile profile,
+                                           @Nullable Integer currentPriority) {
+        if (!profile.flags().isEmpty()) {
+            applyFlagMap(region, profile.flags());
+        }
+        return profile.priority() != null ? profile.priority() : currentPriority;
     }
 
     /**
