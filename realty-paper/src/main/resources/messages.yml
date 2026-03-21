@@ -73,6 +73,7 @@ info:
   auction-payment-deadline: "  Payment Deadline: <deadline>"
   auction-min-bid: "  Min Bid: <amount>"
   auction-min-step: "  Min Step: <amount>"
+  members: "Members: <members>"
   error: "Failed to retrieve region info: <error>"
 
 list:

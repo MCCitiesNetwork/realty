@@ -22,8 +22,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Handles {@code /realty info [region]}.
@@ -143,6 +145,28 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                             .appendNewline()
                             .append(messages.messageFor("info.auction-min-step",
                                     Placeholder.unparsed("amount", String.valueOf(auction.minStep()))));
+                }
+
+                Set<UUID> memberUuids = region.region().getMembers().getUniqueIds();
+                Set<String> memberGroups = region.region().getMembers().getGroups();
+                if (!memberUuids.isEmpty() || !memberGroups.isEmpty()) {
+                    String members = memberUuids.stream()
+                            .map(InfoCommand::resolveName)
+                            .collect(Collectors.joining(", "));
+                    String groups = memberGroups.stream()
+                            .map(g -> "g:" + g)
+                            .collect(Collectors.joining(", "));
+                    String combined;
+                    if (!members.isEmpty() && !groups.isEmpty()) {
+                        combined = members + ", " + groups;
+                    } else if (!members.isEmpty()) {
+                        combined = members;
+                    } else {
+                        combined = groups;
+                    }
+                    output = output.appendNewline().appendNewline()
+                            .append(messages.messageFor("info.members",
+                                    Placeholder.unparsed("members", combined)));
                 }
 
                 sender.sendMessage(output);
