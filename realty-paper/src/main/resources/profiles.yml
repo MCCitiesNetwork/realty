@@ -5,6 +5,9 @@
 # "grouped" is a list of entries, each targeting specific WG regions by name.
 # Grouped profiles override global profiles when both are configured.
 #
+# The ALL state is applied as a base to every region, then the state-specific
+# profile (FOR_SALE, SOLD, FOR_LEASE, LEASED) is layered on top.
+#
 # Each state profile can include:
 #   priority: <number>  (optional) — sets the WorldGuard region priority
 #   flags:              (required) — map of WorldGuard flag names to values
@@ -12,14 +15,19 @@
 # Flag values support region groups via the -g suffix:
 #   damage-animals: "deny -g NON_MEMBERS"
 #
+# Flag values support placeholders using angle brackets:
+#   greeting: "Welcome to <region>!"
+#
 # Available states: ALL, FOR_SALE, SOLD, FOR_LEASE, LEASED
 #
 # Example:
 # global:
+#   ALL:
+#     flags:
+#       pvp: deny
 #   FOR_SALE:
 #     priority: 5
 #     flags:
-#       pvp: deny
 #       greeting: "This region is for sale!"
 #   SOLD:
 #     priority: 10
@@ -56,3 +64,6 @@
 #       LEASED:
 #         flags:
 #           use: allow
+
+global: {}
+grouped: []
