@@ -126,14 +126,14 @@ public class ImportJob {
                         return null;
                     }
                     UUID landlord = Objects.requireNonNullElse(region.getLandlord(), settings.defaultSaleAuthority());
-                    UUID owner = Objects.requireNonNullElse(region.getOwner(), settings.defaultSaleTitleholder());
+                    UUID owner = region.getOwner();
                     Double price = region.getState() == GeneralRegion.RegionState.FORSALE ?
                             region.getPrice() : null;
                     return new SaleDto(protectedRegion.getId(),
                             world.getUID(),
                             price,
                             landlord,
-                            owner);
+                            owner != null ? owner : settings.defaultSaleTitleholder());
                 })
                 .filter(Objects::nonNull)
                 .toList();
