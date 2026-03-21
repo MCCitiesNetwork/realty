@@ -6,6 +6,8 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
 import org.bukkit.Bukkit;
@@ -107,30 +109,29 @@ public record ListCommand(
                     return;
                 }
 
-                Component output = messages.messageFor("list.header",
-                        Placeholder.unparsed("player", targetName));
-
-                output = appendCategory(output, "Owned", result.owned());
-                output = appendCategory(output, "Landlord", result.landlord());
-                output = appendCategory(output, "Rented", result.rented());
+                TextComponent.Builder builder = Component.text();
+                builder.append(parseMiniMessage("list.header", "<player>", targetName));
+                appendCategory(builder, "Owned", result.owned());
+                appendCategory(builder, "Landlord", result.landlord());
+                appendCategory(builder, "Rented", result.rented());
 
                 Component previousComponent = page > 1
-                        ? messages.messageFor("list.previous",
-                                Placeholder.unparsed("player", targetName),
-                                Placeholder.unparsed("previouspage", String.valueOf(page - 1)))
+                        ? parseMiniMessage("list.previous",
+                                "<player>", targetName,
+                                "<previouspage>", String.valueOf(page - 1))
                         : Component.empty();
                 Component nextComponent = page < totalPages
-                        ? messages.messageFor("list.next",
-                                Placeholder.unparsed("player", targetName),
-                                Placeholder.unparsed("nextpage", String.valueOf(page + 1)))
+                        ? parseMiniMessage("list.next",
+                                "<player>", targetName,
+                                "<nextpage>", String.valueOf(page + 1))
                         : Component.empty();
-                output = output.appendNewline()
+                builder.appendNewline()
                         .append(messages.messageFor("list.footer",
                                 Placeholder.unparsed("page", String.valueOf(page)),
                                 Placeholder.unparsed("total", String.valueOf(totalPages)),
                                 Placeholder.component("previous", previousComponent),
                                 Placeholder.component("next", nextComponent)));
-                sender.sendMessage(output);
+                sender.sendMessage(builder.build());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor("list.error",
                         Placeholder.unparsed("error", ex.getMessage())));
@@ -138,20 +139,26 @@ public record ListCommand(
         }, executorState.dbExec());
     }
 
-    private @NotNull Component appendCategory(@NotNull Component output, @NotNull String label,
-                                               @NotNull List<RealtyRegionEntity> regions) {
+    private void appendCategory(@NotNull TextComponent.Builder builder, @NotNull String label,
+                                @NotNull List<RealtyRegionEntity> regions) {
         if (regions.isEmpty()) {
-            return output;
+            return;
         }
-        output = output.appendNewline()
-                .append(messages.messageFor("list.category",
-                        Placeholder.unparsed("label", label)));
+        builder.appendNewline()
+                .append(parseMiniMessage("list.category", "<label>", label));
         for (RealtyRegionEntity region : regions) {
-            output = output.appendNewline()
-                    .append(messages.messageFor("list.entry",
-                            Placeholder.unparsed("region", region.worldGuardRegionId())));
+            builder.appendNewline()
+                    .append(parseMiniMessage("list.entry", "<region>", region.worldGuardRegionId()));
         }
-        return output;
+    }
+
+    private @NotNull Component parseMiniMessage(@NotNull String key,
+                                                 @NotNull String... replacements) {
+        String raw = messages.miniMessageFormattedFor(key);
+        for (int i = 0; i < replacements.length; i += 2) {
+            raw = raw.replace(replacements[i], replacements[i + 1]);
+        }
+        return MiniMessage.miniMessage().deserialize(raw);
     }
 
 }
