@@ -3,6 +3,8 @@ package io.github.md5sha256.realty;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.AcceptOfferCommand;
 import io.github.md5sha256.realty.command.AddCommand;
+import io.github.md5sha256.realty.command.AgentAddCommand;
+import io.github.md5sha256.realty.command.AgentRemoveCommand;
 import io.github.md5sha256.realty.command.AuctionCommand;
 import io.github.md5sha256.realty.command.BidCommand;
 import io.github.md5sha256.realty.command.BuyCommand;
@@ -222,6 +224,8 @@ public final class Realty extends JavaPlugin {
                 new VersionCommand(version),
                 new AcceptOfferCommand(executorState, logic, notificationService, messageContainer),
                 new AddCommand(executorState, logic, messageContainer),
+                new AgentAddCommand(executorState, logic, messageContainer),
+                new AgentRemoveCommand(executorState, logic, messageContainer),
                 new AuctionCommand(executorState, logic, messageContainer),
                 new BidCommand(executorState, logic, notificationService, messageContainer),
                 new BuyCommand(executorState, logic, economy, notificationService, messageContainer),

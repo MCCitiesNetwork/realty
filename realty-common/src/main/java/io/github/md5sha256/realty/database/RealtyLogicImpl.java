@@ -42,6 +42,32 @@ public class RealtyLogicImpl {
         this.offerPaymentDurationSeconds = offerPaymentDurationSeconds;
     }
 
+    // --- Sanctioned Auctioneers ---
+
+    public int addSanctionedAuctioneer(@NotNull String worldGuardRegionId,
+                                        @NotNull UUID worldId,
+                                        @NotNull UUID auctioneerId) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            int rows = wrapper.saleContractSanctionedAuctioneerMapper()
+                    .insert(worldGuardRegionId, worldId, auctioneerId);
+            session.commit();
+            return rows;
+        }
+    }
+
+    public int removeSanctionedAuctioneer(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId,
+                                           @NotNull UUID auctioneerId) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            int rows = wrapper.saleContractSanctionedAuctioneerMapper()
+                    .deleteByRegionAndAuctioneer(worldGuardRegionId, worldId, auctioneerId);
+            session.commit();
+            return rows;
+        }
+    }
+
     // --- Auction ---
 
     public sealed interface CreateAuctionResult {

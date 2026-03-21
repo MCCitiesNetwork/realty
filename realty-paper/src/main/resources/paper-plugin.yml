@@ -15,6 +15,12 @@ dependencies:
       join-classpath: true
       required: false
 permissions:
+  realty.command.agent.add:
+    description: Allows using /realty agent add
+    default: op
+  realty.command.agent.remove:
+    description: Allows using /realty agent remove
+    default: op
   realty.command.add:
     description: Allows using /realty add
     default: op

@@ -20,6 +20,16 @@ add:
   no-permission: "You do not have permission to add players to this region!"
   success: "Successfully added <target> to region <region>!"
 
+agent-add:
+  success: "Added <player> as a sanctioned auctioneer for region <region>."
+  failed: "Failed to add <player> as a sanctioned auctioneer for region <region>."
+  error: "Failed to add sanctioned auctioneer: <error>"
+
+agent-remove:
+  success: "Removed <player> from the sanctioned auctioneers for region <region>."
+  not-found: "<player> is not a sanctioned auctioneer for region <region>."
+  error: "Failed to remove sanctioned auctioneer: <error>"
+
 auction:
   success: "Auction created for region <region>."
   not-sanctioned: "You are not authorized to start an auction on region <region>."
@@ -152,6 +162,8 @@ help:
   - "<yellow>/realty acceptoffer <player> <region></yellow> <gray>- Accept an offer</gray>"
   - "<yellow>/realty withdrawoffer <region></yellow> <gray>- Withdraw your offer</gray>"
   - "<yellow>/realty payoffer <amount> <region></yellow> <gray>- Pay for an accepted offer</gray>"
+  - "<yellow>/realty agent add <player> <region></yellow> <gray>- Add a sanctioned auctioneer</gray>"
+  - "<yellow>/realty agent remove <player> <region></yellow> <gray>- Remove a sanctioned auctioneer</gray>"
   - "<yellow>/realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region></yellow> <gray>- Create an auction</gray>"
   - "<yellow>/realty bid <amount> <region></yellow> <gray>- Bid on an auction</gray>"
   - "<yellow>/realty cancelauction <region></yellow> <gray>- Cancel an auction</gray>"
