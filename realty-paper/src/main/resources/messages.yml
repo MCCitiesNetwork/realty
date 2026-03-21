@@ -187,6 +187,7 @@ help:
     - "<yellow>/realty offer accept <player> <region></yellow> <gray>- Accept an offer</gray>"
     - "<yellow>/realty offer pay <amount> <region></yellow> <gray>- Pay for an accepted offer</gray>"
     - "<yellow>/realty offer withdraw <region></yellow> <gray>- Withdraw your offer</gray>"
+    - "<yellow>/realty offer reject <player> [region] [--all]</yellow> <gray>- Reject an offer</gray>"
   auctions:
     - "<gold>--- Realty > Auctions ---</gold>"
     - "<yellow>/realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region></yellow> <gray>- Create an auction</gray>"
@@ -260,9 +261,18 @@ withdraw-offer:
   success: "Your offer on region <region> has been withdrawn."
   error: "Failed to withdraw offer: <error>"
 
+reject-offer:
+  success: "Rejected offer from <player> on region <region>."
+  all-success: "Rejected <count> offer(s) on region <region>."
+  no-offer: "Player <player> does not have an offer on region <region>."
+  no-sale-contract: "Region <region> does not have a sale contract."
+  accepted: "Region <region> has an accepted offer with payment in progress. It cannot be rejected."
+  error: "Failed to decline offer: <error>"
+
 notification:
   offer-placed: "<prefix> <player> placed an offer of <price> on region <region>."
   offer-accepted: "<prefix> Your offer on region <region> has been accepted."
+  offer-rejected: "<prefix> Your offer on region <region> has been rejected."
   offer-withdrawn: "<prefix> <player> withdrew their offer on region <region>."
   ownership-transferred: "<prefix> Region <region> ownership has been transferred to <player>."
   outbid: "<prefix> You have been outbid on region <region>. New highest bid: <amount>."

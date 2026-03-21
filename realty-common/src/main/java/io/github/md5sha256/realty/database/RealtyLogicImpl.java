@@ -681,6 +681,55 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Reject Offer ---
+
+    public sealed interface RejectOfferResult {
+        record Success(@NotNull UUID offererId) implements RejectOfferResult {}
+        record NoOffer() implements RejectOfferResult {}
+        record OfferAccepted() implements RejectOfferResult {}
+    }
+
+    public @NotNull RejectOfferResult rejectOffer(@NotNull String worldGuardRegionId,
+                                                      @NotNull UUID worldId,
+                                                      @NotNull UUID offererId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractOfferMapper offerMapper = wrapper.saleContractOfferMapper();
+            if (!offerMapper.existsByOfferer(worldGuardRegionId, worldId, offererId)) {
+                return new RejectOfferResult.NoOffer();
+            }
+            if (wrapper.saleContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new RejectOfferResult.OfferAccepted();
+            }
+            offerMapper.deleteOfferByOfferer(worldGuardRegionId, worldId, offererId);
+            wrapper.session().commit();
+            return new RejectOfferResult.Success(offererId);
+        }
+    }
+
+    // --- Reject All Offers ---
+
+    public sealed interface RejectAllOffersResult {
+        record Success(int count) implements RejectAllOffersResult {}
+        record NoSaleContract() implements RejectAllOffersResult {}
+        record OfferAccepted() implements RejectAllOffersResult {}
+    }
+
+    public @NotNull RejectAllOffersResult rejectAllOffers(@NotNull String worldGuardRegionId,
+                                                              @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractMapper saleMapper = wrapper.saleContractMapper();
+            if (saleMapper.selectByRegion(worldGuardRegionId, worldId) == null) {
+                return new RejectAllOffersResult.NoSaleContract();
+            }
+            if (wrapper.saleContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new RejectAllOffersResult.OfferAccepted();
+            }
+            int deleted = wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
+            wrapper.session().commit();
+            return new RejectAllOffersResult.Success(deleted);
+        }
+    }
+
     // --- Place Offer ---
 
     public sealed interface OfferResult {

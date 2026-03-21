@@ -72,6 +72,9 @@ permissions:
   realty.command.offer.withdraw:
     description: Allows using /realty offer withdraw
     default: true
+  realty.command.offer.reject:
+    description: Allows using /realty offer reject
+    default: true
   realty.command.auction:
     description: Allows using /realty auction (create)
     default: op
