@@ -12,12 +12,14 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -64,10 +66,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                 RealtyLogicImpl.RegionInfo info = logic.getRegionInfo(regionId, worldId);
 
                 Component output = messages.messageFor("info.header",
-                                Placeholder.unparsed("region", regionId))
-                        .appendNewline()
-                        .append(messages.messageFor("info.world",
-                                Placeholder.unparsed("world", region.world().getName())));
+                        Placeholder.unparsed("region", regionId));
 
                 SaleContractEntity sale = info.sale();
                 LeaseContractEntity lease = info.lease();
@@ -82,29 +81,29 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
                 if (sale != null) {
                     output = output.appendNewline().appendNewline()
-                            .append(messages.messageFor("info.sale-header",
-                                    Placeholder.unparsed("id", String.valueOf(sale.saleContractId()))))
+                            .append(messages.messageFor("info.sale-header"))
                             .appendNewline()
                             .append(messages.messageFor("info.sale-authority",
-                                    Placeholder.unparsed("authority", String.valueOf(sale.authorityId()))))
+                                    Placeholder.unparsed("authority", resolveName(sale.authorityId()))))
                             .appendNewline()
                             .append(messages.messageFor("info.sale-title-holder",
-                                    Placeholder.unparsed("title_holder", sale.titleHolderId() != null ? String.valueOf(sale.titleHolderId()) : "N/A")))
-                            .appendNewline()
-                            .append(messages.messageFor("info.sale-price",
-                                    Placeholder.unparsed("price", String.valueOf(sale.price()))));
+                                    Placeholder.unparsed("title_holder", sale.titleHolderId() != null ? resolveName(sale.titleHolderId()) : "N/A")));
+                    if (sale.price() != null) {
+                        output = output.appendNewline()
+                                .append(messages.messageFor("info.sale-price",
+                                        Placeholder.unparsed("price", String.valueOf(sale.price()))));
+                    }
                 }
 
                 if (lease != null) {
                     output = output.appendNewline().appendNewline()
-                            .append(messages.messageFor("info.lease-header",
-                                    Placeholder.unparsed("id", String.valueOf(lease.leaseContractId()))))
+                            .append(messages.messageFor("info.lease-header"))
                             .appendNewline()
                             .append(messages.messageFor("info.lease-landlord",
-                                    Placeholder.unparsed("landlord", String.valueOf(lease.landlordId()))))
+                                    Placeholder.unparsed("landlord", resolveName(lease.landlordId()))))
                             .appendNewline()
                             .append(messages.messageFor("info.lease-tenant",
-                                    Placeholder.unparsed("tenant", lease.tenantId() != null ? String.valueOf(lease.tenantId()) : "N/A")))
+                                    Placeholder.unparsed("tenant", lease.tenantId() != null ? resolveName(lease.tenantId()) : "N/A")))
                             .appendNewline()
                             .append(messages.messageFor("info.lease-price",
                                     Placeholder.unparsed("price", String.valueOf(lease.price()))))
@@ -153,6 +152,11 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
+    }
+
+    private static @NotNull String resolveName(@NotNull UUID uuid) {
+        String name = Bukkit.getOfflinePlayer(uuid).getName();
+        return name != null ? name : uuid.toString();
     }
 
     private static @NotNull String formatDuration(@NotNull Duration duration) {

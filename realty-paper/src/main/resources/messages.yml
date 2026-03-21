@@ -54,13 +54,12 @@ delete:
 
 info:
   header: "--- Region Info: <region> ---"
-  world: "World: <world>"
   no-contracts: "No contracts or auctions found for this region."
-  sale-header: "Sale Contract #<id>:"
+  sale-header: "Sale Contract:"
   sale-authority: "  Authority: <authority>"
   sale-title-holder: "  Title Holder: <title_holder>"
   sale-price: "  Price: <price>"
-  lease-header: "Lease Contract #<id>:"
+  lease-header: "Lease Contract:"
   lease-landlord: "  Landlord: <landlord>"
   lease-tenant: "  Tenant: <tenant>"
   lease-price: "  Price: <price>"
