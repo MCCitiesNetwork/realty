@@ -374,7 +374,7 @@ public class RealtyLogicImpl {
     }
 
     public sealed interface BuyResult {
-        record Success(@NotNull UUID authorityId) implements BuyResult {}
+        record Success(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements BuyResult {}
         record NoSaleContract() implements BuyResult {}
         record NotForSale() implements BuyResult {}
     }
@@ -392,6 +392,7 @@ public class RealtyLogicImpl {
                 return new BuyResult.NotForSale();
             }
             UUID authorityId = sale.authorityId();
+            UUID titleHolderId = sale.titleHolderId();
             saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, sale.price(), buyerId);
             saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
             wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
@@ -399,7 +400,7 @@ public class RealtyLogicImpl {
             wrapper.saleHistoryMapper().insert(worldGuardRegionId, worldId, "BUY",
                     buyerId, authorityId, sale.price());
             wrapper.session().commit();
-            return new BuyResult.Success(authorityId);
+            return new BuyResult.Success(authorityId, titleHolderId);
         }
     }
 
@@ -658,7 +659,7 @@ public class RealtyLogicImpl {
     // --- Withdraw Offer ---
 
     public sealed interface WithdrawOfferResult {
-        record Success(@NotNull UUID authorityId) implements WithdrawOfferResult {}
+        record Success(@NotNull UUID titleHolderId) implements WithdrawOfferResult {}
         record NoOffer() implements WithdrawOfferResult {}
         record OfferAccepted() implements WithdrawOfferResult {}
     }
@@ -676,14 +677,14 @@ public class RealtyLogicImpl {
             SaleContractEntity sale = wrapper.saleContractMapper().selectByRegion(worldGuardRegionId, worldId);
             wrapper.saleContractOfferMapper().deleteOfferByOfferer(worldGuardRegionId, worldId, offererId);
             wrapper.session().commit();
-            return new WithdrawOfferResult.Success(sale.authorityId());
+            return new WithdrawOfferResult.Success(sale.titleHolderId());
         }
     }
 
     // --- Place Offer ---
 
     public sealed interface OfferResult {
-        record Success(@NotNull UUID authorityId) implements OfferResult {}
+        record Success(@NotNull UUID titleHolderId) implements OfferResult {}
         record NoSaleContract() implements OfferResult {}
         record IsOwner() implements OfferResult {}
         record AlreadyHasOffer() implements OfferResult {}
@@ -718,7 +719,7 @@ public class RealtyLogicImpl {
             if (inserted == 0) {
                 return new OfferResult.InsertFailed();
             }
-            return new OfferResult.Success(sale.authorityId());
+            return new OfferResult.Success(sale.titleHolderId());
         }
     }
 
@@ -764,7 +765,7 @@ public class RealtyLogicImpl {
 
     public sealed interface PayOfferResult {
         record Success(double newTotal, double remaining) implements PayOfferResult {}
-        record FullyPaid(@NotNull UUID authorityId) implements PayOfferResult {}
+        record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record NoPaymentRecord() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
     }
@@ -789,6 +790,7 @@ public class RealtyLogicImpl {
                 SaleContractMapper saleMapper = wrapper.saleContractMapper();
                 SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
                 UUID authorityId = sale.authorityId();
+                UUID titleHolderId = sale.titleHolderId();
                 saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
                 saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
@@ -797,7 +799,7 @@ public class RealtyLogicImpl {
                 wrapper.saleHistoryMapper().insert(worldGuardRegionId, worldId, "OFFER_BUY",
                         offererId, authorityId, payment.offerPrice());
                 wrapper.session().commit();
-                return new PayOfferResult.FullyPaid(authorityId);
+                return new PayOfferResult.FullyPaid(authorityId, titleHolderId);
             } else {
                 paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, newTotal);
             }
@@ -810,7 +812,7 @@ public class RealtyLogicImpl {
 
     public sealed interface PayBidResult {
         record Success(double newTotal, double remaining) implements PayBidResult {}
-        record FullyPaid(@NotNull UUID authorityId) implements PayBidResult {}
+        record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
         record NoPaymentRecord() implements PayBidResult {}
         record PaymentExpired() implements PayBidResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
@@ -839,6 +841,7 @@ public class RealtyLogicImpl {
                 SaleContractMapper saleMapper = wrapper.saleContractMapper();
                 SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
                 UUID authorityId = sale.authorityId();
+                UUID titleHolderId = sale.titleHolderId();
                 saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
                 saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
@@ -846,7 +849,7 @@ public class RealtyLogicImpl {
                 wrapper.saleHistoryMapper().insert(worldGuardRegionId, worldId, "AUCTION_BUY",
                         bidderId, authorityId, payment.bidPrice());
                 wrapper.session().commit();
-                return new PayBidResult.FullyPaid(authorityId);
+                return new PayBidResult.FullyPaid(authorityId, titleHolderId);
             }
             paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, newTotal);
             wrapper.session().commit();

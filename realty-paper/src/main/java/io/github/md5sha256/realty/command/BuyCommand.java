@@ -144,11 +144,13 @@ public record BuyCommand(
             sender.sendMessage(messages.messageFor("buy.success",
                     Placeholder.unparsed("price", String.valueOf(price)),
                     Placeholder.unparsed("region", regionId)));
-            notificationService.queueNotification(success.authorityId(),
-                    messages.messageFor("notification.region-bought",
-                            Placeholder.unparsed("player", sender.getName()),
-                            Placeholder.unparsed("price", String.valueOf(price)),
-                            Placeholder.unparsed("region", regionId)));
+            if (success.titleHolderId() != null) {
+                notificationService.queueNotification(success.titleHolderId(),
+                        messages.messageFor("notification.region-bought",
+                                Placeholder.unparsed("player", sender.getName()),
+                                Placeholder.unparsed("price", String.valueOf(price)),
+                                Placeholder.unparsed("region", regionId)));
+            }
         }, executorState.mainThreadExec());
     }
 

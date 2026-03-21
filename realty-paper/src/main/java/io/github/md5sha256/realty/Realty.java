@@ -265,7 +265,7 @@ public final class Realty extends JavaPlugin {
                 new ListCommand(executorState, logic, messageContainer),
                 new OfferCommandGroup(executorState, logic, economy, notificationService, messageContainer),
                 new RenewCommand(executorState, logic, economy, messageContainer),
-                new RentCommand(executorState, logic, economy, messageContainer),
+                new RentCommand(executorState, logic, economy, notificationService, messageContainer),
                 new SetCommandGroup(executorState, logic, messageContainer),
                 new UnsetCommandGroup(executorState, logic, messageContainer),
                 new ReloadCommand(executorState, () -> {

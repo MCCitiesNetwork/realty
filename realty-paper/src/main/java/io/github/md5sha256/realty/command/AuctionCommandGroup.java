@@ -290,10 +290,12 @@ public record AuctionCommandGroup(
                 protectedRegion.getMembers().clear();
                 sender.sendMessage(messages.messageFor("pay-bid.transfer-success",
                         Placeholder.unparsed("region", regionId)));
-                notificationService.queueNotification(fullyPaid.authorityId(),
-                        messages.messageFor("notification.ownership-transferred",
-                                Placeholder.unparsed("player", sender.getName()),
-                                Placeholder.unparsed("region", regionId)));
+                if (fullyPaid.titleHolderId() != null) {
+                    notificationService.queueNotification(fullyPaid.titleHolderId(),
+                            messages.messageFor("notification.ownership-transferred",
+                                    Placeholder.unparsed("player", sender.getName()),
+                                    Placeholder.unparsed("region", regionId)));
+                }
             }
         }, executorState.mainThreadExec());
     }

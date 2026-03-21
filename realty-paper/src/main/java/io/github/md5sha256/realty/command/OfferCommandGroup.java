@@ -124,7 +124,7 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor("offer.success",
                                     Placeholder.unparsed("price", String.valueOf(price)),
                                     Placeholder.unparsed("region", regionId)));
-                            notificationService.queueNotification(success.authorityId(),
+                            notificationService.queueNotification(success.titleHolderId(),
                                     messages.messageFor("notification.offer-placed",
                                             Placeholder.unparsed("player", sender.getName()),
                                             Placeholder.unparsed("price", String.valueOf(price)),
@@ -374,10 +374,12 @@ public record OfferCommandGroup(
                 protectedRegion.getMembers().clear();
                 sender.sendMessage(messages.messageFor("pay-offer.transfer-success",
                         Placeholder.unparsed("region", regionId)));
-                notificationService.queueNotification(fullyPaid.authorityId(),
-                        messages.messageFor("notification.ownership-transferred",
-                                Placeholder.unparsed("player", sender.getName()),
-                                Placeholder.unparsed("region", regionId)));
+                if (fullyPaid.titleHolderId() != null) {
+                    notificationService.queueNotification(fullyPaid.titleHolderId(),
+                            messages.messageFor("notification.ownership-transferred",
+                                    Placeholder.unparsed("player", sender.getName()),
+                                    Placeholder.unparsed("region", regionId)));
+                }
             }
         }, executorState.mainThreadExec());
     }
@@ -399,10 +401,10 @@ public record OfferCommandGroup(
             try {
                 RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId());
                 switch (result) {
-                    case RealtyLogicImpl.WithdrawOfferResult.Success(var authorityId) -> {
+                    case RealtyLogicImpl.WithdrawOfferResult.Success(var titleHolderId) -> {
                             sender.sendMessage(messages.messageFor("withdraw-offer.success",
                                     Placeholder.unparsed("region", regionId)));
-                            notificationService.queueNotification(authorityId,
+                            notificationService.queueNotification(titleHolderId,
                                     messages.messageFor("notification.offer-withdrawn",
                                             Placeholder.unparsed("player", sender.getName()),
                                             Placeholder.unparsed("region", regionId)));
