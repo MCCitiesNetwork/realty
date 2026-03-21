@@ -134,6 +134,8 @@ public final class Realty extends JavaPlugin {
     @Override
     public void onEnable() {
         if (failedLoad) {
+            getLogger().severe("Failed to initialize plugin, check earlier logs");
+            getServer().getPluginManager().disablePlugin(this);
             return;
         }
         // Plugin startup logic
