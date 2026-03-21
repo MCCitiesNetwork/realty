@@ -52,21 +52,20 @@ public record ListCommand(
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
         var base = manager.commandBuilder("realty")
                 .literal("list")
-                .permission("realty.command.list")
-                .flag(PLAYER_FLAG);
+                .permission("realty.command.list");
         return List.of(
-                base.handler(ctx -> execute(ctx, null))
+                base.flag(PLAYER_FLAG)
+                        .handler(ctx -> execute(ctx, null))
                         .build(),
                 base.literal("owned")
+                        .flag(PLAYER_FLAG)
                         .optional(PAGE_KEY, IntegerParser.integerParser(1))
                         .handler(ctx -> execute(ctx, "owned"))
                         .build(),
                 base.literal("rented")
+                        .flag(PLAYER_FLAG)
                         .optional(PAGE_KEY, IntegerParser.integerParser(1))
                         .handler(ctx -> execute(ctx, "rented"))
-                        .build(),
-                base.required(PAGE_KEY, IntegerParser.integerParser(1))
-                        .handler(ctx -> execute(ctx, null))
                         .build()
         );
     }
