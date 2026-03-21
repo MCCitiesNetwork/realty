@@ -564,6 +564,29 @@ public class RealtyLogicImpl {
         }
     }
 
+    public record SingleCategoryResult(
+            int totalCount,
+            @NotNull List<RealtyRegionEntity> regions
+    ) { }
+
+    public @NotNull SingleCategoryResult listOwnedRegions(@NotNull UUID targetId, int limit, int offset) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
+            int count = mapper.countRegionsByTitleHolder(targetId);
+            List<RealtyRegionEntity> regions = mapper.selectRegionsByTitleHolder(targetId, limit, offset);
+            return new SingleCategoryResult(count, regions);
+        }
+    }
+
+    public @NotNull SingleCategoryResult listRentedRegions(@NotNull UUID targetId, int limit, int offset) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
+            int count = mapper.countRegionsByTenant(targetId);
+            List<RealtyRegionEntity> regions = mapper.selectRegionsByTenant(targetId, limit, offset);
+            return new SingleCategoryResult(count, regions);
+        }
+    }
+
     // --- List Outbound Offers ---
 
     public @NotNull List<OutboundOfferView> listOutboundOffers(@NotNull UUID offererId) {

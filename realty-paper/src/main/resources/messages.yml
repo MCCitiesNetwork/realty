@@ -103,8 +103,8 @@ list:
   category: "<label>:"
   entry: "  - <region>"
   footer: "Page <page> of <total> <previous><next>"
-  previous: "<click:run_command:/realty list <player> <previouspage>><yellow>< Previous</yellow></click> "
-  next: " <click:run_command:/realty list <player> <nextpage>><yellow>Next ></yellow></click>"
+  previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
+  next: " <click:run_command:<command>><yellow>Next ></yellow></click>"
   error: "Failed to list regions: <error>"
 
 offers-list:
@@ -164,7 +164,7 @@ help:
     - "<gold>--- Realty > Basics ---</gold>"
     - "<yellow>/realty help</yellow> <gray>- Show help categories</gray>"
     - "<yellow>/realty info <region></yellow> <gray>- Display region info</gray>"
-    - "<yellow>/realty list [player] [page]</yellow> <gray>- List regions</gray>"
+    - "<yellow>/realty list [owned|rented] [page] [--player <name>]</yellow> <gray>- List regions</gray>"
     - "<yellow>/realty buy <region></yellow> <gray>- Buy a region at the listed price</gray>"
     - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
     - "<yellow>/realty renew <region></yellow> <gray>- Renew a lease</gray>"
