@@ -23,6 +23,7 @@ import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.SetPriceCommand;
 import io.github.md5sha256.realty.command.UnsetPriceCommand;
+import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.WithdrawOfferCommand;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -214,7 +215,9 @@ public final class Realty extends JavaPlugin {
             @NotNull Economy economy,
             @NotNull NotificationService notificationService
     ) {
+        String version = getPluginMeta().getVersion();
         List<CustomCommandBean> commands = List.of(
+                new VersionCommand(version),
                 new AcceptOfferCommand(executorState, logic, notificationService, messageContainer),
                 new AddCommand(executorState, logic, messageContainer),
                 new AuctionCommand(executorState, logic, messageContainer),
