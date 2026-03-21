@@ -22,6 +22,8 @@ add:
 
 auction:
   success: "Auction created for region <region>."
+  not-sanctioned: "You are not authorized to start an auction on region <region>."
+  no-sale-contract: "Region <region> does not have a sale contract."
   error: "Failed to create auction: <error>"
 
 bid:

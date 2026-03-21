@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -57,7 +58,7 @@ public record AuctionCommand(@NotNull ExecutorState executorState,
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                logic.createAuction(
+                CreateAuctionResult result = logic.createAuction(
                         regionId,
                         region.world().getUID(),
                         player.getUniqueId(),
@@ -66,8 +67,17 @@ public record AuctionCommand(@NotNull ExecutorState executorState,
                         minBid,
                         minBidStep
                 );
-                sender.sendMessage(messages.messageFor("auction.success",
-                        Placeholder.unparsed("region", regionId)));
+                switch (result) {
+                    case CreateAuctionResult.Success ignored ->
+                            sender.sendMessage(messages.messageFor("auction.success",
+                                    Placeholder.unparsed("region", regionId)));
+                    case CreateAuctionResult.NotSanctioned ignored ->
+                            sender.sendMessage(messages.messageFor("auction.not-sanctioned",
+                                    Placeholder.unparsed("region", regionId)));
+                    case CreateAuctionResult.NoSaleContract ignored ->
+                            sender.sendMessage(messages.messageFor("auction.no-sale-contract",
+                                    Placeholder.unparsed("region", regionId)));
+                }
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor("auction.error",
                         Placeholder.unparsed("error", ex.getMessage())));

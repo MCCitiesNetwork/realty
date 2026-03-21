@@ -12,6 +12,7 @@ import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractOfferMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractBidPaymentMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractOfferPaymentMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractSanctionedAuctioneerMapper;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.Configuration;
@@ -56,6 +57,7 @@ public class MariaDatabase implements Database {
         configuration.addMapper(MariaSaleContractOfferMapper.class);
         configuration.addMapper(MariaSaleContractBidPaymentMapper.class);
         configuration.addMapper(MariaSaleContractOfferPaymentMapper.class);
+        configuration.addMapper(MariaSaleContractSanctionedAuctioneerMapper.class);
         return new SqlSessionFactoryBuilder().build(configuration);
     }
 

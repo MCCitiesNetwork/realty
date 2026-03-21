@@ -18,6 +18,7 @@ import io.github.md5sha256.realty.database.mapper.SaleContractBidPaymentMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferPaymentMapper;
+import io.github.md5sha256.realty.database.mapper.SaleContractSanctionedAuctioneerMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,7 +44,13 @@ public class RealtyLogicImpl {
 
     // --- Auction ---
 
-    public void createAuction(@NotNull String worldGuardRegionId,
+    public sealed interface CreateAuctionResult {
+        record Success() implements CreateAuctionResult {}
+        record NotSanctioned() implements CreateAuctionResult {}
+        record NoSaleContract() implements CreateAuctionResult {}
+    }
+
+    public @NotNull CreateAuctionResult createAuction(@NotNull String worldGuardRegionId,
                               @NotNull UUID worldId,
                               @NotNull UUID auctioneerId,
                               long biddingDurationSeconds,
@@ -52,10 +59,21 @@ public class RealtyLogicImpl {
                               double minBidStep) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
+            SaleContractEntity sale = wrapper.saleContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (sale == null) {
+                return new CreateAuctionResult.NoSaleContract();
+            }
+            if (!auctioneerId.equals(sale.authorityId())
+                    && !auctioneerId.equals(sale.titleHolderId())
+                    && !wrapper.saleContractSanctionedAuctioneerMapper()
+                            .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, auctioneerId)) {
+                return new CreateAuctionResult.NotSanctioned();
+            }
             wrapper.saleContractAuctionMapper().createAuction(
                     worldGuardRegionId, worldId, auctioneerId, LocalDateTime.now(),
                     biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep);
             session.commit();
+            return new CreateAuctionResult.Success();
         }
     }
 
@@ -239,6 +257,7 @@ public class RealtyLogicImpl {
             saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, sale.price(), buyerId);
             saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
             wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
+            wrapper.saleContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             wrapper.session().commit();
             return new BuyResult.Success(authorityId);
         }
@@ -599,6 +618,7 @@ public class RealtyLogicImpl {
                 saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
+                wrapper.saleContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
                 wrapper.session().commit();
                 return new PayOfferResult.FullyPaid(authorityId);
             } else {
@@ -645,6 +665,7 @@ public class RealtyLogicImpl {
                 saleMapper.updateSaleByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
                 saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
+                wrapper.saleContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
                 wrapper.session().commit();
                 return new PayBidResult.FullyPaid(authorityId);
             }

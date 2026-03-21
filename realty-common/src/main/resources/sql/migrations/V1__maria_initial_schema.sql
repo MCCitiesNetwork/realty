@@ -88,6 +88,13 @@ CREATE TABLE IF NOT EXISTS SaleContractBidPayment
     currentPayment        DOUBLE   NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS SaleContractSanctionedAuctioneers
+(
+    realtyRegionId INT  NOT NULL,
+    auctioneerId   UUID NOT NULL,
+    PRIMARY KEY (realtyRegionId, auctioneerId)
+);
+
 
 ALTER TABLE SaleContractOfferPayment
     ADD (
@@ -149,6 +156,11 @@ ALTER TABLE SaleContractBid
         CONSTRAINT SaleContractAuction_SaleContractBid_saleContractAuctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId) ON DELETE CASCADE,
         CONSTRAINT chk_valid_bidPrice CHECK (bidPrice > 0),
         CONSTRAINT unique_sale_contract UNIQUE (saleContractAuctionId, bidderId, bidPrice)
+        );
+
+ALTER TABLE SaleContractSanctionedAuctioneers
+    ADD (
+        CONSTRAINT SanctionedAuctioneers_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE
         );
 
 ALTER TABLE SaleContractBidPayment

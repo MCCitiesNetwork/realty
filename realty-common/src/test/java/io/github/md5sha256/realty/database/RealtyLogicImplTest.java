@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.AcceptOfferResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.BidResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.ExpiredBidPayment;
@@ -386,6 +387,50 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
             RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(regionId, WORLD_ID);
             Assertions.assertEquals(0, result.deleted());
+        }
+
+        @Test
+        @DisplayName("titleHolder can create auction")
+        void titleHolderCanCreate() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+
+            CreateAuctionResult result = logic.createAuction(regionId, WORLD_ID, PLAYER_A, 3600, 3600, 100.0, 10.0);
+            Assertions.assertInstanceOf(CreateAuctionResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("sanctioned auctioneer can create auction")
+        void sanctionedAuctioneerCanCreate() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            UUID sanctioned = UUID.randomUUID();
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                wrapper.saleContractSanctionedAuctioneerMapper().insert(regionId, WORLD_ID, sanctioned);
+                session.commit();
+            }
+
+            CreateAuctionResult result = logic.createAuction(regionId, WORLD_ID, sanctioned, 3600, 3600, 100.0, 10.0);
+            Assertions.assertInstanceOf(CreateAuctionResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("non-sanctioned player cannot create auction")
+        void nonSanctionedCannotCreate() {
+            String regionId = uniqueRegionId();
+            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+
+            UUID stranger = UUID.randomUUID();
+            CreateAuctionResult result = logic.createAuction(regionId, WORLD_ID, stranger, 3600, 3600, 100.0, 10.0);
+            Assertions.assertInstanceOf(CreateAuctionResult.NotSanctioned.class, result);
+        }
+
+        @Test
+        @DisplayName("createAuction returns NoSaleContract when no sale contract exists")
+        void noSaleContract() {
+            CreateAuctionResult result = logic.createAuction("nonexistent", WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            Assertions.assertInstanceOf(CreateAuctionResult.NoSaleContract.class, result);
         }
     }
 

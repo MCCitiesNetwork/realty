@@ -60,6 +60,7 @@ abstract class AbstractDatabaseTest {
                     TRUNCATE TABLE SaleContractBid;
                     TRUNCATE TABLE SaleContractOfferPayment;
                     TRUNCATE TABLE SaleContractOffer;
+                    TRUNCATE TABLE SaleContractSanctionedAuctioneers;
                     TRUNCATE TABLE SaleContractAuction;
                     TRUNCATE TABLE LeaseContract;
                     TRUNCATE TABLE SaleContract;
