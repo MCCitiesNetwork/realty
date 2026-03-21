@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
+import io.github.md5sha256.realty.database.mapper.SaleHistoryMapper;
 import io.github.md5sha256.realty.settings.Settings;
 import me.wiefferink.areashop.AreaShop;
 import me.wiefferink.areashop.managers.IFileManager;
@@ -48,6 +49,7 @@ public class ImportJob {
             SaleContractMapper saleMapper = wrapper.saleContractMapper();
             LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
             ContractMapper contractMapper = wrapper.contractMapper();
+            SaleHistoryMapper saleHistoryMapper = wrapper.saleHistoryMapper();
             for (SaleDto sale : sales) {
                 try {
                     if (regionMapper.selectByWorldGuardRegion(sale.worldGuardRegionId(),
@@ -61,6 +63,14 @@ public class ImportJob {
                                 sale.authority(),
                                 sale.titleHolder());
                         contractMapper.insert(new ContractEntity(saleContractId, "sale", regionId));
+                        if (sale.lastSoldPrice() != null && sale.titleHolder() != null) {
+                            saleHistoryMapper.insert(sale.worldGuardRegionId(),
+                                    sale.worldId(),
+                                    "BUY",
+                                    sale.titleHolder(),
+                                    sale.authority(),
+                                    sale.lastSoldPrice());
+                        }
                         imported++;
                     }
                 } catch (Exception ex) {
@@ -127,11 +137,13 @@ public class ImportJob {
                     }
                     UUID landlord = Objects.requireNonNullElse(region.getLandlord(), settings.defaultSaleAuthority());
                     UUID owner = region.getOwner();
-                    Double price = region.getState() == GeneralRegion.RegionState.FORSALE ?
-                            region.getPrice() : null;
+                    boolean forSale = region.getState() == GeneralRegion.RegionState.FORSALE;
+                    Double price = forSale ? region.getPrice() : null;
+                    Double lastSoldPrice = !forSale ? region.getPrice() : null;
                     return new SaleDto(protectedRegion.getId(),
                             world.getUID(),
                             price,
+                            lastSoldPrice,
                             landlord,
                             owner != null ? owner : settings.defaultSaleTitleholder());
                 })
@@ -179,6 +191,7 @@ public class ImportJob {
     private record SaleDto(@NotNull String worldGuardRegionId,
                            @NotNull UUID worldId,
                            @Nullable Double price,
+                           @Nullable Double lastSoldPrice,
                            @NotNull UUID authority,
                            @Nullable UUID titleHolder) {
     }
