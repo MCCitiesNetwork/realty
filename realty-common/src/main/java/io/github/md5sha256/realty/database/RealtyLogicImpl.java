@@ -660,7 +660,7 @@ public class RealtyLogicImpl {
     // --- Withdraw Offer ---
 
     public sealed interface WithdrawOfferResult {
-        record Success(@NotNull UUID titleHolderId) implements WithdrawOfferResult {}
+        record Success(@Nullable UUID titleHolderId) implements WithdrawOfferResult {}
         record NoOffer() implements WithdrawOfferResult {}
         record OfferAccepted() implements WithdrawOfferResult {}
     }
@@ -739,7 +739,7 @@ public class RealtyLogicImpl {
     // --- Place Offer ---
 
     public sealed interface OfferResult {
-        record Success(@NotNull UUID titleHolderId) implements OfferResult {}
+        record Success(@Nullable UUID titleHolderId) implements OfferResult {}
         record NoSaleContract() implements OfferResult {}
         record IsOwner() implements OfferResult {}
         record AlreadyHasOffer() implements OfferResult {}

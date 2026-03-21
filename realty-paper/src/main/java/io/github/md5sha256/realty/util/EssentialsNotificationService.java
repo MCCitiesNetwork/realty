@@ -13,15 +13,18 @@ import org.jetbrains.annotations.NotNull;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 public class EssentialsNotificationService implements NotificationService {
 
     private final IEssentials essentials;
     private final Executor mainThreadExec;
+    private final Logger logger;
 
     public EssentialsNotificationService(@NotNull Executor executor) {
         essentials = (Essentials) Bukkit.getPluginManager().getPlugin("Essentials");
         this.mainThreadExec = executor;
+        this.logger = Bukkit.getPluginManager().getPlugin("Realty").getLogger();
     }
 
     @Override
@@ -37,15 +40,19 @@ public class EssentialsNotificationService implements NotificationService {
     public void queueNotification(@NotNull UUID authorityId,
                                   @NotNull String plaintext,
                                   long expiryEpochSecond) {
+        logger.info("[Mail] Queuing mail for " + authorityId + ": " + plaintext);
         Runnable runnable = () -> {
             IUser user = essentials.getUser(authorityId);
-            if (user != null) {
-                essentials.getMail()
-                        .sendMail(user,
-                                Console.getInstance(),
-                                plaintext,
-                                TimeUnit.SECONDS.toMillis(expiryEpochSecond));
+            if (user == null) {
+                logger.warning("[Mail] Failed to resolve Essentials user for UUID " + authorityId);
+                return;
             }
+            logger.info("[Mail] Sending mail to " + user.getName() + " (" + authorityId + ")");
+            essentials.getMail()
+                    .sendMail(user,
+                            Console.getInstance(),
+                            plaintext,
+                            TimeUnit.SECONDS.toMillis(expiryEpochSecond));
         };
         if (Bukkit.isPrimaryThread()) {
             runnable.run();
@@ -61,11 +68,15 @@ public class EssentialsNotificationService implements NotificationService {
 
     @Override
     public void queueNotification(@NotNull UUID authorityId, @NotNull String plaintext) {
+        logger.info("[Mail] Queuing mail for " + authorityId + ": " + plaintext);
         Runnable runnable = () -> {
             IUser user = essentials.getUser(authorityId);
-            if (user != null) {
-                essentials.getMail().sendMail(user, Console.getInstance(), plaintext);
+            if (user == null) {
+                logger.warning("[Mail] Failed to resolve Essentials user for UUID " + authorityId);
+                return;
             }
+            logger.info("[Mail] Sending mail to " + user.getName() + " (" + authorityId + ")");
+            essentials.getMail().sendMail(user, Console.getInstance(), plaintext);
         };
         if (Bukkit.isPrimaryThread()) {
             runnable.run();

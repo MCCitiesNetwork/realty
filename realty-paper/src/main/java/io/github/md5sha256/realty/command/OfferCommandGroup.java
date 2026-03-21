@@ -137,11 +137,13 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor("offer.success",
                                     Placeholder.unparsed("price", String.valueOf(price)),
                                     Placeholder.unparsed("region", regionId)));
-                            notificationService.queueNotification(success.titleHolderId(),
-                                    messages.messageFor("notification.offer-placed",
-                                            Placeholder.unparsed("player", sender.getName()),
-                                            Placeholder.unparsed("price", String.valueOf(price)),
-                                            Placeholder.unparsed("region", regionId)));
+                            if (success.titleHolderId() != null) {
+                                notificationService.queueNotification(success.titleHolderId(),
+                                        messages.messageFor("notification.offer-placed",
+                                                Placeholder.unparsed("player", sender.getName()),
+                                                Placeholder.unparsed("price", String.valueOf(price)),
+                                                Placeholder.unparsed("region", regionId)));
+                            }
                     }
                     case RealtyLogicImpl.OfferResult.NoSaleContract ignored ->
                             sender.sendMessage(messages.messageFor("offer.no-sale-contract",
@@ -417,10 +419,12 @@ public record OfferCommandGroup(
                     case RealtyLogicImpl.WithdrawOfferResult.Success(var titleHolderId) -> {
                             sender.sendMessage(messages.messageFor("withdraw-offer.success",
                                     Placeholder.unparsed("region", regionId)));
-                            notificationService.queueNotification(titleHolderId,
-                                    messages.messageFor("notification.offer-withdrawn",
-                                            Placeholder.unparsed("player", sender.getName()),
-                                            Placeholder.unparsed("region", regionId)));
+                            if (titleHolderId != null) {
+                                notificationService.queueNotification(titleHolderId,
+                                        messages.messageFor("notification.offer-withdrawn",
+                                                Placeholder.unparsed("player", sender.getName()),
+                                                Placeholder.unparsed("region", regionId)));
+                            }
                     }
                     case RealtyLogicImpl.WithdrawOfferResult.NoOffer() ->
                             sender.sendMessage(messages.messageFor("withdraw-offer.no-offer",
