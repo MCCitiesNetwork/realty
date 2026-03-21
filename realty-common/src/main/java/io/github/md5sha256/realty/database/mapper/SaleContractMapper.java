@@ -84,4 +84,16 @@ public interface SaleContractMapper {
                             @NotNull UUID worldId,
                             @Nullable Double price);
 
+    /**
+     * Updates only the title holder on the sale contract associated with a WorldGuard region.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param titleHolder        UUID of the new title holder, or {@code null} to clear
+     * @return number of rows updated (1 on success, 0 if no matching contract)
+     */
+    int updateTitleHolderByRegion(@NotNull String worldGuardRegionId,
+                                  @NotNull UUID worldId,
+                                  @Nullable UUID titleHolder);
+
 }

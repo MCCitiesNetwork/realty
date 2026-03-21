@@ -289,6 +289,58 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Set Title Holder ---
+
+    public sealed interface SetTitleHolderResult {
+        record Success() implements SetTitleHolderResult {}
+        record NoSaleContract() implements SetTitleHolderResult {}
+        record UpdateFailed() implements SetTitleHolderResult {}
+    }
+
+    public @NotNull SetTitleHolderResult setTitleHolder(@NotNull String worldGuardRegionId,
+                                                         @NotNull UUID worldId,
+                                                         @Nullable UUID titleHolderId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            SaleContractMapper saleMapper = wrapper.saleContractMapper();
+            SaleContractEntity sale = saleMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (sale == null) {
+                return new SetTitleHolderResult.NoSaleContract();
+            }
+            int updated = saleMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId);
+            if (updated == 0) {
+                return new SetTitleHolderResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new SetTitleHolderResult.Success();
+        }
+    }
+
+    // --- Set Tenant ---
+
+    public sealed interface SetTenantResult {
+        record Success() implements SetTenantResult {}
+        record NoLeaseContract() implements SetTenantResult {}
+        record UpdateFailed() implements SetTenantResult {}
+    }
+
+    public @NotNull SetTenantResult setTenant(@NotNull String worldGuardRegionId,
+                                                @NotNull UUID worldId,
+                                                @Nullable UUID tenantId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
+            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new SetTenantResult.NoLeaseContract();
+            }
+            int updated = leaseMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId);
+            if (updated == 0) {
+                return new SetTenantResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new SetTenantResult.Success();
+        }
+    }
+
     // --- Buy (fixed-price) ---
 
     public sealed interface BuyValidation {

@@ -173,6 +173,8 @@ help:
     - "<yellow>/realty unset price <region></yellow> <gray>- Remove region sale price</gray>"
     - "<yellow>/realty set duration <duration> <region></yellow> <gray>- Set lease duration</gray>"
     - "<yellow>/realty set landlord <player> <region></yellow> <gray>- Set lease landlord</gray>"
+    - "<yellow>/realty set titleholder <player> <region></yellow> <gray>- Set sale title holder</gray>"
+    - "<yellow>/realty set tenant <player> <region></yellow> <gray>- Set lease tenant</gray>"
     - "<yellow>/realty agent add <player> <region></yellow> <gray>- Add a sanctioned auctioneer</gray>"
     - "<yellow>/realty agent remove <player> <region></yellow> <gray>- Remove a sanctioned auctioneer</gray>"
   offers:
@@ -225,6 +227,18 @@ remove:
   check-permissions-error: "Failed to check permissions: <error>"
   no-permission: "You do not have permission to remove players from this region!"
   success: "Successfully removed <target> from region <region>!"
+
+set-titleholder:
+  success: "Title holder for region <region> set to <titleholder>."
+  no-sale-contract: "Region <region> does not have a sale contract."
+  update-failed: "Failed to update title holder for region <region>."
+  error: "Failed to set title holder: <error>"
+
+set-tenant:
+  success: "Tenant for region <region> set to <tenant>."
+  no-lease-contract: "Region <region> does not have a lease contract."
+  update-failed: "Failed to update tenant for region <region>."
+  error: "Failed to set tenant: <error>"
 
 withdraw-offer:
   no-offer: "You do not have an offer on region <region>."
