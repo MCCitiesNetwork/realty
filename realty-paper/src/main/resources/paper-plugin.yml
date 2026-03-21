@@ -111,6 +111,12 @@ permissions:
   realty.command.unset.price:
     description: Allows using /realty unset price
     default: op
+  realty.command.unset.titleholder:
+    description: Allows using /realty unset titleholder
+    default: op
+  realty.command.unset.tenant:
+    description: Allows using /realty unset tenant
+    default: op
   realty.command.reload:
     description: Allows using /realty reload
     default: op

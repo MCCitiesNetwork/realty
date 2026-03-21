@@ -171,6 +171,8 @@ help:
     - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
     - "<yellow>/realty set price <price> <region></yellow> <gray>- Set region sale price</gray>"
     - "<yellow>/realty unset price <region></yellow> <gray>- Remove region sale price</gray>"
+    - "<yellow>/realty unset titleholder <region></yellow> <gray>- Clear sale title holder</gray>"
+    - "<yellow>/realty unset tenant <region></yellow> <gray>- Clear lease tenant</gray>"
     - "<yellow>/realty set duration <duration> <region></yellow> <gray>- Set lease duration</gray>"
     - "<yellow>/realty set landlord <player> <region></yellow> <gray>- Set lease landlord</gray>"
     - "<yellow>/realty set titleholder <player> <region></yellow> <gray>- Set sale title holder</gray>"
@@ -239,6 +241,18 @@ set-tenant:
   no-lease-contract: "Region <region> does not have a lease contract."
   update-failed: "Failed to update tenant for region <region>."
   error: "Failed to set tenant: <error>"
+
+unset-titleholder:
+  success: "Title holder for region <region> has been cleared."
+  no-sale-contract: "Region <region> does not have a sale contract."
+  update-failed: "Failed to clear title holder for region <region>."
+  error: "Failed to unset title holder: <error>"
+
+unset-tenant:
+  success: "Tenant for region <region> has been cleared."
+  no-lease-contract: "Region <region> does not have a lease contract."
+  update-failed: "Failed to clear tenant for region <region>."
+  error: "Failed to unset tenant: <error>"
 
 withdraw-offer:
   no-offer: "You do not have an offer on region <region>."
