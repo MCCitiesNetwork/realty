@@ -29,6 +29,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
     private static final UUID AUTHORITY = UUID.randomUUID();
     private static final UUID PLAYER_A = UUID.randomUUID();
     private static final UUID PLAYER_B = UUID.randomUUID();
+    private static final UUID PLAYER_C = UUID.randomUUID();
 
     private static final AtomicInteger REGION_COUNTER = new AtomicInteger();
 
@@ -477,7 +478,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
-            logic.performBid(regionId, WORLD_ID, PLAYER_A, 200.0);
+            logic.performBid(regionId, WORLD_ID, PLAYER_C, 200.0);
 
             BidResult result = logic.performBid(regionId, WORLD_ID, PLAYER_B, 150.0);
             Assertions.assertInstanceOf(BidResult.BidTooLowCurrent.class, result);
@@ -491,7 +492,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
-            logic.performBid(regionId, WORLD_ID, PLAYER_A, 200.0);
+            logic.performBid(regionId, WORLD_ID, PLAYER_C, 200.0);
 
             BidResult result = logic.performBid(regionId, WORLD_ID, PLAYER_B, 300.0);
             Assertions.assertInstanceOf(BidResult.Success.class, result);
@@ -522,13 +523,13 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("placeOffer returns IsAuthority when offerer is authority")
+        @DisplayName("placeOffer returns IsOwner when offerer is authority")
         void isAuthority() {
             String regionId = uniqueRegionId();
             createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, AUTHORITY, 500.0);
-            Assertions.assertInstanceOf(OfferResult.IsAuthority.class, result);
+            Assertions.assertInstanceOf(OfferResult.IsOwner.class, result);
         }
 
         @Test
@@ -853,19 +854,19 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
-            logic.performBid(regionId, WORLD_ID, PLAYER_A, 150.0);
+            logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
             // PLAYER_B is highest bidder — create an expired payment for them
             insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
 
             logic.clearExpiredBidPayments();
 
-            // PLAYER_A should now have a payment record as the next highest bidder
+            // PLAYER_C should now have a payment record as the next highest bidder
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 SaleContractBidPaymentEntity nextPayment = wrapper.saleContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(nextPayment, "Next highest bidder should have a payment record");
-                Assertions.assertEquals(PLAYER_A, nextPayment.bidderId());
+                Assertions.assertEquals(PLAYER_C, nextPayment.bidderId());
                 Assertions.assertEquals(150.0, nextPayment.bidPrice());
                 Assertions.assertEquals(0.0, nextPayment.currentPayment());
                 Assertions.assertTrue(nextPayment.paymentDeadline().isAfter(LocalDateTime.now()));
@@ -899,9 +900,9 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             createSaleRegion(regionId2, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId1, WORLD_ID);
             createAuctionOnRegion(regionId2, WORLD_ID);
-            logic.performBid(regionId1, WORLD_ID, PLAYER_A, 150.0);
+            logic.performBid(regionId1, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId2, WORLD_ID, PLAYER_B, 250.0);
-            insertBidPaymentWithDeadline(regionId1, WORLD_ID, PLAYER_A, LocalDateTime.now().minusDays(1));
+            insertBidPaymentWithDeadline(regionId1, WORLD_ID, PLAYER_C, LocalDateTime.now().minusDays(1));
             insertBidPaymentWithDeadline(regionId2, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
 
             List<ExpiredBidPayment> refunds = logic.clearExpiredBidPayments();
@@ -997,9 +998,9 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             String regionId2 = uniqueRegionId();
             createSaleRegion(regionId1, WORLD_ID, AUTHORITY, PLAYER_A);
             createSaleRegion(regionId2, WORLD_ID, AUTHORITY, PLAYER_A);
-            logic.placeOffer(regionId1, WORLD_ID, PLAYER_A, 400.0);
+            logic.placeOffer(regionId1, WORLD_ID, PLAYER_C, 400.0);
             logic.placeOffer(regionId2, WORLD_ID, PLAYER_B, 600.0);
-            insertOfferPaymentWithDeadline(regionId1, WORLD_ID, PLAYER_A, LocalDateTime.now().minusDays(1));
+            insertOfferPaymentWithDeadline(regionId1, WORLD_ID, PLAYER_C, LocalDateTime.now().minusDays(1));
             insertOfferPaymentWithDeadline(regionId2, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
 
             List<ExpiredOfferPayment> refunds = logic.clearExpiredOfferPayments();

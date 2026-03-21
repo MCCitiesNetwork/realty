@@ -133,8 +133,8 @@ public record OfferCommandGroup(
                     case RealtyLogicImpl.OfferResult.NoSaleContract ignored ->
                             sender.sendMessage(messages.messageFor("offer.no-sale-contract",
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.OfferResult.IsAuthority ignored ->
-                            sender.sendMessage(messages.messageFor("offer.is-authority"));
+                    case RealtyLogicImpl.OfferResult.IsOwner ignored ->
+                            sender.sendMessage(messages.messageFor("offer.is-owner"));
                     case RealtyLogicImpl.OfferResult.AlreadyHasOffer ignored ->
                             sender.sendMessage(messages.messageFor("offer.already-has-offer",
                                     Placeholder.unparsed("region", regionId)));
