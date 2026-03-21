@@ -168,13 +168,13 @@ public final class Realty extends JavaPlugin {
             }
             for (RealtyLogicImpl.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
                 this.notificationService.queueNotification(payment.bidderId(),
-                        this.messageContainer.prefixedMessageFor("notification.bid-payment-expired",
+                        this.messageContainer.messageFor("notification.bid-payment-expired",
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount", String.valueOf(payment.refundAmount()))));
             }
             for (RealtyLogicImpl.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 this.notificationService.queueNotification(payment.offererId(),
-                        this.messageContainer.prefixedMessageFor("notification.offer-payment-expired",
+                        this.messageContainer.messageFor("notification.offer-payment-expired",
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount", String.valueOf(payment.refundAmount()))));
             }

@@ -145,7 +145,7 @@ public record BuyCommand(
                     Placeholder.unparsed("price", String.valueOf(price)),
                     Placeholder.unparsed("region", regionId)));
             notificationService.queueNotification(success.authorityId(),
-                    messages.prefixedMessageFor("notification.region-bought",
+                    messages.messageFor("notification.region-bought",
                             Placeholder.unparsed("player", sender.getName()),
                             Placeholder.unparsed("price", String.valueOf(price)),
                             Placeholder.unparsed("region", regionId)));

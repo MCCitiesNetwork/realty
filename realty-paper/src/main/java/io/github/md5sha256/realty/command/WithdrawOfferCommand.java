@@ -58,7 +58,7 @@ public record WithdrawOfferCommand(
                             sender.sendMessage(messages.messageFor("withdraw-offer.success",
                                     Placeholder.unparsed("region", regionId)));
                             notificationService.queueNotification(authorityId,
-                                    messages.prefixedMessageFor("notification.offer-withdrawn",
+                                    messages.messageFor("notification.offer-withdrawn",
                                             Placeholder.unparsed("player", sender.getName()),
                                             Placeholder.unparsed("region", regionId)));
                     }

@@ -3,12 +3,14 @@ package io.github.md5sha256.realty.localisation;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -20,20 +22,17 @@ public class MessageContainer {
 
     private final Map<String, String> rawMessages = new ConcurrentHashMap<>();
 
-    public String plaintextMessageFor(@Nonnull String key) {
-        return PlainTextComponentSerializer.plainText().serialize(messageFor(key));
-    }
-
-    public String prefixedPlaintextMessageFor(@Nonnull String key) {
-        return plaintextMessageFor("prefix") + " " + plaintextMessageFor(key);
-    }
-
-    public Component prefix() {
+    private @Nonnull TagResolver prefixResolver() {
         String raw = this.rawMessages.get("prefix");
         if (raw == null) {
-            return Component.empty();
+            return Placeholder.component("prefix", Component.empty());
         }
-        return MiniMessage.miniMessage().deserialize(raw);
+        Component prefix = MiniMessage.miniMessage().deserialize(raw);
+        return Placeholder.component("prefix", prefix);
+    }
+
+    public String plaintextMessageFor(@Nonnull String key) {
+        return PlainTextComponentSerializer.plainText().serialize(messageFor(key));
     }
 
     @Nonnull
@@ -42,7 +41,7 @@ public class MessageContainer {
         if (raw == null) {
             return Component.text(key);
         }
-        return MiniMessage.miniMessage().deserialize(raw);
+        return MiniMessage.miniMessage().deserialize(raw, prefixResolver());
     }
 
     @Nonnull
@@ -51,17 +50,9 @@ public class MessageContainer {
         if (raw == null) {
             return Component.text(key);
         }
-        return MiniMessage.miniMessage().deserialize(raw, resolvers);
-    }
-
-    @Nonnull
-    public Component prefixedMessageFor(@Nonnull String key) {
-        return prefix().appendSpace().append(messageFor(key));
-    }
-
-    @Nonnull
-    public Component prefixedMessageFor(@Nonnull String key, @Nonnull TagResolver... resolvers) {
-        return prefix().appendSpace().append(messageFor(key, resolvers));
+        TagResolver[] combined = Arrays.copyOf(resolvers, resolvers.length + 1);
+        combined[resolvers.length] = prefixResolver();
+        return MiniMessage.miniMessage().deserialize(raw, combined);
     }
 
     @Nonnull

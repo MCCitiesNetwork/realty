@@ -60,7 +60,7 @@ public record BidCommand(
                                     Placeholder.unparsed("region", regionId)));
                             if (success.previousBidderId() != null) {
                                 notificationService.queueNotification(success.previousBidderId(),
-                                        messages.prefixedMessageFor("notification.outbid",
+                                        messages.messageFor("notification.outbid",
                                                 Placeholder.unparsed("region", regionId),
                                                 Placeholder.unparsed("amount", String.valueOf(bidAmount))));
                             }

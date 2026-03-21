@@ -59,7 +59,7 @@ public record OfferCommand(
                                     Placeholder.unparsed("price", String.valueOf(price)),
                                     Placeholder.unparsed("region", regionId)));
                             notificationService.queueNotification(success.authorityId(),
-                                    messages.prefixedMessageFor("notification.offer-placed",
+                                    messages.messageFor("notification.offer-placed",
                                             Placeholder.unparsed("player", sender.getName()),
                                             Placeholder.unparsed("price", String.valueOf(price)),
                                             Placeholder.unparsed("region", regionId)));

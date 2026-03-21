@@ -131,7 +131,7 @@ pay-offer:
   transfer-success: "Region <region> ownership has been transferred to you."
 
 help:
-  - "<gold>--- Realty Commands ---</gold>"
+  - "<prefix> <gold>--- Realty Commands ---</gold>"
   - "<yellow>/realty help</yellow> <gray>- Show this help message</gray>"
   - "<yellow>/realty info <region></yellow> <gray>- Display region info</gray>"
   - "<yellow>/realty list [player] [page]</yellow> <gray>- List regions</gray>"
@@ -189,11 +189,11 @@ withdraw-offer:
   error: "Failed to withdraw offer: <error>"
 
 notification:
-  offer-placed: "<player> placed an offer of <price> on region <region>."
-  offer-accepted: "Your offer on region <region> has been accepted."
-  offer-withdrawn: "<player> withdrew their offer on region <region>."
-  ownership-transferred: "Region <region> ownership has been transferred to <player>."
-  outbid: "You have been outbid on region <region>. New highest bid: <amount>."
-  auction-cancelled: "The auction for region <region> has been cancelled."
-  bid-payment-expired: "Your bid payment for region <region> has expired. <amount> has been refunded."
-  offer-payment-expired: "Your offer payment for region <region> has expired. <amount> has been refunded."
+  offer-placed: "<prefix> <player> placed an offer of <price> on region <region>."
+  offer-accepted: "<prefix> Your offer on region <region> has been accepted."
+  offer-withdrawn: "<prefix> <player> withdrew their offer on region <region>."
+  ownership-transferred: "<prefix> Region <region> ownership has been transferred to <player>."
+  outbid: "<prefix> You have been outbid on region <region>. New highest bid: <amount>."
+  auction-cancelled: "<prefix> The auction for region <region> has been cancelled."
+  bid-payment-expired: "<prefix> Your bid payment for region <region> has expired. <amount> has been refunded."
+  offer-payment-expired: "<prefix> Your offer payment for region <region> has expired. <amount> has been refunded."

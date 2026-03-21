@@ -62,7 +62,7 @@ public record CancelAuctionCommand(
                         Placeholder.unparsed("region", regionId)));
                 for (UUID bidderId : result.bidderIds()) {
                     notificationService.queueNotification(bidderId,
-                            messages.prefixedMessageFor("notification.auction-cancelled",
+                            messages.messageFor("notification.auction-cancelled",
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {

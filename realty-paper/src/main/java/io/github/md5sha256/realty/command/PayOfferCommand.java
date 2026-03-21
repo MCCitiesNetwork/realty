@@ -131,7 +131,7 @@ public record PayOfferCommand(
                 sender.sendMessage(messages.messageFor("pay-offer.transfer-success",
                         Placeholder.unparsed("region", regionId)));
                 notificationService.queueNotification(fullyPaid.authorityId(),
-                        messages.prefixedMessageFor("notification.ownership-transferred",
+                        messages.messageFor("notification.ownership-transferred",
                                 Placeholder.unparsed("player", sender.getName()),
                                 Placeholder.unparsed("region", regionId)));
             }

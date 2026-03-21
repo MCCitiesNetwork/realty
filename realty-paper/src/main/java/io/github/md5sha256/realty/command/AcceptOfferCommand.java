@@ -77,7 +77,7 @@ public record AcceptOfferCommand(
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
                             notificationService.queueNotification(target.getUniqueId(),
-                                    messages.prefixedMessageFor("notification.offer-accepted",
+                                    messages.messageFor("notification.offer-accepted",
                                             Placeholder.unparsed("region", regionId)));
                     }
                     case RealtyLogicImpl.AcceptOfferResult.NoOffer ignored ->

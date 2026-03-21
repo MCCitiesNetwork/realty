@@ -28,7 +28,7 @@ public record HelpCommand(
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        sender.sendMessage(messages.prefixedMessageFor("help"));
+        sender.sendMessage(messages.messageFor("help"));
     }
 
 }
