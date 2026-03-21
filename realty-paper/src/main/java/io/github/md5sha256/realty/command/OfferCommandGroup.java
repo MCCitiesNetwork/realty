@@ -26,7 +26,6 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
-import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
@@ -35,6 +34,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -59,8 +59,6 @@ public record OfferCommandGroup(
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    private static final CommandFlag<Void> ALL_FLAG =
-            CommandFlag.<CommandSourceStack>builder("all").build();
 
     @Override
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
@@ -101,8 +99,12 @@ public record OfferCommandGroup(
                         .permission("realty.command.offer.reject")
                         .required("player", StringParser.stringParser(), playerSuggestions())
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
-                        .flag(ALL_FLAG)
                         .handler(this::executeReject)
+                        .build(),
+                base.literal("rejectall")
+                        .permission("realty.command.offer.reject")
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                        .handler(this::executeRejectAll)
                         .build()
         );
     }
@@ -434,7 +436,7 @@ public record OfferCommandGroup(
         }, executorState.dbExec());
     }
 
-    // ── /realty offer reject <player> [region] [--all] ──
+    // ── /realty offer reject <player> [region] ──
 
     private void executeReject(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
@@ -447,25 +449,14 @@ public record OfferCommandGroup(
             sender.sendMessage(messages.messageFor("error.no-region"));
             return;
         }
-        String regionId = region.region().getId();
-        boolean all = ctx.flags().isPresent(ALL_FLAG);
-        if (all) {
-            executeRejectAll(sender, regionId, region);
-        } else {
-            @SuppressWarnings("deprecation")
-            OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
-            if (!target.hasPlayedBefore() && !target.isOnline()) {
-                sender.sendMessage(messages.messageFor("common.player-not-found",
-                        Placeholder.unparsed("player", playerName)));
-                return;
-            }
-            executeRejectOne(sender, regionId, region, target, playerName);
+        @SuppressWarnings("deprecation")
+        OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
+        if (!target.hasPlayedBefore() && !target.isOnline()) {
+            sender.sendMessage(messages.messageFor("common.player-not-found",
+                    Placeholder.unparsed("player", playerName)));
+            return;
         }
-    }
-
-    private void executeRejectOne(@NotNull Player sender, @NotNull String regionId,
-                                    @NotNull WorldGuardRegion region,
-                                    @NotNull OfflinePlayer target, @NotNull String playerName) {
+        String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.RejectOfferResult result = logic.rejectOffer(
@@ -494,17 +485,34 @@ public record OfferCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeRejectAll(@NotNull Player sender, @NotNull String regionId,
-                                    @NotNull WorldGuardRegion region) {
+    // ── /realty offer rejectall [region] ──
+
+    private void executeRejectAll(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            return;
+        }
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor("error.no-region"));
+            return;
+        }
+        String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.RejectAllOffersResult result = logic.rejectAllOffers(
                         regionId, region.world().getUID());
                 switch (result) {
-                    case RealtyLogicImpl.RejectAllOffersResult.Success success ->
+                    case RealtyLogicImpl.RejectAllOffersResult.Success success -> {
                             sender.sendMessage(messages.messageFor("reject-offer.all-success",
-                                    Placeholder.unparsed("count", String.valueOf(success.count())),
+                                    Placeholder.unparsed("count", String.valueOf(success.offererIds().size())),
                                     Placeholder.unparsed("region", regionId)));
+                            Component notification = messages.messageFor("notification.offer-rejected",
+                                    Placeholder.unparsed("region", regionId));
+                            for (UUID offererId : success.offererIds()) {
+                                notificationService.queueNotification(offererId, notification);
+                            }
+                    }
                     case RealtyLogicImpl.RejectAllOffersResult.NoSaleContract ignored ->
                             sender.sendMessage(messages.messageFor("reject-offer.no-sale-contract",
                                     Placeholder.unparsed("region", regionId)));

@@ -9,6 +9,7 @@ import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractBid;
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
+import io.github.md5sha256.realty.database.entity.SaleContractOfferEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractBidPaymentEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractOfferPaymentEntity;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
@@ -709,7 +710,7 @@ public class RealtyLogicImpl {
     // --- Reject All Offers ---
 
     public sealed interface RejectAllOffersResult {
-        record Success(int count) implements RejectAllOffersResult {}
+        record Success(@NotNull List<UUID> offererIds) implements RejectAllOffersResult {}
         record NoSaleContract() implements RejectAllOffersResult {}
         record OfferAccepted() implements RejectAllOffersResult {}
     }
@@ -724,9 +725,14 @@ public class RealtyLogicImpl {
             if (wrapper.saleContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new RejectAllOffersResult.OfferAccepted();
             }
-            int deleted = wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
+            SaleContractOfferMapper offerMapper = wrapper.saleContractOfferMapper();
+            List<SaleContractOfferEntity> offers = offerMapper.selectByRegion(worldGuardRegionId, worldId);
+            List<UUID> offererIds = offers != null
+                    ? offers.stream().map(SaleContractOfferEntity::offererId).toList()
+                    : List.of();
+            offerMapper.deleteOffers(worldGuardRegionId, worldId);
             wrapper.session().commit();
-            return new RejectAllOffersResult.Success(deleted);
+            return new RejectAllOffersResult.Success(offererIds);
         }
     }
 

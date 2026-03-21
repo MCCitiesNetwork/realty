@@ -187,7 +187,8 @@ help:
     - "<yellow>/realty offer accept <player> <region></yellow> <gray>- Accept an offer</gray>"
     - "<yellow>/realty offer pay <amount> <region></yellow> <gray>- Pay for an accepted offer</gray>"
     - "<yellow>/realty offer withdraw <region></yellow> <gray>- Withdraw your offer</gray>"
-    - "<yellow>/realty offer reject <player> [region] [--all]</yellow> <gray>- Reject an offer</gray>"
+    - "<yellow>/realty offer reject <player> [region]</yellow> <gray>- Reject an offer</gray>"
+    - "<yellow>/realty offer rejectall [region]</yellow> <gray>- Reject all offers</gray>"
   auctions:
     - "<gold>--- Realty > Auctions ---</gold>"
     - "<yellow>/realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region></yellow> <gray>- Create an auction</gray>"
