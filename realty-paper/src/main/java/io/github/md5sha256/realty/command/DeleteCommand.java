@@ -4,6 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.managers.storage.StorageException;
+import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -30,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record DeleteCommand(@NotNull ExecutorState executorState,
                             @NotNull RealtyLogicImpl logic,
+                            @NotNull RegionProfileService regionProfileService,
                             @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
@@ -80,6 +82,7 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                     }
                 }
 
+                executorState.mainThreadExec().execute(() -> regionProfileService.clearAllFlags(region));
                 sender.sendMessage(messages.messageFor("delete.success"));
             } catch (Exception ex) {
                 ex.printStackTrace();

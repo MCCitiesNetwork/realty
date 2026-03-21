@@ -2,6 +2,8 @@ package io.github.md5sha256.realty.command;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.NotificationService;
+import io.github.md5sha256.realty.api.RegionProfileService;
+import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -32,6 +34,7 @@ public record RentCommand(
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
+        @NotNull RegionProfileService regionProfileService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -110,6 +113,7 @@ public record RentCommand(
             economy.depositPlayer(landlord, price);
             ProtectedRegion protectedRegion = region.region();
             protectedRegion.getMembers().addPlayer(sender.getUniqueId());
+            regionProfileService.applyFlags(region, RegionState.RENTED);
             sender.sendMessage(messages.messageFor("rent.success",
                     Placeholder.unparsed("region", regionId),
                     Placeholder.unparsed("price", String.valueOf(price))));

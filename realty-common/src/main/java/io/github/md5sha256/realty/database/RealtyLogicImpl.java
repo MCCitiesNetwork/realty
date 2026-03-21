@@ -582,6 +582,34 @@ public class RealtyLogicImpl {
         }
     }
 
+    public record RegionWithState(
+            @NotNull RealtyRegionEntity region,
+            @NotNull RegionState state
+    ) {}
+
+    public @NotNull List<RegionWithState> getAllRegionsWithState() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            List<RealtyRegionEntity> regions = wrapper.realtyRegionMapper().selectAll();
+            List<RegionWithState> result = new ArrayList<>();
+            for (RealtyRegionEntity region : regions) {
+                SaleContractEntity sale = wrapper.saleContractMapper()
+                        .selectByRegion(region.worldGuardRegionId(), region.worldId());
+                if (sale != null) {
+                    result.add(new RegionWithState(region,
+                            sale.titleHolderId() != null ? RegionState.SOLD : RegionState.FOR_SALE));
+                    continue;
+                }
+                LeaseContractEntity lease = wrapper.leaseContractMapper()
+                        .selectByRegion(region.worldGuardRegionId(), region.worldId());
+                if (lease != null) {
+                    result.add(new RegionWithState(region,
+                            lease.tenantId() != null ? RegionState.RENTED : RegionState.FOR_RENT));
+                }
+            }
+            return result;
+        }
+    }
+
     // --- Add/Remove permission check ---
 
     public boolean checkRegionAuthority(@NotNull String worldGuardRegionId,

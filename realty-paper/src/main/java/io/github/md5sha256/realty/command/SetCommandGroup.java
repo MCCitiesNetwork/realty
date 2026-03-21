@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.RegionProfileService;
+import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
@@ -38,6 +40,7 @@ import java.util.concurrent.CompletableFuture;
 public record SetCommandGroup(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
+        @NotNull RegionProfileService regionProfileService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -190,10 +193,13 @@ public record SetCommandGroup(
                 RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
                         regionId, region.world().getUID(), titleHolderId);
                 switch (result) {
-                    case RealtyLogicImpl.SetTitleHolderResult.Success ignored ->
+                    case RealtyLogicImpl.SetTitleHolderResult.Success ignored -> {
+                            executorState.mainThreadExec().execute(
+                                    () -> regionProfileService.applyFlags(region, RegionState.SOLD));
                             sender.sendMessage(messages.messageFor("set-titleholder.success",
                                     Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
                                     Placeholder.unparsed("region", regionId)));
+                    }
                     case RealtyLogicImpl.SetTitleHolderResult.NoSaleContract ignored ->
                             sender.sendMessage(messages.messageFor("set-titleholder.no-sale-contract",
                                     Placeholder.unparsed("region", regionId)));
@@ -220,10 +226,13 @@ public record SetCommandGroup(
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
                         regionId, region.world().getUID(), tenantId);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success ignored ->
+                    case RealtyLogicImpl.SetTenantResult.Success ignored -> {
+                            executorState.mainThreadExec().execute(
+                                    () -> regionProfileService.applyFlags(region, RegionState.RENTED));
                             sender.sendMessage(messages.messageFor("set-tenant.success",
                                     Placeholder.unparsed("tenant", resolveName(tenantId)),
                                     Placeholder.unparsed("region", regionId)));
+                    }
                     case RealtyLogicImpl.SetTenantResult.NoLeaseContract ignored ->
                             sender.sendMessage(messages.messageFor("set-tenant.no-lease-contract",
                                     Placeholder.unparsed("region", regionId)));

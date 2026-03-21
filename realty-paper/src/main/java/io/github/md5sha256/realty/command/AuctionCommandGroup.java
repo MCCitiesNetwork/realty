@@ -5,6 +5,8 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.NotificationService;
+import io.github.md5sha256.realty.api.RegionProfileService;
+import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
@@ -56,6 +58,7 @@ public record AuctionCommandGroup(
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
+        @NotNull RegionProfileService regionProfileService,
         @NotNull Settings settings,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
@@ -384,6 +387,7 @@ public record AuctionCommandGroup(
                 protectedRegion.getOwners().clear();
                 protectedRegion.getOwners().addPlayer(sender.getUniqueId());
                 protectedRegion.getMembers().clear();
+                regionProfileService.applyFlags(region, RegionState.SOLD);
                 sender.sendMessage(messages.messageFor("pay-bid.transfer-success",
                         Placeholder.unparsed("region", regionId)));
                 if (fullyPaid.titleHolderId() != null) {
