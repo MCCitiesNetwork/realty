@@ -113,7 +113,7 @@ public final class Realty extends JavaPlugin {
             initDataFolder();
             copyResourceTemplate("messages.yml", "defaults/default-messages.yml");
             copyResourceTemplate("settings.yml", "defaults/default-settings.yml");
-            copyResourceTemplate("profiles.yml", "defaults/default-states.yml");
+            copyResourceTemplate("profiles.yml", "defaults/default-profiles.yml");
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());
