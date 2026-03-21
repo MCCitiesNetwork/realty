@@ -86,7 +86,7 @@ public record BuyCommand(
                         sender.sendMessage(messages.messageFor("buy.no-freehold-contract",
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyLogicImpl.BuyValidation.NotForFreehold ignored ->
-                        sender.sendMessage(messages.messageFor("buy.not-for-freehold",
+                        sender.sendMessage(messages.messageFor("buy.not-for-sale",
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyLogicImpl.BuyValidation.IsAuthority ignored ->
                         sender.sendMessage(messages.messageFor("buy.is-authority"));

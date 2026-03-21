@@ -165,7 +165,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
         if (freehold.price() != null) {
             builder.appendNewline()
-                    .append(messages.messageFor("info.for-freehold",
+                    .append(messages.messageFor("info.for-sale",
                             Placeholder.unparsed("title_holder", titleHolder),
                             Placeholder.unparsed("authority", authority),
                             Placeholder.unparsed("price", String.valueOf(freehold.price()))));
