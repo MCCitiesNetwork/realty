@@ -1,5 +1,6 @@
 plugins {
     `realty-conventions`
+    id("com.gradleup.shadow") version "9.3.1"
 }
 
 dependencies {
@@ -19,4 +20,18 @@ dependencies {
 
 tasks {
     jar
+
+    shadowJar {
+        val base = "io.github.md5sha256.realty.libraries"
+        relocate("org.mariadb", "${base}.org.mariadb")
+        relocate("org.mybatis", "${base}.org.mybatis")
+        relocate("org.spongepowered", "${base}.org.spongepowered")
+        relocate("org.yaml", "${base}.org.yaml")
+        relocate("io.leangen.geantyref", "${base}.io.leangen.geantyref")
+        relocate("org.apache.ibatis", "${base}.org.apache.ibatis")
+        relocate("org.jetbrains.annotations", "${base}.org.jetbrains.annotations")
+        relocate("org.intellij.lang", "${base}.org.intellij.lang")
+        relocate("net.kyori.option", "${base}.net.kyori.option")
+        relocate("org.incendo.cloud", "${base}.org.incendo.cloud")
+    }
 }
