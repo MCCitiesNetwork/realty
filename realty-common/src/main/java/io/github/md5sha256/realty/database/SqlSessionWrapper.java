@@ -3,7 +3,9 @@ package io.github.md5sha256.realty.database;
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
+import io.github.md5sha256.realty.database.mapper.LeaseHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
+import io.github.md5sha256.realty.database.mapper.SaleHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
@@ -24,6 +26,10 @@ public interface SqlSessionWrapper extends Closeable {
     @NotNull LeaseContractMapper leaseContractMapper();
 
     @NotNull RealtyRegionMapper realtyRegionMapper();
+
+    @NotNull SaleHistoryMapper saleHistoryMapper();
+
+    @NotNull LeaseHistoryMapper leaseHistoryMapper();
 
     @NotNull SaleContractAuctionMapper saleContractAuctionMapper();
 

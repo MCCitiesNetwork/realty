@@ -20,6 +20,7 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.text.DateFormat;
 import java.time.Duration;
@@ -136,7 +137,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                 }
 
                 if (sale != null) {
-                    appendSaleInfo(builder, sale, membersStr);
+                    appendSaleInfo(builder, sale, info.lastSoldPrice(), membersStr);
                 }
 
                 if (lease != null) {
@@ -158,17 +159,20 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
     private void appendSaleInfo(@NotNull TextComponent.Builder builder,
                                 @NotNull SaleContractEntity sale,
+                                @Nullable Double lastSoldPrice,
                                 @NotNull String membersStr) {
         String titleHolder = sale.titleHolderId() != null ? resolveName(sale.titleHolderId()) : "N/A";
         String authority = resolveName(sale.authorityId());
         String price = sale.price() != null ? String.valueOf(sale.price()) : "N/A";
+        String lastSold = lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "N/A";
 
         builder.appendNewline()
                 .append(messages.messageFor("info.sale",
                         Placeholder.unparsed("title_holder", titleHolder),
                         Placeholder.unparsed("members", membersStr),
                         Placeholder.unparsed("authority", authority),
-                        Placeholder.unparsed("price", price)));
+                        Placeholder.unparsed("price", price),
+                        Placeholder.unparsed("last_sold_price", lastSold)));
     }
 
     private void appendLeaseInfo(@NotNull TextComponent.Builder builder,

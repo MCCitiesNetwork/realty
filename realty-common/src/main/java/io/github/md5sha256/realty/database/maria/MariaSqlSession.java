@@ -4,7 +4,9 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
+import io.github.md5sha256.realty.database.mapper.LeaseHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
+import io.github.md5sha256.realty.database.mapper.SaleHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
 import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
@@ -14,7 +16,9 @@ import io.github.md5sha256.realty.database.mapper.SaleContractSanctionedAuctione
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractAuctionMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaSaleHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractBidMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractOfferMapper;
@@ -39,6 +43,16 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     @Override
     public @NotNull RealtyRegionMapper realtyRegionMapper() {
         return session.getMapper(MariaRealtyRegionMapper.class);
+    }
+
+    @Override
+    public @NotNull SaleHistoryMapper saleHistoryMapper() {
+        return session.getMapper(MariaSaleHistoryMapper.class);
+    }
+
+    @Override
+    public @NotNull LeaseHistoryMapper leaseHistoryMapper() {
+        return session.getMapper(MariaLeaseHistoryMapper.class);
     }
 
     @Override

@@ -1,9 +1,11 @@
 package io.github.md5sha256.realty.database.mapper;
 
+import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -97,5 +99,21 @@ public interface LeaseContractMapper {
     int renewLease(@NotNull String worldGuardRegionId,
                    @NotNull UUID worldId,
                    @NotNull UUID tenantId);
+
+    /**
+     * Selects all expired leases that still have a tenant assigned.
+     * A lease is expired when {@code startDate + durationSeconds} is in the past.
+     *
+     * @return list of expired leases with their region identifiers
+     */
+    @NotNull List<ExpiredLeaseView> selectExpiredLeases();
+
+    /**
+     * Clears the tenant from a lease contract, making it vacant.
+     *
+     * @param leaseContractId the primary key of the lease contract
+     * @return number of rows updated (1 on success)
+     */
+    int clearTenant(int leaseContractId);
 
 }

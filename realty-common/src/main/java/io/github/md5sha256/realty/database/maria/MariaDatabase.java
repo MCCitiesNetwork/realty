@@ -6,7 +6,9 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractAuctionMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaSaleHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractBidMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractOfferMapper;
@@ -51,6 +53,8 @@ public class MariaDatabase implements Database {
         configuration.addMapper(MariaContractMapper.class);
         configuration.addMapper(MariaLeaseContractMapper.class);
         configuration.addMapper(MariaRealtyRegionMapper.class);
+        configuration.addMapper(MariaSaleHistoryMapper.class);
+        configuration.addMapper(MariaLeaseHistoryMapper.class);
         configuration.addMapper(MariaSaleContractAuctionMapper.class);
         configuration.addMapper(MariaSaleContractBidMapper.class);
         configuration.addMapper(MariaSaleContractMapper.class);

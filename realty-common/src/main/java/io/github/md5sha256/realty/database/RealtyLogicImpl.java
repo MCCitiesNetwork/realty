@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.database.entity.ContractEntity;
+import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
@@ -284,6 +285,8 @@ public class RealtyLogicImpl {
             saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
             wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.saleContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
+            wrapper.saleHistoryMapper().insert(worldGuardRegionId, worldId, "BUY",
+                    buyerId, authorityId, sale.price());
             wrapper.session().commit();
             return new BuyResult.Success(authorityId);
         }
@@ -361,6 +364,8 @@ public class RealtyLogicImpl {
             if (updated == 0) {
                 return new RentResult.UpdateFailed();
             }
+            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, "RENT",
+                    tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             return new RentResult.Success(lease.price(), lease.landlordId());
         }
@@ -395,6 +400,12 @@ public class RealtyLogicImpl {
             if (updated == 0) {
                 return new RenewLeaseResult.UpdateFailed();
             }
+            Integer extensionsRemaining = null;
+            if (lease.maxExtensions() != null) {
+                extensionsRemaining = lease.maxExtensions() - (lease.currentMaxExtensions() + 1);
+            }
+            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, "RENEW",
+                    tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
             wrapper.session().commit();
             return new RenewLeaseResult.Success(lease.price(), lease.landlordId());
         }
@@ -416,7 +427,8 @@ public class RealtyLogicImpl {
     public record RegionInfo(
             @Nullable SaleContractEntity sale,
             @Nullable LeaseContractEntity lease,
-            @Nullable SaleContractAuctionEntity auction
+            @Nullable SaleContractAuctionEntity auction,
+            @Nullable Double lastSoldPrice
     ) {}
 
     public @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
@@ -424,7 +436,10 @@ public class RealtyLogicImpl {
             SaleContractEntity sale = wrapper.saleContractMapper().selectByRegion(worldGuardRegionId, worldId);
             LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
             SaleContractAuctionEntity auction = wrapper.saleContractAuctionMapper().selectActiveByRegion(worldGuardRegionId, worldId);
-            return new RegionInfo(sale, lease, auction);
+            Double lastSoldPrice = sale != null
+                    ? wrapper.saleHistoryMapper().selectLastSalePrice(worldGuardRegionId, worldId)
+                    : null;
+            return new RegionInfo(sale, lease, auction, lastSoldPrice);
         }
     }
 
@@ -645,6 +660,8 @@ public class RealtyLogicImpl {
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.saleContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
                 wrapper.saleContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
+                wrapper.saleHistoryMapper().insert(worldGuardRegionId, worldId, "OFFER_BUY",
+                        offererId, authorityId, payment.offerPrice());
                 wrapper.session().commit();
                 return new PayOfferResult.FullyPaid(authorityId);
             } else {
@@ -692,6 +709,8 @@ public class RealtyLogicImpl {
                 saleMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.saleContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
+                wrapper.saleHistoryMapper().insert(worldGuardRegionId, worldId, "AUCTION_BUY",
+                        bidderId, authorityId, payment.bidPrice());
                 wrapper.session().commit();
                 return new PayBidResult.FullyPaid(authorityId);
             }
@@ -753,6 +772,35 @@ public class RealtyLogicImpl {
             }
         }
         return refunds;
+    }
+
+    // --- Expired Leases ---
+
+    public record ExpiredLease(
+            @NotNull UUID tenantId,
+            @NotNull UUID landlordId,
+            @NotNull String worldGuardRegionId,
+            @NotNull UUID worldId
+    ) {}
+
+    public @NotNull List<ExpiredLease> clearExpiredLeases() {
+        List<ExpiredLeaseView> expired;
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            expired = wrapper.leaseContractMapper().selectExpiredLeases();
+        }
+        List<ExpiredLease> results = new ArrayList<>();
+        for (ExpiredLeaseView lease : expired) {
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                wrapper.leaseContractMapper().clearTenant(lease.leaseContractId());
+                wrapper.leaseHistoryMapper().insert(lease.worldGuardRegionId(), lease.worldId(),
+                        "LEASE_EXPIRY", lease.tenantId(), lease.landlordId(),
+                        null, null, null);
+                wrapper.session().commit();
+                results.add(new ExpiredLease(lease.tenantId(), lease.landlordId(),
+                        lease.worldGuardRegionId(), lease.worldId()));
+            }
+        }
+        return results;
     }
 
 }

@@ -73,6 +73,7 @@ info:
     - "Members: <members>"
     - "Authority: <authority>"
     - "Price: <price>"
+    - "Last Sold Price: <last_sold_price>"
   lease:
     - "Lease:"
     - "Landlord: <landlord>"

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
+import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import org.apache.ibatis.annotations.Arg;
@@ -11,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -136,5 +138,32 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
     int renewLease(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                    @Param("worldId") @NotNull UUID worldId,
                    @Param("tenantId") @NotNull UUID tenantId);
+
+    @Override
+    @Select("""
+            SELECT lc.leaseContractId, lc.landlordId, lc.tenantId,
+                   rr.worldGuardRegionId, rr.worldId
+            FROM LeaseContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE lc.tenantId IS NOT NULL
+            AND lc.startDate + INTERVAL lc.durationSeconds SECOND < NOW()
+            """)
+    @ConstructorArgs({
+            @Arg(column = "leaseContractId", javaType = int.class),
+            @Arg(column = "landlordId", javaType = UUID.class),
+            @Arg(column = "tenantId", javaType = UUID.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<ExpiredLeaseView> selectExpiredLeases();
+
+    @Override
+    @Update("""
+            UPDATE LeaseContract
+            SET tenantId = NULL
+            WHERE leaseContractId = #{leaseContractId}
+            """)
+    int clearTenant(@Param("leaseContractId") int leaseContractId);
 
 }
