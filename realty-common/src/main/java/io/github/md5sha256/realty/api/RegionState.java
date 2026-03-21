@@ -8,6 +8,6 @@ public enum RegionState {
     ALL,
     FOR_SALE,
     SOLD,
-    FOR_RENT,
-    RENTED
+    FOR_LEASE,
+    LEASED
 }

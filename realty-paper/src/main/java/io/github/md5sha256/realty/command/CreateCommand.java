@@ -120,7 +120,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
             }
         }, executorState.dbExec()).thenAcceptAsync(entry -> {
             if (entry.getKey()) {
-                regionProfileService.applyFlags(region, RegionState.FOR_RENT, entry.getValue());
+                regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
                 sender.sendMessage(messages.messageFor("create-rental.success"));
             } else {
                 sender.sendMessage(messages.messageFor("create-rental.already-registered"));

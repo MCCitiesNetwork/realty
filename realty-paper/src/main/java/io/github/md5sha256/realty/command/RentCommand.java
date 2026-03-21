@@ -118,7 +118,7 @@ public record RentCommand(
             economy.depositPlayer(landlord, price);
             ProtectedRegion protectedRegion = region.region();
             protectedRegion.getMembers().addPlayer(sender.getUniqueId());
-            regionProfileService.applyFlags(region, RegionState.RENTED, entry.getValue());
+            regionProfileService.applyFlags(region, RegionState.LEASED, entry.getValue());
             sender.sendMessage(messages.messageFor("rent.success",
                     Placeholder.unparsed("region", regionId),
                     Placeholder.unparsed("price", String.valueOf(price))));

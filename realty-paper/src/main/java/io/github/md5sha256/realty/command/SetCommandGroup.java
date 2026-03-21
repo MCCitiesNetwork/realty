@@ -231,7 +231,7 @@ public record SetCommandGroup(
                     case RealtyLogicImpl.SetTenantResult.Success ignored -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                             executorState.mainThreadExec().execute(
-                                    () -> regionProfileService.applyFlags(region, RegionState.RENTED, placeholders));
+                                    () -> regionProfileService.applyFlags(region, RegionState.LEASED, placeholders));
                             sender.sendMessage(messages.messageFor("set-tenant.success",
                                     Placeholder.unparsed("tenant", resolveName(tenantId)),
                                     Placeholder.unparsed("region", regionId)));

@@ -12,7 +12,7 @@
 # Flag values support region groups via the -g suffix:
 #   damage-animals: "deny -g NON_MEMBERS"
 #
-# Available states: ALL, FOR_SALE, SOLD, FOR_RENT, RENTED
+# Available states: ALL, FOR_SALE, SOLD, FOR_LEASE, LEASED
 #
 # Example:
 # global:
@@ -26,11 +26,11 @@
 #     flags:
 #       pvp: "deny -g NON_MEMBERS"
 #       greeting: "This region is owned."
-#   FOR_RENT:
+#   FOR_LEASE:
 #     priority: 5
 #     flags:
 #       pvp: deny
-#   RENTED:
+#   LEASED:
 #     priority: 10
 #     flags:
 #       pvp: "deny -g NON_MEMBERS"
@@ -53,6 +53,6 @@
 #   - regions:
 #       - apartment_101
 #     states:
-#       RENTED:
+#       LEASED:
 #         flags:
 #           use: allow

@@ -579,7 +579,7 @@ public class RealtyLogicImpl {
             }
             LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
             if (lease != null) {
-                return lease.tenantId() != null ? RegionState.RENTED : RegionState.FOR_RENT;
+                return lease.tenantId() != null ? RegionState.LEASED : RegionState.FOR_LEASE;
             }
             return null;
         }
@@ -675,7 +675,7 @@ public class RealtyLogicImpl {
                         .selectByRegion(region.worldGuardRegionId(), region.worldId());
                 if (lease != null) {
                     result.add(new RegionWithState(region,
-                            lease.tenantId() != null ? RegionState.RENTED : RegionState.FOR_RENT,
+                            lease.tenantId() != null ? RegionState.LEASED : RegionState.FOR_LEASE,
                             placeholders));
                 }
             }

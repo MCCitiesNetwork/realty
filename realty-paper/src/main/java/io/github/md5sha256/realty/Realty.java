@@ -225,7 +225,7 @@ public final class Realty extends JavaPlugin {
                                     protectedRegion.getMembers().removePlayer(lease.tenantId());
                                     regionProfileService.applyFlags(
                                             new WorldGuardRegion(protectedRegion, world),
-                                            RegionState.FOR_RENT,
+                                            RegionState.FOR_LEASE,
                                             leaseePlaceholders.getOrDefault(lease.worldGuardRegionId(), Map.of()));
                                 }
                             }
