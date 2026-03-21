@@ -163,16 +163,22 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                                 @NotNull String membersStr) {
         String titleHolder = sale.titleHolderId() != null ? resolveName(sale.titleHolderId()) : "N/A";
         String authority = resolveName(sale.authorityId());
-        String price = sale.price() != null ? String.valueOf(sale.price()) : "N/A";
-        String lastSold = lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "N/A";
 
-        builder.appendNewline()
-                .append(messages.messageFor("info.sale",
-                        Placeholder.unparsed("title_holder", titleHolder),
-                        Placeholder.unparsed("members", membersStr),
-                        Placeholder.unparsed("authority", authority),
-                        Placeholder.unparsed("price", price),
-                        Placeholder.unparsed("last_sold_price", lastSold)));
+        if (sale.price() != null) {
+            builder.appendNewline()
+                    .append(messages.messageFor("info.for-sale",
+                            Placeholder.unparsed("title_holder", titleHolder),
+                            Placeholder.unparsed("authority", authority),
+                            Placeholder.unparsed("price", String.valueOf(sale.price()))));
+        } else {
+            String lastSold = lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "N/A";
+            builder.appendNewline()
+                    .append(messages.messageFor("info.sale",
+                            Placeholder.unparsed("title_holder", titleHolder),
+                            Placeholder.unparsed("members", membersStr),
+                            Placeholder.unparsed("authority", authority),
+                            Placeholder.unparsed("last_sold_price", lastSold)));
+        }
     }
 
     private void appendLeaseInfo(@NotNull TextComponent.Builder builder,

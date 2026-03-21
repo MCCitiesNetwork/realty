@@ -70,12 +70,16 @@ info:
   header: "--- Region Info: <region> ---"
   no-contracts: "No contracts or auctions found for this region."
   sale:
-    - "Sale:"
-    - "Title Holder: <title_holder>"
-    - "Members: <members>"
-    - "Authority: <authority>"
-    - "Price: <price>"
-    - "Last Sold Price: <last_sold_price>"
+    - "<#00aaff>►</#00aaff> Contract Type: <dark_green><b>Sale</dark_green>"
+    - "<#00aaff>►</#00aaff> Title Holder: <#00aaff><title_holder></#00aaff>"
+    - "<#00aaff>►</#00aaff> Members: <yellow><members></yellow>"
+    - "<#00aaff>►</#00aaff> Last Sold Price: <green>$<last_sold_price></green>"
+    - "<#00aaff>►</#00aaff> Authority: <dark_green><authority></dark_green>"
+  for-sale:
+    - "<#00aaff>►</#00aaff> Contract Type: <dark_green><b>Sale</dark_green>"
+    - "<#00aaff>►</#00aaff> Title Holder: <#00aaff><title_holder></#00aaff>"
+    - "<#00aaff>►</#00aaff> Price: <green>$<price></green>"
+    - "<#00aaff>►</#00aaff> Authority: <dark_green><authority></dark_green>"
   lease:
     - "Lease:"
     - "Landlord: <landlord>"
