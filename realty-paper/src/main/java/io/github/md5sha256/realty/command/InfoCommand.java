@@ -114,6 +114,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
+        String membersStr = resolveMembers(region);
 
         CompletableFuture.runAsync(() -> {
             try {
@@ -135,11 +136,11 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                 }
 
                 if (sale != null) {
-                    appendSaleInfo(builder, sale, region);
+                    appendSaleInfo(builder, sale, membersStr);
                 }
 
                 if (lease != null) {
-                    appendLeaseInfo(builder, lease);
+                    appendLeaseInfo(builder, lease, membersStr);
                 }
 
                 if (auction != null) {
@@ -157,9 +158,8 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
     private void appendSaleInfo(@NotNull TextComponent.Builder builder,
                                 @NotNull SaleContractEntity sale,
-                                @NotNull WorldGuardRegion region) {
+                                @NotNull String membersStr) {
         String titleHolder = sale.titleHolderId() != null ? resolveName(sale.titleHolderId()) : "N/A";
-        String membersStr = resolveMembers(region);
         String authority = resolveName(sale.authorityId());
         String price = sale.price() != null ? String.valueOf(sale.price()) : "N/A";
 
@@ -172,7 +172,8 @@ public record InfoCommand(@NotNull ExecutorState executorState,
     }
 
     private void appendLeaseInfo(@NotNull TextComponent.Builder builder,
-                                 @NotNull LeaseContractEntity lease) {
+                                 @NotNull LeaseContractEntity lease,
+                                 @NotNull String membersStr) {
         String tenant = lease.tenantId() != null ? resolveName(lease.tenantId()) : "N/A";
         String extensions;
         if (lease.maxExtensions() != null) {
@@ -186,6 +187,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         builder.appendNewline()
                 .append(messages.messageFor("info.lease",
                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
+                        Placeholder.unparsed("members", membersStr),
                         Placeholder.unparsed("tenant", tenant),
                         Placeholder.unparsed("price", String.valueOf(lease.price())),
                         Placeholder.unparsed("duration",
