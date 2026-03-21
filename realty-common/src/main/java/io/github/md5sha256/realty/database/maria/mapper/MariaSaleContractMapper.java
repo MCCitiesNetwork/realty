@@ -109,4 +109,17 @@ public interface MariaSaleContractMapper extends SaleContractMapper {
                             @Param("worldId") @NotNull UUID worldId,
                             @Param("price") @Nullable Double price);
 
+    @Override
+    @Update("""
+            UPDATE SaleContract sc
+            INNER JOIN Contract c ON c.contractId = sc.saleContractId AND c.contractType = 'sale'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET sc.titleHolderId = #{titleHolder}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int updateTitleHolderByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                  @Param("worldId") @NotNull UUID worldId,
+                                  @Param("titleHolder") @Nullable UUID titleHolder);
+
 }

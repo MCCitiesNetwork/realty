@@ -29,6 +29,8 @@ import java.util.concurrent.CompletableFuture;
  *   <li>{@code /realty set price <price> <region>} — set sale price</li>
  *   <li>{@code /realty set duration <duration> <region>} — set lease duration</li>
  *   <li>{@code /realty set landlord <player> <region>} — set lease landlord</li>
+ *   <li>{@code /realty set titleholder <player> <region>} — set sale title holder</li>
+ *   <li>{@code /realty set tenant <player> <region>} — set lease tenant</li>
  * </ul>
  */
 public record SetCommandGroup(
@@ -59,6 +61,18 @@ public record SetCommandGroup(
                         .required("landlord", AuthorityParser.authority())
                         .required("region", WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeSetLandlord)
+                        .build(),
+                base.literal("titleholder")
+                        .permission("realty.command.set.titleholder")
+                        .required("titleholder", AuthorityParser.authority())
+                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .handler(this::executeSetTitleHolder)
+                        .build(),
+                base.literal("tenant")
+                        .permission("realty.command.set.tenant")
+                        .required("tenant", AuthorityParser.authority())
+                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .handler(this::executeSetTenant)
                         .build()
         );
     }
@@ -157,6 +171,66 @@ public record SetCommandGroup(
                 }
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor("set-landlord.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
+            }
+        }, executorState.dbExec());
+    }
+
+    private void executeSetTitleHolder(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            return;
+        }
+        UUID titleHolderId = ctx.get("titleholder");
+        WorldGuardRegion region = ctx.get("region");
+        String regionId = region.region().getId();
+        CompletableFuture.runAsync(() -> {
+            try {
+                RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
+                        regionId, region.world().getUID(), titleHolderId);
+                switch (result) {
+                    case RealtyLogicImpl.SetTitleHolderResult.Success ignored ->
+                            sender.sendMessage(messages.messageFor("set-titleholder.success",
+                                    Placeholder.unparsed("titleholder", titleHolderId.toString()),
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetTitleHolderResult.NoSaleContract ignored ->
+                            sender.sendMessage(messages.messageFor("set-titleholder.no-sale-contract",
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetTitleHolderResult.UpdateFailed ignored ->
+                            sender.sendMessage(messages.messageFor("set-titleholder.update-failed",
+                                    Placeholder.unparsed("region", regionId)));
+                }
+            } catch (Exception ex) {
+                sender.sendMessage(messages.messageFor("set-titleholder.error",
+                        Placeholder.unparsed("error", ex.getMessage())));
+            }
+        }, executorState.dbExec());
+    }
+
+    private void executeSetTenant(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            return;
+        }
+        UUID tenantId = ctx.get("tenant");
+        WorldGuardRegion region = ctx.get("region");
+        String regionId = region.region().getId();
+        CompletableFuture.runAsync(() -> {
+            try {
+                RealtyLogicImpl.SetTenantResult result = logic.setTenant(
+                        regionId, region.world().getUID(), tenantId);
+                switch (result) {
+                    case RealtyLogicImpl.SetTenantResult.Success ignored ->
+                            sender.sendMessage(messages.messageFor("set-tenant.success",
+                                    Placeholder.unparsed("tenant", tenantId.toString()),
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetTenantResult.NoLeaseContract ignored ->
+                            sender.sendMessage(messages.messageFor("set-tenant.no-lease-contract",
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetTenantResult.UpdateFailed ignored ->
+                            sender.sendMessage(messages.messageFor("set-tenant.update-failed",
+                                    Placeholder.unparsed("region", regionId)));
+                }
+            } catch (Exception ex) {
+                sender.sendMessage(messages.messageFor("set-tenant.error",
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

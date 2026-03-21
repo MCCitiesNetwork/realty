@@ -140,4 +140,18 @@ public interface LeaseContractMapper {
                                @NotNull UUID worldId,
                                @NotNull UUID landlordId);
 
+    /**
+     * Updates the tenant on a lease contract for the specified WorldGuard region.
+     * Unlike {@link #rentRegion}, this sets the tenant unconditionally regardless
+     * of whether a tenant is already assigned.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param tenantId           UUID of the new tenant, or {@code null} to clear
+     * @return number of rows updated (1 on success, 0 if no matching lease exists)
+     */
+    int updateTenantByRegion(@NotNull String worldGuardRegionId,
+                              @NotNull UUID worldId,
+                              @Nullable UUID tenantId);
+
 }

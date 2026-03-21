@@ -102,6 +102,12 @@ permissions:
   realty.command.set.landlord:
     description: Allows using /realty set landlord
     default: op
+  realty.command.set.titleholder:
+    description: Allows using /realty set titleholder
+    default: op
+  realty.command.set.tenant:
+    description: Allows using /realty set tenant
+    default: op
   realty.command.unset.price:
     description: Allows using /realty unset price
     default: op
