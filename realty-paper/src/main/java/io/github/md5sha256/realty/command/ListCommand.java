@@ -114,11 +114,22 @@ public record ListCommand(
                 output = appendCategory(output, "Landlord", result.landlord());
                 output = appendCategory(output, "Rented", result.rented());
 
+                Component previousComponent = page > 1
+                        ? messages.messageFor("list.previous",
+                                Placeholder.unparsed("player", targetName),
+                                Placeholder.unparsed("previouspage", String.valueOf(page - 1)))
+                        : Component.empty();
+                Component nextComponent = page < totalPages
+                        ? messages.messageFor("list.next",
+                                Placeholder.unparsed("player", targetName),
+                                Placeholder.unparsed("nextpage", String.valueOf(page + 1)))
+                        : Component.empty();
                 output = output.appendNewline()
                         .append(messages.messageFor("list.footer",
                                 Placeholder.unparsed("page", String.valueOf(page)),
                                 Placeholder.unparsed("total", String.valueOf(totalPages)),
-                                Placeholder.unparsed("player", targetName)));
+                                Placeholder.component("previous", previousComponent),
+                                Placeholder.component("next", nextComponent)));
                 sender.sendMessage(output);
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor("list.error",
