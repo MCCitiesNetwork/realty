@@ -25,6 +25,8 @@ public interface RealtyRegionMapper {
 
     int deleteByRealtyRegionId(int realtyRegionId);
 
+    @NotNull List<RealtyRegionEntity> selectAll();
+
     @NotNull List<RealtyRegionEntity> selectRegionsByTitleHolder(@NotNull UUID playerId, int limit, int offset);
 
     @NotNull List<RealtyRegionEntity> selectRegionsByAuthority(@NotNull UUID playerId, int limit, int offset);

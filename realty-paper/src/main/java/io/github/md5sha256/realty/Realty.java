@@ -5,7 +5,7 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.NotificationService;
-import io.github.md5sha256.realty.api.RegionFlagService;
+import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentAddCommand;
@@ -26,14 +26,15 @@ import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.SetCommandGroup;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
+import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.localisation.MessageContainer;
-import io.github.md5sha256.realty.settings.GroupedRegionFlags;
-import io.github.md5sha256.realty.settings.RegionFlagSettings;
-import io.github.md5sha256.realty.settings.RegionFlagStates;
-import io.github.md5sha256.realty.settings.RegionFlags;
+import io.github.md5sha256.realty.settings.GroupedRegionProfile;
+import io.github.md5sha256.realty.settings.RegionProfileSettings;
+import io.github.md5sha256.realty.settings.RegionProfile;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
@@ -69,6 +70,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -78,8 +80,8 @@ public final class Realty extends JavaPlugin {
 
     private final MessageContainer messageContainer = new MessageContainer();
     private final AtomicReference<Settings> settings = new AtomicReference<>();
-    private final AtomicReference<RegionFlagSettings> regionFlagSettings = new AtomicReference<>();
-    private final RegionFlagService regionFlagService = new RegionFlagService(getLogger());
+    private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
+    private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private ExecutorState executorState;
     private RealtyLogicImpl logic;
     private DatabaseSettings databaseSettings;
@@ -99,7 +101,7 @@ public final class Realty extends JavaPlugin {
         return this.settings.get();
     }
 
-    public RegionFlagSettings regionFlagSettings() {
+    public RegionProfileSettings regionFlagSettings() {
         return this.regionFlagSettings.get();
     }
 
@@ -109,7 +111,7 @@ public final class Realty extends JavaPlugin {
             initDataFolder();
             copyResourceTemplate("messages.yml", "defaults/default-messages.yml");
             copyResourceTemplate("settings.yml", "defaults/default-settings.yml");
-            copyResourceTemplate("flags.yml", "defaults/default-states.yml");
+            copyResourceTemplate("profiles.yml", "defaults/default-states.yml");
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());
@@ -161,6 +163,7 @@ public final class Realty extends JavaPlugin {
                 this.messageContainer,
                 economyProvider.getProvider(),
                 this.notificationService);
+        reapplyAllFlags();
         getLogger().info("Plugin enabled successfully");
     }
 
@@ -215,6 +218,9 @@ public final class Realty extends JavaPlugin {
                                 ProtectedRegion protectedRegion = regionManager.getRegion(lease.worldGuardRegionId());
                                 if (protectedRegion != null) {
                                     protectedRegion.getMembers().removePlayer(lease.tenantId());
+                                    regionProfileService.applyFlags(
+                                            new WorldGuardRegion(protectedRegion, world),
+                                            RegionState.FOR_RENT);
                                 }
                             }
                         }
@@ -254,27 +260,57 @@ public final class Realty extends JavaPlugin {
         return settingsRoot.get(DatabaseSettings.class);
     }
 
-    private RegionFlagSettings loadRegionFlagSettings() throws IOException {
+    private RegionProfileSettings loadRegionFlagSettings() throws IOException {
         ConfigurationNode settingsRoot = copyDefaultsYaml("states");
-        return settingsRoot.get(RegionFlagSettings.class);
+        return settingsRoot.get(RegionProfileSettings.class);
     }
 
-    private void configureRegionFlagService(@NotNull RegionFlagSettings settings) {
-        this.regionFlagService.clearGroupedFlagProfiles();
-        RegionFlagStates global = settings.global();
+    private void reapplyAllFlags() {
+        CompletableFuture.supplyAsync(() -> logic.getAllRegionsWithState(), executorState.dbExec())
+                .thenAcceptAsync(regionsWithState -> {
+                    for (RealtyLogicImpl.RegionWithState rws : regionsWithState) {
+                        RealtyRegionEntity entity = rws.region();
+                        World world = getServer().getWorld(entity.worldId());
+                        if (world == null) {
+                            continue;
+                        }
+                        RegionManager regionManager = WorldGuard.getInstance()
+                                .getPlatform()
+                                .getRegionContainer()
+                                .get(BukkitAdapter.adapt(world));
+                        if (regionManager == null) {
+                            continue;
+                        }
+                        ProtectedRegion protectedRegion = regionManager.getRegion(entity.worldGuardRegionId());
+                        if (protectedRegion == null) {
+                            continue;
+                        }
+                        WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
+                        regionProfileService.clearAllFlags(wgRegion);
+                        regionProfileService.applyFlags(wgRegion, rws.state());
+                    }
+                }, executorState.mainThreadExec());
+    }
+
+    private void configureRegionFlagService(@NotNull RegionProfileSettings settings) {
+        this.regionProfileService.clearGroupedFlagProfiles();
+        Map<RegionState, RegionProfile> global = settings.global();
         if (global != null) {
-            for (Map.Entry<RegionState, RegionFlags> entry : global.states().entrySet()) {
-                this.regionFlagService.setGlobalFlagProfile(entry.getKey(), entry.getValue().flags());
+            for (Map.Entry<RegionState, RegionProfile> entry : global.entrySet()) {
+                this.regionProfileService.setGlobalFlagProfile(
+                        entry.getKey(), entry.getValue().priority(), entry.getValue().flags());
             }
         }
-        List<GroupedRegionFlags> grouped = settings.grouped();
+        List<GroupedRegionProfile> grouped = settings.grouped();
         if (grouped != null) {
-            for (GroupedRegionFlags group : grouped) {
-                Map<RegionState, Map<String, String>> stateFlags = new HashMap<>();
-                for (Map.Entry<RegionState, RegionFlags> entry : group.states().states().entrySet()) {
-                    stateFlags.put(entry.getKey(), entry.getValue().flags());
+            for (GroupedRegionProfile group : grouped) {
+                Map<RegionState, RegionProfileService.FlagProfile> stateProfiles = new HashMap<>();
+                for (Map.Entry<RegionState, RegionProfile> entry : group.states().entrySet()) {
+                    stateProfiles.put(entry.getKey(),
+                            new RegionProfileService.FlagProfile(
+                                    entry.getValue().priority(), entry.getValue().flags()));
                 }
-                this.regionFlagService.addGroupedFlagProfile(group.regions(), stateFlags);
+                this.regionProfileService.addGroupedFlagProfile(group.regions(), stateProfiles);
             }
         }
     }
@@ -288,6 +324,7 @@ public final class Realty extends JavaPlugin {
         this.settings.set(loadSettings());
         this.regionFlagSettings.set(loadRegionFlagSettings());
         configureRegionFlagService(this.regionFlagSettings.get());
+        reapplyAllFlags();
         reloadMessages();
     }
 
@@ -308,15 +345,17 @@ public final class Realty extends JavaPlugin {
                         logic,
                         economy,
                         notificationService,
+                        this.regionProfileService,
                         this.settings.get(),
                         messageContainer),
                 new BuyCommand(executorState,
                         logic,
                         economy,
                         notificationService,
+                        this.regionProfileService,
                         messageContainer),
-                new CreateCommand(executorState, logic, this.settings, messageContainer),
-                new DeleteCommand(executorState, logic, messageContainer),
+                new CreateCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
+                new DeleteCommand(executorState, logic, this.regionProfileService, messageContainer),
                 new HelpCommand(messageContainer),
                 new InfoCommand(executorState, logic, this.settings.get(), messageContainer),
                 new ListCommand(executorState, logic, messageContainer),
@@ -324,15 +363,17 @@ public final class Realty extends JavaPlugin {
                         logic,
                         economy,
                         notificationService,
+                        this.regionProfileService,
                         messageContainer),
                 new RenewCommand(executorState, logic, economy, messageContainer),
                 new RentCommand(executorState,
                         logic,
                         economy,
                         notificationService,
+                        this.regionProfileService,
                         messageContainer),
-                new SetCommandGroup(executorState, logic, messageContainer),
-                new UnsetCommandGroup(executorState, logic, messageContainer),
+                new SetCommandGroup(executorState, logic, this.regionProfileService, messageContainer),
+                new UnsetCommandGroup(this.regionProfileService, executorState, logic, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();
                     return null;

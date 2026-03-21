@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.RegionProfileService;
+import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
@@ -38,6 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public record CreateCommand(@NotNull ExecutorState executorState,
                              @NotNull RealtyLogicImpl logic,
                              @NotNull AtomicReference<Settings> settings,
+                             @NotNull RegionProfileService regionProfileService,
                              @NotNull MessageContainer messages) implements CustomCommandBean {
 
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
@@ -112,6 +115,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
             }
         }, executorState.dbExec()).thenAcceptAsync(created -> {
             if (created) {
+                regionProfileService.applyFlags(region, RegionState.FOR_RENT);
                 sender.sendMessage(messages.messageFor("create-rental.success"));
             } else {
                 sender.sendMessage(messages.messageFor("create-rental.already-registered"));
@@ -147,6 +151,8 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         }, executorState.dbExec()).thenAcceptAsync(created -> {
             if (created) {
                 region.region().getMembers().addPlayer(authority);
+                regionProfileService.applyFlags(region,
+                        titleholder != null ? RegionState.SOLD : RegionState.FOR_SALE);
                 sender.sendMessage(messages.messageFor("create-sale.success"));
             } else {
                 sender.sendMessage(messages.messageFor("create-sale.already-registered"));

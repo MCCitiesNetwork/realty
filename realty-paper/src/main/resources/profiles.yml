@@ -1,0 +1,58 @@
+# Region flag profiles
+# Flags and priority are applied to WorldGuard regions based on their realty state.
+#
+# "global" applies profiles to ALL realty regions.
+# "grouped" is a list of entries, each targeting specific WG regions by name.
+# Grouped profiles override global profiles when both are configured.
+#
+# Each state profile can include:
+#   priority: <number>  (optional) — sets the WorldGuard region priority
+#   flags:              (required) — map of WorldGuard flag names to values
+#
+# Flag values support region groups via the -g suffix:
+#   damage-animals: "deny -g NON_MEMBERS"
+#
+# Available states: ALL, FOR_SALE, SOLD, FOR_RENT, RENTED
+#
+# Example:
+# global:
+#   FOR_SALE:
+#     priority: 5
+#     flags:
+#       pvp: deny
+#       greeting: "This region is for sale!"
+#   SOLD:
+#     priority: 10
+#     flags:
+#       pvp: "deny -g NON_MEMBERS"
+#       greeting: "This region is owned."
+#   FOR_RENT:
+#     priority: 5
+#     flags:
+#       pvp: deny
+#   RENTED:
+#     priority: 10
+#     flags:
+#       pvp: "deny -g NON_MEMBERS"
+#       chest-access: "deny -g NON_MEMBERS"
+# grouped:
+#   - regions:
+#       - market_stall_1
+#       - market_stall_2
+#     states:
+#       FOR_SALE:
+#         priority: 15
+#         flags:
+#           pvp: deny
+#           interact: "deny -g NON_MEMBERS"
+#       SOLD:
+#         priority: 20
+#         flags:
+#           pvp: deny
+#           interact: allow
+#   - regions:
+#       - apartment_101
+#     states:
+#       RENTED:
+#         flags:
+#           use: allow

@@ -75,6 +75,18 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
 
     @Override
     @Select("""
+            SELECT realtyRegionId, worldGuardRegionId, worldId
+            FROM RealtyRegion
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<RealtyRegionEntity> selectAll();
+
+    @Override
+    @Select("""
             SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
             FROM RealtyRegion rr
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
