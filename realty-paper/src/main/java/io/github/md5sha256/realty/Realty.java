@@ -5,6 +5,8 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.NotificationService;
+import io.github.md5sha256.realty.api.RegionFlagService;
+import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentAddCommand;
 import io.github.md5sha256.realty.command.AgentRemoveCommand;
@@ -18,9 +20,9 @@ import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
 import io.github.md5sha256.realty.command.ReloadCommand;
+import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.RenewCommand;
 import io.github.md5sha256.realty.command.RentCommand;
-import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.SetCommandGroup;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
@@ -28,6 +30,10 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.settings.GroupedRegionFlags;
+import io.github.md5sha256.realty.settings.RegionFlagSettings;
+import io.github.md5sha256.realty.settings.RegionFlagStates;
+import io.github.md5sha256.realty.settings.RegionFlags;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
@@ -55,11 +61,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.text.SimpleDateFormat;
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -70,11 +78,12 @@ public final class Realty extends JavaPlugin {
 
     private final MessageContainer messageContainer = new MessageContainer();
     private final AtomicReference<Settings> settings = new AtomicReference<>();
+    private final AtomicReference<RegionFlagSettings> regionFlagSettings = new AtomicReference<>();
+    private final RegionFlagService regionFlagService = new RegionFlagService(getLogger());
     private ExecutorState executorState;
     private RealtyLogicImpl logic;
     private DatabaseSettings databaseSettings;
     private NotificationService notificationService;
-
     private Database database;
 
     @NotNull
@@ -90,16 +99,23 @@ public final class Realty extends JavaPlugin {
         return this.settings.get();
     }
 
+    public RegionFlagSettings regionFlagSettings() {
+        return this.regionFlagSettings.get();
+    }
+
     @Override
     public void onLoad() {
         try {
             initDataFolder();
             copyResourceTemplate("messages.yml", "defaults/default-messages.yml");
             copyResourceTemplate("settings.yml", "defaults/default-settings.yml");
+            copyResourceTemplate("flags.yml", "defaults/default-states.yml");
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());
-            
+            this.regionFlagSettings.set(loadRegionFlagSettings());
+            configureRegionFlagService(this.regionFlagSettings.get());
+
             if (this.databaseSettings.url().isEmpty()) {
                 getLogger().severe("Database url is empty!");
                 getServer().getPluginManager().disablePlugin(this);
@@ -175,13 +191,15 @@ public final class Realty extends JavaPlugin {
                 this.notificationService.queueNotification(payment.bidderId(),
                         this.messageContainer.messageFor("notification.bid-payment-expired",
                                 Placeholder.unparsed("region", payment.regionId()),
-                                Placeholder.unparsed("amount", String.valueOf(payment.refundAmount()))));
+                                Placeholder.unparsed("amount",
+                                        String.valueOf(payment.refundAmount()))));
             }
             for (RealtyLogicImpl.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 this.notificationService.queueNotification(payment.offererId(),
                         this.messageContainer.messageFor("notification.offer-payment-expired",
                                 Placeholder.unparsed("region", payment.regionId()),
-                                Placeholder.unparsed("amount", String.valueOf(payment.refundAmount()))));
+                                Placeholder.unparsed("amount",
+                                        String.valueOf(payment.refundAmount()))));
             }
             List<RealtyLogicImpl.ExpiredLease> expiredLeases = this.logic.clearExpiredLeases();
             if (!expiredLeases.isEmpty()) {
@@ -202,10 +220,13 @@ public final class Realty extends JavaPlugin {
                         }
                         this.notificationService.queueNotification(lease.tenantId(),
                                 this.messageContainer.messageFor("notification.lease-expired",
-                                        Placeholder.unparsed("region", lease.worldGuardRegionId())));
+                                        Placeholder.unparsed("region",
+                                                lease.worldGuardRegionId())));
                         this.notificationService.queueNotification(lease.landlordId(),
-                                this.messageContainer.messageFor("notification.lease-expired-landlord",
-                                        Placeholder.unparsed("region", lease.worldGuardRegionId())));
+                                this.messageContainer.messageFor(
+                                        "notification.lease-expired-landlord",
+                                        Placeholder.unparsed("region",
+                                                lease.worldGuardRegionId())));
                     }
                 });
             }
@@ -233,6 +254,31 @@ public final class Realty extends JavaPlugin {
         return settingsRoot.get(DatabaseSettings.class);
     }
 
+    private RegionFlagSettings loadRegionFlagSettings() throws IOException {
+        ConfigurationNode settingsRoot = copyDefaultsYaml("states");
+        return settingsRoot.get(RegionFlagSettings.class);
+    }
+
+    private void configureRegionFlagService(@NotNull RegionFlagSettings settings) {
+        this.regionFlagService.clearGroupedFlagProfiles();
+        RegionFlagStates global = settings.global();
+        if (global != null) {
+            for (Map.Entry<RegionState, RegionFlags> entry : global.states().entrySet()) {
+                this.regionFlagService.setGlobalFlagProfile(entry.getKey(), entry.getValue().flags());
+            }
+        }
+        List<GroupedRegionFlags> grouped = settings.grouped();
+        if (grouped != null) {
+            for (GroupedRegionFlags group : grouped) {
+                Map<RegionState, Map<String, String>> stateFlags = new HashMap<>();
+                for (Map.Entry<RegionState, RegionFlags> entry : group.states().states().entrySet()) {
+                    stateFlags.put(entry.getKey(), entry.getValue().flags());
+                }
+                this.regionFlagService.addGroupedFlagProfile(group.regions(), stateFlags);
+            }
+        }
+    }
+
     private void reloadMessages() throws IOException {
         ConfigurationNode node = copyDefaultsYaml("messages");
         this.messageContainer.load(node);
@@ -240,6 +286,8 @@ public final class Realty extends JavaPlugin {
 
     private void performReload() throws IOException {
         this.settings.set(loadSettings());
+        this.regionFlagSettings.set(loadRegionFlagSettings());
+        configureRegionFlagService(this.regionFlagSettings.get());
         reloadMessages();
     }
 
@@ -256,16 +304,33 @@ public final class Realty extends JavaPlugin {
                 new AddCommand(executorState, logic, messageContainer),
                 new AgentAddCommand(executorState, logic, messageContainer),
                 new AgentRemoveCommand(executorState, logic, messageContainer),
-                new AuctionCommandGroup(executorState, logic, economy, notificationService, this.settings.get(), messageContainer),
-                new BuyCommand(executorState, logic, economy, notificationService, messageContainer),
+                new AuctionCommandGroup(executorState,
+                        logic,
+                        economy,
+                        notificationService,
+                        this.settings.get(),
+                        messageContainer),
+                new BuyCommand(executorState,
+                        logic,
+                        economy,
+                        notificationService,
+                        messageContainer),
                 new CreateCommand(executorState, logic, this.settings, messageContainer),
                 new DeleteCommand(executorState, logic, messageContainer),
                 new HelpCommand(messageContainer),
                 new InfoCommand(executorState, logic, this.settings.get(), messageContainer),
                 new ListCommand(executorState, logic, messageContainer),
-                new OfferCommandGroup(executorState, logic, economy, notificationService, messageContainer),
+                new OfferCommandGroup(executorState,
+                        logic,
+                        economy,
+                        notificationService,
+                        messageContainer),
                 new RenewCommand(executorState, logic, economy, messageContainer),
-                new RentCommand(executorState, logic, economy, notificationService, messageContainer),
+                new RentCommand(executorState,
+                        logic,
+                        economy,
+                        notificationService,
+                        messageContainer),
                 new SetCommandGroup(executorState, logic, messageContainer),
                 new UnsetCommandGroup(executorState, logic, messageContainer),
                 new ReloadCommand(executorState, () -> {
@@ -286,7 +351,8 @@ public final class Realty extends JavaPlugin {
         }
     }
 
-    private void copyResourceTemplate(@NotNull String resourceName, @NotNull String targetName) throws IOException {
+    private void copyResourceTemplate(@NotNull String resourceName,
+                                      @NotNull String targetName) throws IOException {
         File file = new File(getDataFolder(), targetName);
         try (InputStream inputStream = getResource(resourceName)) {
             if (inputStream == null) {
