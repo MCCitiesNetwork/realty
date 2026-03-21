@@ -172,7 +172,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         } else {
             String lastSold = lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "N/A";
             builder.appendNewline()
-                    .append(messages.messageFor("info.freehold",
+                    .append(messages.messageFor("info.sold",
                             Placeholder.unparsed("title_holder", titleHolder),
                             Placeholder.unparsed("members", membersStr),
                             Placeholder.unparsed("authority", authority),
