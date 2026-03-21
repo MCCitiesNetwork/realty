@@ -9,6 +9,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -52,7 +53,7 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
         CommandSender sender = ctx.sender().getSender();
 
         if (includeWorldGuard && !sender.hasPermission("realty.command.delete.includeworldguard")) {
-            sender.sendMessage(messages.messageFor("common.no-permission"));
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_NO_PERMISSION));
             return;
         }
 
@@ -60,7 +61,7 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
             try {
                 int deleted = logic.deleteRegion(region.region().getId(), region.world().getUID());
                 if (deleted == 0) {
-                    sender.sendMessage(messages.messageFor("delete.not-registered"));
+                    sender.sendMessage(messages.messageFor(MessageKeys.DELETE_NOT_REGISTERED));
                     return;
                 }
 
@@ -75,7 +76,7 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                             regionManager.save();
                         } catch (StorageException ex) {
                             ex.printStackTrace();
-                            sender.sendMessage(messages.messageFor("delete.worldguard-save-error",
+                            sender.sendMessage(messages.messageFor(MessageKeys.DELETE_WORLDGUARD_SAVE_ERROR,
                                     Placeholder.unparsed("error", ex.getMessage())));
                             return;
                         }
@@ -83,10 +84,10 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                 }
 
                 executorState.mainThreadExec().execute(() -> regionProfileService.clearAllFlags(region));
-                sender.sendMessage(messages.messageFor("delete.success"));
+                sender.sendMessage(messages.messageFor(MessageKeys.DELETE_SUCCESS));
             } catch (Exception ex) {
                 ex.printStackTrace();
-                sender.sendMessage(messages.messageFor("delete.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.DELETE_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

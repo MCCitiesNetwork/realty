@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
@@ -138,34 +139,34 @@ public record OfferCommandGroup(
                         sender.getUniqueId(), price);
                 switch (result) {
                     case RealtyLogicImpl.OfferResult.Success success -> {
-                            sender.sendMessage(messages.messageFor("offer.success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.OFFER_SUCCESS,
                                     Placeholder.unparsed("price", String.valueOf(price)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.titleHolderId() != null) {
                                 notificationService.queueNotification(success.titleHolderId(),
-                                        messages.messageFor("notification.offer-placed",
+                                        messages.messageFor(MessageKeys.NOTIFICATION_OFFER_PLACED,
                                                 Placeholder.unparsed("player", sender.getName()),
                                                 Placeholder.unparsed("price", String.valueOf(price)),
                                                 Placeholder.unparsed("region", regionId)));
                             }
                     }
                     case RealtyLogicImpl.OfferResult.NoFreeholdContract ignored ->
-                            sender.sendMessage(messages.messageFor("offer.no-freehold-contract",
+                            sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.IsOwner ignored ->
-                            sender.sendMessage(messages.messageFor("offer.is-owner"));
+                            sender.sendMessage(messages.messageFor(MessageKeys.OFFER_IS_OWNER));
                     case RealtyLogicImpl.OfferResult.AlreadyHasOffer ignored ->
-                            sender.sendMessage(messages.messageFor("offer.already-has-offer",
+                            sender.sendMessage(messages.messageFor(MessageKeys.OFFER_ALREADY_HAS_OFFER,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.AuctionExists ignored ->
-                            sender.sendMessage(messages.messageFor("offer.auction-exists",
+                            sender.sendMessage(messages.messageFor(MessageKeys.OFFER_AUCTION_EXISTS,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.InsertFailed ignored ->
-                            sender.sendMessage(messages.messageFor("offer.insert-failed",
+                            sender.sendMessage(messages.messageFor(MessageKeys.OFFER_INSERT_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("offer.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.OFFER_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -175,7 +176,7 @@ public record OfferCommandGroup(
 
     private void executeOutbox(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor("common.players-only"));
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         CompletableFuture.runAsync(() -> {
@@ -183,11 +184,11 @@ public record OfferCommandGroup(
                 List<OutboundOfferView> offers = logic.listOutboundOffers(sender.getUniqueId());
 
                 if (offers.isEmpty()) {
-                    sender.sendMessage(messages.messageFor("offers-list.no-offers"));
+                    sender.sendMessage(messages.messageFor(MessageKeys.OFFERS_LIST_NO_OFFERS));
                     return;
                 }
 
-                Component output = messages.messageFor("offers-list.header");
+                Component output = messages.messageFor(MessageKeys.OFFERS_LIST_HEADER);
 
                 for (OutboundOfferView offer : offers) {
                     String status;
@@ -200,7 +201,7 @@ public record OfferCommandGroup(
                         status = "Pending";
                     }
 
-                    output = output.appendNewline().append(messages.messageFor("offers-list.entry",
+                    output = output.appendNewline().append(messages.messageFor(MessageKeys.OFFERS_LIST_ENTRY,
                             Placeholder.unparsed("region", offer.worldGuardRegionId()),
                             Placeholder.unparsed("price", String.format("%.2f", offer.offerPrice())),
                             Placeholder.unparsed("date", offer.offerTime().format(DATE_FORMAT)),
@@ -209,7 +210,7 @@ public record OfferCommandGroup(
 
                 sender.sendMessage(output);
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("offers-list.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.OFFERS_LIST_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -219,7 +220,7 @@ public record OfferCommandGroup(
 
     private void executeInbox(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor("common.players-only"));
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         CompletableFuture.runAsync(() -> {
@@ -227,11 +228,11 @@ public record OfferCommandGroup(
                 List<InboundOfferView> offers = logic.listInboundOffers(sender.getUniqueId());
 
                 if (offers.isEmpty()) {
-                    sender.sendMessage(messages.messageFor("offers-inbound.no-offers"));
+                    sender.sendMessage(messages.messageFor(MessageKeys.OFFERS_INBOUND_NO_OFFERS));
                     return;
                 }
 
-                Component output = messages.messageFor("offers-inbound.header");
+                Component output = messages.messageFor(MessageKeys.OFFERS_INBOUND_HEADER);
 
                 for (InboundOfferView offer : offers) {
                     OfflinePlayer offerer = Bukkit.getOfflinePlayer(offer.offererId());
@@ -247,7 +248,7 @@ public record OfferCommandGroup(
                         status = "Pending";
                     }
 
-                    output = output.appendNewline().append(messages.messageFor("offers-inbound.entry",
+                    output = output.appendNewline().append(messages.messageFor(MessageKeys.OFFERS_INBOUND_ENTRY,
                             Placeholder.unparsed("region", offer.worldGuardRegionId()),
                             Placeholder.unparsed("player", offererName),
                             Placeholder.unparsed("price", String.format("%.2f", offer.offerPrice())),
@@ -257,7 +258,7 @@ public record OfferCommandGroup(
 
                 sender.sendMessage(output);
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("offers-inbound.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.OFFERS_INBOUND_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -271,7 +272,7 @@ public record OfferCommandGroup(
         CommandSender sender = ctx.sender().getSender();
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
-            sender.sendMessage(messages.messageFor("common.player-not-found",
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYER_NOT_FOUND,
                     Placeholder.unparsed("player", playerName)));
             return;
         }
@@ -283,29 +284,29 @@ public record OfferCommandGroup(
                         target.getUniqueId());
                 switch (result) {
                     case RealtyLogicImpl.AcceptOfferResult.Success ignored -> {
-                            sender.sendMessage(messages.messageFor("accept-offer.success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
                             notificationService.queueNotification(target.getUniqueId(),
-                                    messages.messageFor("notification.offer-accepted",
+                                    messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
                                             Placeholder.unparsed("region", regionId)));
                     }
                     case RealtyLogicImpl.AcceptOfferResult.NoOffer ignored ->
-                            sender.sendMessage(messages.messageFor("accept-offer.no-offer",
+                            sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NO_OFFER,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.AcceptOfferResult.AuctionExists ignored ->
-                            sender.sendMessage(messages.messageFor("accept-offer.auction-exists",
+                            sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_AUCTION_EXISTS,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.AcceptOfferResult.AlreadyAccepted ignored ->
-                            sender.sendMessage(messages.messageFor("accept-offer.already-accepted",
+                            sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_ALREADY_ACCEPTED,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.AcceptOfferResult.InsertFailed ignored ->
-                            sender.sendMessage(messages.messageFor("accept-offer.insert-failed",
+                            sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_INSERT_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("accept-offer.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -315,7 +316,7 @@ public record OfferCommandGroup(
 
     private void executePay(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor("common.players-only"));
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         double amount = ctx.get("amount");
@@ -324,13 +325,13 @@ public record OfferCommandGroup(
         // Balance check on main thread
         double balance = economy.getBalance(sender);
         if (balance < amount) {
-            sender.sendMessage(messages.messageFor("pay-offer.insufficient-funds",
+            sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_INSUFFICIENT_FUNDS,
                     Placeholder.unparsed("balance", String.valueOf(balance))));
             return;
         }
         EconomyResponse response = economy.withdrawPlayer(sender, amount);
         if (!response.transactionSuccess()) {
-            sender.sendMessage(messages.messageFor("pay-offer.payment-failed",
+            sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_PAYMENT_FAILED,
                     Placeholder.unparsed("error", response.errorMessage)));
             return;
         }
@@ -342,7 +343,7 @@ public record OfferCommandGroup(
                         sender.getUniqueId(), amount);
                 return switch (result) {
                     case RealtyLogicImpl.PayOfferResult.Success success -> {
-                        sender.sendMessage(messages.messageFor("pay-offer.success",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_SUCCESS,
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("region", regionId),
                                 Placeholder.unparsed("total", String.valueOf(success.newTotal())),
@@ -350,19 +351,19 @@ public record OfferCommandGroup(
                         yield null;
                     }
                     case RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid -> {
-                        sender.sendMessage(messages.messageFor("pay-offer.fully-paid",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_FULLY_PAID,
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("region", regionId)));
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                         yield Map.entry(fullyPaid, placeholders);
                     }
                     case RealtyLogicImpl.PayOfferResult.NoPaymentRecord ignored -> {
-                        sender.sendMessage(messages.messageFor("pay-offer.no-payment-record",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.PayOfferResult.ExceedsAmountOwed exceeds -> {
-                        sender.sendMessage(messages.messageFor("pay-offer.exceeds-owed",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_EXCEEDS_OWED,
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("owed", String.valueOf(exceeds.amountOwed())),
                                 Placeholder.unparsed("region", regionId)));
@@ -370,7 +371,7 @@ public record OfferCommandGroup(
                     }
                 };
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("pay-offer.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
@@ -386,7 +387,7 @@ public record OfferCommandGroup(
                         .getRegionContainer()
                         .get(BukkitAdapter.adapt(region.world()));
                 if (regionManager == null) {
-                    sender.sendMessage(messages.messageFor("pay-offer.transfer-failed"));
+                    sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_FAILED));
                     return;
                 }
                 ProtectedRegion protectedRegion = region.region();
@@ -394,11 +395,11 @@ public record OfferCommandGroup(
                 protectedRegion.getOwners().addPlayer(sender.getUniqueId());
                 protectedRegion.getMembers().clear();
                 regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
-                sender.sendMessage(messages.messageFor("pay-offer.transfer-success",
+                sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                         Placeholder.unparsed("region", regionId)));
                 if (fullyPaid.titleHolderId() != null) {
                     notificationService.queueNotification(fullyPaid.titleHolderId(),
-                            messages.messageFor("notification.ownership-transferred",
+                            messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                     Placeholder.unparsed("player", sender.getName()),
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -415,7 +416,7 @@ public record OfferCommandGroup(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -424,24 +425,24 @@ public record OfferCommandGroup(
                 RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId());
                 switch (result) {
                     case RealtyLogicImpl.WithdrawOfferResult.Success(var titleHolderId) -> {
-                            sender.sendMessage(messages.messageFor("withdraw-offer.success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                             if (titleHolderId != null) {
                                 notificationService.queueNotification(titleHolderId,
-                                        messages.messageFor("notification.offer-withdrawn",
+                                        messages.messageFor(MessageKeys.NOTIFICATION_OFFER_WITHDRAWN,
                                                 Placeholder.unparsed("player", sender.getName()),
                                                 Placeholder.unparsed("region", regionId)));
                             }
                     }
                     case RealtyLogicImpl.WithdrawOfferResult.NoOffer() ->
-                            sender.sendMessage(messages.messageFor("withdraw-offer.no-offer",
+                            sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_NO_OFFER,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.WithdrawOfferResult.OfferAccepted() ->
-                            sender.sendMessage(messages.messageFor("withdraw-offer.accepted",
+                            sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_ACCEPTED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("withdraw-offer.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -457,13 +458,13 @@ public record OfferCommandGroup(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         @SuppressWarnings("deprecation")
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
-            sender.sendMessage(messages.messageFor("common.player-not-found",
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYER_NOT_FOUND,
                     Placeholder.unparsed("player", playerName)));
             return;
         }
@@ -474,23 +475,23 @@ public record OfferCommandGroup(
                         regionId, region.world().getUID(), target.getUniqueId());
                 switch (result) {
                     case RealtyLogicImpl.RejectOfferResult.Success ignored -> {
-                        sender.sendMessage(messages.messageFor("reject-offer.success",
+                        sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_SUCCESS,
                                 Placeholder.unparsed("player", playerName),
                                 Placeholder.unparsed("region", regionId)));
                         notificationService.queueNotification(target.getUniqueId(),
-                                messages.messageFor("notification.offer-rejected",
+                                messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                         Placeholder.unparsed("region", regionId)));
                     }
                     case RealtyLogicImpl.RejectOfferResult.NoOffer ignored ->
-                            sender.sendMessage(messages.messageFor("reject-offer.no-offer",
+                            sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NO_OFFER,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.RejectOfferResult.OfferAccepted ignored ->
-                            sender.sendMessage(messages.messageFor("reject-offer.accepted",
+                            sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ACCEPTED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("reject-offer.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -505,7 +506,7 @@ public record OfferCommandGroup(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -515,24 +516,24 @@ public record OfferCommandGroup(
                         regionId, region.world().getUID());
                 switch (result) {
                     case RealtyLogicImpl.RejectAllOffersResult.Success success -> {
-                            sender.sendMessage(messages.messageFor("reject-offer.all-success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ALL_SUCCESS,
                                     Placeholder.unparsed("count", String.valueOf(success.offererIds().size())),
                                     Placeholder.unparsed("region", regionId)));
-                            Component notification = messages.messageFor("notification.offer-rejected",
+                            Component notification = messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                     Placeholder.unparsed("region", regionId));
                             for (UUID offererId : success.offererIds()) {
                                 notificationService.queueNotification(offererId, notification);
                             }
                     }
                     case RealtyLogicImpl.RejectAllOffersResult.NoFreeholdContract ignored ->
-                            sender.sendMessage(messages.messageFor("reject-offer.no-freehold-contract",
+                            sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.RejectAllOffersResult.OfferAccepted ignored ->
-                            sender.sendMessage(messages.messageFor("reject-offer.accepted",
+                            sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ACCEPTED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("reject-offer.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -56,16 +57,16 @@ public record AgentAddCommand(@NotNull ExecutorState executorState,
             try {
                 int rows = logic.addSanctionedAuctioneer(regionId, worldId, targetId);
                 if (rows > 0) {
-                    sender.sendMessage(messages.messageFor("agent-add.success",
+                    sender.sendMessage(messages.messageFor(MessageKeys.AGENT_ADD_SUCCESS,
                             Placeholder.unparsed("player", targetName),
                             Placeholder.unparsed("region", regionId)));
                 } else {
-                    sender.sendMessage(messages.messageFor("agent-add.failed",
+                    sender.sendMessage(messages.messageFor(MessageKeys.AGENT_ADD_FAILED,
                             Placeholder.unparsed("player", targetName),
                             Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("agent-add.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.AGENT_ADD_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

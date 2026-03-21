@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -66,7 +67,7 @@ public record UnsetCommandGroup(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -76,23 +77,23 @@ public record UnsetCommandGroup(
                         regionId, region.world().getUID());
                 switch (result) {
                     case RealtyLogicImpl.UnsetPriceResult.Success ignored ->
-                            sender.sendMessage(messages.messageFor("unset-price.success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.UnsetPriceResult.NoFreeholdContract ignored ->
-                            sender.sendMessage(messages.messageFor("unset-price.no-freehold-contract",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.UnsetPriceResult.OfferPaymentInProgress ignored ->
-                            sender.sendMessage(messages.messageFor("unset-price.offer-payment-in-progress",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_OFFER_PAYMENT_IN_PROGRESS,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.UnsetPriceResult.BidPaymentInProgress ignored ->
-                            sender.sendMessage(messages.messageFor("unset-price.bid-payment-in-progress",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_BID_PAYMENT_IN_PROGRESS,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.UnsetPriceResult.UpdateFailed ignored ->
-                            sender.sendMessage(messages.messageFor("unset-price.update-failed",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("unset-price.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -105,7 +106,7 @@ public record UnsetCommandGroup(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -118,18 +119,18 @@ public record UnsetCommandGroup(
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                             executorState.mainThreadExec().execute(
                                     () -> regionProfileService.applyFlags(region, RegionState.FOR_SALE, placeholders));
-                            sender.sendMessage(messages.messageFor("unset-titleholder.success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                     }
                     case RealtyLogicImpl.SetTitleHolderResult.NoFreeholdContract ignored ->
-                            sender.sendMessage(messages.messageFor("unset-titleholder.no-freehold-contract",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetTitleHolderResult.UpdateFailed ignored ->
-                            sender.sendMessage(messages.messageFor("unset-titleholder.update-failed",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("unset-titleholder.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -142,7 +143,7 @@ public record UnsetCommandGroup(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -155,18 +156,18 @@ public record UnsetCommandGroup(
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                             executorState.mainThreadExec().execute(
                                     () -> regionProfileService.applyFlags(region, RegionState.FOR_LEASE, placeholders));
-                            sender.sendMessage(messages.messageFor("unset-tenant.success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                     }
                     case RealtyLogicImpl.SetTenantResult.NoLeaseContract ignored ->
-                            sender.sendMessage(messages.messageFor("unset-tenant.no-lease-contract",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_NO_LEASE_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetTenantResult.UpdateFailed ignored ->
-                            sender.sendMessage(messages.messageFor("unset-tenant.update-failed",
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("unset-tenant.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

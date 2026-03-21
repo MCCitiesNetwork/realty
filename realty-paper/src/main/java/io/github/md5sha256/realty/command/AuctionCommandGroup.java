@@ -15,6 +15,7 @@ import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -111,7 +112,7 @@ public record AuctionCommandGroup(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -121,7 +122,7 @@ public record AuctionCommandGroup(
             try {
                 FreeholdContractAuctionEntity auction = logic.getRegionInfo(regionId, worldId).auction();
                 if (auction == null) {
-                    sender.sendMessage(messages.messageFor("auction-info.no-auction",
+                    sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_INFO_NO_AUCTION,
                             Placeholder.unparsed("region", regionId)));
                     return;
                 }
@@ -129,10 +130,10 @@ public record AuctionCommandGroup(
                         .plusSeconds(auction.biddingDurationSeconds());
 
                 TextComponent.Builder builder = Component.text();
-                builder.append(messages.messageFor("auction-info.header",
+                builder.append(messages.messageFor(MessageKeys.AUCTION_INFO_HEADER,
                         Placeholder.unparsed("region", regionId)));
                 builder.appendNewline()
-                        .append(messages.messageFor("auction-info.details",
+                        .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
                                 Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
                                 Placeholder.unparsed("start_date", formatDate(auction.startDate())),
                                 Placeholder.unparsed("duration",
@@ -143,7 +144,7 @@ public record AuctionCommandGroup(
                                 Placeholder.unparsed("min_step", String.valueOf(auction.minStep()))));
                 sender.sendMessage(builder.build());
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("auction-info.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_INFO_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -207,17 +208,17 @@ public record AuctionCommandGroup(
                 );
                 switch (result) {
                     case CreateAuctionResult.Success ignored ->
-                            sender.sendMessage(messages.messageFor("auction.success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                     case CreateAuctionResult.NotSanctioned ignored ->
-                            sender.sendMessage(messages.messageFor("auction.not-sanctioned",
+                            sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NOT_SANCTIONED,
                                     Placeholder.unparsed("region", regionId)));
                     case CreateAuctionResult.NoFreeholdContract ignored ->
-                            sender.sendMessage(messages.messageFor("auction.no-freehold-contract",
+                            sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("auction.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -232,7 +233,7 @@ public record AuctionCommandGroup(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -240,18 +241,18 @@ public record AuctionCommandGroup(
             try {
                 RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(regionId, region.world().getUID());
                 if (result.deleted() == 0) {
-                    sender.sendMessage(messages.messageFor("cancel-auction.no-auction"));
+                    sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_NO_AUCTION));
                     return;
                 }
-                sender.sendMessage(messages.messageFor("cancel-auction.success",
+                sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_SUCCESS,
                         Placeholder.unparsed("region", regionId)));
                 for (UUID bidderId : result.bidderIds()) {
                     notificationService.queueNotification(bidderId,
-                            messages.messageFor("notification.auction-cancelled",
+                            messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("cancel-auction.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -273,31 +274,31 @@ public record AuctionCommandGroup(
                         sender.getUniqueId(), bidAmount);
                 switch (result) {
                     case RealtyLogicImpl.BidResult.Success success -> {
-                            sender.sendMessage(messages.messageFor("bid.success",
+                            sender.sendMessage(messages.messageFor(MessageKeys.BID_SUCCESS,
                                     Placeholder.unparsed("amount", String.valueOf(bidAmount)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.previousBidderId() != null) {
                                 notificationService.queueNotification(success.previousBidderId(),
-                                        messages.messageFor("notification.outbid",
+                                        messages.messageFor(MessageKeys.NOTIFICATION_OUTBID,
                                                 Placeholder.unparsed("region", regionId),
                                                 Placeholder.unparsed("amount", String.valueOf(bidAmount))));
                             }
                     }
                     case RealtyLogicImpl.BidResult.NoAuction ignored ->
-                            sender.sendMessage(messages.messageFor("bid.no-auction"));
+                            sender.sendMessage(messages.messageFor(MessageKeys.BID_NO_AUCTION));
                     case RealtyLogicImpl.BidResult.IsOwner ignored ->
-                            sender.sendMessage(messages.messageFor("bid.is-owner"));
+                            sender.sendMessage(messages.messageFor(MessageKeys.BID_IS_OWNER));
                     case RealtyLogicImpl.BidResult.BidTooLowMinimum r ->
-                            sender.sendMessage(messages.messageFor("bid.too-low-minimum",
+                            sender.sendMessage(messages.messageFor(MessageKeys.BID_TOO_LOW_MINIMUM,
                                     Placeholder.unparsed("amount", String.valueOf(r.minBid()))));
                     case RealtyLogicImpl.BidResult.BidTooLowCurrent r ->
-                            sender.sendMessage(messages.messageFor("bid.too-low-current",
+                            sender.sendMessage(messages.messageFor(MessageKeys.BID_TOO_LOW_CURRENT,
                                     Placeholder.unparsed("amount", String.valueOf(r.currentHighest()))));
                     case RealtyLogicImpl.BidResult.AlreadyHighestBidder ignored ->
-                            sender.sendMessage(messages.messageFor("bid.already-highest"));
+                            sender.sendMessage(messages.messageFor(MessageKeys.BID_ALREADY_HIGHEST));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("bid.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.BID_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -307,7 +308,7 @@ public record AuctionCommandGroup(
 
     private void executePayBid(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor("common.players-only"));
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         double amount = ctx.get("amount");
@@ -316,13 +317,13 @@ public record AuctionCommandGroup(
         // Balance check on main thread
         double balance = economy.getBalance(sender);
         if (balance < amount) {
-            sender.sendMessage(messages.messageFor("pay-bid.insufficient-funds",
+            sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_INSUFFICIENT_FUNDS,
                     Placeholder.unparsed("balance", String.valueOf(balance))));
             return;
         }
         EconomyResponse response = economy.withdrawPlayer(sender, amount);
         if (!response.transactionSuccess()) {
-            sender.sendMessage(messages.messageFor("pay-bid.payment-failed",
+            sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_PAYMENT_FAILED,
                     Placeholder.unparsed("error", response.errorMessage)));
             return;
         }
@@ -334,7 +335,7 @@ public record AuctionCommandGroup(
                         sender.getUniqueId(), amount);
                 return switch (result) {
                     case RealtyLogicImpl.PayBidResult.Success success -> {
-                        sender.sendMessage(messages.messageFor("pay-bid.success",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_SUCCESS,
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("region", regionId),
                                 Placeholder.unparsed("total", String.valueOf(success.newTotal())),
@@ -342,24 +343,24 @@ public record AuctionCommandGroup(
                         yield null;
                     }
                     case RealtyLogicImpl.PayBidResult.FullyPaid fullyPaid -> {
-                        sender.sendMessage(messages.messageFor("pay-bid.fully-paid",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_FULLY_PAID,
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("region", regionId)));
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                         yield Map.entry(fullyPaid, placeholders);
                     }
                     case RealtyLogicImpl.PayBidResult.NoPaymentRecord ignored -> {
-                        sender.sendMessage(messages.messageFor("pay-bid.no-payment-record",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.PayBidResult.PaymentExpired ignored -> {
-                        sender.sendMessage(messages.messageFor("pay-bid.payment-expired",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.PayBidResult.ExceedsAmountOwed exceeds -> {
-                        sender.sendMessage(messages.messageFor("pay-bid.exceeds-owed",
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_EXCEEDS_OWED,
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("owed", String.valueOf(exceeds.amountOwed())),
                                 Placeholder.unparsed("region", regionId)));
@@ -367,7 +368,7 @@ public record AuctionCommandGroup(
                     }
                 };
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("pay-bid.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
@@ -383,7 +384,7 @@ public record AuctionCommandGroup(
                         .getRegionContainer()
                         .get(BukkitAdapter.adapt(region.world()));
                 if (regionManager == null) {
-                    sender.sendMessage(messages.messageFor("pay-bid.transfer-failed"));
+                    sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_FAILED));
                     return;
                 }
                 ProtectedRegion protectedRegion = region.region();
@@ -391,11 +392,11 @@ public record AuctionCommandGroup(
                 protectedRegion.getOwners().addPlayer(sender.getUniqueId());
                 protectedRegion.getMembers().clear();
                 regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
-                sender.sendMessage(messages.messageFor("pay-bid.transfer-success",
+                sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                         Placeholder.unparsed("region", regionId)));
                 if (fullyPaid.titleHolderId() != null) {
                     notificationService.queueNotification(fullyPaid.titleHolderId(),
-                            messages.messageFor("notification.ownership-transferred",
+                            messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                     Placeholder.unparsed("player", sender.getName()),
                                     Placeholder.unparsed("region", regionId)));
                 }

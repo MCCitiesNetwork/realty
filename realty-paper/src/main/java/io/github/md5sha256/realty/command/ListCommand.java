@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.command;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
@@ -77,7 +78,7 @@ public record ListCommand(
             resolvePlayer(sender, playerName, category, page);
         } else {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage(messages.messageFor("list.players-only"));
+                sender.sendMessage(messages.messageFor(MessageKeys.LIST_PLAYERS_ONLY));
                 return;
             }
             listRegions(sender, player.getUniqueId(), player.getName(), category, page);
@@ -89,7 +90,7 @@ public record ListCommand(
         @SuppressWarnings("deprecation")
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
-            sender.sendMessage(messages.messageFor("common.player-not-found",
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYER_NOT_FOUND,
                     Placeholder.unparsed("player", playerName)));
             return;
         }
@@ -107,7 +108,7 @@ public record ListCommand(
                     listCategory(sender, targetId, targetName, category, page);
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("list.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.LIST_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
@@ -120,21 +121,21 @@ public record ListCommand(
 
         int totalCount = result.totalCount();
         if (totalCount == 0) {
-            sender.sendMessage(messages.messageFor("list.no-regions",
+            sender.sendMessage(messages.messageFor(MessageKeys.LIST_NO_REGIONS,
                     Placeholder.unparsed("player", targetName)));
             return;
         }
 
         int totalPages = (totalCount + PAGE_SIZE - 1) / PAGE_SIZE;
         if (page > totalPages) {
-            sender.sendMessage(messages.messageFor("list.invalid-page",
+            sender.sendMessage(messages.messageFor(MessageKeys.LIST_INVALID_PAGE,
                     Placeholder.unparsed("page", String.valueOf(page)),
                     Placeholder.unparsed("total", String.valueOf(totalPages))));
             return;
         }
 
         TextComponent.Builder builder = Component.text();
-        builder.append(parseMiniMessage("list.header", "<player>", targetName));
+        builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", targetName));
         appendCategory(builder, "Owned", result.owned());
         appendCategory(builder, "Landlord", result.landlord());
         appendCategory(builder, "Rented", result.rented());
@@ -149,14 +150,14 @@ public record ListCommand(
                 : logic.listRentedRegions(targetId, PAGE_SIZE, (page - 1) * PAGE_SIZE);
 
         if (result.totalCount() == 0) {
-            sender.sendMessage(messages.messageFor("list.no-regions",
+            sender.sendMessage(messages.messageFor(MessageKeys.LIST_NO_REGIONS,
                     Placeholder.unparsed("player", targetName)));
             return;
         }
 
         int totalPages = (result.totalCount() + PAGE_SIZE - 1) / PAGE_SIZE;
         if (page > totalPages) {
-            sender.sendMessage(messages.messageFor("list.invalid-page",
+            sender.sendMessage(messages.messageFor(MessageKeys.LIST_INVALID_PAGE,
                     Placeholder.unparsed("page", String.valueOf(page)),
                     Placeholder.unparsed("total", String.valueOf(totalPages))));
             return;
@@ -164,7 +165,7 @@ public record ListCommand(
 
         String label = "owned".equals(category) ? "Owned" : "Rented";
         TextComponent.Builder builder = Component.text();
-        builder.append(parseMiniMessage("list.header", "<player>", targetName));
+        builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", targetName));
         appendCategory(builder, label, result.regions());
         appendFooter(builder, targetName, category, page, totalPages);
         sender.sendMessage(builder.build());
@@ -176,23 +177,23 @@ public record ListCommand(
             return;
         }
         builder.appendNewline()
-                .append(parseMiniMessage("list.category", "<label>", label));
+                .append(parseMiniMessage(MessageKeys.LIST_CATEGORY, "<label>", label));
         for (RealtyRegionEntity region : regions) {
             builder.appendNewline()
-                    .append(parseMiniMessage("list.entry", "<region>", region.worldGuardRegionId()));
+                    .append(parseMiniMessage(MessageKeys.LIST_ENTRY, "<region>", region.worldGuardRegionId()));
         }
     }
 
     private void appendFooter(@NotNull TextComponent.Builder builder, @NotNull String targetName,
                                @Nullable String category, int page, int totalPages) {
         Component previousComponent = page > 1
-                ? buildNavComponent("list.previous", targetName, category, page - 1)
+                ? buildNavComponent(MessageKeys.LIST_PREVIOUS, targetName, category, page - 1)
                 : Component.empty();
         Component nextComponent = page < totalPages
-                ? buildNavComponent("list.next", targetName, category, page + 1)
+                ? buildNavComponent(MessageKeys.LIST_NEXT, targetName, category, page + 1)
                 : Component.empty();
         builder.appendNewline()
-                .append(messages.messageFor("list.footer",
+                .append(messages.messageFor(MessageKeys.LIST_FOOTER,
                         Placeholder.unparsed("page", String.valueOf(page)),
                         Placeholder.unparsed("total", String.valueOf(totalPages)),
                         Placeholder.component("previous", previousComponent),

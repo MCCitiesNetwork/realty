@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -56,7 +57,7 @@ public record RentCommand(
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
-            sender.sendMessage(messages.messageFor("error.no-region"));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
@@ -70,28 +71,28 @@ public record RentCommand(
                         yield Map.entry(success, placeholders);
                     }
                     case RealtyLogicImpl.RentResult.NoLeaseContract ignored -> {
-                        sender.sendMessage(messages.messageFor("rent.no-lease-contract",
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASE_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.RentResult.IsLandlord ignored -> {
-                        sender.sendMessage(messages.messageFor("rent.is-landlord",
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_IS_LANDLORD,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.RentResult.AlreadyOccupied ignored -> {
-                        sender.sendMessage(messages.messageFor("rent.already-occupied",
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_ALREADY_OCCUPIED,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.RentResult.UpdateFailed ignored -> {
-                        sender.sendMessage(messages.messageFor("rent.update-failed",
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                 };
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor("rent.error",
+                sender.sendMessage(messages.messageFor(MessageKeys.RENT_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
@@ -103,14 +104,14 @@ public record RentCommand(
             double price = success.price();
             double balance = economy.getBalance(sender);
             if (balance < price) {
-                sender.sendMessage(messages.messageFor("rent.insufficient-funds",
+                sender.sendMessage(messages.messageFor(MessageKeys.RENT_INSUFFICIENT_FUNDS,
                         Placeholder.unparsed("balance", String.valueOf(balance)),
                         Placeholder.unparsed("price", String.valueOf(price))));
                 return;
             }
             EconomyResponse response = economy.withdrawPlayer(sender, price);
             if (!response.transactionSuccess()) {
-                sender.sendMessage(messages.messageFor("rent.payment-failed",
+                sender.sendMessage(messages.messageFor(MessageKeys.RENT_PAYMENT_FAILED,
                         Placeholder.unparsed("error", response.errorMessage)));
                 return;
             }
@@ -119,11 +120,11 @@ public record RentCommand(
             ProtectedRegion protectedRegion = region.region();
             protectedRegion.getMembers().addPlayer(sender.getUniqueId());
             regionProfileService.applyFlags(region, RegionState.LEASED, entry.getValue());
-            sender.sendMessage(messages.messageFor("rent.success",
+            sender.sendMessage(messages.messageFor(MessageKeys.RENT_SUCCESS,
                     Placeholder.unparsed("region", regionId),
                     Placeholder.unparsed("price", String.valueOf(price))));
             notificationService.queueNotification(success.landlordId(),
-                    messages.messageFor("notification.region-rented",
+                    messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
                             Placeholder.unparsed("player", sender.getName()),
                             Placeholder.unparsed("price", String.valueOf(price)),
                             Placeholder.unparsed("region", regionId)));

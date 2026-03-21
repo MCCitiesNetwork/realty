@@ -32,6 +32,7 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfileSettings;
@@ -205,14 +206,14 @@ public final class Realty extends JavaPlugin {
             }
             for (RealtyLogicImpl.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
                 this.notificationService.queueNotification(payment.bidderId(),
-                        this.messageContainer.messageFor("notification.bid-payment-expired",
+                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount",
                                         String.valueOf(payment.refundAmount()))));
             }
             for (RealtyLogicImpl.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 this.notificationService.queueNotification(payment.offererId(),
-                        this.messageContainer.messageFor("notification.offer-payment-expired",
+                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount",
                                         String.valueOf(payment.refundAmount()))));
@@ -244,12 +245,12 @@ public final class Realty extends JavaPlugin {
                             }
                         }
                         this.notificationService.queueNotification(lease.tenantId(),
-                                this.messageContainer.messageFor("notification.lease-expired",
+                                this.messageContainer.messageFor(MessageKeys.NOTIFICATION_LEASE_EXPIRED,
                                         Placeholder.unparsed("region",
                                                 lease.worldGuardRegionId())));
                         this.notificationService.queueNotification(lease.landlordId(),
                                 this.messageContainer.messageFor(
-                                        "notification.lease-expired-landlord",
+                                        MessageKeys.NOTIFICATION_LEASE_EXPIRED_LANDLORD,
                                         Placeholder.unparsed("region",
                                                 lease.worldGuardRegionId())));
                     }
