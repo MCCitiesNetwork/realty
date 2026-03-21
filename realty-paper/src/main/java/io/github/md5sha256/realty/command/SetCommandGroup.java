@@ -10,6 +10,8 @@ import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
@@ -160,7 +162,7 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.SetLandlordResult.Success ignored ->
                             sender.sendMessage(messages.messageFor("set-landlord.success",
-                                    Placeholder.unparsed("landlord", landlordId.toString()),
+                                    Placeholder.unparsed("landlord", resolveName(landlordId)),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetLandlordResult.NoLeaseContract ignored ->
                             sender.sendMessage(messages.messageFor("set-landlord.no-lease-contract",
@@ -190,7 +192,7 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.SetTitleHolderResult.Success ignored ->
                             sender.sendMessage(messages.messageFor("set-titleholder.success",
-                                    Placeholder.unparsed("titleholder", titleHolderId.toString()),
+                                    Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetTitleHolderResult.NoSaleContract ignored ->
                             sender.sendMessage(messages.messageFor("set-titleholder.no-sale-contract",
@@ -220,7 +222,7 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.SetTenantResult.Success ignored ->
                             sender.sendMessage(messages.messageFor("set-tenant.success",
-                                    Placeholder.unparsed("tenant", tenantId.toString()),
+                                    Placeholder.unparsed("tenant", resolveName(tenantId)),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetTenantResult.NoLeaseContract ignored ->
                             sender.sendMessage(messages.messageFor("set-tenant.no-lease-contract",
@@ -234,6 +236,12 @@ public record SetCommandGroup(
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
+    }
+
+    private static @NotNull String resolveName(@NotNull UUID uuid) {
+        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+        String name = player.getName();
+        return name != null ? name : uuid.toString();
     }
 
 }
