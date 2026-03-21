@@ -1,6 +1,6 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
-import io.github.md5sha256.realty.database.mapper.SaleContractSanctionedAuctioneerMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractSanctionedAuctioneerMapper;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
@@ -10,16 +10,16 @@ import org.jetbrains.annotations.NotNull;
 import java.util.UUID;
 
 /**
- * MariaDB-specific MyBatis mapper for the {@code SaleContractSanctionedAuctioneers} table.
+ * MariaDB-specific MyBatis mapper for the {@code FreeholdContractSanctionedAuctioneers} table.
  *
- * @see io.github.md5sha256.realty.database.entity.SaleContractSanctionedAuctioneerEntity
+ * @see io.github.md5sha256.realty.database.entity.FreeholdContractSanctionedAuctioneerEntity
  */
-public interface MariaSaleContractSanctionedAuctioneerMapper extends SaleContractSanctionedAuctioneerMapper {
+public interface MariaFreeholdContractSanctionedAuctioneerMapper extends FreeholdContractSanctionedAuctioneerMapper {
 
     @Override
     @Select("""
             SELECT COUNT(*) > 0
-            FROM SaleContractSanctionedAuctioneers sca
+            FROM FreeholdContractSanctionedAuctioneers sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -31,7 +31,7 @@ public interface MariaSaleContractSanctionedAuctioneerMapper extends SaleContrac
 
     @Override
     @Insert("""
-            INSERT INTO SaleContractSanctionedAuctioneers (realtyRegionId, auctioneerId)
+            INSERT INTO FreeholdContractSanctionedAuctioneers (realtyRegionId, auctioneerId)
             SELECT rr.realtyRegionId, #{auctioneerId}
             FROM RealtyRegion rr
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -43,7 +43,7 @@ public interface MariaSaleContractSanctionedAuctioneerMapper extends SaleContrac
 
     @Override
     @Delete("""
-            DELETE sca FROM SaleContractSanctionedAuctioneers sca
+            DELETE sca FROM FreeholdContractSanctionedAuctioneers sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -55,7 +55,7 @@ public interface MariaSaleContractSanctionedAuctioneerMapper extends SaleContrac
 
     @Override
     @Delete("""
-            DELETE sca FROM SaleContractSanctionedAuctioneers sca
+            DELETE sca FROM FreeholdContractSanctionedAuctioneers sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}

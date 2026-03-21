@@ -149,8 +149,8 @@ public record OfferCommandGroup(
                                                 Placeholder.unparsed("region", regionId)));
                             }
                     }
-                    case RealtyLogicImpl.OfferResult.NoSaleContract ignored ->
-                            sender.sendMessage(messages.messageFor("offer.no-sale-contract",
+                    case RealtyLogicImpl.OfferResult.NoFreeholdContract ignored ->
+                            sender.sendMessage(messages.messageFor("offer.no-freehold-contract",
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.IsOwner ignored ->
                             sender.sendMessage(messages.messageFor("offer.is-owner"));
@@ -524,8 +524,8 @@ public record OfferCommandGroup(
                                 notificationService.queueNotification(offererId, notification);
                             }
                     }
-                    case RealtyLogicImpl.RejectAllOffersResult.NoSaleContract ignored ->
-                            sender.sendMessage(messages.messageFor("reject-offer.no-sale-contract",
+                    case RealtyLogicImpl.RejectAllOffersResult.NoFreeholdContract ignored ->
+                            sender.sendMessage(messages.messageFor("reject-offer.no-freehold-contract",
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.RejectAllOffersResult.OfferAccepted ignored ->
                             sender.sendMessage(messages.messageFor("reject-offer.accepted",

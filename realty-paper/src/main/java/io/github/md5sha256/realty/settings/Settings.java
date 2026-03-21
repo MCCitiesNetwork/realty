@@ -13,8 +13,8 @@ import java.util.UUID;
 
 @ConfigSerializable
 public record Settings(
-        @Setting("default-sale-authority-uuid") @Required @NotNull UUID defaultSaleAuthority,
-        @Setting("default-sale-titleholder-uuid") @Nullable UUID defaultSaleTitleholder,
+        @Setting("default-freehold-authority-uuid") @Required @NotNull UUID defaultFreeholdAuthority,
+        @Setting("default-freehold-titleholder-uuid") @Nullable UUID defaultFreeholdTitleholder,
         @Setting("default-lease-authority-uuid") @Required @NotNull UUID defaultLeaseAuthority,
         @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat,
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick

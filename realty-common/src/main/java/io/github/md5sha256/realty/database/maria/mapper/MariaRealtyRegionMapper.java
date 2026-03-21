@@ -89,9 +89,9 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
     @Select("""
             SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
             FROM RealtyRegion rr
-            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
-            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
-            WHERE sc.titleHolderId = #{playerId}
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
+            INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
+            WHERE fc.titleHolderId = #{playerId}
             LIMIT #{limit} OFFSET #{offset}
             """)
     @ConstructorArgs({
@@ -107,9 +107,9 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
     @Select("""
             SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
             FROM RealtyRegion rr
-            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
-            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
-            WHERE sc.authorityId = #{playerId}
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
+            INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
+            WHERE fc.authorityId = #{playerId}
             LIMIT #{limit} OFFSET #{offset}
             """)
     @ConstructorArgs({
@@ -143,9 +143,9 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
     @Select("""
             SELECT COUNT(*)
             FROM RealtyRegion rr
-            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
-            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
-            WHERE sc.titleHolderId = #{playerId}
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
+            INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
+            WHERE fc.titleHolderId = #{playerId}
             """)
     int countRegionsByTitleHolder(@Param("playerId") @NotNull UUID playerId);
 
@@ -153,9 +153,9 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
     @Select("""
             SELECT COUNT(*)
             FROM RealtyRegion rr
-            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'sale'
-            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
-            WHERE sc.authorityId = #{playerId}
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
+            INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
+            WHERE fc.authorityId = #{playerId}
             """)
     int countRegionsByAuthority(@Param("playerId") @NotNull UUID playerId);
 

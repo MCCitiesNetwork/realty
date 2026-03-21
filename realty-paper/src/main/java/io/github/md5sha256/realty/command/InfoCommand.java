@@ -4,7 +4,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -124,19 +124,19 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                 builder.append(messages.messageFor("info.header",
                         Placeholder.unparsed("region", regionId)));
 
-                SaleContractEntity sale = info.sale();
+                FreeholdContractEntity freehold = info.freehold();
                 LeaseContractEntity lease = info.lease();
                 boolean hasAuction = info.auction() != null;
 
-                if (sale == null && lease == null && !hasAuction) {
+                if (freehold == null && lease == null && !hasAuction) {
                     builder.appendNewline()
                             .append(messages.messageFor("info.no-contracts"));
                     sender.sendMessage(builder.build());
                     return;
                 }
 
-                if (sale != null) {
-                    appendSaleInfo(builder, sale, info.lastSoldPrice(), membersStr);
+                if (freehold != null) {
+                    appendFreeholdInfo(builder, freehold, info.lastSoldPrice(), membersStr);
                 }
 
                 if (lease != null) {
@@ -156,23 +156,23 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         }, executorState.dbExec());
     }
 
-    private void appendSaleInfo(@NotNull TextComponent.Builder builder,
-                                @NotNull SaleContractEntity sale,
+    private void appendFreeholdInfo(@NotNull TextComponent.Builder builder,
+                                @NotNull FreeholdContractEntity freehold,
                                 @Nullable Double lastSoldPrice,
                                 @NotNull String membersStr) {
-        String titleHolder = sale.titleHolderId() != null ? resolveName(sale.titleHolderId()) : "N/A";
-        String authority = resolveName(sale.authorityId());
+        String titleHolder = freehold.titleHolderId() != null ? resolveName(freehold.titleHolderId()) : "N/A";
+        String authority = resolveName(freehold.authorityId());
 
-        if (sale.price() != null) {
+        if (freehold.price() != null) {
             builder.appendNewline()
-                    .append(messages.messageFor("info.for-sale",
+                    .append(messages.messageFor("info.for-freehold",
                             Placeholder.unparsed("title_holder", titleHolder),
                             Placeholder.unparsed("authority", authority),
-                            Placeholder.unparsed("price", String.valueOf(sale.price()))));
+                            Placeholder.unparsed("price", String.valueOf(freehold.price()))));
         } else {
             String lastSold = lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "N/A";
             builder.appendNewline()
-                    .append(messages.messageFor("info.sale",
+                    .append(messages.messageFor("info.freehold",
                             Placeholder.unparsed("title_holder", titleHolder),
                             Placeholder.unparsed("members", membersStr),
                             Placeholder.unparsed("authority", authority),

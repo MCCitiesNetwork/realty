@@ -6,16 +6,16 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Internal entity record mapping to the {@code SaleContractOfferPayment} DDL table.
+ * Internal entity record mapping to the {@code FreeholdContractOfferPayment} DDL table.
  *
- * @param offerId         PK and FK to {@code SaleContractOffer.offerId}
+ * @param offerId         PK and FK to {@code FreeholdContractOffer.offerId}
  * @param realtyRegionId  FK to {@code RealtyRegion.realtyRegionId}
  * @param offererId       UUID of the player who placed the offer
  * @param offerPrice      Total price due (must be &gt; 0)
  * @param paymentDeadline Deadline by which full payment must be made
  * @param currentPayment  Amount paid so far (0 &le; currentPayment &le; offerPrice)
  */
-public record SaleContractOfferPaymentEntity(
+public record FreeholdContractOfferPaymentEntity(
         int offerId,
         int realtyRegionId,
         @NotNull UUID offererId,

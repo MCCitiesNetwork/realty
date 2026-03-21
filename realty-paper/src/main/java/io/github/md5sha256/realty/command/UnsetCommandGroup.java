@@ -24,8 +24,8 @@ import java.util.concurrent.CompletableFuture;
  * Groups all unset-related subcommands under {@code /realty unset}.
  *
  * <ul>
- *   <li>{@code /realty unset price [region]} — clear sale price</li>
- *   <li>{@code /realty unset titleholder [region]} — clear sale title holder</li>
+ *   <li>{@code /realty unset price [region]} — clear freehold price</li>
+ *   <li>{@code /realty unset titleholder [region]} — clear freehold title holder</li>
  *   <li>{@code /realty unset tenant [region]} — clear lease tenant</li>
  * </ul>
  */
@@ -78,8 +78,8 @@ public record UnsetCommandGroup(
                     case RealtyLogicImpl.UnsetPriceResult.Success ignored ->
                             sender.sendMessage(messages.messageFor("unset-price.success",
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.UnsetPriceResult.NoSaleContract ignored ->
-                            sender.sendMessage(messages.messageFor("unset-price.no-sale-contract",
+                    case RealtyLogicImpl.UnsetPriceResult.NoFreeholdContract ignored ->
+                            sender.sendMessage(messages.messageFor("unset-price.no-freehold-contract",
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.UnsetPriceResult.OfferPaymentInProgress ignored ->
                             sender.sendMessage(messages.messageFor("unset-price.offer-payment-in-progress",
@@ -121,8 +121,8 @@ public record UnsetCommandGroup(
                             sender.sendMessage(messages.messageFor("unset-titleholder.success",
                                     Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetTitleHolderResult.NoSaleContract ignored ->
-                            sender.sendMessage(messages.messageFor("unset-titleholder.no-sale-contract",
+                    case RealtyLogicImpl.SetTitleHolderResult.NoFreeholdContract ignored ->
+                            sender.sendMessage(messages.messageFor("unset-titleholder.no-freehold-contract",
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetTitleHolderResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor("unset-titleholder.update-failed",

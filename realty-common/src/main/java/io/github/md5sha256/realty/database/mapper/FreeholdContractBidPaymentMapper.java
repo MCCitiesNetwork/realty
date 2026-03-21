@@ -1,6 +1,6 @@
 package io.github.md5sha256.realty.database.mapper;
 
-import io.github.md5sha256.realty.database.entity.SaleContractBidPaymentEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -9,20 +9,20 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Base mapper interface for query operations on the {@code SaleContractBidPayment} table.
+ * Base mapper interface for query operations on the {@code FreeholdContractBidPayment} table.
  * SQL annotations are provided by database-specific sub-interfaces.
  *
- * @see SaleContractBidPaymentEntity
+ * @see FreeholdContractBidPaymentEntity
  */
-public interface SaleContractBidPaymentMapper {
+public interface FreeholdContractBidPaymentMapper {
 
-    @Nullable SaleContractBidPaymentEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+    @Nullable FreeholdContractBidPaymentEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    @NotNull List<SaleContractBidPaymentEntity> selectAllExpired();
+    @NotNull List<FreeholdContractBidPaymentEntity> selectAllExpired();
 
     int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId, double bidPrice, @NotNull LocalDateTime paymentDeadline);
 
-    int insertNextPayment(int saleContractAuctionId, @NotNull UUID excludeBidderId, @NotNull LocalDateTime paymentDeadline);
+    int insertNextPayment(int freeholdContractAuctionId, @NotNull UUID excludeBidderId, @NotNull LocalDateTime paymentDeadline);
 
     int updatePayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId, double payment);
 

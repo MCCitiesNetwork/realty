@@ -10,8 +10,8 @@ import io.github.md5sha256.realty.database.RealtyLogicImpl.OfferResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.PayBidResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.PayOfferResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.RegionInfo;
-import io.github.md5sha256.realty.database.entity.SaleContractBidPaymentEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractOfferPaymentEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -37,9 +37,9 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         return "region_" + REGION_COUNTER.incrementAndGet();
     }
 
-    private static void createSaleRegion(String regionId, UUID worldId, UUID authority, UUID titleHolder) {
-        boolean created = logic.createSale(regionId, worldId, 1000.0, authority, titleHolder);
-        Assertions.assertTrue(created, "Expected sale region to be created");
+    private static void createFreeholdRegion(String regionId, UUID worldId, UUID authority, UUID titleHolder) {
+        boolean created = logic.createFreehold(regionId, worldId, 1000.0, authority, titleHolder);
+        Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 
     private static void createAuctionOnRegion(String regionId, UUID worldId) {
@@ -50,7 +50,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
                                                       LocalDateTime deadline) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.saleContractBidPaymentMapper().insertPayment(regionId, worldId, bidderId, 0, deadline);
+            wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, worldId, bidderId, 0, deadline);
             session.commit();
         }
     }
@@ -58,7 +58,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
     private static void applyPartialBidPayment(String regionId, UUID worldId, UUID bidderId, double amount) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.saleContractBidPaymentMapper().updatePayment(regionId, worldId, bidderId, amount);
+            wrapper.freeholdContractBidPaymentMapper().updatePayment(regionId, worldId, bidderId, amount);
             session.commit();
         }
     }
@@ -67,7 +67,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
                                                         LocalDateTime deadline) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.saleContractOfferPaymentMapper().insertPayment(regionId, worldId, offererId, 0, deadline);
+            wrapper.freeholdContractOfferPaymentMapper().insertPayment(regionId, worldId, offererId, 0, deadline);
             session.commit();
         }
     }
@@ -75,7 +75,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
     private static void applyPartialOfferPayment(String regionId, UUID worldId, UUID offererId, double amount) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.saleContractOfferPaymentMapper().updatePayment(regionId, worldId, offererId, amount);
+            wrapper.freeholdContractOfferPaymentMapper().updatePayment(regionId, worldId, offererId, amount);
             session.commit();
         }
     }
@@ -87,43 +87,43 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class, acceptResult);
     }
 
-    // --- CreateSale ---
+    // --- CreateFreehold ---
 
     @Nested
-    @DisplayName("createSale")
-    class CreateSale {
+    @DisplayName("createFreehold")
+    class CreateFreehold {
 
         @Test
         @DisplayName("succeeds for a new region")
         void succeeds() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createSale(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
+            boolean result = logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
-            Assertions.assertNotNull(info.sale());
+            Assertions.assertNotNull(info.freehold());
         }
 
         @Test
         @DisplayName("returns false for duplicate region")
         void duplicateRegion() {
             String regionId = uniqueRegionId();
-            logic.createSale(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
+            logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
 
-            boolean second = logic.createSale(regionId, WORLD_ID, 800.0, AUTHORITY, PLAYER_B);
+            boolean second = logic.createFreehold(regionId, WORLD_ID, 800.0, AUTHORITY, PLAYER_B);
             Assertions.assertFalse(second);
         }
 
         @Test
-        @DisplayName("succeeds with null titleholder (for sale)")
+        @DisplayName("succeeds with null titleholder (for freehold)")
         void succeedsWithNullTitleHolder() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createSale(regionId, WORLD_ID, 500.0, AUTHORITY, null);
+            boolean result = logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, null);
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
-            Assertions.assertNotNull(info.sale());
-            Assertions.assertNull(info.sale().titleHolderId());
+            Assertions.assertNotNull(info.freehold());
+            Assertions.assertNull(info.freehold().titleHolderId());
         }
     }
 
@@ -148,7 +148,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns false for duplicate region")
         void duplicateRegion() {
             String regionId = uniqueRegionId();
-            logic.createSale(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
+            logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
 
             boolean second = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_B);
             Assertions.assertFalse(second);
@@ -177,13 +177,13 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns 1 when region exists")
         void existingRegion() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             int deleted = logic.deleteRegion(regionId, WORLD_ID);
             Assertions.assertEquals(1, deleted);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
-            Assertions.assertNull(info.sale());
+            Assertions.assertNull(info.freehold());
         }
 
         @Test
@@ -197,7 +197,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("cascades to auctions")
         void cascadesAuctions() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
             logic.deleteRegion(regionId, WORLD_ID);
@@ -217,19 +217,19 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns all null for unregistered region")
         void noContracts() {
             RegionInfo info = logic.getRegionInfo("nonexistent", WORLD_ID);
-            Assertions.assertNull(info.sale());
+            Assertions.assertNull(info.freehold());
             Assertions.assertNull(info.lease());
             Assertions.assertNull(info.auction());
         }
 
         @Test
-        @DisplayName("returns sale when sale exists")
-        void withSale() {
+        @DisplayName("returns freehold when freehold exists")
+        void withFreehold() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
-            Assertions.assertNotNull(info.sale());
+            Assertions.assertNotNull(info.freehold());
             Assertions.assertNull(info.lease());
         }
 
@@ -241,7 +241,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
             Assertions.assertNotNull(info.lease());
-            Assertions.assertNull(info.sale());
+            Assertions.assertNull(info.freehold());
         }
     }
 
@@ -252,10 +252,10 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
     class CheckRegionAuthority {
 
         @Test
-        @DisplayName("returns true when player is authority of sale")
+        @DisplayName("returns true when player is authority of freehold")
         void isAuthority() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             Assertions.assertTrue(logic.checkRegionAuthority(regionId, WORLD_ID, AUTHORITY));
         }
@@ -273,7 +273,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns false for unrelated player")
         void unrelatedPlayer() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             Assertions.assertFalse(logic.checkRegionAuthority(regionId, WORLD_ID, PLAYER_B));
         }
@@ -305,7 +305,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("counts owned region for title holder")
         void ownedRegion() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             ListResult result = logic.listRegions(PLAYER_A, 10, 0);
             Assertions.assertEquals(1, result.ownedCount());
@@ -316,7 +316,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("counts landlord region for authority")
         void landlordRegion() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, PLAYER_A, PLAYER_B);
+            createFreeholdRegion(regionId, WORLD_ID, PLAYER_A, PLAYER_B);
 
             ListResult result = logic.listRegions(PLAYER_A, 10, 0);
             Assertions.assertEquals(1, result.landlordCount());
@@ -337,7 +337,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("pagination limits results")
         void pagination() {
             for (int i = 0; i < 3; i++) {
-                createSaleRegion(uniqueRegionId(), WORLD_ID, AUTHORITY, PLAYER_A);
+                createFreeholdRegion(uniqueRegionId(), WORLD_ID, AUTHORITY, PLAYER_A);
             }
 
             ListResult page1 = logic.listRegions(PLAYER_A, 2, 0);
@@ -359,7 +359,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("createAuction succeeds when region exists")
         void createSucceeds() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
@@ -370,7 +370,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("cancelAuction returns 1 when active auction exists")
         void cancelExisting() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
             RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(regionId, WORLD_ID);
@@ -384,7 +384,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("cancelAuction returns 0 when no auction exists")
         void cancelNonExistent() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(regionId, WORLD_ID);
             Assertions.assertEquals(0, result.deleted());
@@ -394,7 +394,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("titleHolder can create auction")
         void titleHolderCanCreate() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             CreateAuctionResult result = logic.createAuction(regionId, WORLD_ID, PLAYER_A, 3600, 3600, 100.0, 10.0);
             Assertions.assertInstanceOf(CreateAuctionResult.Success.class, result);
@@ -404,11 +404,11 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("sanctioned auctioneer can create auction")
         void sanctionedAuctioneerCanCreate() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             UUID sanctioned = UUID.randomUUID();
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractSanctionedAuctioneerMapper().insert(regionId, WORLD_ID, sanctioned);
+                wrapper.freeholdContractSanctionedAuctioneerMapper().insert(regionId, WORLD_ID, sanctioned);
                 session.commit();
             }
 
@@ -420,7 +420,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("non-sanctioned player cannot create auction")
         void nonSanctionedCannotCreate() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             UUID stranger = UUID.randomUUID();
             CreateAuctionResult result = logic.createAuction(regionId, WORLD_ID, stranger, 3600, 3600, 100.0, 10.0);
@@ -428,10 +428,10 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("createAuction returns NoSaleContract when no sale contract exists")
-        void noSaleContract() {
+        @DisplayName("createAuction returns NoFreeholdContract when no freehold contract exists")
+        void noFreeholdContract() {
             CreateAuctionResult result = logic.createAuction("nonexistent", WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
-            Assertions.assertInstanceOf(CreateAuctionResult.NoSaleContract.class, result);
+            Assertions.assertInstanceOf(CreateAuctionResult.NoFreeholdContract.class, result);
         }
     }
 
@@ -452,7 +452,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns BidTooLowMinimum when bid is below minimum")
         void belowMinBid() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID); // minBid = 100.0
 
             BidResult result = logic.performBid(regionId, WORLD_ID, PLAYER_B, 50.0);
@@ -464,7 +464,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns Success for valid first bid")
         void successFirstBid() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
             BidResult result = logic.performBid(regionId, WORLD_ID, PLAYER_B, 150.0);
@@ -475,7 +475,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns BidTooLowCurrent when bid is below current highest")
         void belowCurrentHighest() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 200.0);
@@ -489,7 +489,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns Success when bid exceeds current highest")
         void aboveCurrentHighest() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 200.0);
@@ -506,17 +506,17 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
     class Offer {
 
         @Test
-        @DisplayName("placeOffer returns NoSaleContract when no sale exists")
-        void noSaleContract() {
+        @DisplayName("placeOffer returns NoFreeholdContract when no freehold contract exists")
+        void noFreeholdContract() {
             OfferResult result = logic.placeOffer("nonexistent", WORLD_ID, PLAYER_A, 500.0);
-            Assertions.assertInstanceOf(OfferResult.NoSaleContract.class, result);
+            Assertions.assertInstanceOf(OfferResult.NoFreeholdContract.class, result);
         }
 
         @Test
         @DisplayName("placeOffer succeeds for non-authority player")
         void success() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             Assertions.assertInstanceOf(OfferResult.Success.class, result);
@@ -526,7 +526,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("placeOffer returns IsOwner when offerer is authority")
         void isAuthority() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, AUTHORITY, 500.0);
             Assertions.assertInstanceOf(OfferResult.IsOwner.class, result);
@@ -536,7 +536,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("placeOffer returns AlreadyHasOffer when duplicate offer")
         void alreadyHasOffer() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 600.0);
@@ -547,7 +547,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("placeOffer returns AuctionExists when auction exists on region")
         void auctionExists() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
@@ -565,7 +565,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns Success when offer exists and is not accepted")
         void withdrawExisting() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
@@ -576,7 +576,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns NoOffer when no offer exists")
         void withdrawNonExistent() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
             Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, result);
@@ -586,7 +586,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns OfferAccepted when the offerer's offer has been accepted")
         void withdrawAccepted() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
@@ -597,7 +597,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns NoOffer when another offer on the region has been accepted")
         void withdrawAfterOtherOfferAccepted() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             UUID playerC = UUID.randomUUID();
             logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
@@ -617,7 +617,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("removes other offers on the region")
         void removesOtherOffers() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             UUID playerC = UUID.randomUUID();
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
@@ -639,7 +639,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns NoPaymentRecord when no accepted offer exists")
         void noPaymentRecord() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 100.0);
             Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
@@ -649,7 +649,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns NoPaymentRecord when offerer does not match")
         void wrongOfferer() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             UUID otherPlayer = UUID.randomUUID();
@@ -661,7 +661,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns ExceedsAmountOwed when payment exceeds remaining")
         void exceedsAmountOwed() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 501.0);
@@ -673,7 +673,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns Success for partial payment")
         void partialPayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 200.0);
@@ -687,7 +687,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns ExceedsAmountOwed after partial payment reduces remaining")
         void exceedsAfterPartialPayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 300.0);
@@ -701,7 +701,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns FullyPaid when exact amount is paid")
         void fullyPaidExact() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
@@ -712,7 +712,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns FullyPaid after multiple partial payments")
         void fullyPaidAfterPartials() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             PayOfferResult first = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 200.0);
@@ -726,21 +726,21 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("full payment transfers title holder to offerer")
         void transfersTitleHolder() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
-            Assertions.assertNotNull(info.sale());
-            Assertions.assertEquals(PLAYER_B, info.sale().titleHolderId());
+            Assertions.assertNotNull(info.freehold());
+            Assertions.assertEquals(PLAYER_B, info.freehold().titleHolderId());
         }
 
         @Test
         @DisplayName("full payment clears payment record")
         void clearsPaymentRecord() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
@@ -753,7 +753,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("full payment removes accepted offer")
         void clearsAcceptedOffer() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
@@ -780,7 +780,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns empty list when no payments are expired")
         void noExpired() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
             insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusHours(1));
@@ -793,7 +793,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("clears expired payment and returns refund with zero amount when no partial payment")
         void expiredNoPartialPayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
             insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
@@ -808,7 +808,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("clears expired payment and returns partial payment as refund")
         void expiredWithPartialPayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
             insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusHours(1));
@@ -817,13 +817,13 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             // Now expire it by updating the deadline directly
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                SaleContractBidPaymentEntity payment = wrapper.saleContractBidPaymentMapper()
+                FreeholdContractBidPaymentEntity payment = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(payment);
-                wrapper.saleContractBidPaymentMapper().deleteByBidId(payment.bidId());
-                wrapper.saleContractBidPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
+                wrapper.freeholdContractBidPaymentMapper().deleteByBidId(payment.bidId());
+                wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
                         LocalDateTime.now().minusDays(1));
-                wrapper.saleContractBidPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 75.0);
+                wrapper.freeholdContractBidPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 75.0);
                 session.commit();
             }
 
@@ -837,7 +837,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("expired payment record is deleted")
         void paymentRecordDeleted() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
             insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
@@ -852,7 +852,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("promotes next highest bidder after expiry")
         void promotesNextBidder() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
@@ -863,7 +863,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
             // PLAYER_C should now have a payment record as the next highest bidder
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractBidPaymentEntity nextPayment = wrapper.saleContractBidPaymentMapper()
+                FreeholdContractBidPaymentEntity nextPayment = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(nextPayment, "Next highest bidder should have a payment record");
                 Assertions.assertEquals(PLAYER_C, nextPayment.bidderId());
@@ -877,7 +877,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("no promotion when only one bidder exists")
         void noPromotionSingleBidder() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
             insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
@@ -885,7 +885,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             logic.clearExpiredBidPayments();
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractBidPaymentEntity nextPayment = wrapper.saleContractBidPaymentMapper()
+                FreeholdContractBidPaymentEntity nextPayment = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNull(nextPayment, "No payment should exist when there is no next bidder");
             }
@@ -896,8 +896,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         void multipleExpired() {
             String regionId1 = uniqueRegionId();
             String regionId2 = uniqueRegionId();
-            createSaleRegion(regionId1, WORLD_ID, AUTHORITY, PLAYER_A);
-            createSaleRegion(regionId2, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId1, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId2, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId1, WORLD_ID);
             createAuctionOnRegion(regionId2, WORLD_ID);
             logic.performBid(regionId1, WORLD_ID, PLAYER_C, 150.0);
@@ -927,7 +927,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("returns empty list when no payments are expired")
         void noExpired() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusHours(1));
 
@@ -939,7 +939,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("clears expired payment and returns refund with zero amount when no partial payment")
         void expiredNoPartialPayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
 
@@ -953,7 +953,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("clears expired payment and returns partial payment as refund")
         void expiredWithPartialPayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusHours(1));
             applyPartialOfferPayment(regionId, WORLD_ID, PLAYER_B, 150.0);
@@ -961,13 +961,13 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             // Expire it by re-inserting with past deadline
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                SaleContractOfferPaymentEntity payment = wrapper.saleContractOfferPaymentMapper()
+                FreeholdContractOfferPaymentEntity payment = wrapper.freeholdContractOfferPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(payment);
-                wrapper.saleContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
-                wrapper.saleContractOfferPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
+                wrapper.freeholdContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
+                wrapper.freeholdContractOfferPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
                         LocalDateTime.now().minusDays(1));
-                wrapper.saleContractOfferPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 150.0);
+                wrapper.freeholdContractOfferPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 150.0);
                 session.commit();
             }
 
@@ -981,7 +981,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("expired payment record is deleted")
         void paymentRecordDeleted() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
 
@@ -996,8 +996,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         void multipleExpired() {
             String regionId1 = uniqueRegionId();
             String regionId2 = uniqueRegionId();
-            createSaleRegion(regionId1, WORLD_ID, AUTHORITY, PLAYER_A);
-            createSaleRegion(regionId2, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId1, WORLD_ID, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId2, WORLD_ID, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId1, WORLD_ID, PLAYER_C, 400.0);
             logic.placeOffer(regionId2, WORLD_ID, PLAYER_B, 600.0);
             insertOfferPaymentWithDeadline(regionId1, WORLD_ID, PLAYER_C, LocalDateTime.now().minusDays(1));

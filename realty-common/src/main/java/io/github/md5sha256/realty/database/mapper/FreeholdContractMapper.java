@@ -1,83 +1,83 @@
 package io.github.md5sha256.realty.database.mapper;
 
-import io.github.md5sha256.realty.database.entity.SaleContractEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
 /**
- * Base mapper interface for CRUD operations on the {@code SaleContract} table.
+ * Base mapper interface for CRUD operations on the {@code FreeholdContract} table.
  * SQL annotations are provided by database-specific sub-interfaces.
  *
- * @see SaleContractEntity
+ * @see FreeholdContractEntity
  */
-public interface SaleContractMapper {
+public interface FreeholdContractMapper {
 
     /**
-     * Inserts a new row into the {@code SaleContract} table.
+     * Inserts a new row into the {@code FreeholdContract} table.
      *
      * <p>The {@code regionId} parameter identifies the {@code RealtyRegion} this contract belongs
-     * to. It is not stored directly on the {@code SaleContract} row (that association lives in the
+     * to. It is not stored directly on the {@code FreeholdContract} row (that association lives in the
      * {@code Contract} table), but implementations may use it for subquery-based validation or
      * linking.
      *
      * @param regionId    the {@code realtyRegionId} of the region being sold
-     * @param price       the sale price (must be &gt; 0), or {@code null} if not for sale
-     * @param authority   UUID of the authority overseeing the sale
+     * @param price       the freehold price (must be &gt; 0), or {@code null} if not for freehold
+     * @param authority   UUID of the authority overseeing the freehold
      * @param titleHolder UUID of the current title holder
      * @return number of rows inserted (1 on success)
      */
-    int insertSale(int regionId,
+    int insertFreehold(int regionId,
                    @Nullable Double price,
                    @NotNull UUID authority,
                    @Nullable UUID titleHolder);
 
     /**
-     * Checks whether the given player is the authority on any sale contract for the
+     * Checks whether the given player is the authority on any freehold contract for the
      * specified WorldGuard region, joining through the {@code RealtyRegion} and
      * {@code Contract} tables.
      *
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region
      * @param playerId           UUID of the player to check
-     * @return {@code true} if the player is an authority on at least one sale contract
+     * @return {@code true} if the player is an authority on at least one freehold contract
      */
     boolean existsByRegionAndAuthority(@NotNull String worldGuardRegionId,
                                        @NotNull UUID worldId,
                                        @NotNull UUID playerId);
 
     /**
-     * Selects the sale contract associated with a WorldGuard region, joining through
+     * Selects the freehold contract associated with a WorldGuard region, joining through
      * the {@code RealtyRegion} and {@code Contract} tables.
      *
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region
-     * @return the sale contract, or {@code null} if none exists
+     * @return the freehold contract, or {@code null} if none exists
      */
-    @Nullable SaleContractEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+    @Nullable FreeholdContractEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     /**
-     * Updates the price and title holder on the sale contract associated with a
+     * Updates the price and title holder on the freehold contract associated with a
      * WorldGuard region, joining through the {@code RealtyRegion} and {@code Contract} tables.
      *
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region
-     * @param price              the new sale price (must be &gt; 0)
+     * @param price              the new freehold price (must be &gt; 0)
      * @param titleHolder        UUID of the new title holder
      * @return number of rows updated (1 on success, 0 if no matching contract)
      */
-    int updateSaleByRegion(@NotNull String worldGuardRegionId,
+    int updateFreeholdByRegion(@NotNull String worldGuardRegionId,
                            @NotNull UUID worldId,
                            double price,
                            @Nullable UUID titleHolder);
 
     /**
-     * Updates only the price on the sale contract associated with a WorldGuard region.
+     * Updates only the price on the freehold contract associated with a WorldGuard region.
      *
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region
-     * @param price              the new sale price (must be &gt; 0), or {@code null} to unset
+     * @param price              the new freehold price (must be &gt; 0), or {@code null} to unset
      * @return number of rows updated (1 on success, 0 if no matching contract)
      */
     int updatePriceByRegion(@NotNull String worldGuardRegionId,
@@ -85,7 +85,7 @@ public interface SaleContractMapper {
                             @Nullable Double price);
 
     /**
-     * Updates only the title holder on the sale contract associated with a WorldGuard region.
+     * Updates only the title holder on the freehold contract associated with a WorldGuard region.
      *
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region

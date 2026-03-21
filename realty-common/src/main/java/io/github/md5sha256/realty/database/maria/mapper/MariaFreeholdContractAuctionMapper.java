@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
-import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
-import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
+import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
@@ -17,21 +17,21 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * MariaDB-specific MyBatis mapper for query operations on the {@code SaleContractAuction} table.
+ * MariaDB-specific MyBatis mapper for query operations on the {@code FreeholdContractAuction} table.
  *
- * @see SaleContractAuctionEntity
+ * @see FreeholdContractAuctionEntity
  */
-public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMapper {
+public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuctionMapper {
 
     @Override
     @Select("""
-            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
+            SELECT sca.freeholdContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
-            FROM SaleContractAuction sca
-            WHERE sca.saleContractAuctionId = #{saleContractAuctionId}
+            FROM FreeholdContractAuction sca
+            WHERE sca.freeholdContractAuctionId = #{freeholdContractAuctionId}
             """)
     @ConstructorArgs({
-            @Arg(column = "saleContractAuctionId", javaType = int.class),
+            @Arg(column = "freeholdContractAuctionId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
             @Arg(column = "auctioneerId", javaType = UUID.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
@@ -42,20 +42,20 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
             @Arg(column = "minStep", javaType = double.class),
             @Arg(column = "ended", javaType = boolean.class)
     })
-    @Nullable SaleContractAuctionEntity selectById(@Param("saleContractAuctionId") int saleContractAuctionId);
+    @Nullable FreeholdContractAuctionEntity selectById(@Param("freeholdContractAuctionId") int freeholdContractAuctionId);
 
     @Override
     @Select("""
-            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
+            SELECT sca.freeholdContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
-            FROM SaleContractAuction sca
+            FROM FreeholdContractAuction sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             AND sca.ended = FALSE
             """)
     @ConstructorArgs({
-            @Arg(column = "saleContractAuctionId", javaType = int.class),
+            @Arg(column = "freeholdContractAuctionId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
             @Arg(column = "auctioneerId", javaType = UUID.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
@@ -66,12 +66,12 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
             @Arg(column = "minStep", javaType = double.class),
             @Arg(column = "ended", javaType = boolean.class)
     })
-    @Nullable SaleContractAuctionEntity selectActiveByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+    @Nullable FreeholdContractAuctionEntity selectActiveByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                              @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Insert("""
-            INSERT INTO SaleContractAuction (realtyRegionId, auctioneerId, startDate, biddingDurationSeconds, paymentDurationSeconds, minBid, minStep)
+            INSERT INTO FreeholdContractAuction (realtyRegionId, auctioneerId, startDate, biddingDurationSeconds, paymentDurationSeconds, minBid, minStep)
             SELECT rr.realtyRegionId, #{auctioneerId}, NOW(), #{biddingDurationSeconds}, #{paymentDurationSeconds}, #{minBid}, #{minStep}
             FROM RealtyRegion rr
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -88,7 +88,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
 
     @Override
     @Update("""
-            UPDATE SaleContractAuction sca
+            UPDATE FreeholdContractAuction sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             SET sca.paymentDeadline = sca.paymentDeadline + INTERVAL sca.paymentDurationSeconds SECOND
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -99,14 +99,14 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
 
     @Override
     @Select("""
-            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
+            SELECT sca.freeholdContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
-            FROM SaleContractAuction sca
+            FROM FreeholdContractAuction sca
             WHERE sca.ended = FALSE
             AND NOW() >= sca.startDate + INTERVAL sca.biddingDurationSeconds SECOND
             """)
     @ConstructorArgs({
-            @Arg(column = "saleContractAuctionId", javaType = int.class),
+            @Arg(column = "freeholdContractAuctionId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
             @Arg(column = "auctioneerId", javaType = UUID.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
@@ -117,18 +117,18 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
             @Arg(column = "minStep", javaType = double.class),
             @Arg(column = "ended", javaType = boolean.class)
     })
-    @Nullable List<SaleContractAuctionEntity> selectExpiredBiddingAuctions();
+    @Nullable List<FreeholdContractAuctionEntity> selectExpiredBiddingAuctions();
 
     @Override
     @Select("""
-            SELECT sca.saleContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
+            SELECT sca.freeholdContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
-            FROM SaleContractAuction sca
+            FROM FreeholdContractAuction sca
             WHERE sca.ended = FALSE
             AND NOW() >= sca.paymentDeadline
             """)
     @ConstructorArgs({
-            @Arg(column = "saleContractAuctionId", javaType = int.class),
+            @Arg(column = "freeholdContractAuctionId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
             @Arg(column = "auctioneerId", javaType = UUID.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
@@ -139,19 +139,19 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
             @Arg(column = "minStep", javaType = double.class),
             @Arg(column = "ended", javaType = boolean.class)
     })
-    @Nullable List<SaleContractAuctionEntity> selectExpiredPaymentAuctions();
+    @Nullable List<FreeholdContractAuctionEntity> selectExpiredPaymentAuctions();
 
     @Override
-    @Update("UPDATE SaleContractAuction SET ended = TRUE WHERE saleContractAuctionId = #{saleContractAuctionId}")
-    int markEnded(@Param("saleContractAuctionId") int saleContractAuctionId);
+    @Update("UPDATE FreeholdContractAuction SET ended = TRUE WHERE freeholdContractAuctionId = #{freeholdContractAuctionId}")
+    int markEnded(@Param("freeholdContractAuctionId") int freeholdContractAuctionId);
 
     @Override
-    @Delete("DELETE FROM SaleContractAuction WHERE saleContractAuctionId = #{saleContractAuctionId}")
-    int deleteAuction(@Param("saleContractAuctionId") int saleContractAuctionId);
+    @Delete("DELETE FROM FreeholdContractAuction WHERE freeholdContractAuctionId = #{freeholdContractAuctionId}")
+    int deleteAuction(@Param("freeholdContractAuctionId") int freeholdContractAuctionId);
 
     @Override
     @Delete("""
-            DELETE sca FROM SaleContractAuction sca
+            DELETE sca FROM FreeholdContractAuction sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -163,7 +163,7 @@ public interface MariaSaleContractAuctionMapper extends SaleContractAuctionMappe
     @Override
     @Select("""
             SELECT COUNT(*) > 0
-            FROM SaleContractAuction sca
+            FROM FreeholdContractAuction sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}

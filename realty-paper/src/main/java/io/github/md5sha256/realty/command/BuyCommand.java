@@ -82,11 +82,11 @@ public record BuyCommand(
             switch (validation) {
                 case RealtyLogicImpl.BuyValidation.Eligible eligible ->
                         handlePaymentAndTransfer(sender, region, regionId, eligible);
-                case RealtyLogicImpl.BuyValidation.NoSaleContract ignored ->
-                        sender.sendMessage(messages.messageFor("buy.no-sale-contract",
+                case RealtyLogicImpl.BuyValidation.NoFreeholdContract ignored ->
+                        sender.sendMessage(messages.messageFor("buy.no-freehold-contract",
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.BuyValidation.NotForSale ignored ->
-                        sender.sendMessage(messages.messageFor("buy.not-for-sale",
+                case RealtyLogicImpl.BuyValidation.NotForFreehold ignored ->
+                        sender.sendMessage(messages.messageFor("buy.not-for-freehold",
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyLogicImpl.BuyValidation.IsAuthority ignored ->
                         sender.sendMessage(messages.messageFor("buy.is-authority"));

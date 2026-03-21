@@ -6,18 +6,18 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Internal entity record mapping to the {@code SaleContractAuction} DDL table.
+ * Internal entity record mapping to the {@code FreeholdContractAuction} DDL table.
  *
- * @param saleContractAuctionId  Auto-increment primary key
+ * @param freeholdContractAuctionId  Auto-increment primary key
  * @param startDate              When the auction started
  * @param biddingDurationSeconds Bidding window in seconds (must be &gt; 0)
  * @param paymentDurationSeconds Payment window in seconds (must be &gt; 0)
  * @param minBid                 Minimum bid amount (must be &gt; 0)
  * @param minStep                Minimum price step between bids (must be &gt; 0)
- * @see io.github.md5sha256.realty.api.SaleContractAuction
+ * @see io.github.md5sha256.realty.api.FreeholdContractAuction
  */
-public record SaleContractAuctionEntity(
-        int saleContractAuctionId,
+public record FreeholdContractAuctionEntity(
+        int freeholdContractAuctionId,
         int realtyRegionId,
         @NotNull UUID auctioneerId,
         @NotNull LocalDateTime startDate,

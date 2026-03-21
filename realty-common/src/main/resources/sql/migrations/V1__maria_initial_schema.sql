@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS RealtyRegion
 CREATE TABLE IF NOT EXISTS Contract
 (
     contractId     INT                       NOT NULL,
-    contractType   ENUM ('contract', 'sale') NOT NULL,
+    contractType   ENUM ('contract', 'freehold') NOT NULL,
     realtyRegionId INT                       NOT NULL,
     PRIMARY KEY (contractId, contractType)
     );
@@ -25,17 +25,17 @@ CREATE TABLE IF NOT EXISTS LeaseContract
     maxExtensions        INT
 );
 
-CREATE TABLE IF NOT EXISTS SaleContract
+CREATE TABLE IF NOT EXISTS FreeholdContract
 (
-    saleContractId INT    NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    authorityId    UUID   NOT NULL,
-    titleHolderId  UUID,
-    price          DOUBLE
+    freeholdContractId INT    NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    authorityId        UUID   NOT NULL,
+    titleHolderId      UUID,
+    price              DOUBLE
 );
 
-CREATE TABLE IF NOT EXISTS SaleContractAuction
+CREATE TABLE IF NOT EXISTS FreeholdContractAuction
 (
-    saleContractAuctionId  INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    freeholdContractAuctionId  INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
     realtyRegionId         INT      NOT NULL,
     auctioneerId           UUID     NOT NULL,
     startDate              DATETIME NOT NULL,
@@ -48,16 +48,16 @@ CREATE TABLE IF NOT EXISTS SaleContractAuction
     ended                  BOOL     NOT NULL DEFAULT FALSE
     );
 
-CREATE TABLE IF NOT EXISTS SaleContractBid
+CREATE TABLE IF NOT EXISTS FreeholdContractBid
 (
     bidId                 INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    saleContractAuctionId INT      NOT NULL,
+    freeholdContractAuctionId INT      NOT NULL,
     bidderId              UUID     NOT NULL,
     bidPrice              DOUBLE   NOT NULL,
     bidTime               DATETIME NOT NULL DEFAULT NOW()
     );
 
-CREATE TABLE IF NOT EXISTS SaleContractOffer
+CREATE TABLE IF NOT EXISTS FreeholdContractOffer
 (
     offerId        INT      NOT NULL PRIMARY KEY AUTO_INCREMENT,
     realtyRegionId INT      NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS SaleContractOffer
     offerTime      DATETIME NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS SaleContractOfferPayment
+CREATE TABLE IF NOT EXISTS FreeholdContractOfferPayment
 (
     offerId         INT      NOT NULL PRIMARY KEY,
     realtyRegionId  INT      NOT NULL,
@@ -77,10 +77,10 @@ CREATE TABLE IF NOT EXISTS SaleContractOfferPayment
 );
 
 
-CREATE TABLE IF NOT EXISTS SaleContractBidPayment
+CREATE TABLE IF NOT EXISTS FreeholdContractBidPayment
 (
     bidId                 INT      NOT NULL PRIMARY KEY,
-    saleContractAuctionId INT      NOT NULL,
+    freeholdContractAuctionId INT      NOT NULL,
     realtyRegionId        INT      NOT NULL,
     bidderId              UUID     NOT NULL,
     bidPrice              DOUBLE   NOT NULL,
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS SaleContractBidPayment
     currentPayment        DOUBLE   NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS SaleContractSanctionedAuctioneers
+CREATE TABLE IF NOT EXISTS FreeholdContractSanctionedAuctioneers
 (
     realtyRegionId INT  NOT NULL,
     auctioneerId   UUID NOT NULL,
@@ -96,19 +96,19 @@ CREATE TABLE IF NOT EXISTS SaleContractSanctionedAuctioneers
 );
 
 
-ALTER TABLE SaleContractOfferPayment
+ALTER TABLE FreeholdContractOfferPayment
     ADD (
-        CONSTRAINT SaleContractOffer_SaleContractOfferPayment_offerId_fk FOREIGN KEY (offerId) REFERENCES SaleContractOffer (offerId) ON DELETE CASCADE,
-        CONSTRAINT RealtyRegion_SaleContractOfferPayment_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
+        CONSTRAINT FreeholdContractOffer_FreeholdContractOfferPayment_offerId_fk FOREIGN KEY (offerId) REFERENCES FreeholdContractOffer (offerId) ON DELETE CASCADE,
+        CONSTRAINT RealtyRegion_FreeholdContractOfferPayment_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
         CONSTRAINT unique_payment UNIQUE (realtyRegionId, offererId),
         CONSTRAINT chk_valid_offerPrice CHECK (offerPrice > 0),
         CONSTRAINT chk_valid_currentPayment CHECK (currentPayment >= 0 AND currentPayment <= offerPrice)
         );
 
-ALTER TABLE SaleContractOffer
+ALTER TABLE FreeholdContractOffer
     ADD (
         -- Cascade: deleting a RealtyRegion removes all its pending offers.
-        CONSTRAINT RealtyRegion_SaleContractOffer_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
+        CONSTRAINT RealtyRegion_FreeholdContractOffer_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
         CONSTRAINT unique_offer UNIQUE (realtyRegionId, offererId),
         CONSTRAINT chk_valid_offerPrice CHECK (offerPrice > 0)
         -- chk_offerer_not_authority: enforced in application logic (MariaDB does not support subqueries in CHECK)
@@ -134,15 +134,15 @@ ALTER TABLE LeaseContract
                                          (maxExtensions IS NULL AND currentMaxExtensions IS NULL))
         );
 
-ALTER TABLE SaleContract
+ALTER TABLE FreeholdContract
     ADD (
         CONSTRAINT chk_price CHECK (price IS NULL OR price > 0)
         );
 
-ALTER TABLE SaleContractAuction
+ALTER TABLE FreeholdContractAuction
     ADD (
         -- Cascade: deleting a RealtyRegion removes all its auctions.
-        CONSTRAINT SaleContractAuction_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
+        CONSTRAINT FreeholdContractAuction_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
         CONSTRAINT chk_valid_minBid CHECK (minBid > 0),
         CONSTRAINT chk_valid_minStep CHECK (minStep > 0),
         CONSTRAINT chk_valid_biddingDuration CHECK ( biddingDurationSeconds > 0 ),
@@ -150,25 +150,25 @@ ALTER TABLE SaleContractAuction
         -- chk_unique_active_auction_per_region: enforced in application logic (MariaDB does not support subqueries in CHECK)
         );
 
-ALTER TABLE SaleContractBid
+ALTER TABLE FreeholdContractBid
     ADD (
         -- Cascade: deleting an auction removes all its bids.
-        CONSTRAINT SaleContractAuction_SaleContractBid_saleContractAuctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId) ON DELETE CASCADE,
+        CONSTRAINT fk_FreeholdContractBid_auctionId FOREIGN KEY (freeholdContractAuctionId) REFERENCES FreeholdContractAuction (freeholdContractAuctionId) ON DELETE CASCADE,
         CONSTRAINT chk_valid_bidPrice CHECK (bidPrice > 0),
-        CONSTRAINT unique_sale_contract UNIQUE (saleContractAuctionId, bidderId, bidPrice)
+        CONSTRAINT unique_freehold_contract UNIQUE (freeholdContractAuctionId, bidderId, bidPrice)
         );
 
-ALTER TABLE SaleContractSanctionedAuctioneers
+ALTER TABLE FreeholdContractSanctionedAuctioneers
     ADD (
         CONSTRAINT SanctionedAuctioneers_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE
         );
 
-ALTER TABLE SaleContractBidPayment
+ALTER TABLE FreeholdContractBidPayment
     ADD (
-        CONSTRAINT SaleContractBid_BidPayment_bidId_fk FOREIGN KEY (bidId) REFERENCES SaleContractBid (bidId) ON DELETE CASCADE,
-        CONSTRAINT SaleContractAuction_BidPayment_auctionId_fk FOREIGN KEY (saleContractAuctionId) REFERENCES SaleContractAuction (saleContractAuctionId) ON DELETE CASCADE,
+        CONSTRAINT FreeholdContractBid_BidPayment_bidId_fk FOREIGN KEY (bidId) REFERENCES FreeholdContractBid (bidId) ON DELETE CASCADE,
+        CONSTRAINT FreeholdContractAuction_BidPayment_auctionId_fk FOREIGN KEY (freeholdContractAuctionId) REFERENCES FreeholdContractAuction (freeholdContractAuctionId) ON DELETE CASCADE,
         CONSTRAINT RealtyRegion_BidPayment_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE,
-        CONSTRAINT unique_bid_payment UNIQUE (saleContractAuctionId, bidderId),
+        CONSTRAINT unique_bid_payment UNIQUE (freeholdContractAuctionId, bidderId),
         CONSTRAINT chk_valid_bid_payment_bidPrice CHECK (bidPrice > 0),
         CONSTRAINT chk_valid_bid_payment_currentPayment CHECK (currentPayment >= 0 AND currentPayment <= bidPrice)
         );

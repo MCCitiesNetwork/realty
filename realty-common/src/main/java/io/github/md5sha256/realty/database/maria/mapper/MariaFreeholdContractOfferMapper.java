@@ -2,8 +2,8 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
-import io.github.md5sha256.realty.database.entity.SaleContractOfferEntity;
-import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
+import io.github.md5sha256.realty.database.entity.FreeholdContractOfferEntity;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
@@ -18,16 +18,16 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * MariaDB-specific MyBatis mapper for query operations on the {@code SaleContractOffer} table.
+ * MariaDB-specific MyBatis mapper for query operations on the {@code FreeholdContractOffer} table.
  *
- * @see SaleContractOfferEntity
+ * @see FreeholdContractOfferEntity
  */
-public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
+public interface MariaFreeholdContractOfferMapper extends FreeholdContractOfferMapper {
 
     @Override
     @Select("""
             SELECT sco.offerId, sco.realtyRegionId, sco.offererId, sco.offerPrice, sco.offerTime
-            FROM SaleContractOffer sco
+            FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -39,12 +39,12 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
             @Arg(column = "offerPrice", javaType = double.class),
             @Arg(column = "offerTime", javaType = LocalDateTime.class)
     })
-    @Nullable List<SaleContractOfferEntity> selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+    @Nullable List<FreeholdContractOfferEntity> selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                            @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Insert("""
-            INSERT INTO SaleContractOffer (realtyRegionId, offererId, offerPrice)
+            INSERT INTO FreeholdContractOffer (realtyRegionId, offererId, offerPrice)
             SELECT rr.realtyRegionId, #{offererId}, #{offerPrice}
             FROM RealtyRegion rr
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -58,7 +58,7 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
     @Override
     @Delete("""
             DELETE sco
-            FROM SaleContractOffer sco
+            FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -69,7 +69,7 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
     @Override
     @Delete("""
             DELETE sco
-            FROM SaleContractOffer sco
+            FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -82,7 +82,7 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
     @Override
     @Delete("""
             DELETE sco
-            FROM SaleContractOffer sco
+            FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -95,7 +95,7 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
     @Override
     @Select("""
             SELECT COUNT(*) > 0
-            FROM SaleContractOffer sco
+            FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -108,7 +108,7 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
     @Override
     @Select("""
             SELECT sco.offerId, sco.realtyRegionId, sco.offererId, sco.offerPrice, sco.offerTime
-            FROM SaleContractOffer sco
+            FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -121,7 +121,7 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
             @Arg(column = "offerPrice", javaType = double.class),
             @Arg(column = "offerTime", javaType = LocalDateTime.class)
     })
-    @Nullable SaleContractOfferEntity selectByOfferer(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+    @Nullable FreeholdContractOfferEntity selectByOfferer(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                       @Param("worldId") @NotNull UUID worldId,
                                                       @Param("offererId") @NotNull UUID offererId);
 
@@ -129,9 +129,9 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
     @Select("""
             SELECT rr.worldGuardRegionId, rr.worldId, sco.offerPrice, sco.offerTime,
                    scop.currentPayment, scop.paymentDeadline
-            FROM SaleContractOffer sco
+            FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
-            LEFT JOIN SaleContractOfferPayment scop ON scop.offerId = sco.offerId
+            LEFT JOIN FreeholdContractOfferPayment scop ON scop.offerId = sco.offerId
             WHERE sco.offererId = #{offererId}
             ORDER BY sco.offerTime DESC
             """)
@@ -149,12 +149,12 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
     @Select("""
             SELECT rr.worldGuardRegionId, rr.worldId, sco.offererId, sco.offerPrice, sco.offerTime,
                    scop.currentPayment, scop.paymentDeadline
-            FROM SaleContractOffer sco
+            FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
-            INNER JOIN Contract c ON c.realtyRegionId = sco.realtyRegionId AND c.contractType = 'sale'
-            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
-            LEFT JOIN SaleContractOfferPayment scop ON scop.offerId = sco.offerId
-            WHERE sc.titleHolderId = #{titleHolderId}
+            INNER JOIN Contract c ON c.realtyRegionId = sco.realtyRegionId AND c.contractType = 'freehold'
+            INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
+            LEFT JOIN FreeholdContractOfferPayment scop ON scop.offerId = sco.offerId
+            WHERE fc.titleHolderId = #{titleHolderId}
             ORDER BY sco.offerTime DESC
             """)
     @ConstructorArgs({

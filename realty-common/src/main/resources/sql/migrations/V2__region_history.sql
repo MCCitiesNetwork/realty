@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS SaleHistory
+CREATE TABLE IF NOT EXISTS FreeholdHistory
 (
     historyId          INT PRIMARY KEY AUTO_INCREMENT,
     worldGuardRegionId VARCHAR(255)                             NOT NULL,
@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS SaleHistory
     eventTime          DATETIME                                 NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_sale_history_region ON SaleHistory (worldGuardRegionId, worldId);
-CREATE INDEX idx_sale_history_buyer ON SaleHistory (buyerId);
-CREATE INDEX idx_sale_history_time ON SaleHistory (eventTime);
+CREATE INDEX idx_freehold_history_region ON FreeholdHistory (worldGuardRegionId, worldId);
+CREATE INDEX idx_freehold_history_buyer ON FreeholdHistory (buyerId);
+CREATE INDEX idx_freehold_history_time ON FreeholdHistory (eventTime);
 
 CREATE TABLE IF NOT EXISTS LeaseHistory
 (

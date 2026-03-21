@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
-public interface SaleHistoryMapper {
+public interface FreeholdHistoryMapper {
 
     int insert(@NotNull String worldGuardRegionId,
                @NotNull UUID worldId,
@@ -14,7 +14,7 @@ public interface SaleHistoryMapper {
                @NotNull UUID authorityId,
                double price);
 
-    @Nullable Double selectLastSalePrice(@NotNull String worldGuardRegionId,
+    @Nullable Double selectLastFreeholdPrice(@NotNull String worldGuardRegionId,
                                           @NotNull UUID worldId);
 
 }

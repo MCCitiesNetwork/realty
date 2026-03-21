@@ -7,8 +7,8 @@ import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
-import io.github.md5sha256.realty.database.mapper.SaleHistoryMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdHistoryMapper;
 import io.github.md5sha256.realty.settings.Settings;
 import me.wiefferink.areashop.AreaShop;
 import me.wiefferink.areashop.managers.IFileManager;
@@ -36,47 +36,47 @@ public class ImportJob {
     private static @NotNull ImportResult importAll(
             @NotNull Database database,
             @NotNull Audience audience,
-            @NotNull List<SaleDto> sales,
+            @NotNull List<FreeholdDto> freeholds,
             @NotNull List<LeaseDto> leases) {
         int imported = 0;
         int skipped = 0;
         int failed = 0;
         int processed = 0;
-        int total = sales.size() + leases.size();
+        int total = freeholds.size() + leases.size();
         try (SqlSessionWrapper wrapper = database.openSession(ExecutorType.REUSE, false);
              SqlSession session = wrapper.session()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
-            SaleContractMapper saleMapper = wrapper.saleContractMapper();
+            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
             ContractMapper contractMapper = wrapper.contractMapper();
-            SaleHistoryMapper saleHistoryMapper = wrapper.saleHistoryMapper();
-            for (SaleDto sale : sales) {
+            FreeholdHistoryMapper freeholdHistoryMapper = wrapper.freeholdHistoryMapper();
+            for (FreeholdDto freehold : freeholds) {
                 try {
-                    if (regionMapper.selectByWorldGuardRegion(sale.worldGuardRegionId(),
-                            sale.worldId()) != null) {
+                    if (regionMapper.selectByWorldGuardRegion(freehold.worldGuardRegionId(),
+                            freehold.worldId()) != null) {
                         skipped++;
                     } else {
-                        int regionId = regionMapper.registerWorldGuardRegion(sale.worldGuardRegionId(),
-                                sale.worldId());
-                        int saleContractId = saleMapper.insertSale(regionId,
-                                sale.price(),
-                                sale.authority(),
-                                sale.titleHolder());
-                        contractMapper.insert(new ContractEntity(saleContractId, "sale", regionId));
-                        if (sale.lastSoldPrice() != null && sale.titleHolder() != null) {
-                            saleHistoryMapper.insert(sale.worldGuardRegionId(),
-                                    sale.worldId(),
+                        int regionId = regionMapper.registerWorldGuardRegion(freehold.worldGuardRegionId(),
+                                freehold.worldId());
+                        int freeholdContractId = freeholdMapper.insertFreehold(regionId,
+                                freehold.price(),
+                                freehold.authority(),
+                                freehold.titleHolder());
+                        contractMapper.insert(new ContractEntity(freeholdContractId, "freehold", regionId));
+                        if (freehold.lastSoldPrice() != null && freehold.titleHolder() != null) {
+                            freeholdHistoryMapper.insert(freehold.worldGuardRegionId(),
+                                    freehold.worldId(),
                                     "BUY",
-                                    sale.titleHolder(),
-                                    sale.authority(),
-                                    sale.lastSoldPrice());
+                                    freehold.titleHolder(),
+                                    freehold.authority(),
+                                    freehold.lastSoldPrice());
                         }
                         imported++;
                     }
                 } catch (Exception ex) {
                     failed++;
                     audience.sendMessage(Component.text(
-                            "Failed to import sale region " + sale.worldGuardRegionId() + ": " + ex.getMessage(),
+                            "Failed to import freehold region " + freehold.worldGuardRegionId() + ": " + ex.getMessage(),
                             NamedTextColor.RED));
                 }
                 processed++;
@@ -127,7 +127,7 @@ public class ImportJob {
                                                                 @NotNull Executor executor,
                                                                 @NotNull Audience audience) {
         IFileManager fileManager = AreaShop.getInstance().getFileManager();
-        List<SaleDto> buyRegions = fileManager.getBuysRef().stream()
+        List<FreeholdDto> buyRegions = fileManager.getBuysRef().stream()
                 .map(region -> {
                     ProtectedRegion protectedRegion = region.getRegion();
                     World world = region.getWorld();
@@ -135,17 +135,17 @@ public class ImportJob {
                         audience.sendMessage(Component.text("Skipping invalid buy region " + region.getName()));
                         return null;
                     }
-                    UUID landlord = Objects.requireNonNullElse(region.getLandlord(), settings.defaultSaleAuthority());
+                    UUID landlord = Objects.requireNonNullElse(region.getLandlord(), settings.defaultFreeholdAuthority());
                     UUID owner = region.getOwner();
-                    boolean forSale = region.getState() == GeneralRegion.RegionState.FORSALE;
-                    Double price = forSale ? region.getPrice() : null;
-                    Double lastSoldPrice = !forSale ? region.getPrice() : null;
-                    return new SaleDto(protectedRegion.getId(),
+                    boolean forFreehold = region.getState() == GeneralRegion.RegionState.FORSALE;
+                    Double price = forFreehold ? region.getPrice() : null;
+                    Double lastSoldPrice = !forFreehold ? region.getPrice() : null;
+                    return new FreeholdDto(protectedRegion.getId(),
                             world.getUID(),
                             price,
                             lastSoldPrice,
                             landlord,
-                            owner != null ? owner : settings.defaultSaleTitleholder());
+                            owner != null ? owner : settings.defaultFreeholdTitleholder());
                 })
                 .filter(Objects::nonNull)
                 .toList();
@@ -173,7 +173,7 @@ public class ImportJob {
                 .toList();
         int totalRegions = buyRegions.size() + rentRegions.size();
         audience.sendMessage(Component.text(
-                "Starting import: " + buyRegions.size() + " sale regions, "
+                "Starting import: " + buyRegions.size() + " freehold regions, "
                         + rentRegions.size() + " lease regions (" + totalRegions + " total)",
                 NamedTextColor.YELLOW));
         return CompletableFuture.supplyAsync(() -> importAll(database, audience, buyRegions, rentRegions), executor);
@@ -188,7 +188,7 @@ public class ImportJob {
     public record ImportResult(int imported, int skipped, int failed) {
     }
 
-    private record SaleDto(@NotNull String worldGuardRegionId,
+    private record FreeholdDto(@NotNull String worldGuardRegionId,
                            @NotNull UUID worldId,
                            @Nullable Double price,
                            @Nullable Double lastSoldPrice,

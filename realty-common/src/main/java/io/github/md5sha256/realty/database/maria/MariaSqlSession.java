@@ -5,26 +5,26 @@ import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseHistoryMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
-import io.github.md5sha256.realty.database.mapper.SaleHistoryMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractBidPaymentMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractOfferPaymentMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractSanctionedAuctioneerMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdHistoryMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractBidMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractBidPaymentMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferPaymentMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractSanctionedAuctioneerMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseHistoryMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractAuctionMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaSaleHistoryMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractBidMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractOfferMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractBidPaymentMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractOfferPaymentMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaSaleContractSanctionedAuctioneerMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractAuctionMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdHistoryMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractBidMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractOfferMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractBidPaymentMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractOfferPaymentMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractSanctionedAuctioneerMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -46,8 +46,8 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     }
 
     @Override
-    public @NotNull SaleHistoryMapper saleHistoryMapper() {
-        return session.getMapper(MariaSaleHistoryMapper.class);
+    public @NotNull FreeholdHistoryMapper freeholdHistoryMapper() {
+        return session.getMapper(MariaFreeholdHistoryMapper.class);
     }
 
     @Override
@@ -56,38 +56,38 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     }
 
     @Override
-    public @NotNull SaleContractAuctionMapper saleContractAuctionMapper() {
-        return session.getMapper(MariaSaleContractAuctionMapper.class);
+    public @NotNull FreeholdContractAuctionMapper freeholdContractAuctionMapper() {
+        return session.getMapper(MariaFreeholdContractAuctionMapper.class);
     }
 
     @Override
-    public @NotNull SaleContractBidMapper saleContractBidMapper() {
-        return session.getMapper(MariaSaleContractBidMapper.class);
+    public @NotNull FreeholdContractBidMapper freeholdContractBidMapper() {
+        return session.getMapper(MariaFreeholdContractBidMapper.class);
     }
 
     @Override
-    public @NotNull SaleContractBidPaymentMapper saleContractBidPaymentMapper() {
-        return session.getMapper(MariaSaleContractBidPaymentMapper.class);
+    public @NotNull FreeholdContractBidPaymentMapper freeholdContractBidPaymentMapper() {
+        return session.getMapper(MariaFreeholdContractBidPaymentMapper.class);
     }
 
     @Override
-    public @NotNull SaleContractMapper saleContractMapper() {
-        return session.getMapper(MariaSaleContractMapper.class);
+    public @NotNull FreeholdContractMapper freeholdContractMapper() {
+        return session.getMapper(MariaFreeholdContractMapper.class);
     }
 
     @Override
-    public @NotNull SaleContractOfferMapper saleContractOfferMapper() {
-        return session.getMapper(MariaSaleContractOfferMapper.class);
+    public @NotNull FreeholdContractOfferMapper freeholdContractOfferMapper() {
+        return session.getMapper(MariaFreeholdContractOfferMapper.class);
     }
 
     @Override
-    public @NotNull SaleContractOfferPaymentMapper saleContractOfferPaymentMapper() {
-        return session.getMapper(MariaSaleContractOfferPaymentMapper.class);
+    public @NotNull FreeholdContractOfferPaymentMapper freeholdContractOfferPaymentMapper() {
+        return session.getMapper(MariaFreeholdContractOfferPaymentMapper.class);
     }
 
     @Override
-    public @NotNull SaleContractSanctionedAuctioneerMapper saleContractSanctionedAuctioneerMapper() {
-        return session.getMapper(MariaSaleContractSanctionedAuctioneerMapper.class);
+    public @NotNull FreeholdContractSanctionedAuctioneerMapper freeholdContractSanctionedAuctioneerMapper() {
+        return session.getMapper(MariaFreeholdContractSanctionedAuctioneerMapper.class);
     }
 
     @Override

@@ -13,7 +13,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
-import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -119,7 +119,7 @@ public record AuctionCommandGroup(
 
         CompletableFuture.runAsync(() -> {
             try {
-                SaleContractAuctionEntity auction = logic.getRegionInfo(regionId, worldId).auction();
+                FreeholdContractAuctionEntity auction = logic.getRegionInfo(regionId, worldId).auction();
                 if (auction == null) {
                     sender.sendMessage(messages.messageFor("auction-info.no-auction",
                             Placeholder.unparsed("region", regionId)));
@@ -212,8 +212,8 @@ public record AuctionCommandGroup(
                     case CreateAuctionResult.NotSanctioned ignored ->
                             sender.sendMessage(messages.messageFor("auction.not-sanctioned",
                                     Placeholder.unparsed("region", regionId)));
-                    case CreateAuctionResult.NoSaleContract ignored ->
-                            sender.sendMessage(messages.messageFor("auction.no-sale-contract",
+                    case CreateAuctionResult.NoFreeholdContract ignored ->
+                            sender.sendMessage(messages.messageFor("auction.no-freehold-contract",
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {

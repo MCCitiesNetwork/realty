@@ -5,12 +5,12 @@ import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractBid;
-import io.github.md5sha256.realty.database.entity.SaleContractBidPaymentEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractOfferEntity;
-import io.github.md5sha256.realty.database.entity.SaleContractOfferPaymentEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
+import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractOfferEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -36,8 +36,8 @@ class MapperTest extends AbstractDatabaseTest {
         return "mapper_region_" + REGION_COUNTER.incrementAndGet();
     }
 
-    private static void createSaleRegion(String regionId, UUID authority, UUID titleHolder) {
-        boolean created = logic.createSale(regionId, WORLD_ID, 1000.0, authority, titleHolder);
+    private static void createFreeholdRegion(String regionId, UUID authority, UUID titleHolder) {
+        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, authority, titleHolder);
         Assertions.assertTrue(created);
     }
 
@@ -155,7 +155,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectRegionsByTitleHolder returns owned regions")
         void selectByTitleHolder() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 List<RealtyRegionEntity> regions = wrapper.realtyRegionMapper()
@@ -168,7 +168,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectRegionsByAuthority returns authority regions")
         void selectByAuthority() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 List<RealtyRegionEntity> regions = wrapper.realtyRegionMapper()
@@ -194,8 +194,8 @@ class MapperTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("countRegionsByTitleHolder returns correct count")
         void countByTitleHolder() {
-            createSaleRegion(uniqueRegionId(), AUTHORITY, PLAYER_A);
-            createSaleRegion(uniqueRegionId(), AUTHORITY, PLAYER_A);
+            createFreeholdRegion(uniqueRegionId(), AUTHORITY, PLAYER_A);
+            createFreeholdRegion(uniqueRegionId(), AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 int count = wrapper.realtyRegionMapper().countRegionsByTitleHolder(PLAYER_A);
@@ -206,7 +206,7 @@ class MapperTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("countRegionsByAuthority returns correct count")
         void countByAuthority() {
-            createSaleRegion(uniqueRegionId(), AUTHORITY, PLAYER_A);
+            createFreeholdRegion(uniqueRegionId(), AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 int count = wrapper.realtyRegionMapper().countRegionsByAuthority(AUTHORITY);
@@ -228,20 +228,20 @@ class MapperTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== SaleContractMapper ====================
+    // ==================== FreeholdContractMapper ====================
 
     @Nested
-    @DisplayName("SaleContractMapper")
-    class SaleContractMapperTests {
+    @DisplayName("FreeholdContractMapper")
+    class FreeholdContractMapperTests {
 
         @Test
-        @DisplayName("selectByRegion returns sale contract")
+        @DisplayName("selectByRegion returns freehold contract")
         void selectByRegion() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractEntity entity = wrapper.saleContractMapper()
+                FreeholdContractEntity entity = wrapper.freeholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
                 Assertions.assertEquals(AUTHORITY, entity.authorityId());
@@ -254,7 +254,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectByRegion returns null for nonexistent")
         void selectByRegionNull() {
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractEntity entity = wrapper.saleContractMapper()
+                FreeholdContractEntity entity = wrapper.freeholdContractMapper()
                         .selectByRegion("nonexistent", WORLD_ID);
                 Assertions.assertNull(entity);
             }
@@ -264,10 +264,10 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegionAndAuthority returns true for authority")
         void existsByAuthority() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertTrue(wrapper.saleContractMapper()
+                Assertions.assertTrue(wrapper.freeholdContractMapper()
                         .existsByRegionAndAuthority(regionId, WORLD_ID, AUTHORITY));
             }
         }
@@ -276,10 +276,10 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegionAndAuthority returns false for non-authority")
         void existsByAuthorityFalse() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertFalse(wrapper.saleContractMapper()
+                Assertions.assertFalse(wrapper.freeholdContractMapper()
                         .existsByRegionAndAuthority(regionId, WORLD_ID, PLAYER_B));
             }
         }
@@ -288,16 +288,16 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("updatePriceByRegion sets new price")
         void updatePrice() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.saleContractMapper()
+                int updated = wrapper.freeholdContractMapper()
                         .updatePriceByRegion(regionId, WORLD_ID, 2000.0);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                SaleContractEntity entity = wrapper.saleContractMapper()
+                FreeholdContractEntity entity = wrapper.freeholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertEquals(2000.0, entity.price());
             }
@@ -307,33 +307,33 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("updatePriceByRegion with null unsets price")
         void updatePriceNull() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractMapper().updatePriceByRegion(regionId, WORLD_ID, null);
+                wrapper.freeholdContractMapper().updatePriceByRegion(regionId, WORLD_ID, null);
                 session.commit();
 
-                SaleContractEntity entity = wrapper.saleContractMapper()
+                FreeholdContractEntity entity = wrapper.freeholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNull(entity.price());
             }
         }
 
         @Test
-        @DisplayName("updateSaleByRegion updates price and title holder")
-        void updateSale() {
+        @DisplayName("updateFreeholdByRegion updates price and title holder")
+        void updateFreehold() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.saleContractMapper()
-                        .updateSaleByRegion(regionId, WORLD_ID, 3000.0, PLAYER_B);
+                int updated = wrapper.freeholdContractMapper()
+                        .updateFreeholdByRegion(regionId, WORLD_ID, 3000.0, PLAYER_B);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                SaleContractEntity entity = wrapper.saleContractMapper()
+                FreeholdContractEntity entity = wrapper.freeholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertEquals(3000.0, entity.price());
                 Assertions.assertEquals(PLAYER_B, entity.titleHolderId());
@@ -345,7 +345,7 @@ class MapperTest extends AbstractDatabaseTest {
         void updatePriceNonexistent() {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.saleContractMapper()
+                int updated = wrapper.freeholdContractMapper()
                         .updatePriceByRegion("nonexistent", WORLD_ID, 500.0);
                 session.commit();
                 Assertions.assertEquals(0, updated);
@@ -583,27 +583,27 @@ class MapperTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== SaleContractAuctionMapper ====================
+    // ==================== FreeholdContractAuctionMapper ====================
 
     @Nested
-    @DisplayName("SaleContractAuctionMapper")
-    class SaleContractAuctionMapperTests {
+    @DisplayName("FreeholdContractAuctionMapper")
+    class FreeholdContractAuctionMapperTests {
 
         @Test
         @DisplayName("createAuction inserts and selectActiveByRegion returns it")
         void createAndSelect() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int id = wrapper.saleContractAuctionMapper().createAuction(
+                int id = wrapper.freeholdContractAuctionMapper().createAuction(
                         regionId, WORLD_ID, AUTHORITY, LocalDateTime.now(),
                         3600, 3600, 100.0, 10.0);
                 session.commit();
                 Assertions.assertTrue(id > 0);
 
-                SaleContractAuctionEntity entity = wrapper.saleContractAuctionMapper()
+                FreeholdContractAuctionEntity entity = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
                 Assertions.assertEquals(100.0, entity.minBid());
@@ -615,7 +615,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectActiveByRegion returns null for nonexistent")
         void selectActiveNull() {
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractAuctionEntity entity = wrapper.saleContractAuctionMapper()
+                FreeholdContractAuctionEntity entity = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion("nonexistent", WORLD_ID);
                 Assertions.assertNull(entity);
             }
@@ -625,11 +625,11 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegion returns true when auction exists")
         void existsTrue() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertTrue(wrapper.saleContractAuctionMapper()
+                Assertions.assertTrue(wrapper.freeholdContractAuctionMapper()
                         .existsByRegion(regionId, WORLD_ID));
             }
         }
@@ -638,10 +638,10 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegion returns false when no auction")
         void existsFalse() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertFalse(wrapper.saleContractAuctionMapper()
+                Assertions.assertFalse(wrapper.freeholdContractAuctionMapper()
                         .existsByRegion(regionId, WORLD_ID));
             }
         }
@@ -650,17 +650,17 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteActiveAuctionByRegion removes auction")
         void deleteActive() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int deleted = wrapper.saleContractAuctionMapper()
+                int deleted = wrapper.freeholdContractAuctionMapper()
                         .deleteActiveAuctionByRegion(regionId, WORLD_ID);
                 session.commit();
                 Assertions.assertEquals(1, deleted);
 
-                Assertions.assertFalse(wrapper.saleContractAuctionMapper()
+                Assertions.assertFalse(wrapper.freeholdContractAuctionMapper()
                         .existsByRegion(regionId, WORLD_ID));
             }
         }
@@ -669,19 +669,19 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("markEnded sets ended flag")
         void markEnded() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                SaleContractAuctionEntity auction = wrapper.saleContractAuctionMapper()
+                FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion(regionId, WORLD_ID);
-                int updated = wrapper.saleContractAuctionMapper()
-                        .markEnded(auction.saleContractAuctionId());
+                int updated = wrapper.freeholdContractAuctionMapper()
+                        .markEnded(auction.freeholdContractAuctionId());
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                SaleContractAuctionEntity after = wrapper.saleContractAuctionMapper()
+                FreeholdContractAuctionEntity after = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion(regionId, WORLD_ID);
                 Assertions.assertNull(after);
             }
@@ -691,13 +691,13 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectExpiredBiddingAuctions returns auctions past bidding deadline")
         void selectExpiredBidding() throws InterruptedException {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 1, 3600, 100.0, 10.0);
 
             Thread.sleep(1500);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                List<SaleContractAuctionEntity> expired = wrapper.saleContractAuctionMapper()
+                List<FreeholdContractAuctionEntity> expired = wrapper.freeholdContractAuctionMapper()
                         .selectExpiredBiddingAuctions();
                 Assertions.assertNotNull(expired);
                 Assertions.assertFalse(expired.isEmpty());
@@ -708,18 +708,18 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectById returns auction by primary key")
         void selectById() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractAuctionEntity active = wrapper.saleContractAuctionMapper()
+                FreeholdContractAuctionEntity active = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(active);
 
-                SaleContractAuctionEntity byId = wrapper.saleContractAuctionMapper()
-                        .selectById(active.saleContractAuctionId());
+                FreeholdContractAuctionEntity byId = wrapper.freeholdContractAuctionMapper()
+                        .selectById(active.freeholdContractAuctionId());
                 Assertions.assertNotNull(byId);
-                Assertions.assertEquals(active.saleContractAuctionId(), byId.saleContractAuctionId());
+                Assertions.assertEquals(active.freeholdContractAuctionId(), byId.freeholdContractAuctionId());
             }
         }
 
@@ -727,41 +727,41 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteAuction removes by id")
         void deleteById() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                SaleContractAuctionEntity auction = wrapper.saleContractAuctionMapper()
+                FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion(regionId, WORLD_ID);
-                int deleted = wrapper.saleContractAuctionMapper()
-                        .deleteAuction(auction.saleContractAuctionId());
+                int deleted = wrapper.freeholdContractAuctionMapper()
+                        .deleteAuction(auction.freeholdContractAuctionId());
                 session.commit();
                 Assertions.assertEquals(1, deleted);
             }
         }
     }
 
-    // ==================== SaleContractBidMapper ====================
+    // ==================== FreeholdContractBidMapper ====================
 
     @Nested
-    @DisplayName("SaleContractBidMapper")
-    class SaleContractBidMapperTests {
+    @DisplayName("FreeholdContractBidMapper")
+    class FreeholdContractBidMapperTests {
 
         @Test
         @DisplayName("performContractBid inserts a bid")
         void performBid() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                SaleContractAuctionEntity auction = wrapper.saleContractAuctionMapper()
+                FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion(regionId, WORLD_ID);
-                SaleContractBid bid = new SaleContractBid(
-                        auction.saleContractAuctionId(), PLAYER_B, 150.0, LocalDateTime.now());
-                int inserted = wrapper.saleContractBidMapper().performContractBid(bid);
+                FreeholdContractBid bid = new FreeholdContractBid(
+                        auction.freeholdContractAuctionId(), PLAYER_B, 150.0, LocalDateTime.now());
+                int inserted = wrapper.freeholdContractBidMapper().performContractBid(bid);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
             }
@@ -771,13 +771,13 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectHighestBid returns highest bid")
         void selectHighest() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractBid highest = wrapper.saleContractBidMapper()
+                FreeholdContractBid highest = wrapper.freeholdContractBidMapper()
                         .selectHighestBid(regionId, WORLD_ID);
                 Assertions.assertNotNull(highest);
                 Assertions.assertEquals(200.0, highest.bidAmount());
@@ -789,11 +789,11 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectHighestBid returns null when no bids")
         void selectHighestNull() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractBid highest = wrapper.saleContractBidMapper()
+                FreeholdContractBid highest = wrapper.freeholdContractBidMapper()
                         .selectHighestBid(regionId, WORLD_ID);
                 Assertions.assertNull(highest);
             }
@@ -803,13 +803,13 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectDistinctBidders returns all bidders")
         void selectDistinctBidders() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                List<UUID> bidders = wrapper.saleContractBidMapper()
+                List<UUID> bidders = wrapper.freeholdContractBidMapper()
                         .selectDistinctBidders(regionId, WORLD_ID);
                 Assertions.assertEquals(2, bidders.size());
                 Assertions.assertTrue(bidders.contains(PLAYER_C));
@@ -818,26 +818,26 @@ class MapperTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== SaleContractOfferMapper ====================
+    // ==================== FreeholdContractOfferMapper ====================
 
     @Nested
-    @DisplayName("SaleContractOfferMapper")
-    class SaleContractOfferMapperTests {
+    @DisplayName("FreeholdContractOfferMapper")
+    class FreeholdContractOfferMapperTests {
 
         @Test
         @DisplayName("insertOffer inserts and selectByRegion returns it")
         void insertAndSelect() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int inserted = wrapper.saleContractOfferMapper()
+                int inserted = wrapper.freeholdContractOfferMapper()
                         .insertOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
 
-                List<SaleContractOfferEntity> offers = wrapper.saleContractOfferMapper()
+                List<FreeholdContractOfferEntity> offers = wrapper.freeholdContractOfferMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(offers);
                 Assertions.assertEquals(1, offers.size());
@@ -850,11 +850,11 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByOfferer returns true when offer exists")
         void existsTrue() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertTrue(wrapper.saleContractOfferMapper()
+                Assertions.assertTrue(wrapper.freeholdContractOfferMapper()
                         .existsByOfferer(regionId, WORLD_ID, PLAYER_B));
             }
         }
@@ -863,10 +863,10 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByOfferer returns false when no offer")
         void existsFalse() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertFalse(wrapper.saleContractOfferMapper()
+                Assertions.assertFalse(wrapper.freeholdContractOfferMapper()
                         .existsByOfferer(regionId, WORLD_ID, PLAYER_B));
             }
         }
@@ -875,11 +875,11 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectByOfferer returns specific offer")
         void selectByOfferer() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractOfferEntity offer = wrapper.saleContractOfferMapper()
+                FreeholdContractOfferEntity offer = wrapper.freeholdContractOfferMapper()
                         .selectByOfferer(regionId, WORLD_ID, PLAYER_B);
                 Assertions.assertNotNull(offer);
                 Assertions.assertEquals(500.0, offer.offerPrice());
@@ -890,17 +890,17 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteOfferByOfferer removes one offerer's offer")
         void deleteByOfferer() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int deleted = wrapper.saleContractOfferMapper()
+                int deleted = wrapper.freeholdContractOfferMapper()
                         .deleteOfferByOfferer(regionId, WORLD_ID, PLAYER_B);
                 session.commit();
                 Assertions.assertEquals(1, deleted);
 
-                Assertions.assertFalse(wrapper.saleContractOfferMapper()
+                Assertions.assertFalse(wrapper.freeholdContractOfferMapper()
                         .existsByOfferer(regionId, WORLD_ID, PLAYER_B));
             }
         }
@@ -909,19 +909,19 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteOffers removes all offers on region")
         void deleteAll() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             UUID playerC = UUID.randomUUID();
             logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int deleted = wrapper.saleContractOfferMapper()
+                int deleted = wrapper.freeholdContractOfferMapper()
                         .deleteOffers(regionId, WORLD_ID);
                 session.commit();
                 Assertions.assertEquals(2, deleted);
 
-                List<SaleContractOfferEntity> offers = wrapper.saleContractOfferMapper()
+                List<FreeholdContractOfferEntity> offers = wrapper.freeholdContractOfferMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertTrue(offers == null || offers.isEmpty());
             }
@@ -931,21 +931,21 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteOtherOffers keeps excluded offerer")
         void deleteOthers() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             UUID playerC = UUID.randomUUID();
             logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int deleted = wrapper.saleContractOfferMapper()
+                int deleted = wrapper.freeholdContractOfferMapper()
                         .deleteOtherOffers(regionId, WORLD_ID, PLAYER_B);
                 session.commit();
                 Assertions.assertEquals(1, deleted);
 
-                Assertions.assertTrue(wrapper.saleContractOfferMapper()
+                Assertions.assertTrue(wrapper.freeholdContractOfferMapper()
                         .existsByOfferer(regionId, WORLD_ID, PLAYER_B));
-                Assertions.assertFalse(wrapper.saleContractOfferMapper()
+                Assertions.assertFalse(wrapper.freeholdContractOfferMapper()
                         .existsByOfferer(regionId, WORLD_ID, playerC));
             }
         }
@@ -954,11 +954,11 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectAllByOfferer returns outbound offers")
         void selectAllByOfferer() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                List<OutboundOfferView> offers = wrapper.saleContractOfferMapper()
+                List<OutboundOfferView> offers = wrapper.freeholdContractOfferMapper()
                         .selectAllByOfferer(PLAYER_B);
                 Assertions.assertFalse(offers.isEmpty());
                 Assertions.assertEquals(regionId, offers.getFirst().worldGuardRegionId());
@@ -970,11 +970,11 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectAllByTitleHolder returns inbound offers")
         void selectAllByTitleHolder() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                List<InboundOfferView> offers = wrapper.saleContractOfferMapper()
+                List<InboundOfferView> offers = wrapper.freeholdContractOfferMapper()
                         .selectAllByTitleHolder(PLAYER_A);
                 Assertions.assertFalse(offers.isEmpty());
                 Assertions.assertEquals(regionId, offers.getFirst().worldGuardRegionId());
@@ -983,28 +983,28 @@ class MapperTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== SaleContractOfferPaymentMapper ====================
+    // ==================== FreeholdContractOfferPaymentMapper ====================
 
     @Nested
-    @DisplayName("SaleContractOfferPaymentMapper")
-    class SaleContractOfferPaymentMapperTests {
+    @DisplayName("FreeholdContractOfferPaymentMapper")
+    class FreeholdContractOfferPaymentMapperTests {
 
         @Test
         @DisplayName("insertPayment inserts and selectByRegion returns it")
         void insertAndSelect() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             LocalDateTime deadline = LocalDateTime.now().plusDays(1);
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int inserted = wrapper.saleContractOfferPaymentMapper()
+                int inserted = wrapper.freeholdContractOfferPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, deadline);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
 
-                SaleContractOfferPaymentEntity entity = wrapper.saleContractOfferPaymentMapper()
+                FreeholdContractOfferPaymentEntity entity = wrapper.freeholdContractOfferPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
                 Assertions.assertEquals(PLAYER_B, entity.offererId());
@@ -1015,7 +1015,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectByRegion returns null when no payment")
         void selectByRegionNull() {
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractOfferPaymentEntity entity = wrapper.saleContractOfferPaymentMapper()
+                FreeholdContractOfferPaymentEntity entity = wrapper.freeholdContractOfferPaymentMapper()
                         .selectByRegion("nonexistent", WORLD_ID);
                 Assertions.assertNull(entity);
             }
@@ -1025,16 +1025,16 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegion returns true when payment exists")
         void existsTrue() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractOfferPaymentMapper()
+                wrapper.freeholdContractOfferPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
 
-                Assertions.assertTrue(wrapper.saleContractOfferPaymentMapper()
+                Assertions.assertTrue(wrapper.freeholdContractOfferPaymentMapper()
                         .existsByRegion(regionId, WORLD_ID));
             }
         }
@@ -1043,10 +1043,10 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegion returns false when no payment")
         void existsFalse() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertFalse(wrapper.saleContractOfferPaymentMapper()
+                Assertions.assertFalse(wrapper.freeholdContractOfferPaymentMapper()
                         .existsByRegion(regionId, WORLD_ID));
             }
         }
@@ -1055,21 +1055,21 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("updatePayment updates current payment amount")
         void updatePayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractOfferPaymentMapper()
+                wrapper.freeholdContractOfferPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
 
-                int updated = wrapper.saleContractOfferPaymentMapper()
+                int updated = wrapper.freeholdContractOfferPaymentMapper()
                         .updatePayment(regionId, WORLD_ID, PLAYER_B, 200.0);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                SaleContractOfferPaymentEntity entity = wrapper.saleContractOfferPaymentMapper()
+                FreeholdContractOfferPaymentEntity entity = wrapper.freeholdContractOfferPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertEquals(200.0, entity.currentPayment());
             }
@@ -1079,21 +1079,21 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteByRegion removes payment")
         void deleteByRegion() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractOfferPaymentMapper()
+                wrapper.freeholdContractOfferPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
 
-                int deleted = wrapper.saleContractOfferPaymentMapper()
+                int deleted = wrapper.freeholdContractOfferPaymentMapper()
                         .deleteByRegion(regionId, WORLD_ID);
                 session.commit();
                 Assertions.assertEquals(1, deleted);
 
-                Assertions.assertFalse(wrapper.saleContractOfferPaymentMapper()
+                Assertions.assertFalse(wrapper.freeholdContractOfferPaymentMapper()
                         .existsByRegion(regionId, WORLD_ID));
             }
         }
@@ -1102,18 +1102,18 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteByOfferId removes payment by offer PK")
         void deleteByOfferId() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractOfferPaymentMapper()
+                wrapper.freeholdContractOfferPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
 
-                SaleContractOfferPaymentEntity entity = wrapper.saleContractOfferPaymentMapper()
+                FreeholdContractOfferPaymentEntity entity = wrapper.freeholdContractOfferPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
-                int deleted = wrapper.saleContractOfferPaymentMapper()
+                int deleted = wrapper.freeholdContractOfferPaymentMapper()
                         .deleteByOfferId(entity.offerId());
                 session.commit();
                 Assertions.assertEquals(1, deleted);
@@ -1124,44 +1124,44 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectAllExpired returns expired payments")
         void selectExpired() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractOfferPaymentMapper()
+                wrapper.freeholdContractOfferPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().minusDays(1));
                 session.commit();
 
-                List<SaleContractOfferPaymentEntity> expired = wrapper.saleContractOfferPaymentMapper()
+                List<FreeholdContractOfferPaymentEntity> expired = wrapper.freeholdContractOfferPaymentMapper()
                         .selectAllExpired();
                 Assertions.assertFalse(expired.isEmpty());
             }
         }
     }
 
-    // ==================== SaleContractBidPaymentMapper ====================
+    // ==================== FreeholdContractBidPaymentMapper ====================
 
     @Nested
-    @DisplayName("SaleContractBidPaymentMapper")
-    class SaleContractBidPaymentMapperTests {
+    @DisplayName("FreeholdContractBidPaymentMapper")
+    class FreeholdContractBidPaymentMapperTests {
 
         @Test
         @DisplayName("insertPayment inserts and selectByRegion returns it")
         void insertAndSelect() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int inserted = wrapper.saleContractBidPaymentMapper()
+                int inserted = wrapper.freeholdContractBidPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
                 Assertions.assertEquals(1, inserted);
 
-                SaleContractBidPaymentEntity entity = wrapper.saleContractBidPaymentMapper()
+                FreeholdContractBidPaymentEntity entity = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
                 Assertions.assertEquals(PLAYER_B, entity.bidderId());
@@ -1172,7 +1172,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectByRegion returns null when no payment")
         void selectByRegionNull() {
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                SaleContractBidPaymentEntity entity = wrapper.saleContractBidPaymentMapper()
+                FreeholdContractBidPaymentEntity entity = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion("nonexistent", WORLD_ID);
                 Assertions.assertNull(entity);
             }
@@ -1182,17 +1182,17 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegion returns true when payment exists")
         void existsTrue() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractBidPaymentMapper()
+                wrapper.freeholdContractBidPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
 
-                Assertions.assertTrue(wrapper.saleContractBidPaymentMapper()
+                Assertions.assertTrue(wrapper.freeholdContractBidPaymentMapper()
                         .existsByRegion(regionId, WORLD_ID));
             }
         }
@@ -1201,10 +1201,10 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegion returns false when no payment")
         void existsFalse() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertFalse(wrapper.saleContractBidPaymentMapper()
+                Assertions.assertFalse(wrapper.freeholdContractBidPaymentMapper()
                         .existsByRegion(regionId, WORLD_ID));
             }
         }
@@ -1213,22 +1213,22 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("updatePayment updates current payment")
         void updatePayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractBidPaymentMapper()
+                wrapper.freeholdContractBidPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
 
-                int updated = wrapper.saleContractBidPaymentMapper()
+                int updated = wrapper.freeholdContractBidPaymentMapper()
                         .updatePayment(regionId, WORLD_ID, PLAYER_B, 100.0);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                SaleContractBidPaymentEntity entity = wrapper.saleContractBidPaymentMapper()
+                FreeholdContractBidPaymentEntity entity = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertEquals(100.0, entity.currentPayment());
             }
@@ -1238,17 +1238,17 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteByRegion removes payment")
         void deleteByRegion() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractBidPaymentMapper()
+                wrapper.freeholdContractBidPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
 
-                int deleted = wrapper.saleContractBidPaymentMapper()
+                int deleted = wrapper.freeholdContractBidPaymentMapper()
                         .deleteByRegion(regionId, WORLD_ID);
                 session.commit();
                 Assertions.assertEquals(1, deleted);
@@ -1259,19 +1259,19 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteByBidId removes payment by bid PK")
         void deleteByBidId() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractBidPaymentMapper()
+                wrapper.freeholdContractBidPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
                 session.commit();
 
-                SaleContractBidPaymentEntity entity = wrapper.saleContractBidPaymentMapper()
+                FreeholdContractBidPaymentEntity entity = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
-                int deleted = wrapper.saleContractBidPaymentMapper()
+                int deleted = wrapper.freeholdContractBidPaymentMapper()
                         .deleteByBidId(entity.bidId());
                 session.commit();
                 Assertions.assertEquals(1, deleted);
@@ -1282,17 +1282,17 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectAllExpired returns expired payments")
         void selectExpired() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractBidPaymentMapper()
+                wrapper.freeholdContractBidPaymentMapper()
                         .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().minusDays(1));
                 session.commit();
 
-                List<SaleContractBidPaymentEntity> expired = wrapper.saleContractBidPaymentMapper()
+                List<FreeholdContractBidPaymentEntity> expired = wrapper.freeholdContractBidPaymentMapper()
                         .selectAllExpired();
                 Assertions.assertFalse(expired.isEmpty());
             }
@@ -1302,22 +1302,22 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("insertNextPayment inserts payment for next highest bidder")
         void insertNextPayment() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
             logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                SaleContractAuctionEntity auction = wrapper.saleContractAuctionMapper()
+                FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion(regionId, WORLD_ID);
-                int inserted = wrapper.saleContractBidPaymentMapper()
-                        .insertNextPayment(auction.saleContractAuctionId(), PLAYER_B,
+                int inserted = wrapper.freeholdContractBidPaymentMapper()
+                        .insertNextPayment(auction.freeholdContractAuctionId(), PLAYER_B,
                                 LocalDateTime.now().plusDays(1));
                 session.commit();
                 Assertions.assertEquals(1, inserted);
 
-                SaleContractBidPaymentEntity entity = wrapper.saleContractBidPaymentMapper()
+                FreeholdContractBidPaymentEntity entity = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
                 Assertions.assertEquals(PLAYER_C, entity.bidderId());
@@ -1326,26 +1326,26 @@ class MapperTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== SaleContractSanctionedAuctioneerMapper ====================
+    // ==================== FreeholdContractSanctionedAuctioneerMapper ====================
 
     @Nested
-    @DisplayName("SaleContractSanctionedAuctioneerMapper")
+    @DisplayName("FreeholdContractSanctionedAuctioneerMapper")
     class SanctionedAuctioneerMapperTests {
 
         @Test
         @DisplayName("insert and existsByRegionAndAuctioneer")
         void insertAndExists() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int inserted = wrapper.saleContractSanctionedAuctioneerMapper()
+                int inserted = wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .insert(regionId, WORLD_ID, PLAYER_B);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
 
-                Assertions.assertTrue(wrapper.saleContractSanctionedAuctioneerMapper()
+                Assertions.assertTrue(wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .existsByRegionAndAuctioneer(regionId, WORLD_ID, PLAYER_B));
             }
         }
@@ -1354,10 +1354,10 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegionAndAuctioneer returns false when not inserted")
         void existsFalse() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertFalse(wrapper.saleContractSanctionedAuctioneerMapper()
+                Assertions.assertFalse(wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .existsByRegionAndAuctioneer(regionId, WORLD_ID, PLAYER_B));
             }
         }
@@ -1366,20 +1366,20 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteByRegionAndAuctioneer removes one auctioneer")
         void deleteOne() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractSanctionedAuctioneerMapper()
+                wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .insert(regionId, WORLD_ID, PLAYER_B);
                 session.commit();
 
-                int deleted = wrapper.saleContractSanctionedAuctioneerMapper()
+                int deleted = wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .deleteByRegionAndAuctioneer(regionId, WORLD_ID, PLAYER_B);
                 session.commit();
                 Assertions.assertEquals(1, deleted);
 
-                Assertions.assertFalse(wrapper.saleContractSanctionedAuctioneerMapper()
+                Assertions.assertFalse(wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .existsByRegionAndAuctioneer(regionId, WORLD_ID, PLAYER_B));
             }
         }
@@ -1388,17 +1388,17 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("deleteAllByRegion removes all auctioneers")
         void deleteAll() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleContractSanctionedAuctioneerMapper()
+                wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .insert(regionId, WORLD_ID, PLAYER_A);
-                wrapper.saleContractSanctionedAuctioneerMapper()
+                wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .insert(regionId, WORLD_ID, PLAYER_B);
                 session.commit();
 
-                int deleted = wrapper.saleContractSanctionedAuctioneerMapper()
+                int deleted = wrapper.freeholdContractSanctionedAuctioneerMapper()
                         .deleteAllByRegion(regionId, WORLD_ID);
                 session.commit();
                 Assertions.assertEquals(2, deleted);
@@ -1406,21 +1406,21 @@ class MapperTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== SaleHistoryMapper ====================
+    // ==================== FreeholdHistoryMapper ====================
 
     @Nested
-    @DisplayName("SaleHistoryMapper")
-    class SaleHistoryMapperTests {
+    @DisplayName("FreeholdHistoryMapper")
+    class FreeholdHistoryMapperTests {
 
         @Test
-        @DisplayName("insert records sale history")
+        @DisplayName("insert records freehold history")
         void insert() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int inserted = wrapper.saleHistoryMapper()
+                int inserted = wrapper.freeholdHistoryMapper()
                         .insert(regionId, WORLD_ID, "BUY", PLAYER_B, AUTHORITY, 1000.0);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
@@ -1428,32 +1428,32 @@ class MapperTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("selectLastSalePrice returns last sale price")
+        @DisplayName("selectLastFreeholdPrice returns last freehold price")
         void selectLastPrice() {
             String regionId = uniqueRegionId();
-            createSaleRegion(regionId, AUTHORITY, PLAYER_A);
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.saleHistoryMapper()
+                wrapper.freeholdHistoryMapper()
                         .insert(regionId, WORLD_ID, "BUY", PLAYER_B, AUTHORITY, 1000.0);
-                wrapper.saleHistoryMapper()
+                wrapper.freeholdHistoryMapper()
                         .insert(regionId, WORLD_ID, "BUY", PLAYER_A, AUTHORITY, 2000.0);
                 session.commit();
 
-                Double lastPrice = wrapper.saleHistoryMapper()
-                        .selectLastSalePrice(regionId, WORLD_ID);
+                Double lastPrice = wrapper.freeholdHistoryMapper()
+                        .selectLastFreeholdPrice(regionId, WORLD_ID);
                 Assertions.assertNotNull(lastPrice);
                 Assertions.assertEquals(2000.0, lastPrice);
             }
         }
 
         @Test
-        @DisplayName("selectLastSalePrice returns null for no history")
+        @DisplayName("selectLastFreeholdPrice returns null for no history")
         void selectLastPriceNull() {
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Double lastPrice = wrapper.saleHistoryMapper()
-                        .selectLastSalePrice("nonexistent", WORLD_ID);
+                Double lastPrice = wrapper.freeholdHistoryMapper()
+                        .selectLastFreeholdPrice("nonexistent", WORLD_ID);
                 Assertions.assertNull(lastPrice);
             }
         }

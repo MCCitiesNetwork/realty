@@ -1,6 +1,6 @@
 package io.github.md5sha256.realty.database.mapper;
 
-import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import org.apache.ibatis.annotations.Param;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -10,28 +10,28 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Base mapper interface for query operations on the {@code SaleContractAuction} table.
+ * Base mapper interface for query operations on the {@code FreeholdContractAuction} table.
  * SQL annotations are provided by database-specific sub-interfaces.
  *
- * @see SaleContractAuctionEntity
+ * @see FreeholdContractAuctionEntity
  */
-public interface SaleContractAuctionMapper {
+public interface FreeholdContractAuctionMapper {
 
-    @Nullable SaleContractAuctionEntity selectById(int saleContractAuctionId);
+    @Nullable FreeholdContractAuctionEntity selectById(int freeholdContractAuctionId);
 
-    @Nullable SaleContractAuctionEntity selectActiveByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+    @Nullable FreeholdContractAuctionEntity selectActiveByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     int createAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID auctioneerId, @NotNull LocalDateTime startDate, long biddingDurationSeconds, long paymentDurationSeconds, double minBid, double minStep);
 
     int postponeAuctionPaymentDeadline(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    @Nullable List<SaleContractAuctionEntity> selectExpiredBiddingAuctions();
+    @Nullable List<FreeholdContractAuctionEntity> selectExpiredBiddingAuctions();
 
-    @Nullable List<SaleContractAuctionEntity> selectExpiredPaymentAuctions();
+    @Nullable List<FreeholdContractAuctionEntity> selectExpiredPaymentAuctions();
 
-    int markEnded(@Param("saleContractAuctionId") int saleContractAuctionId);
+    int markEnded(@Param("freeholdContractAuctionId") int freeholdContractAuctionId);
 
-    int deleteAuction(int saleContractAuctionId);
+    int deleteAuction(int freeholdContractAuctionId);
 
     int deleteActiveAuctionByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 

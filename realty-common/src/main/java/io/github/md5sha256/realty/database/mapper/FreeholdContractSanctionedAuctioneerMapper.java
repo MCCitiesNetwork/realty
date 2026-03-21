@@ -5,12 +5,12 @@ import org.jetbrains.annotations.NotNull;
 import java.util.UUID;
 
 /**
- * Base mapper interface for CRUD operations on the {@code SaleContractSanctionedAuctioneers} table.
+ * Base mapper interface for CRUD operations on the {@code FreeholdContractSanctionedAuctioneers} table.
  * SQL annotations are provided by database-specific sub-interfaces.
  *
- * @see io.github.md5sha256.realty.database.entity.SaleContractSanctionedAuctioneerEntity
+ * @see io.github.md5sha256.realty.database.entity.FreeholdContractSanctionedAuctioneerEntity
  */
-public interface SaleContractSanctionedAuctioneerMapper {
+public interface FreeholdContractSanctionedAuctioneerMapper {
 
     boolean existsByRegionAndAuctioneer(@NotNull String worldGuardRegionId,
                                         @NotNull UUID worldId,

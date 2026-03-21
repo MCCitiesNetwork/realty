@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
-import io.github.md5sha256.realty.database.entity.SaleContractOfferEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractOfferEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -10,14 +10,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Base mapper interface for query operations on the {@code SaleContractOffer} table.
+ * Base mapper interface for query operations on the {@code FreeholdContractOffer} table.
  * SQL annotations are provided by database-specific sub-interfaces.
  *
- * @see SaleContractOfferEntity
+ * @see FreeholdContractOfferEntity
  */
-public interface SaleContractOfferMapper {
+public interface FreeholdContractOfferMapper {
 
-    @Nullable List<SaleContractOfferEntity> selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+    @Nullable List<FreeholdContractOfferEntity> selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     int insertOffer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double offerPrice);
 
@@ -29,7 +29,7 @@ public interface SaleContractOfferMapper {
 
     boolean existsByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
 
-    @Nullable SaleContractOfferEntity selectByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
+    @Nullable FreeholdContractOfferEntity selectByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
 
     @NotNull List<OutboundOfferView> selectAllByOfferer(@NotNull UUID offererId);
 

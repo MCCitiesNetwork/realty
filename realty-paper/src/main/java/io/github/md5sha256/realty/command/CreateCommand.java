@@ -34,9 +34,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Handles {@code /realty create lease <price> <period> <maxrenewals> <region>}
- * and {@code /realty create sale [--price <price>] [--titleholder <name>] [--authority <name>] <region>}.
+ * and {@code /realty create freehold [--price <price>] [--titleholder <name>] [--authority <name>] <region>}.
  *
- * <p>Permissions: {@code realty.command.create.lease} / {@code realty.command.create.sale}.</p>
+ * <p>Permissions: {@code realty.command.create.lease} / {@code realty.command.create.freehold}.</p>
  */
 public record CreateCommand(@NotNull ExecutorState executorState,
                              @NotNull RealtyLogicImpl logic,
@@ -84,13 +84,13 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                         .required(REGION, WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeLease)
                         .build(),
-                base.literal("sale")
-                        .permission("realty.command.create.sale")
+                base.literal("freehold")
+                        .permission("realty.command.create.freehold")
                         .flag(PRICE_FLAG)
                         .flag(TITLEHOLDER_FLAG)
                         .flag(AUTHORITY_FLAG)
                         .required(REGION, WorldGuardRegionParser.worldGuardRegion())
-                        .handler(this::executeSale)
+                        .handler(this::executeFreehold)
                         .build()
         );
     }
@@ -134,20 +134,20 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         });
     }
 
-    private void executeSale(@NotNull CommandContext<CommandSourceStack> ctx) {
+    private void executeFreehold(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
         if (!(sender instanceof Player)) {
             return;
         }
         Double price = ctx.flags().getValue(PRICE_FLAG, null);
         UUID authority = ctx.flags()
-                .getValue(AUTHORITY_FLAG, settings.get().defaultSaleAuthority());
+                .getValue(AUTHORITY_FLAG, settings.get().defaultFreeholdAuthority());
         UUID titleholder = ctx.flags()
-                .getValue(TITLEHOLDER_FLAG, settings.get().defaultSaleTitleholder());
+                .getValue(TITLEHOLDER_FLAG, settings.get().defaultFreeholdTitleholder());
         WorldGuardRegion region = ctx.get(REGION);
         CompletableFuture.supplyAsync(() -> {
             try {
-                boolean created = logic.createSale(
+                boolean created = logic.createFreehold(
                         region.region().getId(), region.world().getUID(),
                         price, authority, titleholder);
                 Map<String, String> placeholders = created
@@ -162,14 +162,14 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                 region.region().getMembers().addPlayer(authority);
                 regionProfileService.applyFlags(region,
                         titleholder != null ? RegionState.SOLD : RegionState.FOR_SALE, entry.getValue());
-                sender.sendMessage(messages.messageFor("create-sale.success"));
+                sender.sendMessage(messages.messageFor("create-freehold.success"));
             } else {
-                sender.sendMessage(messages.messageFor("create-sale.already-registered"));
+                sender.sendMessage(messages.messageFor("create-freehold.already-registered"));
             }
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             cause.printStackTrace();
-            sender.sendMessage(messages.messageFor("create-sale.error",
+            sender.sendMessage(messages.messageFor("create-freehold.error",
                     Placeholder.unparsed("error", cause.getMessage())));
             return null;
         });

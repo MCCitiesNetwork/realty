@@ -5,7 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record SaleHistoryEntity(
+public record FreeholdHistoryEntity(
         int historyId,
         @NotNull String worldGuardRegionId,
         @NotNull UUID worldId,

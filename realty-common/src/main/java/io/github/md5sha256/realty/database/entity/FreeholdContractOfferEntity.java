@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Internal entity record mapping to the {@code SaleContractOffer} DDL table.
+ * Internal entity record mapping to the {@code FreeholdContractOffer} DDL table.
  *
  * @param offerId        Auto-increment primary key
  * @param realtyRegionId FK to {@code RealtyRegion.realtyRegionId}
@@ -14,7 +14,7 @@ import java.util.UUID;
  * @param offerPrice     Offered price (must be &gt; 0)
  * @param offerTime      Timestamp when the offer was placed (set by DB default)
  */
-public record SaleContractOfferEntity(
+public record FreeholdContractOfferEntity(
         int offerId,
         int realtyRegionId,
         @NotNull UUID offererId,

@@ -4,14 +4,14 @@ import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseHistoryMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractAuctionMapper;
-import io.github.md5sha256.realty.database.mapper.SaleHistoryMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractBidMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractOfferMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractOfferPaymentMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractBidPaymentMapper;
-import io.github.md5sha256.realty.database.mapper.SaleContractSanctionedAuctioneerMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdHistoryMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractBidMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferPaymentMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractBidPaymentMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractSanctionedAuctioneerMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -27,23 +27,23 @@ public interface SqlSessionWrapper extends Closeable {
 
     @NotNull RealtyRegionMapper realtyRegionMapper();
 
-    @NotNull SaleHistoryMapper saleHistoryMapper();
+    @NotNull FreeholdHistoryMapper freeholdHistoryMapper();
 
     @NotNull LeaseHistoryMapper leaseHistoryMapper();
 
-    @NotNull SaleContractAuctionMapper saleContractAuctionMapper();
+    @NotNull FreeholdContractAuctionMapper freeholdContractAuctionMapper();
 
-    @NotNull SaleContractBidMapper saleContractBidMapper();
+    @NotNull FreeholdContractBidMapper freeholdContractBidMapper();
 
-    @NotNull SaleContractBidPaymentMapper saleContractBidPaymentMapper();
+    @NotNull FreeholdContractBidPaymentMapper freeholdContractBidPaymentMapper();
 
-    @NotNull SaleContractMapper saleContractMapper();
+    @NotNull FreeholdContractMapper freeholdContractMapper();
 
-    @NotNull SaleContractOfferMapper saleContractOfferMapper();
+    @NotNull FreeholdContractOfferMapper freeholdContractOfferMapper();
 
-    @NotNull SaleContractOfferPaymentMapper saleContractOfferPaymentMapper();
+    @NotNull FreeholdContractOfferPaymentMapper freeholdContractOfferPaymentMapper();
 
-    @NotNull SaleContractSanctionedAuctioneerMapper saleContractSanctionedAuctioneerMapper();
+    @NotNull FreeholdContractSanctionedAuctioneerMapper freeholdContractSanctionedAuctioneerMapper();
 
     @Override
     void close();

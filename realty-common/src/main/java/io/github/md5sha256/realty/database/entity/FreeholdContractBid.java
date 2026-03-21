@@ -5,5 +5,5 @@ import org.jetbrains.annotations.NotNull;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record SaleContractBid(int saleContractId, @NotNull UUID bidderId, double bidAmount, @NotNull LocalDateTime bidTime) {
+public record FreeholdContractBid(int freeholdContractId, @NotNull UUID bidderId, double bidAmount, @NotNull LocalDateTime bidTime) {
 }

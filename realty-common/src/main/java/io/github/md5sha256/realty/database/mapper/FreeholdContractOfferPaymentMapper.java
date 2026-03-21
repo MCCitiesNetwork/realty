@@ -1,6 +1,6 @@
 package io.github.md5sha256.realty.database.mapper;
 
-import io.github.md5sha256.realty.database.entity.SaleContractOfferPaymentEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -9,16 +9,16 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Base mapper interface for query operations on the {@code SaleContractOfferPayment} table.
+ * Base mapper interface for query operations on the {@code FreeholdContractOfferPayment} table.
  * SQL annotations are provided by database-specific sub-interfaces.
  *
- * @see SaleContractOfferPaymentEntity
+ * @see FreeholdContractOfferPaymentEntity
  */
-public interface SaleContractOfferPaymentMapper {
+public interface FreeholdContractOfferPaymentMapper {
 
-    @Nullable SaleContractOfferPaymentEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+    @Nullable FreeholdContractOfferPaymentEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    @NotNull List<SaleContractOfferPaymentEntity> selectAllExpired();
+    @NotNull List<FreeholdContractOfferPaymentEntity> selectAllExpired();
 
     int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double offerPrice, @NotNull LocalDateTime paymentDeadline);
 
