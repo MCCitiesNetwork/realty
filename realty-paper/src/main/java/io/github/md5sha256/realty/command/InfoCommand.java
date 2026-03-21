@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.SaleContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.TextComponent;
@@ -21,7 +22,11 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
+import java.text.DateFormat;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -37,6 +42,7 @@ import java.util.stream.Collectors;
  */
 public record InfoCommand(@NotNull ExecutorState executorState,
                            @NotNull RealtyLogicImpl logic,
+                           @NotNull Settings settings,
                            @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
@@ -158,7 +164,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(lease.durationSeconds())))))
                 .appendNewline()
                 .append(messages.messageFor("info.lease-start-date",
-                        Placeholder.unparsed("start_date", String.valueOf(lease.startDate()))));
+                        Placeholder.unparsed("start_date", formatDate(lease.startDate()))));
         if (lease.maxExtensions() != null) {
             builder.appendNewline()
                     .append(messages.messageFor("info.lease-extensions",
@@ -177,13 +183,13 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("id", String.valueOf(auction.saleContractAuctionId()))))
                 .appendNewline()
                 .append(messages.messageFor("info.auction-start-date",
-                        Placeholder.unparsed("start_date", String.valueOf(auction.startDate()))))
+                        Placeholder.unparsed("start_date", formatDate(auction.startDate()))))
                 .appendNewline()
                 .append(messages.messageFor("info.auction-bidding-duration",
                         Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds())))))
                 .appendNewline()
                 .append(messages.messageFor("info.auction-payment-deadline",
-                        Placeholder.unparsed("deadline", String.valueOf(auction.paymentDeadline()))))
+                        Placeholder.unparsed("deadline", formatDate(auction.paymentDeadline()))))
                 .appendNewline()
                 .append(messages.messageFor("info.auction-min-bid",
                         Placeholder.unparsed("amount", String.valueOf(auction.minBid()))))
@@ -195,6 +201,14 @@ public record InfoCommand(@NotNull ExecutorState executorState,
     private static @NotNull String resolveName(@NotNull UUID uuid) {
         String name = Bukkit.getOfflinePlayer(uuid).getName();
         return name != null ? name : uuid.toString();
+    }
+
+    private @NotNull String formatDate(@NotNull LocalDateTime dateTime) {
+        DateFormat dateFormat = settings.dateFormat();
+        Date date = Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
+        synchronized (dateFormat) {
+            return dateFormat.format(date);
+        }
     }
 
     private static @NotNull String formatDuration(@NotNull Duration duration) {

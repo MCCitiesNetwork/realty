@@ -33,6 +33,7 @@ import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.ExecutorState;
+import io.github.md5sha256.realty.util.SimpleDateFormatSerializer;
 import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.util.Tick;
@@ -54,6 +55,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.text.SimpleDateFormat;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -230,7 +232,7 @@ public final class Realty extends JavaPlugin {
                 new CreateCommand(executorState, logic, this.settings, messageContainer),
                 new DeleteCommand(executorState, logic, messageContainer),
                 new HelpCommand(messageContainer),
-                new InfoCommand(executorState, logic, messageContainer),
+                new InfoCommand(executorState, logic, this.settings.get(), messageContainer),
                 new ListCommand(executorState, logic, messageContainer),
                 new OffersCommand(executorState, logic, messageContainer),
                 new OfferCommand(executorState, logic, notificationService, messageContainer),
@@ -292,8 +294,9 @@ public final class Realty extends JavaPlugin {
 
     private YamlConfigurationLoader.Builder yamlLoader() {
         return YamlConfigurationLoader.builder()
-                .defaultOptions(options -> options.serializers(builder -> builder.register(Component.class,
-                        ComponentSerializer.MINI_MESSAGE)))
+                .defaultOptions(options -> options.serializers(builder -> builder
+                        .register(Component.class, ComponentSerializer.MINI_MESSAGE)
+                        .register(SimpleDateFormat.class, SimpleDateFormatSerializer.INSTANCE)))
                 .nodeStyle(NodeStyle.BLOCK);
     }
 }

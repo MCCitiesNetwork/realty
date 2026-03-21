@@ -6,12 +6,14 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable;
 import org.spongepowered.configurate.objectmapping.meta.Required;
 import org.spongepowered.configurate.objectmapping.meta.Setting;
 
+import java.text.SimpleDateFormat;
 import java.util.UUID;
 
 @ConfigSerializable
 public record Settings(
         @Setting("default-sale-authority-uuid") @Required @NotNull UUID defaultSaleAuthority,
-        @Setting("default-sale-titleholder-uuid")@Nullable UUID defaultSaleTitleholder,
-        @Setting("default-lease-authority-uuid") @Required @NotNull UUID defaultLeaseAuthority
+        @Setting("default-sale-titleholder-uuid") @Nullable UUID defaultSaleTitleholder,
+        @Setting("default-lease-authority-uuid") @Required @NotNull UUID defaultLeaseAuthority,
+        @Setting("date-format") @NotNull SimpleDateFormat dateFormat
 ) {
 }
