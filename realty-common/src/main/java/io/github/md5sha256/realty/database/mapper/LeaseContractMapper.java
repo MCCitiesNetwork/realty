@@ -116,4 +116,28 @@ public interface LeaseContractMapper {
      */
     int clearTenant(int leaseContractId);
 
+    /**
+     * Updates the duration on a lease contract for the specified WorldGuard region.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param durationSeconds    the new duration in seconds (must be &gt; 0)
+     * @return number of rows updated (1 on success, 0 if no matching lease exists)
+     */
+    int updateDurationByRegion(@NotNull String worldGuardRegionId,
+                               @NotNull UUID worldId,
+                               long durationSeconds);
+
+    /**
+     * Updates the landlord on a lease contract for the specified WorldGuard region.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param landlordId         UUID of the new landlord
+     * @return number of rows updated (1 on success, 0 if no matching lease exists)
+     */
+    int updateLandlordByRegion(@NotNull String worldGuardRegionId,
+                               @NotNull UUID worldId,
+                               @NotNull UUID landlordId);
+
 }

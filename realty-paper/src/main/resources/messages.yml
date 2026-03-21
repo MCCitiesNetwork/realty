@@ -166,8 +166,10 @@ help:
     - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
     - "<yellow>/realty renew <region></yellow> <gray>- Renew a lease</gray>"
     - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
-    - "<yellow>/realty setprice <price> <region></yellow> <gray>- Set region price</gray>"
-    - "<yellow>/realty unsetprice <region></yellow> <gray>- Remove region price</gray>"
+    - "<yellow>/realty set price <price> <region></yellow> <gray>- Set region sale price</gray>"
+    - "<yellow>/realty unset price <region></yellow> <gray>- Remove region sale price</gray>"
+    - "<yellow>/realty set duration <duration> <region></yellow> <gray>- Set lease duration</gray>"
+    - "<yellow>/realty set landlord <player> <region></yellow> <gray>- Set lease landlord</gray>"
     - "<yellow>/realty agent add <player> <region></yellow> <gray>- Add a sanctioned auctioneer</gray>"
     - "<yellow>/realty agent remove <player> <region></yellow> <gray>- Remove a sanctioned auctioneer</gray>"
   offers:

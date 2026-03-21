@@ -166,4 +166,30 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             """)
     int clearTenant(@Param("leaseContractId") int leaseContractId);
 
+    @Override
+    @Update("""
+            UPDATE LeaseContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.durationSeconds = #{durationSeconds}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int updateDurationByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                               @Param("worldId") @NotNull UUID worldId,
+                               @Param("durationSeconds") long durationSeconds);
+
+    @Override
+    @Update("""
+            UPDATE LeaseContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.landlordId = #{landlordId}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int updateLandlordByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                               @Param("worldId") @NotNull UUID worldId,
+                               @Param("landlordId") @NotNull UUID landlordId);
+
 }

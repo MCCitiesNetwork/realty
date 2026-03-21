@@ -93,11 +93,17 @@ permissions:
   realty.command.rent:
     description: Allows using /realty rent
     default: true
-  realty.command.setprice:
-    description: Allows using /realty setprice
+  realty.command.set.price:
+    description: Allows using /realty set price
     default: op
-  realty.command.unsetprice:
-    description: Allows using /realty unsetprice
+  realty.command.set.duration:
+    description: Allows using /realty set duration
+    default: op
+  realty.command.set.landlord:
+    description: Allows using /realty set landlord
+    default: op
+  realty.command.unset.price:
+    description: Allows using /realty unset price
     default: op
   realty.command.reload:
     description: Allows using /realty reload

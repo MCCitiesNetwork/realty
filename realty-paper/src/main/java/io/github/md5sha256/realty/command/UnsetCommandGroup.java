@@ -17,11 +17,11 @@ import org.jetbrains.annotations.NotNull;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Handles {@code /realty unsetprice <region>}.
+ * Handles {@code /realty unset price [region]}.
  *
- * <p>Permission: {@code realty.command.unsetprice}.</p>
+ * <p>Permission: {@code realty.command.unset.price}.</p>
  */
-public record UnsetPriceCommand(
+public record UnsetCommandGroup(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull MessageContainer messages
@@ -30,8 +30,9 @@ public record UnsetPriceCommand(
     @Override
     public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
         return manager.commandBuilder("realty")
-                .literal("unsetprice")
-                .permission("realty.command.unsetprice")
+                .literal("unset")
+                .literal("price")
+                .permission("realty.command.unset.price")
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();
