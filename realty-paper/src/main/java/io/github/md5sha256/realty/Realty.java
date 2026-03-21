@@ -96,8 +96,8 @@ public final class Realty extends JavaPlugin {
     public void onLoad() {
         try {
             initDataFolder();
-            copyResourceTemplate("messages.yml", "default-messages.yml");
-            copyResourceTemplate("settings.yml", "default-settings.yml");
+            copyResourceTemplate("messages.yml", "defaults/default-messages.yml");
+            copyResourceTemplate("settings.yml", "defaults/default-settings.yml");
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());
@@ -193,6 +193,10 @@ public final class Realty extends JavaPlugin {
         if (!dataFolder.isDirectory()) {
             Files.createDirectory(dataFolder.toPath());
         }
+        File defaultsFolder = new File(dataFolder, "defaults");
+        if (!defaultsFolder.isDirectory()) {
+            Files.createDirectory(defaultsFolder.toPath());
+        }
     }
 
     private Settings loadSettings() throws IOException {
@@ -201,7 +205,7 @@ public final class Realty extends JavaPlugin {
     }
 
     private DatabaseSettings loadDatabaseSettings() throws IOException {
-        ConfigurationNode settingsRoot = copyDefaultsYaml("database-settings");
+        ConfigurationNode settingsRoot = copyDefaultsYaml("database");
         return settingsRoot.get(DatabaseSettings.class);
     }
 
