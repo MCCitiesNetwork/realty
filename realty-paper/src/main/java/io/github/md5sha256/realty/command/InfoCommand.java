@@ -112,90 +112,69 @@ public record InfoCommand(@NotNull ExecutorState executorState,
     private void appendSaleInfo(@NotNull TextComponent.Builder builder,
                                 @NotNull SaleContractEntity sale,
                                 @NotNull WorldGuardRegion region) {
-        builder.appendNewline()
-                .append(messages.messageFor("info.sale-title-holder",
-                        Placeholder.unparsed("title_holder", sale.titleHolderId() != null ? resolveName(sale.titleHolderId()) : "N/A")));
+        String titleHolder = sale.titleHolderId() != null ? resolveName(sale.titleHolderId()) : "N/A";
+        String membersStr = resolveMembers(region);
+        String authority = resolveName(sale.authorityId());
+        String price = sale.price() != null ? String.valueOf(sale.price()) : "N/A";
 
+        builder.appendNewline()
+                .append(messages.messageFor("info.sale",
+                        Placeholder.unparsed("title_holder", titleHolder),
+                        Placeholder.unparsed("members", membersStr),
+                        Placeholder.unparsed("authority", authority),
+                        Placeholder.unparsed("price", price)));
+    }
+
+    private static @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
         Set<UUID> memberUuids = region.region().getMembers().getUniqueIds();
         Set<String> memberGroups = region.region().getMembers().getGroups();
-        if (!memberUuids.isEmpty() || !memberGroups.isEmpty()) {
-            String members = memberUuids.stream()
-                    .map(InfoCommand::resolveName)
-                    .collect(Collectors.joining(", "));
-            String groups = memberGroups.stream()
-                    .map(g -> "g:" + g)
-                    .collect(Collectors.joining(", "));
-            String combined;
-            if (!members.isEmpty() && !groups.isEmpty()) {
-                combined = members + ", " + groups;
-            } else if (!members.isEmpty()) {
-                combined = members;
-            } else {
-                combined = groups;
-            }
-            builder.appendNewline()
-                    .append(messages.messageFor("info.members",
-                            Placeholder.unparsed("members", combined)));
+        if (memberUuids.isEmpty() && memberGroups.isEmpty()) {
+            return "None";
         }
-
-        builder.appendNewline()
-                .append(messages.messageFor("info.sale-authority",
-                        Placeholder.unparsed("authority", resolveName(sale.authorityId()))));
-        if (sale.price() != null) {
-            builder.appendNewline()
-                    .append(messages.messageFor("info.sale-price",
-                            Placeholder.unparsed("price", String.valueOf(sale.price()))));
+        String members = memberUuids.stream()
+                .map(InfoCommand::resolveName)
+                .collect(Collectors.joining(", "));
+        String groups = memberGroups.stream()
+                .map(g -> "g:" + g)
+                .collect(Collectors.joining(", "));
+        if (!members.isEmpty() && !groups.isEmpty()) {
+            return members + ", " + groups;
+        } else if (!members.isEmpty()) {
+            return members;
+        } else {
+            return groups;
         }
     }
 
     private void appendLeaseInfo(@NotNull TextComponent.Builder builder,
                                  @NotNull LeaseContractEntity lease) {
-        builder.appendNewline()
-                .append(messages.messageFor("info.lease-landlord",
-                        Placeholder.unparsed("landlord", resolveName(lease.landlordId()))))
-                .appendNewline()
-                .append(messages.messageFor("info.lease-tenant",
-                        Placeholder.unparsed("tenant", lease.tenantId() != null ? resolveName(lease.tenantId()) : "N/A")))
-                .appendNewline()
-                .append(messages.messageFor("info.lease-price",
-                        Placeholder.unparsed("price", String.valueOf(lease.price()))))
-                .appendNewline()
-                .append(messages.messageFor("info.lease-duration",
-                        Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(lease.durationSeconds())))))
-                .appendNewline()
-                .append(messages.messageFor("info.lease-start-date",
-                        Placeholder.unparsed("start_date", formatDate(lease.startDate()))));
+        String tenant = lease.tenantId() != null ? resolveName(lease.tenantId()) : "N/A";
+        String extensions;
         if (lease.maxExtensions() != null) {
-            builder.appendNewline()
-                    .append(messages.messageFor("info.lease-extensions",
-                            Placeholder.unparsed("current", String.valueOf(lease.currentMaxExtensions())),
-                            Placeholder.unparsed("max", String.valueOf(lease.maxExtensions()))));
+            extensions = lease.currentMaxExtensions() + "/" + lease.maxExtensions();
         } else {
-            builder.appendNewline()
-                    .append(messages.messageFor("info.lease-extensions-unlimited"));
+            extensions = "unlimited";
         }
+
+        builder.appendNewline()
+                .append(messages.messageFor("info.lease",
+                        Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
+                        Placeholder.unparsed("tenant", tenant),
+                        Placeholder.unparsed("price", String.valueOf(lease.price())),
+                        Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(lease.durationSeconds()))),
+                        Placeholder.unparsed("start_date", formatDate(lease.startDate())),
+                        Placeholder.unparsed("extensions", extensions)));
     }
 
     private void appendAuctionInfo(@NotNull TextComponent.Builder builder,
                                    @NotNull SaleContractAuctionEntity auction) {
         builder.appendNewline()
-                .append(messages.messageFor("info.auction-header",
-                        Placeholder.unparsed("id", String.valueOf(auction.saleContractAuctionId()))))
-                .appendNewline()
-                .append(messages.messageFor("info.auction-start-date",
-                        Placeholder.unparsed("start_date", formatDate(auction.startDate()))))
-                .appendNewline()
-                .append(messages.messageFor("info.auction-bidding-duration",
-                        Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds())))))
-                .appendNewline()
-                .append(messages.messageFor("info.auction-payment-deadline",
-                        Placeholder.unparsed("deadline", formatDate(auction.paymentDeadline()))))
-                .appendNewline()
-                .append(messages.messageFor("info.auction-min-bid",
-                        Placeholder.unparsed("amount", String.valueOf(auction.minBid()))))
-                .appendNewline()
-                .append(messages.messageFor("info.auction-min-step",
-                        Placeholder.unparsed("amount", String.valueOf(auction.minStep()))));
+                .append(messages.messageFor("info.auction",
+                        Placeholder.unparsed("start_date", formatDate(auction.startDate())),
+                        Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))),
+                        Placeholder.unparsed("deadline", formatDate(auction.paymentDeadline())),
+                        Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
+                        Placeholder.unparsed("min_step", String.valueOf(auction.minStep()))));
     }
 
     private static @NotNull String resolveName(@NotNull UUID uuid) {
