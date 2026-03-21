@@ -3,3 +3,6 @@
 default-sale-authority-uuid: "00000000-0000-0000-0000-000000000000"
 default-lease-authority-uuid: "00000000-0000-0000-0000-000000000000"
 date-format: "EEE, d MMMM yyyy (HH:mm)"
+# Maximum number of region profiles to re-apply per tick during startup/reload.
+# Lower values reduce lag spikes, higher values complete faster.
+profile-reapply-per-tick: 10

@@ -163,7 +163,7 @@ public final class Realty extends JavaPlugin {
                 this.messageContainer,
                 economyProvider.getProvider(),
                 this.notificationService);
-        reapplyAllFlags();
+        reapplyAllProfiles();
         getLogger().info("Plugin enabled successfully");
     }
 
@@ -271,30 +271,43 @@ public final class Realty extends JavaPlugin {
         return settingsRoot.get(RegionProfileSettings.class);
     }
 
-    private void reapplyAllFlags() {
+    private void reapplyAllProfiles() {
+        int perTick = this.settings.get().profileReapplyPerTick();
         CompletableFuture.supplyAsync(() -> logic.getAllRegionsWithState(), executorState.dbExec())
                 .thenAcceptAsync(regionsWithState -> {
-                    for (RealtyLogicImpl.RegionWithState rws : regionsWithState) {
-                        RealtyRegionEntity entity = rws.region();
-                        World world = getServer().getWorld(entity.worldId());
-                        if (world == null) {
-                            continue;
-                        }
-                        RegionManager regionManager = WorldGuard.getInstance()
-                                .getPlatform()
-                                .getRegionContainer()
-                                .get(BukkitAdapter.adapt(world));
-                        if (regionManager == null) {
-                            continue;
-                        }
-                        ProtectedRegion protectedRegion = regionManager.getRegion(entity.worldGuardRegionId());
-                        if (protectedRegion == null) {
-                            continue;
-                        }
-                        WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                        regionProfileService.clearAllFlags(wgRegion);
-                        regionProfileService.applyFlags(wgRegion, rws.state(), rws.placeholders());
+                    if (regionsWithState.isEmpty()) {
+                        return;
                     }
+                    int[] index = {0};
+                    getServer().getScheduler().runTaskTimer(this, task -> {
+                        int processed = 0;
+                        while (index[0] < regionsWithState.size() && processed < perTick) {
+                            RealtyLogicImpl.RegionWithState rws = regionsWithState.get(index[0]++);
+                            RealtyRegionEntity entity = rws.region();
+                            World world = getServer().getWorld(entity.worldId());
+                            if (world == null) {
+                                continue;
+                            }
+                            RegionManager regionManager = WorldGuard.getInstance()
+                                    .getPlatform()
+                                    .getRegionContainer()
+                                    .get(BukkitAdapter.adapt(world));
+                            if (regionManager == null) {
+                                continue;
+                            }
+                            ProtectedRegion protectedRegion = regionManager.getRegion(entity.worldGuardRegionId());
+                            if (protectedRegion == null) {
+                                continue;
+                            }
+                            WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
+                            regionProfileService.clearAllFlags(wgRegion);
+                            regionProfileService.applyFlags(wgRegion, rws.state(), rws.placeholders());
+                            processed++;
+                        }
+                        if (index[0] >= regionsWithState.size()) {
+                            task.cancel();
+                        }
+                    }, 0L, 1L);
                 }, executorState.mainThreadExec());
     }
 
@@ -330,7 +343,7 @@ public final class Realty extends JavaPlugin {
         this.settings.set(loadSettings());
         this.regionFlagSettings.set(loadRegionFlagSettings());
         configureRegionFlagService(this.regionFlagSettings.get());
-        reapplyAllFlags();
+        reapplyAllProfiles();
         reloadMessages();
     }
 
