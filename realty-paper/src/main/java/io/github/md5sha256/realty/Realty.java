@@ -96,9 +96,12 @@ public final class Realty extends JavaPlugin {
     public void onLoad() {
         try {
             initDataFolder();
+            copyResourceTemplate("messages.yml", "default-messages.yml");
+            copyResourceTemplate("settings.yml", "default-settings.yml");
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());
+            
             if (this.databaseSettings.url().isEmpty()) {
                 getLogger().severe("Database url is empty!");
                 getServer().getPluginManager().disablePlugin(this);
@@ -272,6 +275,19 @@ public final class Realty extends JavaPlugin {
         for (CustomCommandBean bean : commands) {
             for (Command<CommandSourceStack> cmd : bean.commands(manager)) {
                 manager.command(cmd);
+            }
+        }
+    }
+
+    private void copyResourceTemplate(@NotNull String resourceName, @NotNull String targetName) throws IOException {
+        File file = new File(getDataFolder(), targetName);
+        try (InputStream inputStream = getResource(resourceName)) {
+            if (inputStream == null) {
+                getLogger().severe("Failed to find resource: " + resourceName);
+                return;
+            }
+            try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
+                inputStream.transferTo(fileOutputStream);
             }
         }
     }

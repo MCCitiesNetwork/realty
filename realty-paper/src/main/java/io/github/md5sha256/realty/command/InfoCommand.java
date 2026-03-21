@@ -181,6 +181,8 @@ public record InfoCommand(@NotNull ExecutorState executorState,
             extensions = "unlimited";
         }
 
+        LocalDateTime leaseEndDate = lease.startDate().plusSeconds(lease.durationSeconds());
+
         builder.appendNewline()
                 .append(messages.messageFor("info.lease",
                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
@@ -189,17 +191,21 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("duration",
                                 formatDuration(Duration.ofSeconds(lease.durationSeconds()))),
                         Placeholder.unparsed("start_date", formatDate(lease.startDate())),
+                        Placeholder.unparsed("end_date", formatDate(leaseEndDate)),
                         Placeholder.unparsed("extensions", extensions)));
     }
 
     private void appendAuctionInfo(@NotNull TextComponent.Builder builder,
                                    @NotNull SaleContractAuctionEntity auction) {
+        LocalDateTime biddingEndDate = auction.startDate().plusSeconds(auction.biddingDurationSeconds());
+
         builder.appendNewline()
                 .append(messages.messageFor("info.auction",
                         Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
                         Placeholder.unparsed("start_date", formatDate(auction.startDate())),
                         Placeholder.unparsed("duration",
                                 formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))),
+                        Placeholder.unparsed("bidding_end_date", formatDate(biddingEndDate)),
                         Placeholder.unparsed("deadline", formatDate(auction.paymentDeadline())),
                         Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
                         Placeholder.unparsed("min_step", String.valueOf(auction.minStep()))));
