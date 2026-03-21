@@ -164,7 +164,7 @@ help:
     - "<gold>--- Realty > Basics ---</gold>"
     - "<yellow>/realty help</yellow> <gray>- Show help categories</gray>"
     - "<yellow>/realty info <region></yellow> <gray>- Display region info</gray>"
-    - "<yellow>/realty list [owned|rented] [page] [--player <name>]</yellow> <gray>- List regions</gray>"
+    - "<yellow>/realty list [owned|rented] [--page <n>] [--player <name>]</yellow> <gray>- List regions</gray>"
     - "<yellow>/realty buy <region></yellow> <gray>- Buy a region at the listed price</gray>"
     - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
     - "<yellow>/realty renew <region></yellow> <gray>- Renew a lease</gray>"

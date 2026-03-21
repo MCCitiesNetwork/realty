@@ -17,7 +17,6 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
-import org.incendo.cloud.key.CloudKey;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.IntegerParser;
 import org.incendo.cloud.parser.standard.StringParser;
@@ -29,7 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Handles {@code /realty list [owned|rented] [page] [--player <name>]}.
+ * Handles {@code /realty list [owned|rented] [--page <n>] [--player <name>]}.
  *
  * <p>Permission: {@code realty.command.list}.</p>
  */
@@ -41,30 +40,30 @@ public record ListCommand(
 
     private static final int PAGE_SIZE = 10;
 
-    private static final CloudKey<Integer> PAGE_KEY = CloudKey.of("page", Integer.class);
-
     private static final CommandFlag<String> PLAYER_FLAG =
             CommandFlag.<CommandSourceStack>builder("player")
                     .withComponent(StringParser.stringParser())
+                    .build();
+
+    private static final CommandFlag<Integer> PAGE_FLAG =
+            CommandFlag.<CommandSourceStack>builder("page")
+                    .withComponent(IntegerParser.integerParser(1))
                     .build();
 
     @Override
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
         var base = manager.commandBuilder("realty")
                 .literal("list")
-                .permission("realty.command.list");
+                .permission("realty.command.list")
+                .flag(PLAYER_FLAG)
+                .flag(PAGE_FLAG);
         return List.of(
-                base.flag(PLAYER_FLAG)
-                        .handler(ctx -> execute(ctx, null))
+                base.handler(ctx -> execute(ctx, null))
                         .build(),
                 base.literal("owned")
-                        .flag(PLAYER_FLAG)
-                        .optional(PAGE_KEY, IntegerParser.integerParser(1))
                         .handler(ctx -> execute(ctx, "owned"))
                         .build(),
                 base.literal("rented")
-                        .flag(PLAYER_FLAG)
-                        .optional(PAGE_KEY, IntegerParser.integerParser(1))
                         .handler(ctx -> execute(ctx, "rented"))
                         .build()
         );
@@ -73,7 +72,7 @@ public record ListCommand(
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx,
                          @Nullable String category) {
         CommandSender sender = ctx.sender().getSender();
-        int page = ctx.getOrDefault(PAGE_KEY, 1);
+        int page = ctx.flags().getValue(PAGE_FLAG, 1);
         String playerName = ctx.flags().getValue(PLAYER_FLAG, null);
         if (playerName != null) {
             resolvePlayer(sender, playerName, category, page);
@@ -207,7 +206,7 @@ public record ListCommand(
         if (category != null) {
             command.append(' ').append(category);
         }
-        command.append(' ').append(targetPage);
+        command.append(" --page ").append(targetPage);
         command.append(" --player ").append(playerName);
         return parseMiniMessage(key,
                 "<command>", command.toString());
