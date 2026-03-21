@@ -124,6 +124,7 @@ public class RealtyLogicImpl {
         record IsOwner() implements BidResult {}
         record BidTooLowMinimum(double minBid) implements BidResult {}
         record BidTooLowCurrent(double currentHighest) implements BidResult {}
+        record AlreadyHighestBidder() implements BidResult {}
     }
 
     public @NotNull BidResult performBid(@NotNull String worldGuardRegionId,
@@ -148,8 +149,13 @@ public class RealtyLogicImpl {
                 return new BidResult.BidTooLowMinimum(auction.minBid());
             }
             SaleContractBid highestBid = bidMapper.selectHighestBid(worldGuardRegionId, worldId);
-            if (highestBid != null && bidAmount < highestBid.bidAmount() + auction.minStep()) {
-                return new BidResult.BidTooLowCurrent(highestBid.bidAmount());
+            if (highestBid != null) {
+                if (highestBid.bidderId().equals(bidderId)) {
+                    return new BidResult.AlreadyHighestBidder();
+                }
+                if (bidAmount < highestBid.bidAmount() + auction.minStep()) {
+                    return new BidResult.BidTooLowCurrent(highestBid.bidAmount());
+                }
             }
             UUID previousBidderId = highestBid != null ? highestBid.bidderId() : null;
             int inserted = bidMapper.performContractBid(new SaleContractBid(
@@ -157,8 +163,13 @@ public class RealtyLogicImpl {
             if (inserted == 0) {
                 // Re-fetch highest bid in case it was inserted concurrently
                 SaleContractBid current = bidMapper.selectHighestBid(worldGuardRegionId, worldId);
-                if (current != null && bidAmount < current.bidAmount() + auction.minStep()) {
-                    return new BidResult.BidTooLowCurrent(current.bidAmount());
+                if (current != null) {
+                    if (current.bidderId().equals(bidderId)) {
+                        return new BidResult.AlreadyHighestBidder();
+                    }
+                    if (bidAmount < current.bidAmount() + auction.minStep()) {
+                        return new BidResult.BidTooLowCurrent(current.bidAmount());
+                    }
                 }
                 return new BidResult.BidTooLowMinimum(auction.minBid());
             }

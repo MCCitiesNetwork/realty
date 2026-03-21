@@ -41,6 +41,7 @@ bid:
   is-owner: "You cannot bid on a region you own."
   too-low-minimum: "Bid too low, the minimum bid is <amount>."
   too-low-current: "Bid too low, the next highest bid is <amount>."
+  already-highest: "You are already the highest bidder on this region."
   success: "Bid of <amount> placed on region <region>."
   error: "Failed to perform bid: <error>"
 

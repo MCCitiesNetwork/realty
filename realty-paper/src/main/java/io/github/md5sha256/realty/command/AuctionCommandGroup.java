@@ -195,6 +195,8 @@ public record AuctionCommandGroup(
                     case RealtyLogicImpl.BidResult.BidTooLowCurrent r ->
                             sender.sendMessage(messages.messageFor("bid.too-low-current",
                                     Placeholder.unparsed("amount", String.valueOf(r.currentHighest()))));
+                    case RealtyLogicImpl.BidResult.AlreadyHighestBidder ignored ->
+                            sender.sendMessage(messages.messageFor("bid.already-highest"));
                 }
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor("bid.error",
