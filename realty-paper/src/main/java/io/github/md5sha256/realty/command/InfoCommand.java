@@ -10,10 +10,9 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
-import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -41,9 +40,56 @@ import java.util.stream.Collectors;
  * <p>Permission: {@code realty.command.info}.</p>
  */
 public record InfoCommand(@NotNull ExecutorState executorState,
-                           @NotNull RealtyLogicImpl logic,
-                           @NotNull Settings settings,
-                           @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+                          @NotNull RealtyLogicImpl logic,
+                          @NotNull Settings settings,
+                          @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+
+    private static @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
+        Set<UUID> memberUuids = region.region().getMembers().getUniqueIds();
+        Set<String> memberGroups = region.region().getMembers().getGroups();
+        if (memberUuids.isEmpty() && memberGroups.isEmpty()) {
+            return "None";
+        }
+        String members = memberUuids.stream()
+                .map(InfoCommand::resolveName)
+                .collect(Collectors.joining(", "));
+        String groups = memberGroups.stream()
+                .map(g -> "g:" + g)
+                .collect(Collectors.joining(", "));
+        if (!members.isEmpty() && !groups.isEmpty()) {
+            return members + ", " + groups;
+        } else if (!members.isEmpty()) {
+            return members;
+        } else {
+            return groups;
+        }
+    }
+
+    private static @NotNull String resolveName(@NotNull UUID uuid) {
+        String name = Bukkit.getOfflinePlayer(uuid).getName();
+        return name != null ? name : uuid.toString();
+    }
+
+    private static @NotNull String formatDuration(@NotNull Duration duration) {
+        long days = duration.toDays();
+        long hours = duration.toHoursPart();
+        long minutes = duration.toMinutesPart();
+        long seconds = duration.toSecondsPart();
+        StringBuilder sb = new StringBuilder();
+        if (days > 0) {
+            sb.append(days).append("d ");
+        }
+        if (hours > 0) {
+            sb.append(hours).append("h ");
+        }
+        if (minutes > 0) {
+            sb.append(minutes).append("m ");
+        }
+        if (seconds > 0 || sb.isEmpty()) {
+            sb.append(seconds).append("s");
+        }
+        return sb.toString().trim();
+    }
 
     @Override
     public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
@@ -125,27 +171,6 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("price", price)));
     }
 
-    private static @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
-        Set<UUID> memberUuids = region.region().getMembers().getUniqueIds();
-        Set<String> memberGroups = region.region().getMembers().getGroups();
-        if (memberUuids.isEmpty() && memberGroups.isEmpty()) {
-            return "None";
-        }
-        String members = memberUuids.stream()
-                .map(InfoCommand::resolveName)
-                .collect(Collectors.joining(", "));
-        String groups = memberGroups.stream()
-                .map(g -> "g:" + g)
-                .collect(Collectors.joining(", "));
-        if (!members.isEmpty() && !groups.isEmpty()) {
-            return members + ", " + groups;
-        } else if (!members.isEmpty()) {
-            return members;
-        } else {
-            return groups;
-        }
-    }
-
     private void appendLeaseInfo(@NotNull TextComponent.Builder builder,
                                  @NotNull LeaseContractEntity lease) {
         String tenant = lease.tenantId() != null ? resolveName(lease.tenantId()) : "N/A";
@@ -161,7 +186,8 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
                         Placeholder.unparsed("tenant", tenant),
                         Placeholder.unparsed("price", String.valueOf(lease.price())),
-                        Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(lease.durationSeconds()))),
+                        Placeholder.unparsed("duration",
+                                formatDuration(Duration.ofSeconds(lease.durationSeconds()))),
                         Placeholder.unparsed("start_date", formatDate(lease.startDate())),
                         Placeholder.unparsed("extensions", extensions)));
     }
@@ -171,44 +197,17 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         builder.appendNewline()
                 .append(messages.messageFor("info.auction",
                         Placeholder.unparsed("start_date", formatDate(auction.startDate())),
-                        Placeholder.unparsed("duration", formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))),
+                        Placeholder.unparsed("duration",
+                                formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))),
                         Placeholder.unparsed("deadline", formatDate(auction.paymentDeadline())),
                         Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
                         Placeholder.unparsed("min_step", String.valueOf(auction.minStep()))));
     }
 
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        String name = Bukkit.getOfflinePlayer(uuid).getName();
-        return name != null ? name : uuid.toString();
-    }
-
     private @NotNull String formatDate(@NotNull LocalDateTime dateTime) {
         DateFormat dateFormat = settings.dateFormat();
         Date date = Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
-        synchronized (dateFormat) {
-            return dateFormat.format(date);
-        }
-    }
-
-    private static @NotNull String formatDuration(@NotNull Duration duration) {
-        long days = duration.toDays();
-        long hours = duration.toHoursPart();
-        long minutes = duration.toMinutesPart();
-        long seconds = duration.toSecondsPart();
-        StringBuilder sb = new StringBuilder();
-        if (days > 0) {
-            sb.append(days).append("d ");
-        }
-        if (hours > 0) {
-            sb.append(hours).append("h ");
-        }
-        if (minutes > 0) {
-            sb.append(minutes).append("m ");
-        }
-        if (seconds > 0 || sb.isEmpty()) {
-            sb.append(seconds).append("s");
-        }
-        return sb.toString().trim();
+        return dateFormat.format(date);
     }
 
 }

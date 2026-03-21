@@ -14,6 +14,6 @@ public record Settings(
         @Setting("default-sale-authority-uuid") @Required @NotNull UUID defaultSaleAuthority,
         @Setting("default-sale-titleholder-uuid") @Nullable UUID defaultSaleTitleholder,
         @Setting("default-lease-authority-uuid") @Required @NotNull UUID defaultLeaseAuthority,
-        @Setting("date-format") @NotNull SimpleDateFormat dateFormat
+        @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat
 ) {
 }
