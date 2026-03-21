@@ -140,7 +140,7 @@ public class RealtyLogicImpl {
                 return new BidResult.BidTooLowMinimum(auction.minBid());
             }
             SaleContractBid highestBid = bidMapper.selectHighestBid(worldGuardRegionId, worldId);
-            if (highestBid != null && bidAmount < highestBid.bidAmount()) {
+            if (highestBid != null && bidAmount < highestBid.bidAmount() + auction.minStep()) {
                 return new BidResult.BidTooLowCurrent(highestBid.bidAmount());
             }
             UUID previousBidderId = highestBid != null ? highestBid.bidderId() : null;
@@ -149,7 +149,7 @@ public class RealtyLogicImpl {
             if (inserted == 0) {
                 // Re-fetch highest bid in case it was inserted concurrently
                 SaleContractBid current = bidMapper.selectHighestBid(worldGuardRegionId, worldId);
-                if (current != null && bidAmount < current.bidAmount()) {
+                if (current != null && bidAmount < current.bidAmount() + auction.minStep()) {
                     return new BidResult.BidTooLowCurrent(current.bidAmount());
                 }
                 return new BidResult.BidTooLowMinimum(auction.minBid());
