@@ -137,7 +137,7 @@ public final class Realty extends JavaPlugin {
             this.notificationService = new EssentialsNotificationService(this.executorState.mainThreadExec());
         } else {
             getLogger().info("Using the transient notification service");
-            this.notificationService = new TransientNotificationService();
+            this.notificationService = new TransientNotificationService(this.executorState.mainThreadExec());
         }
         scheduleTasks();
         registerCommands(this.executorState,

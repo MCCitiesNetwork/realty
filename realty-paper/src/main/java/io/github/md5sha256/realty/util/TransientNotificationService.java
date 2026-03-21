@@ -7,14 +7,28 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 public class TransientNotificationService implements NotificationService {
 
+    private final Executor mainThreadExec;
+
+    public TransientNotificationService(@NotNull Executor mainThreadExec) {
+        this.mainThreadExec = mainThreadExec;
+    }
+
     @Override
     public void queueNotification(@NotNull UUID authorityId, @NotNull Component text) {
-        Player player = Bukkit.getPlayer(authorityId);
-        if (player != null) {
-            player.sendMessage(text);
+        Runnable runnable = () -> {
+            Player player = Bukkit.getPlayer(authorityId);
+            if (player != null) {
+                player.sendMessage(text);
+            }
+        };
+        if (Bukkit.isPrimaryThread()) {
+            runnable.run();
+        } else {
+            mainThreadExec.execute(runnable);
         }
     }
 
@@ -27,9 +41,16 @@ public class TransientNotificationService implements NotificationService {
 
     @Override
     public void queueNotification(@NotNull UUID authorityId, @NotNull String plaintext) {
-        Player player = Bukkit.getPlayer(authorityId);
-        if (player != null) {
-            player.sendPlainMessage(plaintext);
+        Runnable runnable = () -> {
+            Player player = Bukkit.getPlayer(authorityId);
+            if (player != null) {
+                player.sendPlainMessage(plaintext);
+            }
+        };
+        if (Bukkit.isPrimaryThread()) {
+            runnable.run();
+        } else {
+            mainThreadExec.execute(runnable);
         }
     }
 
