@@ -33,7 +33,7 @@ agent-remove:
 auction:
   success: "Auction created for region <region>."
   not-sanctioned: "You are not authorized to start an auction on region <region>."
-  no-sale-contract: "Region <region> does not have a sale contract."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
   error: "Failed to create auction: <error>"
 
 bid:
@@ -55,10 +55,10 @@ create-rental:
   already-registered: "Region already registered!"
   error: "Failed to create rental region: <error>"
 
-create-sale:
-  success: "Sale region created successfully!"
+create-freehold:
+  success: "Freehold region created successfully!"
   already-registered: "Region already registered!"
-  error: "Failed to create sale region: <error>"
+  error: "Failed to create freehold region: <error>"
 
 delete:
   not-registered: "Region is not registered in Realty!"
@@ -69,14 +69,14 @@ delete:
 info:
   header: "--- Region Info: <region> ---"
   no-contracts: "No contracts or auctions found for this region."
-  sale:
-    - "<#00aaff>►</#00aaff> Contract Type: <dark_green><b>Sale</dark_green>"
+  sold:
+    - "<#00aaff>►</#00aaff> Contract Type: <dark_green><b>Freehold</dark_green>"
     - "<#00aaff>►</#00aaff> Title Holder: <#00aaff><title_holder></#00aaff>"
     - "<#00aaff>►</#00aaff> Members: <yellow><members></yellow>"
     - "<#00aaff>►</#00aaff> Last Sold Price: <green>$<last_sold_price></green>"
     - "<#00aaff>►</#00aaff> Authority: <dark_green><authority></dark_green>"
   for-sale:
-    - "<#00aaff>►</#00aaff> Contract Type: <dark_green><b>Sale</dark_green>"
+    - "<#00aaff>►</#00aaff> Contract Type: <dark_green><b>Freehold</dark_green>"
     - "<#00aaff>►</#00aaff> Title Holder: <#00aaff><title_holder></#00aaff>"
     - "<#00aaff>►</#00aaff> Price: <green>$<price></green>"
     - "<#00aaff>►</#00aaff> Authority: <dark_green><authority></dark_green>"
@@ -131,7 +131,7 @@ offers-inbound:
 
 offer:
   success: "Offer of <price> placed on region <region>."
-  no-sale-contract: "Region <region> does not have an active sale contract."
+  no-freehold-contract: "Region <region> does not have an active freehold contract."
   is-owner: "You cannot place an offer on a region you own."
   already-has-offer: "You already have an offer on region <region>. Withdraw it first before placing a new one."
   auction-exists: "Region <region> has an auction. Offers cannot be placed while an auction exists."
@@ -179,13 +179,13 @@ help:
     - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
     - "<yellow>/realty renew <region></yellow> <gray>- Renew a lease</gray>"
     - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
-    - "<yellow>/realty set price <price> <region></yellow> <gray>- Set region sale price</gray>"
-    - "<yellow>/realty unset price <region></yellow> <gray>- Remove region sale price</gray>"
-    - "<yellow>/realty unset titleholder <region></yellow> <gray>- Clear sale title holder</gray>"
+    - "<yellow>/realty set price <price> <region></yellow> <gray>- Set region freehold price</gray>"
+    - "<yellow>/realty unset price <region></yellow> <gray>- Remove region freehold price</gray>"
+    - "<yellow>/realty unset titleholder <region></yellow> <gray>- Clear freehold title holder</gray>"
     - "<yellow>/realty unset tenant <region></yellow> <gray>- Clear lease tenant</gray>"
     - "<yellow>/realty set duration <duration> <region></yellow> <gray>- Set lease duration</gray>"
     - "<yellow>/realty set landlord <player> <region></yellow> <gray>- Set lease landlord</gray>"
-    - "<yellow>/realty set titleholder <player> <region></yellow> <gray>- Set sale title holder</gray>"
+    - "<yellow>/realty set titleholder <player> <region></yellow> <gray>- Set freehold title holder</gray>"
     - "<yellow>/realty set tenant <player> <region></yellow> <gray>- Set lease tenant</gray>"
     - "<yellow>/realty agent add <player> <region></yellow> <gray>- Add a sanctioned auctioneer</gray>"
     - "<yellow>/realty agent remove <player> <region></yellow> <gray>- Remove a sanctioned auctioneer</gray>"
@@ -208,7 +208,7 @@ help:
     - "<yellow>/realty auction cancel <region></yellow> <gray>- Cancel an auction</gray>"
   admin:
     - "<gold>--- Realty > Admin ---</gold>"
-    - "<yellow>/realty create sale <price> [--titleholder <name>] [--authority <name>] <region></yellow> <gray>- Create a sale</gray>"
+    - "<yellow>/realty create freehold <price> [--titleholder <name>] [--authority <name>] <region></yellow> <gray>- Create a freehold</gray>"
     - "<yellow>/realty create lease <price> <period> <maxrenewals> [--landlord <name>] <region></yellow> <gray>- Create a lease</gray>"
     - "<yellow>/realty remove <player> <region></yellow> <gray>- Remove a player from a region</gray>"
     - "<yellow>/realty delete <region> [includeworldguard]</yellow> <gray>- Delete a region</gray>"
@@ -245,7 +245,7 @@ remove:
 
 set-price:
   success: "Price for region <region> set to <price>."
-  no-sale-contract: "Region <region> does not have a sale contract."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
   auction-exists: "Region <region> has an active auction. Price cannot be changed."
   offer-payment-in-progress: "Region <region> has an offer payment in progress. Price cannot be changed."
   bid-payment-in-progress: "Region <region> has a bid payment in progress. Price cannot be changed."
@@ -254,7 +254,7 @@ set-price:
 
 unset-price:
   success: "Price for region <region> has been cleared."
-  no-sale-contract: "Region <region> does not have a sale contract."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
   offer-payment-in-progress: "Region <region> has an offer payment in progress. Price cannot be cleared."
   bid-payment-in-progress: "Region <region> has a bid payment in progress. Price cannot be cleared."
   update-failed: "Failed to clear price for region <region>."
@@ -274,7 +274,7 @@ set-landlord:
 
 set-titleholder:
   success: "Title holder for region <region> set to <titleholder>."
-  no-sale-contract: "Region <region> does not have a sale contract."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
   update-failed: "Failed to update title holder for region <region>."
   error: "Failed to set title holder: <error>"
 
@@ -286,7 +286,7 @@ set-tenant:
 
 unset-titleholder:
   success: "Title holder for region <region> has been cleared."
-  no-sale-contract: "Region <region> does not have a sale contract."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
   update-failed: "Failed to clear title holder for region <region>."
   error: "Failed to unset title holder: <error>"
 
@@ -306,7 +306,7 @@ reject-offer:
   success: "Rejected offer from <player> on region <region>."
   all-success: "Rejected <count> offer(s) on region <region>."
   no-offer: "Player <player> does not have an offer on region <region>."
-  no-sale-contract: "Region <region> does not have a sale contract."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
   accepted: "Region <region> has an accepted offer with payment in progress. It cannot be rejected."
   error: "Failed to decline offer: <error>"
 
