@@ -151,7 +151,8 @@ public interface MariaSaleContractOfferMapper extends SaleContractOfferMapper {
                    scop.currentPayment, scop.paymentDeadline
             FROM SaleContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
-            INNER JOIN SaleContract sc ON sc.realtyRegionId = sco.realtyRegionId
+            INNER JOIN Contract c ON c.realtyRegionId = sco.realtyRegionId AND c.contractType = 'sale'
+            INNER JOIN SaleContract sc ON sc.saleContractId = c.contractId
             LEFT JOIN SaleContractOfferPayment scop ON scop.offerId = sco.offerId
             WHERE sc.authorityId = #{authorityId}
             ORDER BY sco.offerTime DESC

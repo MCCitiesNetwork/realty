@@ -5,8 +5,6 @@ import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.database.maria.MariaSchemaMigrator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mariadb.MariaDBContainer;
 
 import java.io.IOException;
@@ -17,24 +15,31 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.logging.Logger;
 
-@Testcontainers
 abstract class AbstractDatabaseTest {
 
     private static final String ROOT_PASSWORD = "rootpass";
 
-    @Container
     protected static final MariaDBContainer CONTAINER = new MariaDBContainer("mariadb:11.7")
             .withEnv("MARIADB_ROOT_PASSWORD", ROOT_PASSWORD);
+
+    static {
+        CONTAINER.start();
+    }
 
     protected static Database database;
     protected static RealtyLogicImpl logic;
 
+    private static volatile boolean migrated;
+
     @BeforeAll
     static void initDatabase() throws IOException, SQLException {
-        // Run migrations as root to avoid privilege issues with ALTER/CHECK constraints
-        String baseJdbcUrl = CONTAINER.getJdbcUrl();
-        MariaSchemaMigrator.migrate(baseJdbcUrl, "root", ROOT_PASSWORD,
-                Path.of("sql/migrations"), MariaSchemaMigrator.defaultMigrations(), Logger.getLogger("test"));
+        if (!migrated) {
+            // Run migrations as root to avoid privilege issues with ALTER/CHECK constraints
+            String baseJdbcUrl = CONTAINER.getJdbcUrl();
+            MariaSchemaMigrator.migrate(baseJdbcUrl, "root", ROOT_PASSWORD,
+                    Path.of("sql/migrations"), MariaSchemaMigrator.defaultMigrations(), Logger.getLogger("test"));
+            migrated = true;
+        }
 
         String jdbcUrl = CONTAINER.getJdbcUrl();
         // MariaDatabase prepends "jdbc:" to settings.url(), so strip the jdbc: prefix
@@ -56,6 +61,8 @@ abstract class AbstractDatabaseTest {
              Statement stmt = conn.createStatement()) {
             stmt.execute("""
                     SET FOREIGN_KEY_CHECKS = 0;
+                    TRUNCATE TABLE SaleHistory;
+                    TRUNCATE TABLE LeaseHistory;
                     TRUNCATE TABLE SaleContractBidPayment;
                     TRUNCATE TABLE SaleContractBid;
                     TRUNCATE TABLE SaleContractOfferPayment;
