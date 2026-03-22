@@ -270,7 +270,7 @@ renew:
   error: "Failed to renew lease: <error>"
 
 rent:
-  success: "You are now renting region <region> for <price>."
+  success: "You are now renting region <region> for <price> for <duration>."
   no-lease-contract: "Region <region> does not have a lease contract."
   is-landlord: "You cannot rent region <region> because you are the landlord."
   already-occupied: "Region <region> already has a tenant."

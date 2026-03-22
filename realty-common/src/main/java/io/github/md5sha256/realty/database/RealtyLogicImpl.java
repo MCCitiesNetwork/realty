@@ -591,7 +591,7 @@ public class RealtyLogicImpl {
     // --- Rent ---
 
     public sealed interface RentResult {
-        record Success(double price, @NotNull UUID landlordId) implements RentResult {}
+        record Success(double price, long durationSeconds, @NotNull UUID landlordId) implements RentResult {}
         record NoLeaseContract() implements RentResult {}
         record IsLandlord() implements RentResult {}
         record AlreadyOccupied() implements RentResult {}
@@ -620,7 +620,7 @@ public class RealtyLogicImpl {
             wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENT.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
-            return new RentResult.Success(lease.price(), lease.landlordId());
+            return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId());
         }
     }
 

@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
@@ -23,6 +24,7 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -124,7 +126,9 @@ public record RentCommand(
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, entry.getValue());
             sender.sendMessage(messages.messageFor(MessageKeys.RENT_SUCCESS,
                     Placeholder.unparsed("region", regionId),
-                    Placeholder.unparsed("price", String.valueOf(price))));
+                    Placeholder.unparsed("price", String.valueOf(price)),
+                    Placeholder.unparsed("duration",
+                            DurationFormatter.format(Duration.ofSeconds(success.durationSeconds())))));
             notificationService.queueNotification(success.landlordId(),
                     messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
                             Placeholder.unparsed("player", sender.getName()),
