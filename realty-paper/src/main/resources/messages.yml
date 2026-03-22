@@ -92,6 +92,17 @@ info:
   auction-active: "<#00aaff>►</#00aaff> Active Auction: <yellow><has_auction></yellow>"
   error: "Failed to retrieve region info: <error>"
 
+history:
+  header: "--- History: <region> ---"
+  no-results: "No history found for region <region>."
+  freehold-entry: "<gray><time></gray> <yellow><event_type></yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
+  lease-entry: "<gray><time></gray> <yellow><event_type></yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
+  footer: "Page <page> of <total> <previous><next>"
+  previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
+  next: " <click:run_command:<command>><yellow>Next ></yellow></click>"
+  invalid-page: "Page <page> does not exist. There are <total> page(s)."
+  error: "Failed to retrieve history: <error>"
+
 auction-info:
   header: "--- Auction Info: <region> ---"
   no-auction: "Region <region> does not have an active auction."

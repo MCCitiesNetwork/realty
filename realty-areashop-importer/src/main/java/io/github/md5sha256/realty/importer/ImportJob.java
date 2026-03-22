@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.importer;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
@@ -66,7 +67,7 @@ public class ImportJob {
                         if (freehold.lastSoldPrice() != null && freehold.titleHolder() != null) {
                             freeholdHistoryMapper.insert(freehold.worldGuardRegionId(),
                                     freehold.worldId(),
-                                    "BUY",
+                                    HistoryEventType.BUY.name(),
                                     freehold.titleHolder(),
                                     freehold.authority(),
                                     freehold.lastSoldPrice());

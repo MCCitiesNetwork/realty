@@ -1,11 +1,13 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -21,11 +23,8 @@ import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.text.DateFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -70,26 +69,6 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         return name != null ? name : uuid.toString();
     }
 
-    private static @NotNull String formatDuration(@NotNull Duration duration) {
-        long days = duration.toDays();
-        long hours = duration.toHoursPart();
-        long minutes = duration.toMinutesPart();
-        long seconds = duration.toSecondsPart();
-        StringBuilder sb = new StringBuilder();
-        if (days > 0) {
-            sb.append(days).append("d ");
-        }
-        if (hours > 0) {
-            sb.append(hours).append("h ");
-        }
-        if (minutes > 0) {
-            sb.append(minutes).append("m ");
-        }
-        if (seconds > 0 || sb.isEmpty()) {
-            sb.append(seconds).append("s");
-        }
-        return sb.toString().trim();
-    }
 
     @Override
     public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
@@ -200,16 +179,10 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("tenant", tenant),
                         Placeholder.unparsed("price", String.valueOf(lease.price())),
                         Placeholder.unparsed("duration",
-                                formatDuration(Duration.ofSeconds(lease.durationSeconds()))),
-                        Placeholder.unparsed("start_date", formatDate(lease.startDate())),
-                        Placeholder.unparsed("end_date", formatDate(leaseEndDate)),
+                                DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds()))),
+                        Placeholder.unparsed("start_date", DateFormatter.format(settings,lease.startDate())),
+                        Placeholder.unparsed("end_date", DateFormatter.format(settings,leaseEndDate)),
                         Placeholder.unparsed("extensions", extensions)));
-    }
-
-    private @NotNull String formatDate(@NotNull LocalDateTime dateTime) {
-        DateFormat dateFormat = settings.dateFormat();
-        Date date = Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
-        return dateFormat.format(date);
     }
 
 }

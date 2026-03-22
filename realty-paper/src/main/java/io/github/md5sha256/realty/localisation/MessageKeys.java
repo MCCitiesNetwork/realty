@@ -97,6 +97,17 @@ public final class MessageKeys {
     public static final String HELP_AUCTIONS = "help.auctions";
     public static final String HELP_ADMIN = "help.admin";
 
+    // history
+    public static final String HISTORY_HEADER = "history.header";
+    public static final String HISTORY_NO_RESULTS = "history.no-results";
+    public static final String HISTORY_FREEHOLD_ENTRY = "history.freehold-entry";
+    public static final String HISTORY_LEASE_ENTRY = "history.lease-entry";
+    public static final String HISTORY_FOOTER = "history.footer";
+    public static final String HISTORY_PREVIOUS = "history.previous";
+    public static final String HISTORY_NEXT = "history.next";
+    public static final String HISTORY_INVALID_PAGE = "history.invalid-page";
+    public static final String HISTORY_ERROR = "history.error";
+
     // info
     public static final String INFO_HEADER = "info.header";
     public static final String INFO_NO_CONTRACTS = "info.no-contracts";

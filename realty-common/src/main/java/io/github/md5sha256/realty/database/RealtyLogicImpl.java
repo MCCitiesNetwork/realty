@@ -1,8 +1,13 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
+import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
+import io.github.md5sha256.realty.database.entity.HistoryEntry;
+import io.github.md5sha256.realty.database.entity.LeaseHistoryEntity;
 import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
@@ -413,7 +418,7 @@ public class RealtyLogicImpl {
             freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
-            wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, "BUY",
+            wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.BUY.name(),
                     buyerId, authorityId, freehold.price());
             wrapper.session().commit();
             return new BuyResult.Success(authorityId, titleHolderId);
@@ -492,7 +497,7 @@ public class RealtyLogicImpl {
             if (updated == 0) {
                 return new RentResult.UpdateFailed();
             }
-            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, "RENT",
+            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENT.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             return new RentResult.Success(lease.price(), lease.landlordId());
@@ -610,7 +615,7 @@ public class RealtyLogicImpl {
                 placeholders.put("landlord", lease.landlordId().toString());
                 placeholders.put("tenant", lease.tenantId() != null ? lease.tenantId().toString() : "");
                 placeholders.put("price", String.valueOf(lease.price()));
-                placeholders.put("duration", formatDuration(Duration.ofSeconds(lease.durationSeconds())));
+                placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
                 placeholders.put("start_date", lease.startDate().toString());
                 LocalDateTime endDate = lease.startDate().plusSeconds(lease.durationSeconds());
                 placeholders.put("end_date", endDate.toString());
@@ -629,26 +634,6 @@ public class RealtyLogicImpl {
         }
     }
 
-    private static @NotNull String formatDuration(@NotNull Duration duration) {
-        long days = duration.toDays();
-        long hours = duration.toHoursPart();
-        long minutes = duration.toMinutesPart();
-        long seconds = duration.toSecondsPart();
-        StringBuilder sb = new StringBuilder();
-        if (days > 0) {
-            sb.append(days).append("d ");
-        }
-        if (hours > 0) {
-            sb.append(hours).append("h ");
-        }
-        if (minutes > 0) {
-            sb.append(minutes).append("m ");
-        }
-        if (seconds > 0 || sb.isEmpty()) {
-            sb.append(seconds).append("s");
-        }
-        return sb.toString().trim();
-    }
 
     public record RegionWithState(
             @NotNull RealtyRegionEntity region,
@@ -978,7 +963,7 @@ public class RealtyLogicImpl {
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
                 wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
-                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, "OFFER_BUY",
+                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.OFFER_BUY.name(),
                         offererId, authorityId, payment.offerPrice());
                 wrapper.session().commit();
                 return new PayOfferResult.FullyPaid(authorityId, titleHolderId);
@@ -1028,7 +1013,7 @@ public class RealtyLogicImpl {
                 freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
                 wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
-                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, "AUCTION_BUY",
+                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),
                         bidderId, authorityId, payment.bidPrice());
                 wrapper.session().commit();
                 return new PayBidResult.FullyPaid(authorityId, titleHolderId);
@@ -1112,7 +1097,7 @@ public class RealtyLogicImpl {
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 wrapper.leaseContractMapper().clearTenant(lease.leaseContractId());
                 wrapper.leaseHistoryMapper().insert(lease.worldGuardRegionId(), lease.worldId(),
-                        "LEASE_EXPIRY", lease.tenantId(), lease.landlordId(),
+                        HistoryEventType.LEASE_EXPIRY.name(), lease.tenantId(), lease.landlordId(),
                         null, null, null);
                 wrapper.session().commit();
                 results.add(new ExpiredLease(lease.tenantId(), lease.landlordId(),
@@ -1120,6 +1105,43 @@ public class RealtyLogicImpl {
             }
         }
         return results;
+    }
+
+    // --- History Search ---
+
+    public record HistoryResult(@NotNull List<HistoryEntry> entries, int totalCount) {}
+
+    public @NotNull HistoryResult searchHistory(@NotNull String worldGuardRegionId,
+                                                @NotNull UUID worldId,
+                                                @Nullable String eventType,
+                                                @Nullable LocalDateTime since,
+                                                @Nullable UUID playerId,
+                                                int limit,
+                                                int offset) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            int freeholdCount = wrapper.freeholdHistoryMapper()
+                    .countHistory(worldGuardRegionId, worldId, eventType, since, playerId);
+            int leaseCount = wrapper.leaseHistoryMapper()
+                    .countHistory(worldGuardRegionId, worldId, eventType, since, playerId);
+            int totalCount = freeholdCount + leaseCount;
+
+            List<FreeholdHistoryEntity> freeholdResults = wrapper.freeholdHistoryMapper()
+                    .searchHistory(worldGuardRegionId, worldId, eventType, since, playerId, limit, offset);
+            List<LeaseHistoryEntity> leaseResults = wrapper.leaseHistoryMapper()
+                    .searchHistory(worldGuardRegionId, worldId, eventType, since, playerId, limit, offset);
+
+            List<HistoryEntry> combined = new ArrayList<>(freeholdResults.size() + leaseResults.size());
+            for (FreeholdHistoryEntity e : freeholdResults) {
+                combined.add(new HistoryEntry.Freehold(e.eventType(), e.eventTime(),
+                        e.buyerId(), e.authorityId(), e.price()));
+            }
+            for (LeaseHistoryEntity e : leaseResults) {
+                combined.add(new HistoryEntry.Lease(e.eventType(), e.eventTime(),
+                        e.tenantId(), e.landlordId(), e.price(), e.durationSeconds(), e.extensionsRemaining()));
+            }
+            combined.sort((a, b) -> b.eventTime().compareTo(a.eventTime()));
+            return new HistoryResult(combined, totalCount);
+        }
     }
 
 }

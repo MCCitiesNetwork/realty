@@ -36,6 +36,9 @@ permissions:
   realty.command.help:
     description: Allows using /realty help
     default: true
+  realty.command.history:
+    description: Allows using /realty history
+    default: true
   realty.command.info:
     description: Allows using /realty info
     default: true

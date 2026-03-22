@@ -4,6 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
@@ -17,6 +18,7 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
+import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
@@ -34,11 +36,8 @@ import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.jetbrains.annotations.NotNull;
 
-import java.text.DateFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -134,11 +133,11 @@ public record AuctionCommandGroup(
                 builder.appendNewline()
                         .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
                                 Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
-                                Placeholder.unparsed("start_date", formatDate(auction.startDate())),
+                                Placeholder.unparsed("start_date", DateFormatter.format(settings,auction.startDate())),
                                 Placeholder.unparsed("duration",
-                                        formatDuration(Duration.ofSeconds(auction.biddingDurationSeconds()))),
-                                Placeholder.unparsed("bidding_end_date", formatDate(biddingEndDate)),
-                                Placeholder.unparsed("deadline", formatDate(auction.paymentDeadline())),
+                                        DurationFormatter.format(Duration.ofSeconds(auction.biddingDurationSeconds()))),
+                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings,biddingEndDate)),
+                                Placeholder.unparsed("deadline", DateFormatter.format(settings,auction.paymentDeadline())),
                                 Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
                                 Placeholder.unparsed("min_step", String.valueOf(auction.minStep()))));
                 sender.sendMessage(builder.build());
@@ -154,32 +153,6 @@ public record AuctionCommandGroup(
         return name != null ? name : uuid.toString();
     }
 
-    private static @NotNull String formatDuration(@NotNull Duration duration) {
-        long days = duration.toDays();
-        long hours = duration.toHoursPart();
-        long minutes = duration.toMinutesPart();
-        long seconds = duration.toSecondsPart();
-        StringBuilder sb = new StringBuilder();
-        if (days > 0) {
-            sb.append(days).append("d ");
-        }
-        if (hours > 0) {
-            sb.append(hours).append("h ");
-        }
-        if (minutes > 0) {
-            sb.append(minutes).append("m ");
-        }
-        if (seconds > 0 || sb.isEmpty()) {
-            sb.append(seconds).append("s");
-        }
-        return sb.toString().trim();
-    }
-
-    private @NotNull String formatDate(@NotNull LocalDateTime dateTime) {
-        DateFormat dateFormat = settings.dateFormat();
-        Date date = Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
-        return dateFormat.format(date);
-    }
 
     // ── /realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region> ──
 

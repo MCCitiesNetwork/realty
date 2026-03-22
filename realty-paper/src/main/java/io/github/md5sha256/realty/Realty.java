@@ -17,6 +17,7 @@ import io.github.md5sha256.realty.command.CreateCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
 import io.github.md5sha256.realty.command.HelpCommand;
+import io.github.md5sha256.realty.command.HistoryCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
@@ -354,6 +355,7 @@ public final class Realty extends JavaPlugin {
                 new CreateCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
                 new DeleteCommand(executorState, logic, this.regionProfileService, messageContainer),
                 new HelpCommand(messageContainer),
+                new HistoryCommand(executorState, logic, this.settings.get(), messageContainer),
                 new InfoCommand(executorState, logic, this.settings.get(), messageContainer),
                 new ListCommand(executorState, logic, messageContainer),
                 new OfferCommandGroup(executorState,
