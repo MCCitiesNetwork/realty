@@ -6,10 +6,7 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
-import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.util.ExecutorState;
 import org.bukkit.Server;
 import org.bukkit.World;
@@ -17,10 +14,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
@@ -36,24 +30,24 @@ public class ProfileApplicator {
     private final RegionProfileService regionProfileService;
     private final ExecutorState executorState;
     private final RealtyLogicImpl logic;
-    private final Database database;
     private final SignTextApplicator signTextApplicator;
+    private final SignCache signCache;
     private BukkitTask currentTask;
 
     public ProfileApplicator(@NotNull Plugin plugin,
                              @NotNull RegionProfileService regionProfileService,
                              @NotNull ExecutorState executorState,
                              @NotNull RealtyLogicImpl logic,
-                             @NotNull Database database,
-                             @NotNull SignTextApplicator signTextApplicator) {
+                             @NotNull SignTextApplicator signTextApplicator,
+                             @NotNull SignCache signCache) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.server = plugin.getServer();
         this.regionProfileService = regionProfileService;
         this.executorState = executorState;
         this.logic = logic;
-        this.database = database;
         this.signTextApplicator = signTextApplicator;
+        this.signCache = signCache;
     }
 
     /**
@@ -65,30 +59,17 @@ public class ProfileApplicator {
      */
     public void applyAll(int perTick) {
         cancel();
-        CompletableFuture.supplyAsync(() -> {
-            List<RealtyLogicImpl.RegionWithState> regionsWithState = this.logic.getAllRegionsWithState();
-            Map<Integer, List<RealtySignEntity>> signsByRegion = new HashMap<>();
-            try (SqlSessionWrapper session = this.database.openSession(true)) {
-                for (RealtyLogicImpl.RegionWithState rws : regionsWithState) {
-                    List<RealtySignEntity> signs = session.realtySignMapper()
-                            .selectByRegion(rws.region().worldGuardRegionId(), rws.region().worldId());
-                    if (!signs.isEmpty()) {
-                        signsByRegion.put(rws.region().realtyRegionId(), signs);
-                    }
-                }
-            }
-            return new ProfileData(regionsWithState, signsByRegion);
-        }, this.executorState.dbExec())
-                .thenAcceptAsync(data -> {
-                    if (data.regions().isEmpty()) {
+        CompletableFuture.supplyAsync(() -> this.logic.getAllRegionsWithState(), this.executorState.dbExec())
+                .thenAcceptAsync(regions -> {
+                    if (regions.isEmpty()) {
                         return;
                     }
                     int[] index = {0};
                     BukkitTask[] taskHolder = {null};
                     taskHolder[0] = this.server.getScheduler().runTaskTimer(this.plugin, () -> {
                         int processed = 0;
-                        while (index[0] < data.regions().size() && processed < perTick) {
-                            RealtyLogicImpl.RegionWithState rws = data.regions().get(index[0]++);
+                        while (index[0] < regions.size() && processed < perTick) {
+                            RealtyLogicImpl.RegionWithState rws = regions.get(index[0]++);
                             RealtyRegionEntity entity = rws.region();
                             World world = this.server.getWorld(entity.worldId());
                             if (world == null) {
@@ -108,26 +89,16 @@ public class ProfileApplicator {
                             WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
                             this.regionProfileService.clearAllFlags(wgRegion);
                             this.regionProfileService.applyFlags(wgRegion, rws.state(), rws.placeholders());
-
-                            // Apply sign profiles
-                            List<RealtySignEntity> signs = data.signs().get(entity.realtyRegionId());
-                            if (signs != null) {
-                                List<RealtySignEntity> stale = new ArrayList<>();
-                                for (RealtySignEntity signEntity : signs) {
-                                    if (!signTextApplicator.applySignText(world, signEntity,
-                                            entity.worldGuardRegionId(), rws.state(), rws.placeholders())) {
-                                        stale.add(signEntity);
-                                    }
-                                }
-                                if (!stale.isEmpty()) {
-                                    CompletableFuture.runAsync(
-                                            () -> signTextApplicator.cleanupStaleSigns(stale),
-                                            this.executorState.dbExec());
-                                }
+                            List<SignCache.BlockPosition> loadedSigns = this.signCache.getSignsByRegion(
+                                    entity.worldGuardRegionId(), entity.worldId());
+                            for (SignCache.BlockPosition pos : loadedSigns) {
+                                this.signTextApplicator.applySignText(world,
+                                        pos.x(), pos.y(), pos.z(),
+                                        entity.worldGuardRegionId(), rws.state(), rws.placeholders());
                             }
                             processed++;
                         }
-                        if (index[0] >= data.regions().size()) {
+                        if (index[0] >= regions.size()) {
                             taskHolder[0].cancel();
                             this.currentTask = null;
                         }
@@ -146,7 +117,4 @@ public class ProfileApplicator {
             this.logger.info("Cancelled in-progress profile application");
         }
     }
-
-    private record ProfileData(@NotNull List<RealtyLogicImpl.RegionWithState> regions,
-                                @NotNull Map<Integer, List<RealtySignEntity>> signs) {}
 }

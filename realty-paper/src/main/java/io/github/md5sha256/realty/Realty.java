@@ -157,7 +157,7 @@ public final class Realty extends JavaPlugin {
         }
         // Plugin startup logic
         this.executorState = new ExecutorState(getServer().getScheduler()
-                .getMainThreadExecutor(this), Executors.newVirtualThreadPerTaskExecutor());
+                .getMainThreadExecutor(this), Executors.newFixedThreadPool(4));
         MariaDatabase mariaDatabase = new MariaDatabase(this.databaseSettings, getLogger());
         this.database = mariaDatabase;
         try {
@@ -189,7 +189,7 @@ public final class Realty extends JavaPlugin {
                 this.regionProfileService, this.logic, this.database, getLogger());
         this.profileApplicator = new ProfileApplicator(
                 this, this.regionProfileService, this.executorState, this.logic,
-                this.database, this.signTextApplicator);
+                this.signTextApplicator, this.signCache);
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         getServer().getPluginManager().registerEvents(
                 new SignInteractionListener(this.database, this.logic,

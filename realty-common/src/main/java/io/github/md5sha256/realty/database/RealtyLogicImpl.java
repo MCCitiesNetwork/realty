@@ -722,43 +722,49 @@ public class RealtyLogicImpl {
     public @NotNull Map<String, String> getRegionPlaceholders(@NotNull String worldGuardRegionId,
                                                               @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            Map<String, String> placeholders = new LinkedHashMap<>();
-            placeholders.put("region", worldGuardRegionId);
-
-            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
-            if (freehold != null) {
-                String titleHolder = freehold.titleHolderId() != null ? nameResolver.apply(freehold.titleHolderId()) : "";
-                placeholders.put("title_holder", titleHolder);
-                placeholders.put("titleholder", titleHolder);
-                placeholders.put("authority", nameResolver.apply(freehold.authorityId()));
-                placeholders.put("price", freehold.price() != null ? String.valueOf(freehold.price()) : "");
-                Double lastSoldPrice = wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId);
-                placeholders.put("last_sold_price", lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "");
-            }
-
-            LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
-            if (lease != null) {
-                placeholders.put("landlord", nameResolver.apply(lease.landlordId()));
-                placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()) : "");
-                placeholders.put("price", String.valueOf(lease.price()));
-                placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
-                placeholders.put("start_date", lease.startDate().toString());
-                LocalDateTime endDate = lease.startDate().plusSeconds(lease.durationSeconds());
-                placeholders.put("end_date", endDate.toString());
-                placeholders.put("expiry_date", endDate.toString());
-                if (lease.maxExtensions() != null) {
-                    placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
-                } else {
-                    placeholders.put("extensions", "unlimited");
-                }
-            }
-
-            FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
-                    .selectActiveByRegion(worldGuardRegionId, worldId);
-            placeholders.put("has_auction", auction != null ? "true" : "false");
-
-            return placeholders;
+            return getRegionPlaceholders(wrapper, worldGuardRegionId, worldId);
         }
+    }
+
+    @NotNull Map<String, String> getRegionPlaceholders(@NotNull SqlSessionWrapper wrapper,
+                                                       @NotNull String worldGuardRegionId,
+                                                       @NotNull UUID worldId) {
+        Map<String, String> placeholders = new LinkedHashMap<>();
+        placeholders.put("region", worldGuardRegionId);
+
+        FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+        if (freehold != null) {
+            String titleHolder = freehold.titleHolderId() != null ? nameResolver.apply(freehold.titleHolderId()) : "";
+            placeholders.put("title_holder", titleHolder);
+            placeholders.put("titleholder", titleHolder);
+            placeholders.put("authority", nameResolver.apply(freehold.authorityId()));
+            placeholders.put("price", freehold.price() != null ? String.valueOf(freehold.price()) : "");
+            Double lastSoldPrice = wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId);
+            placeholders.put("last_sold_price", lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "");
+        }
+
+        LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
+        if (lease != null) {
+            placeholders.put("landlord", nameResolver.apply(lease.landlordId()));
+            placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()) : "");
+            placeholders.put("price", String.valueOf(lease.price()));
+            placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
+            placeholders.put("start_date", lease.startDate().toString());
+            LocalDateTime endDate = lease.startDate().plusSeconds(lease.durationSeconds());
+            placeholders.put("end_date", endDate.toString());
+            placeholders.put("expiry_date", endDate.toString());
+            if (lease.maxExtensions() != null) {
+                placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
+            } else {
+                placeholders.put("extensions", "unlimited");
+            }
+        }
+
+        FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
+                .selectActiveByRegion(worldGuardRegionId, worldId);
+        placeholders.put("has_auction", auction != null ? "true" : "false");
+
+        return placeholders;
     }
 
 
@@ -774,7 +780,7 @@ public class RealtyLogicImpl {
             List<RegionWithState> result = new ArrayList<>();
             for (RealtyRegionEntity region : regions) {
                 Map<String, String> placeholders = getRegionPlaceholders(
-                        region.worldGuardRegionId(), region.worldId());
+                        wrapper, region.worldGuardRegionId(), region.worldId());
                 FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
                         .selectByRegion(region.worldGuardRegionId(), region.worldId());
                 if (freehold != null) {
@@ -810,7 +816,7 @@ public class RealtyLogicImpl {
             if (region == null) {
                 return null;
             }
-            Map<String, String> placeholders = getRegionPlaceholders(worldGuardRegionId, worldId);
+            Map<String, String> placeholders = getRegionPlaceholders(wrapper, worldGuardRegionId, worldId);
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
                     .selectByRegion(worldGuardRegionId, worldId);
             if (freehold != null) {

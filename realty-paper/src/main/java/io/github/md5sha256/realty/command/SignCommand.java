@@ -105,8 +105,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
                         Block block = player.getWorld().getBlockAt(blockX, blockY, blockZ);
                         if (block.getState() instanceof Sign) {
                             signTextApplicator.applySignText(player.getWorld(),
-                                    new RealtySignEntity(signWorldId, blockX, blockY, blockZ,
-                                            regionEntity != null ? regionEntity.realtyRegionId() : 0),
+                                    blockX, blockY, blockZ,
                                     regionId, rws.state(), rws.placeholders());
                         }
                     });

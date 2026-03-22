@@ -76,11 +76,11 @@ public class SignTextApplicator {
      * @return true if the sign text was applied, false if the block is no longer a sign
      */
     public boolean applySignText(@NotNull World world,
-                                  @NotNull RealtySignEntity signEntity,
+                                  int blockX, int blockY, int blockZ,
                                   @NotNull String regionId,
                                   @NotNull RegionState state,
                                   @NotNull java.util.Map<String, String> placeholders) {
-        Block block = world.getBlockAt(signEntity.blockX(), signEntity.blockY(), signEntity.blockZ());
+        Block block = world.getBlockAt(blockX, blockY, blockZ);
         if (!(block.getState() instanceof Sign sign)) {
             return false;
         }
@@ -137,8 +137,9 @@ public class SignTextApplicator {
                 mainThreadExec.execute(() -> {
                     List<RealtySignEntity> stale = new ArrayList<>();
                     for (SignWithRegion swr : resolved) {
-                        if (!applySignText(world, swr.signEntity(), swr.regionId(),
-                                swr.state(), swr.placeholders())) {
+                        if (!applySignText(world, swr.signEntity().blockX(),
+                                swr.signEntity().blockY(), swr.signEntity().blockZ(),
+                                swr.regionId(), swr.state(), swr.placeholders())) {
                             stale.add(swr.signEntity());
                         }
                     }
