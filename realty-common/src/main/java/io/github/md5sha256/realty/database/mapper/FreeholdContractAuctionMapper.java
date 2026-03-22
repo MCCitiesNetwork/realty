@@ -29,6 +29,8 @@ public interface FreeholdContractAuctionMapper {
 
     @Nullable List<FreeholdContractAuctionEntity> selectExpiredPaymentAuctions();
 
+    int setPaymentDeadline(int freeholdContractAuctionId, @NotNull LocalDateTime paymentDeadline);
+
     int markEnded(@Param("freeholdContractAuctionId") int freeholdContractAuctionId);
 
     int deleteAuction(int freeholdContractAuctionId);

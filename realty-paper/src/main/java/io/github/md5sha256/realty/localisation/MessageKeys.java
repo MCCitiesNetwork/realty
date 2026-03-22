@@ -333,6 +333,8 @@ public final class MessageKeys {
     public static final String NOTIFICATION_OWNERSHIP_TRANSFERRED = "notification.ownership-transferred";
     public static final String NOTIFICATION_OUTBID = "notification.outbid";
     public static final String NOTIFICATION_AUCTION_CANCELLED = "notification.auction-cancelled";
+    public static final String NOTIFICATION_AUCTION_WON = "notification.auction-won";
+    public static final String NOTIFICATION_AUCTION_ENDED_NO_BIDS = "notification.auction-ended-no-bids";
     public static final String NOTIFICATION_REGION_BOUGHT = "notification.region-bought";
     public static final String NOTIFICATION_REGION_RENTED = "notification.region-rented";
     public static final String NOTIFICATION_BID_PAYMENT_EXPIRED = "notification.bid-payment-expired";

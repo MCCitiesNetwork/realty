@@ -145,6 +145,15 @@ public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuct
     @Nullable List<FreeholdContractAuctionEntity> selectExpiredPaymentAuctions();
 
     @Override
+    @Update("""
+            UPDATE FreeholdContractAuction
+            SET paymentDeadline = #{paymentDeadline}
+            WHERE freeholdContractAuctionId = #{freeholdContractAuctionId}
+            """)
+    int setPaymentDeadline(@Param("freeholdContractAuctionId") int freeholdContractAuctionId,
+                           @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline);
+
+    @Override
     @Update("UPDATE FreeholdContractAuction SET ended = TRUE WHERE freeholdContractAuctionId = #{freeholdContractAuctionId}")
     int markEnded(@Param("freeholdContractAuctionId") int freeholdContractAuctionId);
 

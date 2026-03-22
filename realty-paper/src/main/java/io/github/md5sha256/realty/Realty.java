@@ -234,9 +234,21 @@ public final class Realty extends JavaPlugin {
 
     private void scheduleTasks() {
         BukkitScheduler scheduler = getServer().getScheduler();
-        scheduler.runTaskLaterAsynchronously(this, () -> {
+        long intervalTicks = Tick.tick().fromDuration(Duration.ofMinutes(1));
+        scheduler.runTaskTimerAsynchronously(this, () -> {
             if (this.logic == null) {
                 return;
+            }
+            for (RealtyLogicImpl.ExpiredBiddingAuction auction : this.logic.clearExpiredBiddingAuctions()) {
+                if (auction.winnerId() != null) {
+                    this.notificationService.queueNotification(auction.winnerId(),
+                            this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
+                                    Placeholder.unparsed("region", auction.worldGuardRegionId())));
+                } else {
+                    this.notificationService.queueNotification(auction.auctioneerId(),
+                            this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
+                                    Placeholder.unparsed("region", auction.worldGuardRegionId())));
+                }
             }
             for (RealtyLogicImpl.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
                 this.notificationService.queueNotification(payment.bidderId(),
@@ -290,7 +302,7 @@ public final class Realty extends JavaPlugin {
                     }
                 });
             }
-        }, Tick.tick().fromDuration(Duration.ofMinutes(1)));
+        }, intervalTicks, intervalTicks);
     }
 
     private void initDataFolder() throws IOException {

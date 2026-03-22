@@ -1229,6 +1229,55 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Expired Bidding Auctions ---
+
+    public record ExpiredBiddingAuction(
+            @NotNull String worldGuardRegionId,
+            @NotNull UUID worldId,
+            @Nullable UUID winnerId,
+            @NotNull UUID auctioneerId
+    ) {}
+
+    public @NotNull List<ExpiredBiddingAuction> clearExpiredBiddingAuctions() {
+        List<FreeholdContractAuctionEntity> expired;
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            expired = wrapper.freeholdContractAuctionMapper().selectExpiredBiddingAuctions();
+        }
+        if (expired == null || expired.isEmpty()) {
+            return List.of();
+        }
+        List<ExpiredBiddingAuction> results = new ArrayList<>();
+        for (FreeholdContractAuctionEntity auction : expired) {
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(auction.realtyRegionId());
+                if (region == null) {
+                    wrapper.freeholdContractAuctionMapper().markEnded(auction.freeholdContractAuctionId());
+                    wrapper.session().commit();
+                    continue;
+                }
+                FreeholdContractBid highestBid = wrapper.freeholdContractBidMapper()
+                        .selectHighestBid(region.worldGuardRegionId(), region.worldId());
+                if (highestBid == null) {
+                    wrapper.freeholdContractAuctionMapper().markEnded(auction.freeholdContractAuctionId());
+                    wrapper.session().commit();
+                    results.add(new ExpiredBiddingAuction(region.worldGuardRegionId(), region.worldId(),
+                            null, auction.auctioneerId()));
+                } else {
+                    LocalDateTime deadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
+                    wrapper.freeholdContractAuctionMapper()
+                            .setPaymentDeadline(auction.freeholdContractAuctionId(), deadline);
+                    wrapper.freeholdContractBidPaymentMapper().insertPayment(
+                            region.worldGuardRegionId(), region.worldId(),
+                            highestBid.bidderId(), highestBid.bidAmount(), deadline);
+                    wrapper.session().commit();
+                    results.add(new ExpiredBiddingAuction(region.worldGuardRegionId(), region.worldId(),
+                            highestBid.bidderId(), auction.auctioneerId()));
+                }
+            }
+        }
+        return results;
+    }
+
     // --- Expired Bid Payments ---
 
     public record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId) {}
