@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -40,7 +41,7 @@ import java.util.stream.Collectors;
  */
 public record InfoCommand(@NotNull ExecutorState executorState,
                           @NotNull RealtyLogicImpl logic,
-                          @NotNull Settings settings,
+                          @NotNull AtomicReference<Settings> settings,
                           @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     private static @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
@@ -180,8 +181,8 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("price", String.valueOf(lease.price())),
                         Placeholder.unparsed("duration",
                                 DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds()))),
-                        Placeholder.unparsed("start_date", DateFormatter.format(settings,lease.startDate())),
-                        Placeholder.unparsed("end_date", DateFormatter.format(settings,leaseEndDate)),
+                        Placeholder.unparsed("start_date", DateFormatter.format(settings.get(),lease.startDate())),
+                        Placeholder.unparsed("end_date", DateFormatter.format(settings.get(),leaseEndDate)),
                         Placeholder.unparsed("extensions", extensions)));
     }
 
