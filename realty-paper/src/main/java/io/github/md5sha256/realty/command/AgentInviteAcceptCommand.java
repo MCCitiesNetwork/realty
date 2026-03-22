@@ -67,6 +67,9 @@ public record AgentInviteAcceptCommand(@NotNull ExecutorState executorState,
                     case RealtyLogicImpl.AcceptAgentInviteResult.NotFound() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_NOT_FOUND,
                                     Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.AcceptAgentInviteResult.AlreadyAgent() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_ALREADY_AGENT,
+                                    Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_ERROR,

@@ -29,13 +29,17 @@ public final class MessageKeys {
     // agent-invite
     public static final String AGENT_INVITE_SUCCESS = "agent-invite.success";
     public static final String AGENT_INVITE_ALREADY_INVITED = "agent-invite.already-invited";
+    public static final String AGENT_INVITE_ALREADY_AGENT = "agent-invite.already-agent";
     public static final String AGENT_INVITE_NOT_TITLEHOLDER = "agent-invite.not-titleholder";
+    public static final String AGENT_INVITE_IS_TITLEHOLDER = "agent-invite.is-titleholder";
+    public static final String AGENT_INVITE_IS_AUTHORITY = "agent-invite.is-authority";
     public static final String AGENT_INVITE_NO_FREEHOLD = "agent-invite.no-freehold";
     public static final String AGENT_INVITE_ERROR = "agent-invite.error";
 
     // agent-invite-accept
     public static final String AGENT_INVITE_ACCEPT_SUCCESS = "agent-invite-accept.success";
     public static final String AGENT_INVITE_ACCEPT_NOT_FOUND = "agent-invite-accept.not-found";
+    public static final String AGENT_INVITE_ACCEPT_ALREADY_AGENT = "agent-invite-accept.already-agent";
     public static final String AGENT_INVITE_ACCEPT_ERROR = "agent-invite-accept.error";
 
     // agent-invite-reject

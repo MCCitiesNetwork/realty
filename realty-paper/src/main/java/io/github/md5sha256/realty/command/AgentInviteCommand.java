@@ -75,6 +75,18 @@ public record AgentInviteCommand(@NotNull ExecutorState executorState,
                     case RealtyLogicImpl.InviteAgentResult.NotTitleHolder() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
                                     Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.InviteAgentResult.IsTitleHolder() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_IS_TITLEHOLDER,
+                                    Placeholder.unparsed("player", inviteeName),
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.InviteAgentResult.IsAuthority() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_IS_AUTHORITY,
+                                    Placeholder.unparsed("player", inviteeName),
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.InviteAgentResult.AlreadyAgent() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ALREADY_AGENT,
+                                    Placeholder.unparsed("player", inviteeName),
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.InviteAgentResult.AlreadyInvited() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ALREADY_INVITED,
                                     Placeholder.unparsed("player", inviteeName),

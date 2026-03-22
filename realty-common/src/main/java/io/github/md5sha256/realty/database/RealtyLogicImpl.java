@@ -80,6 +80,9 @@ public class RealtyLogicImpl {
         record Success() implements InviteAgentResult {}
         record NoFreeholdContract() implements InviteAgentResult {}
         record NotTitleHolder() implements InviteAgentResult {}
+        record IsTitleHolder() implements InviteAgentResult {}
+        record IsAuthority() implements InviteAgentResult {}
+        record AlreadyAgent() implements InviteAgentResult {}
         record AlreadyInvited() implements InviteAgentResult {}
     }
 
@@ -97,6 +100,16 @@ public class RealtyLogicImpl {
             if (!inviterId.equals(freehold.titleHolderId())) {
                 return new InviteAgentResult.NotTitleHolder();
             }
+            if (inviteeId.equals(freehold.titleHolderId())) {
+                return new InviteAgentResult.IsTitleHolder();
+            }
+            if (inviteeId.equals(freehold.authorityId())) {
+                return new InviteAgentResult.IsAuthority();
+            }
+            if (wrapper.freeholdContractSanctionedAuctioneerMapper()
+                    .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, inviteeId)) {
+                return new InviteAgentResult.AlreadyAgent();
+            }
             if (wrapper.freeholdContractAgentInviteMapper()
                     .existsByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId)) {
                 return new InviteAgentResult.AlreadyInvited();
@@ -111,6 +124,7 @@ public class RealtyLogicImpl {
     public sealed interface AcceptAgentInviteResult {
         record Success(@NotNull UUID inviterId) implements AcceptAgentInviteResult {}
         record NotFound() implements AcceptAgentInviteResult {}
+        record AlreadyAgent() implements AcceptAgentInviteResult {}
     }
 
     public @NotNull AcceptAgentInviteResult acceptAgentInvite(@NotNull String worldGuardRegionId,
@@ -122,6 +136,13 @@ public class RealtyLogicImpl {
                     .selectByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
             if (invite == null) {
                 return new AcceptAgentInviteResult.NotFound();
+            }
+            if (wrapper.freeholdContractSanctionedAuctioneerMapper()
+                    .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, inviteeId)) {
+                wrapper.freeholdContractAgentInviteMapper()
+                        .deleteByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
+                session.commit();
+                return new AcceptAgentInviteResult.AlreadyAgent();
             }
             wrapper.freeholdContractAgentInviteMapper()
                     .deleteByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);

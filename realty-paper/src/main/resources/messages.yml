@@ -23,13 +23,17 @@ add:
 agent-invite:
   success: "Invited <player> as an agent for region <region>."
   already-invited: "<player> already has a pending invite for region <region>."
+  already-agent: "<player> is already an agent for region <region>."
   not-titleholder: "You are not the title holder of region <region>."
+  is-titleholder: "<player> is the title holder of region <region> and cannot be invited as an agent."
+  is-authority: "<player> is the authority of region <region> and cannot be invited as an agent."
   no-freehold: "Region <region> does not have a freehold contract."
   error: "Failed to invite agent: <error>"
 
 agent-invite-accept:
   success: "Accepted agent invite for region <region>."
   not-found: "You do not have a pending invite for region <region>."
+  already-agent: "You are already an agent for region <region>."
   error: "Failed to accept agent invite: <error>"
 
 agent-invite-reject:
