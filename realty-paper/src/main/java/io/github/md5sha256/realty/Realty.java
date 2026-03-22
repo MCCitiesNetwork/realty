@@ -55,6 +55,8 @@ import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
@@ -166,7 +168,10 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        this.logic = new RealtyLogicImpl(mariaDatabase);
+        this.logic = new RealtyLogicImpl(mariaDatabase, uuid -> {
+            OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+            return player.getName() != null ? player.getName() : uuid.toString();
+        });
         var economyProvider = getServer().getServicesManager().getRegistration(Economy.class);
         if (economyProvider == null) {
             getLogger().severe("Economy not found, plugin will now disable!");

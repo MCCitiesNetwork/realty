@@ -25,7 +25,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles {@code /realty sign place <region>} and {@code /realty sign remove}.
@@ -78,7 +77,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
         int blockY = targetBlock.getY();
         int blockZ = targetBlock.getZ();
         UUID signWorldId = targetBlock.getWorld().getUID();
-        CompletableFuture.runAsync(() -> {
+        executorState.dbExec().execute(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RealtySignEntity existing = session.realtySignMapper()
                         .selectByPosition(signWorldId, blockX, blockY, blockZ);
@@ -115,10 +114,11 @@ public record SignCommand(@NotNull ExecutorState executorState,
                 sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_SUCCESS,
                         Placeholder.unparsed("region", regionId)));
             } catch (Exception ex) {
+                ex.printStackTrace();
                 sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_ERROR,
-                        Placeholder.unparsed("error", ex.getMessage())));
+                        Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
             }
-        }, executorState.dbExec());
+        });
     }
 
     private void executeRemove(@NotNull CommandContext<CommandSourceStack> ctx) {
@@ -136,7 +136,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
         int blockZ = targetBlock.getZ();
         UUID signWorldId = targetBlock.getWorld().getUID();
         Sign sign = (Sign) targetBlock.getState();
-        CompletableFuture.runAsync(() -> {
+        executorState.dbExec().execute(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 int rows = session.realtySignMapper()
                         .deleteByPosition(signWorldId, blockX, blockY, blockZ);
@@ -148,9 +148,10 @@ public record SignCommand(@NotNull ExecutorState executorState,
                 executorState.mainThreadExec().execute(() -> SignTextApplicator.clearLines(sign));
                 sender.sendMessage(messages.messageFor(MessageKeys.SIGN_REMOVE_SUCCESS));
             } catch (Exception ex) {
+                ex.printStackTrace();
                 sender.sendMessage(messages.messageFor(MessageKeys.SIGN_REMOVE_ERROR,
-                        Placeholder.unparsed("error", ex.getMessage())));
+                        Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
             }
-        }, executorState.dbExec());
+        });
     }
 }

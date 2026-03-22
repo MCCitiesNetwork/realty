@@ -46,7 +46,7 @@ abstract class AbstractDatabaseTest {
         String url = jdbcUrl.substring("jdbc:".length());
         DatabaseSettings settings = new DatabaseSettings(url, CONTAINER.getUsername(), CONTAINER.getPassword());
         database = new MariaDatabase(settings, Logger.getLogger("test"));
-        logic = new RealtyLogicImpl(database);
+        logic = new RealtyLogicImpl(database, UUID::toString);
     }
 
     private static String truncateUrl;
