@@ -1031,7 +1031,8 @@ public class RealtyLogicImpl {
     // --- Pay Offer ---
 
     public sealed interface PayOfferResult {
-        record Success(double newTotal, double remaining) implements PayOfferResult {}
+        record Success(double newTotal, double remaining,
+                       @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record NoPaymentRecord() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
@@ -1052,12 +1053,12 @@ public class RealtyLogicImpl {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);
             }
             double newTotal = payment.currentPayment() + amount;
+            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            UUID authorityId = freehold.authorityId();
+            UUID titleHolderId = freehold.titleHolderId();
             if (newTotal == payment.offerPrice()) {
                 // Fully paid — transfer ownership, reset price (not for freehold)
-                FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
-                FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
-                UUID authorityId = freehold.authorityId();
-                UUID titleHolderId = freehold.titleHolderId();
                 freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
                 freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
@@ -1071,14 +1072,15 @@ public class RealtyLogicImpl {
                 paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, newTotal);
             }
             wrapper.session().commit();
-            return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal);
+            return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal, authorityId, titleHolderId);
         }
     }
 
     // --- Pay Bid ---
 
     public sealed interface PayBidResult {
-        record Success(double newTotal, double remaining) implements PayBidResult {}
+        record Success(double newTotal, double remaining,
+                       @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
         record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
         record NoPaymentRecord() implements PayBidResult {}
         record PaymentExpired() implements PayBidResult {}
@@ -1103,12 +1105,12 @@ public class RealtyLogicImpl {
                 return new PayBidResult.ExceedsAmountOwed(amountOwed);
             }
             double newTotal = payment.currentPayment() + amount;
+            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            UUID authorityId = freehold.authorityId();
+            UUID titleHolderId = freehold.titleHolderId();
             if (newTotal == payment.bidPrice()) {
                 // Fully paid — transfer ownership, reset price (not for freehold)
-                FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
-                FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
-                UUID authorityId = freehold.authorityId();
-                UUID titleHolderId = freehold.titleHolderId();
                 freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
                 freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
                 paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
@@ -1120,7 +1122,7 @@ public class RealtyLogicImpl {
             }
             paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, newTotal);
             wrapper.session().commit();
-            return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal);
+            return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal, authorityId, titleHolderId);
         }
     }
 

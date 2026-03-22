@@ -347,26 +347,25 @@ public record OfferCommandGroup(
                                 Placeholder.unparsed("region", regionId),
                                 Placeholder.unparsed("total", String.valueOf(success.newTotal())),
                                 Placeholder.unparsed("remaining", String.valueOf(success.remaining()))));
-                        yield null;
+                        yield result;
                     }
                     case RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_FULLY_PAID,
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("region", regionId)));
-                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
-                        yield Map.entry(fullyPaid, placeholders);
+                        yield result;
                     }
                     case RealtyLogicImpl.PayOfferResult.NoPaymentRecord ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", regionId)));
-                        yield null;
+                        yield result;
                     }
                     case RealtyLogicImpl.PayOfferResult.ExceedsAmountOwed exceeds -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_EXCEEDS_OWED,
                                 Placeholder.unparsed("amount", String.valueOf(amount)),
                                 Placeholder.unparsed("owed", String.valueOf(exceeds.amountOwed())),
                                 Placeholder.unparsed("region", regionId)));
-                        yield null;
+                        yield result;
                     }
                 };
             } catch (Exception ex) {
@@ -374,34 +373,47 @@ public record OfferCommandGroup(
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(entry -> {
-            if (entry == null) {
-                economy.depositPlayer(sender, amount);
-            } else {
-                RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid = entry.getKey();
-                OfflinePlayer authority = Bukkit.getOfflinePlayer(fullyPaid.authorityId());
-                economy.depositPlayer(authority, amount);
-                RegionManager regionManager = WorldGuard.getInstance()
-                        .getPlatform()
-                        .getRegionContainer()
-                        .get(BukkitAdapter.adapt(region.world()));
-                if (regionManager == null) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_FAILED));
-                    return;
+        }, executorState.dbExec()).thenAcceptAsync(result -> {
+            switch (result) {
+                case RealtyLogicImpl.PayOfferResult.Success success -> {
+                    UUID recipientId = success.titleHolderId() != null
+                            ? success.titleHolderId() : success.authorityId();
+                    OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
+                    economy.depositPlayer(recipient, amount);
                 }
-                ProtectedRegion protectedRegion = region.region();
-                protectedRegion.getOwners().clear();
-                protectedRegion.getOwners().addPlayer(sender.getUniqueId());
-                protectedRegion.getMembers().clear();
-                regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
-                sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
-                        Placeholder.unparsed("region", regionId)));
-                if (fullyPaid.titleHolderId() != null) {
-                    notificationService.queueNotification(fullyPaid.titleHolderId(),
-                            messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
-                                    Placeholder.unparsed("player", sender.getName()),
-                                    Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid -> {
+                    UUID recipientId = fullyPaid.titleHolderId() != null
+                            ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
+                    OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
+                    economy.depositPlayer(recipient, amount);
+                    RegionManager regionManager = WorldGuard.getInstance()
+                            .getPlatform()
+                            .getRegionContainer()
+                            .get(BukkitAdapter.adapt(region.world()));
+                    if (regionManager == null) {
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_FAILED));
+                        return;
+                    }
+                    ProtectedRegion protectedRegion = region.region();
+                    protectedRegion.getOwners().clear();
+                    protectedRegion.getOwners().addPlayer(sender.getUniqueId());
+                    protectedRegion.getMembers().clear();
+                    Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                    regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
+                    sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
+                            Placeholder.unparsed("region", regionId)));
+                    if (fullyPaid.titleHolderId() != null) {
+                        notificationService.queueNotification(fullyPaid.titleHolderId(),
+                                messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
+                                        Placeholder.unparsed("player", sender.getName()),
+                                        Placeholder.unparsed("region", regionId)));
+                    }
                 }
+                case RealtyLogicImpl.PayOfferResult.NoPaymentRecord ignored ->
+                        economy.depositPlayer(sender, amount);
+                case RealtyLogicImpl.PayOfferResult.ExceedsAmountOwed ignored ->
+                        economy.depositPlayer(sender, amount);
+                case null -> economy.depositPlayer(sender, amount);
             }
         }, executorState.mainThreadExec());
     }

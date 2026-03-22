@@ -26,6 +26,7 @@ import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -135,8 +136,10 @@ public record BuyCommand(
                         Placeholder.unparsed("region", regionId)));
                 return;
             }
-            OfflinePlayer authority = Bukkit.getOfflinePlayer(success.authorityId());
-            economy.depositPlayer(authority, price);
+            UUID recipientId = success.titleHolderId() != null
+                    ? success.titleHolderId() : success.authorityId();
+            OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
+            economy.depositPlayer(recipient, price);
             RegionManager regionManager = WorldGuard.getInstance()
                     .getPlatform()
                     .getRegionContainer()
