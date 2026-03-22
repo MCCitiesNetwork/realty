@@ -116,15 +116,15 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
                 if (freehold != null) {
                     appendFreeholdInfo(builder, freehold, info.lastSoldPrice(), membersStr);
+                    builder.appendNewline()
+                            .append(messages.messageFor(MessageKeys.INFO_AUCTION_ACTIVE,
+                                    Placeholder.unparsed("has_auction", hasAuction ? "Yes" : "No")));
                 }
 
                 if (lease != null) {
                     appendLeaseInfo(builder, lease, membersStr);
                 }
 
-                builder.appendNewline()
-                        .append(messages.messageFor(MessageKeys.INFO_AUCTION_ACTIVE,
-                                Placeholder.unparsed("has_auction", hasAuction ? "Yes" : "No")));
 
                 sender.sendMessage(builder.build());
             } catch (Exception ex) {
