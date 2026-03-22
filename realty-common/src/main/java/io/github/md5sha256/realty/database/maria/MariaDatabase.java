@@ -38,14 +38,20 @@ import java.util.logging.Logger;
 public class MariaDatabase implements Database {
 
     private final DatabaseSettings settings;
+    private final PooledDataSource dataSource;
     private final SqlSessionFactory sessionFactory;
     private final Logger logger;
 
     public MariaDatabase(@NotNull DatabaseSettings settings, @NotNull Logger logger) {
         this.settings = settings;
-        DataSource dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", "jdbc:" + settings.url(), settings.username(), settings.password());
-        this.sessionFactory = buildSessionFactory(dataSource);
+        this.dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", "jdbc:" + settings.url(), settings.username(), settings.password());
+        this.sessionFactory = buildSessionFactory(this.dataSource);
         this.logger = logger;
+    }
+
+    @Override
+    public void close() {
+        this.dataSource.forceCloseAll();
     }
 
     @NotNull

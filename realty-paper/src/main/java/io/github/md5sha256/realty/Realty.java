@@ -221,6 +221,13 @@ public final class Realty extends JavaPlugin {
                 ex.printStackTrace();
             }
         }
+        if (this.database != null) {
+            try {
+                this.database.close();
+            } catch (IOException ex) {
+                getLogger().severe("Failed to close database connection pool: " + ex.getMessage());
+            }
+        }
         getLogger().info("Plugin disabled successfully");
     }
 
