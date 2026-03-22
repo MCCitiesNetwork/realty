@@ -624,6 +624,42 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Unrent ---
+
+    public sealed interface UnrentResult {
+        record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId) implements UnrentResult {}
+        record NoLeaseContract() implements UnrentResult {}
+        record NotTenant() implements UnrentResult {}
+        record UpdateFailed() implements UnrentResult {}
+    }
+
+    public @NotNull UnrentResult unrentRegion(@NotNull String worldGuardRegionId,
+                                               @NotNull UUID worldId,
+                                               @NotNull UUID tenantId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
+            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new UnrentResult.NoLeaseContract();
+            }
+            if (!tenantId.equals(lease.tenantId())) {
+                return new UnrentResult.NotTenant();
+            }
+            long totalSeconds = lease.durationSeconds();
+            long elapsedSeconds = java.time.Duration.between(lease.startDate(), java.time.LocalDateTime.now()).getSeconds();
+            long remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+            double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
+            int updated = leaseMapper.updateTenantByRegion(worldGuardRegionId, worldId, null);
+            if (updated == 0) {
+                return new UnrentResult.UpdateFailed();
+            }
+            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.UNRENT.name(),
+                    tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
+            wrapper.session().commit();
+            return new UnrentResult.Success(refund, tenantId, lease.landlordId());
+        }
+    }
+
     // --- Renew Lease ---
 
     public sealed interface RenewLeaseResult {

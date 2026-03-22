@@ -123,6 +123,7 @@ history:
     agent-add: "<gray><time></gray> <yellow>Agent Added</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
     agent-remove: "<gray><time></gray> <yellow>Agent Removed</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
     rent: "<gray><time></gray> <yellow>Rented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
+    unrent: "<gray><time></gray> <yellow>Unrented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
     lease-expiry: "<gray><time></gray> <yellow>Lease Expired</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
   footer: "Page <page> of <total> <previous><next>"
   previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
@@ -218,6 +219,7 @@ help:
     - "<yellow>/realty buy <region></yellow> <gray>- Buy a region at the listed price</gray>"
     - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
     - "<yellow>/realty renew <region></yellow> <gray>- Renew a lease</gray>"
+    - "<yellow>/realty unrent <region></yellow> <gray>- Unrent a region (prorated refund)</gray>"
   management:
     - "<gold>--- Realty > Management ---</gold>"
     - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
@@ -268,6 +270,14 @@ renew:
   insufficient-funds: "You do not have enough funds. Your balance: <balance>. Renewal price: <price>."
   payment-failed: "Payment failed: <error>"
   error: "Failed to renew lease: <error>"
+
+unrent:
+  success: "You have unrented region <region>. Refund: <refund>."
+  no-lease-contract: "Region <region> does not have a lease contract."
+  not-tenant: "You are not the tenant of region <region>."
+  update-failed: "Failed to unrent region <region>."
+  refund-failed: "Failed to process refund: <error>"
+  error: "Failed to unrent region: <error>"
 
 rent:
   success: "You are now renting region <region> for <price> for <duration>."
@@ -372,6 +382,7 @@ notification:
   agent-invite-rejected: "<prefix> <player> rejected your agent invite for region <region>."
   agent-invite-withdrawn: "<prefix> <player> withdrew your agent invite for region <region>."
   agent-removed: "<prefix> <player> removed you as an agent for region <region>."
+  region-unrented: "<prefix> <player> unrented region <region>. Refund: <refund>."
 
 sign:
   place-success: "Sign registered for region <region>."

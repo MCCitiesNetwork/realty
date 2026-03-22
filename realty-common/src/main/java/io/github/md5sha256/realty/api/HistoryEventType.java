@@ -7,5 +7,6 @@ public enum HistoryEventType {
     AGENT_ADD,
     AGENT_REMOVE,
     RENT,
+    UNRENT,
     LEASE_EXPIRY
 }

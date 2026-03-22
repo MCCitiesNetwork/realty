@@ -142,6 +142,7 @@ public final class MessageKeys {
     public static final String HISTORY_EVENT_AGENT_ADD = "history.event.agent-add";
     public static final String HISTORY_EVENT_AGENT_REMOVE = "history.event.agent-remove";
     public static final String HISTORY_EVENT_RENT = "history.event.rent";
+    public static final String HISTORY_EVENT_UNRENT = "history.event.unrent";
     public static final String HISTORY_EVENT_LEASE_EXPIRY = "history.event.lease-expiry";
 
     // info
@@ -235,6 +236,14 @@ public final class MessageKeys {
     public static final String RENEW_INSUFFICIENT_FUNDS = "renew.insufficient-funds";
     public static final String RENEW_PAYMENT_FAILED = "renew.payment-failed";
     public static final String RENEW_ERROR = "renew.error";
+
+    // unrent
+    public static final String UNRENT_SUCCESS = "unrent.success";
+    public static final String UNRENT_NO_LEASE_CONTRACT = "unrent.no-lease-contract";
+    public static final String UNRENT_NOT_TENANT = "unrent.not-tenant";
+    public static final String UNRENT_UPDATE_FAILED = "unrent.update-failed";
+    public static final String UNRENT_REFUND_FAILED = "unrent.refund-failed";
+    public static final String UNRENT_ERROR = "unrent.error";
 
     // rent
     public static final String RENT_SUCCESS = "rent.success";
@@ -330,4 +339,5 @@ public final class MessageKeys {
     public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED = "notification.offer-payment-expired";
     public static final String NOTIFICATION_LEASE_EXPIRED = "notification.lease-expired";
     public static final String NOTIFICATION_LEASE_EXPIRED_LANDLORD = "notification.lease-expired-landlord";
+    public static final String NOTIFICATION_REGION_UNRENTED = "notification.region-unrented";
 }
