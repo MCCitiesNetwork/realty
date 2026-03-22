@@ -116,9 +116,14 @@ info:
 history:
   header: "--- History: <region> ---"
   no-results: "No history found for region <region>."
-  freehold-entry: "<gray><time></gray> <yellow><event_type></yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
-  agent-entry: "<gray><time></gray> <yellow><event_type></yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
-  lease-entry: "<gray><time></gray> <yellow><event_type></yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
+  event:
+    buy: "<gray><time></gray> <yellow>Purchase</yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
+    auction-buy: "<gray><time></gray> <yellow>Auction Purchase</yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
+    offer-buy: "<gray><time></gray> <yellow>Offer Purchase</yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
+    agent-add: "<gray><time></gray> <yellow>Agent Added</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
+    agent-remove: "<gray><time></gray> <yellow>Agent Removed</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
+    rent: "<gray><time></gray> <yellow>Rented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
+    lease-expiry: "<gray><time></gray> <yellow>Lease Expired</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
   footer: "Page <page> of <total> <previous><next>"
   previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
   next: " <click:run_command:<command>><yellow>Next ></yellow></click>"

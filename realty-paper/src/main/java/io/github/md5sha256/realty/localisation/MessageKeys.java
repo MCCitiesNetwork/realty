@@ -128,14 +128,20 @@ public final class MessageKeys {
     // history
     public static final String HISTORY_HEADER = "history.header";
     public static final String HISTORY_NO_RESULTS = "history.no-results";
-    public static final String HISTORY_FREEHOLD_ENTRY = "history.freehold-entry";
-    public static final String HISTORY_AGENT_ENTRY = "history.agent-entry";
-    public static final String HISTORY_LEASE_ENTRY = "history.lease-entry";
     public static final String HISTORY_FOOTER = "history.footer";
     public static final String HISTORY_PREVIOUS = "history.previous";
     public static final String HISTORY_NEXT = "history.next";
     public static final String HISTORY_INVALID_PAGE = "history.invalid-page";
     public static final String HISTORY_ERROR = "history.error";
+
+    // history per-event-type entry messages
+    public static final String HISTORY_EVENT_BUY = "history.event.buy";
+    public static final String HISTORY_EVENT_AUCTION_BUY = "history.event.auction-buy";
+    public static final String HISTORY_EVENT_OFFER_BUY = "history.event.offer-buy";
+    public static final String HISTORY_EVENT_AGENT_ADD = "history.event.agent-add";
+    public static final String HISTORY_EVENT_AGENT_REMOVE = "history.event.agent-remove";
+    public static final String HISTORY_EVENT_RENT = "history.event.rent";
+    public static final String HISTORY_EVENT_LEASE_EXPIRY = "history.event.lease-expiry";
 
     // info
     public static final String INFO_HEADER = "info.header";
