@@ -17,7 +17,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -93,8 +92,8 @@ public record InfoCommand(@NotNull ExecutorState executorState,
     }
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
-        return manager.commandBuilder("realty")
+    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+        return builder
                 .literal("info")
                 .permission("realty.command.info")
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())

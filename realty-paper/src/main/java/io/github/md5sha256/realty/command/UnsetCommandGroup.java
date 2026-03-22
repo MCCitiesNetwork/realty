@@ -13,7 +13,6 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,8 +37,8 @@ public record UnsetCommandGroup(
 ) implements CustomCommandBean {
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
-        var base = manager.commandBuilder("realty")
+    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+        var base = builder
                 .literal("unset");
         return List.of(
                 base.literal("price")

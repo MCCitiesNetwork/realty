@@ -382,8 +382,9 @@ public final class Realty extends JavaPlugin {
                 .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
                 .buildOnEnable(this);
         manager.brigadierManager().setNativeNumberSuggestions(true);
+        Command.Builder<CommandSourceStack> rootBuilder = manager.commandBuilder("realty", "rl");
         for (CustomCommandBean bean : commands) {
-            for (Command<CommandSourceStack> cmd : bean.commands(manager)) {
+            for (Command<CommandSourceStack> cmd : bean.commands(rootBuilder)) {
                 manager.command(cmd);
             }
         }
