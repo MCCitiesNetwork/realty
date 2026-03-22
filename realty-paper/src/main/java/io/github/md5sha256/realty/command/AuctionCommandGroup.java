@@ -15,6 +15,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
@@ -118,7 +119,8 @@ public record AuctionCommandGroup(
 
         CompletableFuture.runAsync(() -> {
             try {
-                FreeholdContractAuctionEntity auction = logic.getRegionInfo(regionId, worldId).auction();
+                RealtyLogicImpl.RegionInfo regionInfo = logic.getRegionInfo(regionId, worldId);
+                FreeholdContractAuctionEntity auction = regionInfo.auction();
                 if (auction == null) {
                     sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_INFO_NO_AUCTION,
                             Placeholder.unparsed("region", regionId)));
@@ -130,6 +132,10 @@ public record AuctionCommandGroup(
                 TextComponent.Builder builder = Component.text();
                 builder.append(messages.messageFor(MessageKeys.AUCTION_INFO_HEADER,
                         Placeholder.unparsed("region", regionId)));
+                FreeholdContractBid highestBid = regionInfo.highestBid();
+                String highestBidAmount = highestBid != null ? String.valueOf(highestBid.bidAmount()) : "N/A";
+                String highestBidPlayer = highestBid != null ? resolveName(highestBid.bidderId()) : "N/A";
+
                 builder.appendNewline()
                         .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
                                 Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
@@ -139,7 +145,9 @@ public record AuctionCommandGroup(
                                 Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings,biddingEndDate)),
                                 Placeholder.unparsed("deadline", DateFormatter.format(settings,auction.paymentDeadline())),
                                 Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
-                                Placeholder.unparsed("min_step", String.valueOf(auction.minStep()))));
+                                Placeholder.unparsed("min_step", String.valueOf(auction.minStep())),
+                                Placeholder.unparsed("highest_bid_amount", highestBidAmount),
+                                Placeholder.unparsed("highest_bid_player", highestBidPlayer)));
                 sender.sendMessage(builder.build());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_INFO_ERROR,

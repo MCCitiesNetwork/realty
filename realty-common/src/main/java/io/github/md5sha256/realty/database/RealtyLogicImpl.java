@@ -657,7 +657,8 @@ public class RealtyLogicImpl {
             @Nullable FreeholdContractEntity freehold,
             @Nullable LeaseContractEntity lease,
             @Nullable FreeholdContractAuctionEntity auction,
-            @Nullable Double lastSoldPrice
+            @Nullable Double lastSoldPrice,
+            @Nullable FreeholdContractBid highestBid
     ) {}
 
     public @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
@@ -668,7 +669,10 @@ public class RealtyLogicImpl {
             Double lastSoldPrice = freehold != null
                     ? wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId)
                     : null;
-            return new RegionInfo(freehold, lease, auction, lastSoldPrice);
+            FreeholdContractBid highestBid = auction != null
+                    ? wrapper.freeholdContractBidMapper().selectHighestBid(worldGuardRegionId, worldId)
+                    : null;
+            return new RegionInfo(freehold, lease, auction, lastSoldPrice, highestBid);
         }
     }
 
