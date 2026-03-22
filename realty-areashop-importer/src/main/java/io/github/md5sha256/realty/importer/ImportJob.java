@@ -8,10 +8,13 @@ import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
+import io.github.md5sha256.realty.database.mapper.RealtySignMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdHistoryMapper;
 import io.github.md5sha256.realty.settings.Settings;
 import me.wiefferink.areashop.AreaShop;
+import me.wiefferink.areashop.features.signs.RegionSign;
+import me.wiefferink.areashop.features.signs.SignsFeature;
 import me.wiefferink.areashop.managers.IFileManager;
 import me.wiefferink.areashop.regions.GeneralRegion;
 import net.kyori.adventure.audience.Audience;
@@ -19,10 +22,13 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.ibatis.session.ExecutorType;
 import org.apache.ibatis.session.SqlSession;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -38,11 +44,13 @@ public class ImportJob {
             @NotNull Database database,
             @NotNull Audience audience,
             @NotNull List<FreeholdDto> freeholds,
-            @NotNull List<LeaseDto> leases) {
+            @NotNull List<LeaseDto> leases,
+            @NotNull List<SignDto> signs) {
         int imported = 0;
         int skipped = 0;
         int failed = 0;
         int processed = 0;
+        int signsImported = 0;
         int total = freeholds.size() + leases.size();
         try (SqlSessionWrapper wrapper = database.openSession(ExecutorType.REUSE, false);
              SqlSession session = wrapper.session()) {
@@ -51,6 +59,7 @@ public class ImportJob {
             LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
             ContractMapper contractMapper = wrapper.contractMapper();
             FreeholdHistoryMapper freeholdHistoryMapper = wrapper.freeholdHistoryMapper();
+            RealtySignMapper signMapper = wrapper.realtySignMapper();
             for (FreeholdDto freehold : freeholds) {
                 try {
                     if (regionMapper.selectByWorldGuardRegion(freehold.worldGuardRegionId(),
@@ -117,7 +126,32 @@ public class ImportJob {
                     reportProgress(audience, processed, total);
                 }
             }
+            // Import signs
+            for (SignDto sign : signs) {
+                try {
+                    if (regionMapper.selectByWorldGuardRegion(sign.worldGuardRegionId(),
+                            sign.regionWorldId()) == null) {
+                        continue;
+                    }
+                    int rows = signMapper.insert(sign.signWorldId(),
+                            sign.blockX(), sign.blockY(), sign.blockZ(),
+                            sign.worldGuardRegionId(), sign.regionWorldId());
+                    if (rows > 0) {
+                        signsImported++;
+                    }
+                } catch (Exception ex) {
+                    audience.sendMessage(Component.text(
+                            "Failed to import sign at " + sign.blockX() + "," + sign.blockY() + ","
+                                    + sign.blockZ() + " for region " + sign.worldGuardRegionId()
+                                    + ": " + ex.getMessage(),
+                            NamedTextColor.RED));
+                }
+            }
             session.commit();
+            if (signsImported > 0) {
+                audience.sendMessage(Component.text(
+                        "Imported " + signsImported + " sign(s)", NamedTextColor.GREEN));
+            }
         }
         return new ImportResult(imported, skipped, failed);
     }
@@ -172,12 +206,16 @@ public class ImportJob {
                     );
                 }).filter(Objects::nonNull)
                 .toList();
+        List<SignDto> signs = new ArrayList<>();
+        collectSigns(fileManager.getBuysRef(), signs, audience);
+        collectSigns(fileManager.getRentsRef(), signs, audience);
         int totalRegions = buyRegions.size() + rentRegions.size();
         audience.sendMessage(Component.text(
                 "Starting import: " + buyRegions.size() + " freehold regions, "
-                        + rentRegions.size() + " lease regions (" + totalRegions + " total)",
+                        + rentRegions.size() + " lease regions (" + totalRegions + " total), "
+                        + signs.size() + " sign(s)",
                 NamedTextColor.YELLOW));
-        return CompletableFuture.supplyAsync(() -> importAll(database, audience, buyRegions, rentRegions), executor);
+        return CompletableFuture.supplyAsync(() -> importAll(database, audience, buyRegions, rentRegions, signs), executor);
     }
 
     private static void reportProgress(@NotNull Audience audience, int processed, int total) {
@@ -205,6 +243,44 @@ public class ImportJob {
                             int currentRenewals,
                             @NotNull UUID landlordId,
                             @Nullable UUID tenantId) {
+    }
+
+    private record SignDto(@NotNull UUID signWorldId,
+                            int blockX,
+                            int blockY,
+                            int blockZ,
+                            @NotNull String worldGuardRegionId,
+                            @NotNull UUID regionWorldId) {
+    }
+
+    private static void collectSigns(@NotNull Collection<? extends GeneralRegion> regions,
+                                      @NotNull List<SignDto> signs,
+                                      @NotNull Audience audience) {
+        for (GeneralRegion region : regions) {
+            ProtectedRegion protectedRegion = region.getRegion();
+            World world = region.getWorld();
+            if (protectedRegion == null || world == null) {
+                continue;
+            }
+            if (!SignsFeature.exists(region)) {
+                continue;
+            }
+            Collection<RegionSign> regionSigns = region.getSignsFeature().signManager().allSigns();
+            for (RegionSign regionSign : regionSigns) {
+                Location loc = regionSign.getLocation();
+                if (loc == null || loc.getWorld() == null) {
+                    continue;
+                }
+                int blockX = loc.getBlockX();
+                int blockY = loc.getBlockY();
+                int blockZ = loc.getBlockZ();
+                signs.add(new SignDto(
+                        loc.getWorld().getUID(),
+                        blockX, blockY, blockZ,
+                        protectedRegion.getId(),
+                        world.getUID()));
+            }
+        }
     }
 
 }

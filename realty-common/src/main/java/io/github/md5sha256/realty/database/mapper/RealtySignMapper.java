@@ -16,15 +16,12 @@ import java.util.UUID;
 public interface RealtySignMapper {
 
     /**
-     * Inserts a new sign record. The caller must compute chunk coordinates
-     * via {@code Math.floorDiv(blockX, 16)} and {@code Math.floorDiv(blockZ, 16)}.
+     * Inserts a new sign record.
      *
      * @param worldId            the world UUID of the sign
      * @param blockX             block X coordinate
      * @param blockY             block Y coordinate
      * @param blockZ             block Z coordinate
-     * @param chunkX             chunk X coordinate
-     * @param chunkZ             chunk Z coordinate
      * @param worldGuardRegionId the WG region name
      * @param regionWorldId      the world UUID of the region
      * @return number of rows inserted
@@ -33,8 +30,6 @@ public interface RealtySignMapper {
                int blockX,
                int blockY,
                int blockZ,
-               int chunkX,
-               int chunkZ,
                @NotNull String worldGuardRegionId,
                @NotNull UUID regionWorldId);
 
