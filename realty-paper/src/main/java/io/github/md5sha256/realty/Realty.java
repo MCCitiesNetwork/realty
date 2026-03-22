@@ -8,6 +8,8 @@ import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
+import io.github.md5sha256.realty.api.SignCache;
+import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
 import io.github.md5sha256.realty.command.AgentInviteCommand;
@@ -29,12 +31,14 @@ import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.RenewCommand;
 import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.SetCommandGroup;
+import io.github.md5sha256.realty.command.SignCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.listener.SignInteractionListener;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
@@ -96,6 +100,8 @@ public final class Realty extends JavaPlugin {
     private DatabaseSettings databaseSettings;
     private NotificationService notificationService;
     private Database database;
+    private final SignCache signCache = new SignCache();
+    private SignTextApplicator signTextApplicator;
 
     @NotNull
     public Database database() {
@@ -174,9 +180,16 @@ public final class Realty extends JavaPlugin {
             getLogger().info("Using the transient notification service");
             this.notificationService = new TransientNotificationService(this.executorState.mainThreadExec());
         }
+        this.signTextApplicator = new SignTextApplicator(
+                this.regionProfileService, this.logic, this.database, getLogger());
         this.profileApplicator = new ProfileApplicator(
-                this, this.regionProfileService, this.executorState, this.logic);
+                this, this.regionProfileService, this.executorState, this.logic,
+                this.database, this.signTextApplicator);
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
+        getServer().getPluginManager().registerEvents(
+                new SignInteractionListener(this.database, this.logic,
+                        this.regionProfileService, this.executorState, this.signCache,
+                        this.signTextApplicator), this);
         scheduleTasks();
         registerCommands(this.executorState,
                 this.logic,
@@ -300,23 +313,35 @@ public final class Realty extends JavaPlugin {
 
     private void configureRegionFlagService(@NotNull RegionProfileSettings settings) {
         this.regionProfileService.clearGroupedFlagProfiles();
+        this.regionProfileService.clearGroupedSignProfiles();
         Map<RegionState, RegionProfile> global = settings.global();
         if (global != null) {
             for (Map.Entry<RegionState, RegionProfile> entry : global.entrySet()) {
                 this.regionProfileService.setGlobalFlagProfile(
                         entry.getKey(), entry.getValue().priority(), entry.getValue().flags());
+                if (entry.getValue().sign() != null) {
+                    this.regionProfileService.setGlobalSignProfile(
+                            entry.getKey(), entry.getValue().sign());
+                }
             }
         }
         List<GroupedRegionProfile> grouped = settings.grouped();
         if (grouped != null) {
             for (GroupedRegionProfile group : grouped) {
                 Map<RegionState, RegionProfileService.FlagProfile> stateProfiles = new HashMap<>();
+                Map<RegionState, io.github.md5sha256.realty.settings.SignProfile> signProfiles = new HashMap<>();
                 for (Map.Entry<RegionState, RegionProfile> entry : group.states().entrySet()) {
                     stateProfiles.put(entry.getKey(),
                             new RegionProfileService.FlagProfile(
                                     entry.getValue().priority(), entry.getValue().flags()));
+                    if (entry.getValue().sign() != null) {
+                        signProfiles.put(entry.getKey(), entry.getValue().sign());
+                    }
                 }
                 this.regionProfileService.addGroupedFlagProfile(group.regions(), stateProfiles);
+                if (!signProfiles.isEmpty()) {
+                    this.regionProfileService.addGroupedSignProfile(group.regions(), signProfiles);
+                }
             }
         }
     }
@@ -383,7 +408,8 @@ public final class Realty extends JavaPlugin {
                     performReload();
                     return null;
                 }, messageContainer),
-                new RemoveCommand(executorState, logic, messageContainer)
+                new RemoveCommand(executorState, logic, messageContainer),
+                new SignCommand(executorState, this.database, logic, this.regionProfileService, this.signCache, this.signTextApplicator, messageContainer)
         );
 
         var manager = PaperCommandManager.builder()

@@ -11,6 +11,10 @@
 # Each state profile can include:
 #   priority: <number>  (optional) — sets the WorldGuard region priority
 #   flags:              (required) — map of WorldGuard flag names to values
+#   sign:               (optional) — sign template for region signs
+#     lines:            — list of up to 4 lines (MiniMessage format, supports placeholders)
+#     right-click-commands: — commands run as the clicking player on right-click
+#     left-click-commands:  — commands run as the clicking player on left-click
 #
 # Flag values support region groups via the -g suffix:
 #   damage-animals: "deny -g NON_MEMBERS"
@@ -38,11 +42,29 @@
 #     priority: 5
 #     flags:
 #       pvp: deny
+#     sign:
+#       lines:
+#         - "<blue><bold>[For Lease]"
+#         - "<region>"
+#         - "<duration>"
+#         - "<price>"
+#       right-click-commands:
+#         - "realty rent <region>"
+#       left-click-commands:
+#         - "realty info <region>"
 #   LEASED:
 #     priority: 10
 #     flags:
 #       pvp: "deny -g NON_MEMBERS"
 #       chest-access: "deny -g NON_MEMBERS"
+#     sign:
+#       lines:
+#         - "<dark_red><bold>[Leased]"
+#         - "<region>"
+#         - "<tenant>"
+#         - "<expiry_date>"
+#       left-click-commands:
+#         - "realty info <region>"
 # grouped:
 #   - regions:
 #       - market_stall_1

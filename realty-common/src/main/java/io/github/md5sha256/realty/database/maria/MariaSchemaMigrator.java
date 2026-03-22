@@ -41,7 +41,8 @@ public final class MariaSchemaMigrator {
     private static final List<MigrationStep> DEFAULT_MIGRATIONS = List.of(
             new MigrationStep(1, "initial schema", "V1__maria_initial_schema.sql"),
             new MigrationStep(2, "region history", "V2__region_history.sql"),
-            new MigrationStep(3, "initial schema indexes", "V3__add_indexes.sql")
+            new MigrationStep(3, "initial schema indexes", "V3__add_indexes.sql"),
+            new MigrationStep(4, "realty signs", "V4__realty_signs.sql")
     );
 
     private MariaSchemaMigrator() {

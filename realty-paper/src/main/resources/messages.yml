@@ -364,3 +364,14 @@ notification:
   agent-invite-rejected: "<prefix> <player> rejected your agent invite for region <region>."
   agent-invite-withdrawn: "<prefix> <player> withdrew your agent invite for region <region>."
   agent-removed: "<prefix> <player> removed you as an agent for region <region>."
+
+sign:
+  place-success: "Sign registered for region <region>."
+  place-not-a-sign: "You must be looking at a sign block."
+  place-not-registered: "Region <region> is not registered in Realty."
+  place-already-registered: "This sign is already registered."
+  place-error: "Failed to register sign: <error>"
+  remove-success: "Sign unregistered."
+  remove-not-a-sign: "You must be looking at a sign block."
+  remove-not-registered: "This sign is not registered."
+  remove-error: "Failed to unregister sign: <error>"

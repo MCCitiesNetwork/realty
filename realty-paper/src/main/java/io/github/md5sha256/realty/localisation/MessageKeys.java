@@ -298,6 +298,17 @@ public final class MessageKeys {
     public static final String WITHDRAW_OFFER_SUCCESS = "withdraw-offer.success";
     public static final String WITHDRAW_OFFER_ERROR = "withdraw-offer.error";
 
+    // sign
+    public static final String SIGN_PLACE_SUCCESS = "sign.place-success";
+    public static final String SIGN_PLACE_NOT_A_SIGN = "sign.place-not-a-sign";
+    public static final String SIGN_PLACE_NOT_REGISTERED = "sign.place-not-registered";
+    public static final String SIGN_PLACE_ALREADY_REGISTERED = "sign.place-already-registered";
+    public static final String SIGN_PLACE_ERROR = "sign.place-error";
+    public static final String SIGN_REMOVE_SUCCESS = "sign.remove-success";
+    public static final String SIGN_REMOVE_NOT_A_SIGN = "sign.remove-not-a-sign";
+    public static final String SIGN_REMOVE_NOT_REGISTERED = "sign.remove-not-registered";
+    public static final String SIGN_REMOVE_ERROR = "sign.remove-error";
+
     // notification
     public static final String NOTIFICATION_OFFER_PLACED = "notification.offer-placed";
     public static final String NOTIFICATION_OFFER_ACCEPTED = "notification.offer-accepted";

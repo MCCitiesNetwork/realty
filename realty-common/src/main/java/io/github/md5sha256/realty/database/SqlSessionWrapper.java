@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractBidPaymentMapp
 import io.github.md5sha256.realty.database.mapper.AgentHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractAgentInviteMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractSanctionedAuctioneerMapper;
+import io.github.md5sha256.realty.database.mapper.RealtySignMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -50,6 +51,8 @@ public interface SqlSessionWrapper extends Closeable {
     @NotNull FreeholdContractAgentInviteMapper freeholdContractAgentInviteMapper();
 
     @NotNull AgentHistoryMapper agentHistoryMapper();
+
+    @NotNull RealtySignMapper realtySignMapper();
 
     @Override
     void close();

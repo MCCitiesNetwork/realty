@@ -138,3 +138,9 @@ permissions:
   realty.command.reload:
     description: Allows using /realty reload
     default: op
+  realty.command.sign.place:
+    description: Allows using /realty sign place
+    default: op
+  realty.command.sign.remove:
+    description: Allows using /realty sign remove
+    default: op

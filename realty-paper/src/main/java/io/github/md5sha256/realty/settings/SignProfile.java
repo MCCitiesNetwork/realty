@@ -6,11 +6,12 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable;
 import org.spongepowered.configurate.objectmapping.meta.Required;
 import org.spongepowered.configurate.objectmapping.meta.Setting;
 
-import java.util.Map;
+import java.util.List;
 
 @ConfigSerializable
-public record RegionProfile(
-        @Setting("priority") @Nullable Integer priority,
-        @Setting("flags") @Required @NotNull Map<String, String> flags,
-        @Setting("sign") @Nullable SignProfile sign) {
+public record SignProfile(
+        @Setting("lines") @Required @NotNull List<String> lines,
+        @Setting("right-click-commands") @Nullable List<String> rightClickCommands,
+        @Setting("left-click-commands") @Nullable List<String> leftClickCommands
+) {
 }

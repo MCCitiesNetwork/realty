@@ -724,7 +724,9 @@ public class RealtyLogicImpl {
 
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
             if (freehold != null) {
-                placeholders.put("title_holder", freehold.titleHolderId() != null ? freehold.titleHolderId().toString() : "");
+                String titleHolder = freehold.titleHolderId() != null ? freehold.titleHolderId().toString() : "";
+                placeholders.put("title_holder", titleHolder);
+                placeholders.put("titleholder", titleHolder);
                 placeholders.put("authority", freehold.authorityId().toString());
                 placeholders.put("price", freehold.price() != null ? String.valueOf(freehold.price()) : "");
                 Double lastSoldPrice = wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId);
@@ -740,6 +742,7 @@ public class RealtyLogicImpl {
                 placeholders.put("start_date", lease.startDate().toString());
                 LocalDateTime endDate = lease.startDate().plusSeconds(lease.durationSeconds());
                 placeholders.put("end_date", endDate.toString());
+                placeholders.put("expiry_date", endDate.toString());
                 if (lease.maxExtensions() != null) {
                     placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
                 } else {
@@ -786,6 +789,40 @@ public class RealtyLogicImpl {
                 }
             }
             return result;
+        }
+    }
+
+    /**
+     * Gets the state and placeholders for a single region.
+     *
+     * @param worldGuardRegionId the WG region name
+     * @param worldId            the world UUID
+     * @return the region with its state and placeholders, or null if not found or has no contract
+     */
+    public @Nullable RegionWithState getRegionWithState(@NotNull String worldGuardRegionId,
+                                                         @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            RealtyRegionEntity region = wrapper.realtyRegionMapper()
+                    .selectByWorldGuardRegion(worldGuardRegionId, worldId);
+            if (region == null) {
+                return null;
+            }
+            Map<String, String> placeholders = getRegionPlaceholders(worldGuardRegionId, worldId);
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (freehold != null) {
+                return new RegionWithState(region,
+                        freehold.titleHolderId() != null ? RegionState.SOLD : RegionState.FOR_SALE,
+                        placeholders);
+            }
+            LeaseContractEntity lease = wrapper.leaseContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (lease != null) {
+                return new RegionWithState(region,
+                        lease.tenantId() != null ? RegionState.LEASED : RegionState.FOR_LEASE,
+                        placeholders);
+            }
+            return null;
         }
     }
 
