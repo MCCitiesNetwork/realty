@@ -121,6 +121,7 @@ public final class MessageKeys {
     public static final String HELP_MAIN = "help.main";
     public static final String HELP_UNKNOWN_CATEGORY = "help.unknown-category";
     public static final String HELP_BASICS = "help.basics";
+    public static final String HELP_MANAGEMENT = "help.management";
     public static final String HELP_OFFERS = "help.offers";
     public static final String HELP_AUCTIONS = "help.auctions";
     public static final String HELP_ADMIN = "help.admin";

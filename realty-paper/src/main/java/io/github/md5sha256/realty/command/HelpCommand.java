@@ -18,15 +18,15 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Handles {@code /realty help [category]}.
  *
- * <p>Categories: basics, offers, auctions, admin (hidden).
+ * <p>Categories: basics, management, offers, auctions, admin (hidden).
  * Permission: {@code realty.command.help}.</p>
  */
 public record HelpCommand(
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
-    private static final Set<String> VISIBLE_CATEGORIES = Set.of("basics", "offers", "auctions");
-    private static final Set<String> ALL_CATEGORIES = Set.of("basics", "offers", "auctions", "admin");
+    private static final Set<String> VISIBLE_CATEGORIES = Set.of("basics", "management", "offers", "auctions");
+    private static final Set<String> ALL_CATEGORIES = Set.of("basics", "management", "offers", "auctions", "admin");
 
     @Override
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
@@ -64,6 +64,7 @@ public record HelpCommand(
         }
         String key = switch (category) {
             case "basics" -> MessageKeys.HELP_BASICS;
+            case "management" -> MessageKeys.HELP_MANAGEMENT;
             case "offers" -> MessageKeys.HELP_OFFERS;
             case "auctions" -> MessageKeys.HELP_AUCTIONS;
             case "admin" -> MessageKeys.HELP_ADMIN;
