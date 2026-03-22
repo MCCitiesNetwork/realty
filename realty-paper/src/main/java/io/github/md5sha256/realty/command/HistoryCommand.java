@@ -32,6 +32,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -47,6 +48,16 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
                               @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     private static final int PAGE_SIZE = 10;
+
+    private static final Map<String, String> EVENT_TYPE_MESSAGE_KEYS = Map.of(
+            "BUY", MessageKeys.HISTORY_EVENT_BUY,
+            "AUCTION_BUY", MessageKeys.HISTORY_EVENT_AUCTION_BUY,
+            "OFFER_BUY", MessageKeys.HISTORY_EVENT_OFFER_BUY,
+            "AGENT_ADD", MessageKeys.HISTORY_EVENT_AGENT_ADD,
+            "AGENT_REMOVE", MessageKeys.HISTORY_EVENT_AGENT_REMOVE,
+            "RENT", MessageKeys.HISTORY_EVENT_RENT,
+            "LEASE_EXPIRY", MessageKeys.HISTORY_EVENT_LEASE_EXPIRY
+    );
 
     private static final CloudKey<WorldGuardRegion> REGION = CloudKey.of("region",
             WorldGuardRegion.class);
@@ -129,24 +140,22 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
 
                 for (HistoryEntry entry : result.entries()) {
                     builder.appendNewline();
+                    String messageKey = resolveEventMessageKey(entry.eventType());
                     switch (entry) {
                         case HistoryEntry.Freehold freehold -> builder.append(
-                                messages.messageFor(MessageKeys.HISTORY_FREEHOLD_ENTRY,
-                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(),freehold.eventTime())),
-                                        Placeholder.unparsed("event_type", freehold.eventType()),
+                                messages.messageFor(messageKey,
+                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(), freehold.eventTime())),
                                         Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
                                         Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
                                         Placeholder.unparsed("price", String.valueOf(freehold.price()))));
                         case HistoryEntry.Agent agent -> builder.append(
-                                messages.messageFor(MessageKeys.HISTORY_AGENT_ENTRY,
+                                messages.messageFor(messageKey,
                                         Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
-                                        Placeholder.unparsed("event_type", agent.eventType()),
                                         Placeholder.unparsed("agent", resolveName(agent.agentId())),
                                         Placeholder.unparsed("actor", resolveName(agent.actorId()))));
                         case HistoryEntry.Lease lease -> builder.append(
-                                messages.messageFor(MessageKeys.HISTORY_LEASE_ENTRY,
-                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(),lease.eventTime())),
-                                        Placeholder.unparsed("event_type", lease.eventType()),
+                                messages.messageFor(messageKey,
+                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(), lease.eventTime())),
                                         Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
                                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
                                         Placeholder.unparsed("price",
@@ -200,6 +209,11 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
         String raw = messages.miniMessageFormattedFor(key);
         raw = raw.replace("<command>", command.toString());
         return messages.deserializeRaw(raw);
+    }
+
+    private static @NotNull String resolveEventMessageKey(@NotNull String eventType) {
+        String key = EVENT_TYPE_MESSAGE_KEYS.get(eventType);
+        return key != null ? key : eventType;
     }
 
     private static @NotNull String resolveName(@NotNull UUID uuid) {
