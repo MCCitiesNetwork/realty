@@ -88,6 +88,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -157,8 +158,14 @@ public final class Realty extends JavaPlugin {
             return;
         }
         // Plugin startup logic
+        ClassLoader pluginClassLoader = getClass().getClassLoader();
+        ThreadFactory threadFactory = runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setContextClassLoader(pluginClassLoader);
+            return thread;
+        };
         this.executorState = new ExecutorState(getServer().getScheduler()
-                .getMainThreadExecutor(this), Executors.newFixedThreadPool(4));
+                .getMainThreadExecutor(this), Executors.newFixedThreadPool(4, threadFactory));
         MariaDatabase mariaDatabase = new MariaDatabase(this.databaseSettings, getLogger());
         this.database = mariaDatabase;
         try {
