@@ -40,15 +40,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 
 public class RealtyLogicImpl {
 
     private final Database database;
+    private final Function<UUID, String> nameResolver;
     // TODO: load from configuration
     private long offerPaymentDurationSeconds = 86400;
 
-    public RealtyLogicImpl(@NotNull Database database) {
+    public RealtyLogicImpl(@NotNull Database database, @NotNull Function<UUID, String> nameResolver) {
         this.database = database;
+        this.nameResolver = nameResolver;
     }
 
     public void setOfferPaymentDurationSeconds(long offerPaymentDurationSeconds) {
@@ -724,10 +727,10 @@ public class RealtyLogicImpl {
 
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
             if (freehold != null) {
-                String titleHolder = freehold.titleHolderId() != null ? freehold.titleHolderId().toString() : "";
+                String titleHolder = freehold.titleHolderId() != null ? nameResolver.apply(freehold.titleHolderId()) : "";
                 placeholders.put("title_holder", titleHolder);
                 placeholders.put("titleholder", titleHolder);
-                placeholders.put("authority", freehold.authorityId().toString());
+                placeholders.put("authority", nameResolver.apply(freehold.authorityId()));
                 placeholders.put("price", freehold.price() != null ? String.valueOf(freehold.price()) : "");
                 Double lastSoldPrice = wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId);
                 placeholders.put("last_sold_price", lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "");
@@ -735,8 +738,8 @@ public class RealtyLogicImpl {
 
             LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
             if (lease != null) {
-                placeholders.put("landlord", lease.landlordId().toString());
-                placeholders.put("tenant", lease.tenantId() != null ? lease.tenantId().toString() : "");
+                placeholders.put("landlord", nameResolver.apply(lease.landlordId()));
+                placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()) : "");
                 placeholders.put("price", String.valueOf(lease.price()));
                 placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
                 placeholders.put("start_date", lease.startDate().toString());

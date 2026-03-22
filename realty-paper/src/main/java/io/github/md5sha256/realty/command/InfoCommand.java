@@ -27,7 +27,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -96,7 +95,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         UUID worldId = region.world().getUID();
         String membersStr = resolveMembers(region);
 
-        CompletableFuture.runAsync(() -> {
+        executorState.dbExec().execute(() -> {
             try {
                 RealtyLogicImpl.RegionInfo info = logic.getRegionInfo(regionId, worldId);
 
@@ -131,9 +130,9 @@ public record InfoCommand(@NotNull ExecutorState executorState,
             } catch (Exception ex) {
                 ex.printStackTrace();
                 sender.sendMessage(messages.messageFor(MessageKeys.INFO_ERROR,
-                        Placeholder.unparsed("error", ex.getMessage())));
+                        Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
             }
-        }, executorState.dbExec());
+        });
     }
 
     private void appendFreeholdInfo(@NotNull TextComponent.Builder builder,
