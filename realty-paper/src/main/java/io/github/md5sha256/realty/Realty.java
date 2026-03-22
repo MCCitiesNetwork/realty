@@ -54,14 +54,18 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
 import org.jetbrains.annotations.NotNull;
+import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
 import org.spongepowered.configurate.yaml.NodeStyle;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -406,7 +410,7 @@ public final class Realty extends JavaPlugin {
             try (FileOutputStream fileOutputStream = new FileOutputStream(file);
                  InputStream inputStream = getResource(fileName)) {
                 if (inputStream == null) {
-                    getLogger().severe("Failed to copy default messages!");
+                    getLogger().severe("Failed to copy default resource: " + fileName);
                 } else {
                     inputStream.transferTo(fileOutputStream);
                 }
@@ -415,7 +419,19 @@ public final class Realty extends JavaPlugin {
         YamlConfigurationLoader existingLoader = yamlLoader()
                 .file(file)
                 .build();
-        return existingLoader.load();
+        ConfigurationNode existingRoot = existingLoader.load();
+        try (InputStream defaultStream = getResource(fileName)) {
+            if (defaultStream != null) {
+                YamlConfigurationLoader defaultsLoader = yamlLoader()
+                        .source(() -> new BufferedReader(
+                                new InputStreamReader(defaultStream, StandardCharsets.UTF_8)))
+                        .build();
+                ConfigurationNode defaultsRoot = defaultsLoader.load();
+                existingRoot.mergeFrom(defaultsRoot);
+                existingLoader.save(existingRoot);
+            }
+        }
+        return existingRoot;
     }
 
 
