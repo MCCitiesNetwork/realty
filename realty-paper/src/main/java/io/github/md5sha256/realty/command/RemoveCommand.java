@@ -11,6 +11,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -90,7 +91,8 @@ public record RemoveCommand(@NotNull ExecutorState executorState,
             if (playerOrGroup.startsWith("g:")) {
                 protectedRegion.getMembers().removeGroup(playerOrGroup.substring(2));
             } else {
-                protectedRegion.getMembers().removePlayer(playerOrGroup);
+                OfflinePlayer target = Bukkit.getOfflinePlayer(playerOrGroup);
+                protectedRegion.getMembers().removePlayer(target.getUniqueId());
             }
             sender.sendMessage(messages.messageFor(MessageKeys.REMOVE_SUCCESS,
                     Placeholder.unparsed("target", playerOrGroup),

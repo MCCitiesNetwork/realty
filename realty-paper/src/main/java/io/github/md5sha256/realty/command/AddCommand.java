@@ -11,6 +11,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -90,7 +91,8 @@ public record AddCommand(@NotNull ExecutorState executorState,
             if (playerOrGroup.startsWith("g:")) {
                 protectedRegion.getMembers().addGroup(playerOrGroup.substring(2));
             } else {
-                protectedRegion.getMembers().addPlayer(playerOrGroup);
+                OfflinePlayer target = Bukkit.getOfflinePlayer(playerOrGroup);
+                protectedRegion.getMembers().addPlayer(target.getUniqueId());
             }
             sender.sendMessage(messages.messageFor(MessageKeys.ADD_SUCCESS,
                     Placeholder.unparsed("target", playerOrGroup),
