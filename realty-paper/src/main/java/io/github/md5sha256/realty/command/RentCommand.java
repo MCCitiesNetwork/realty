@@ -4,6 +4,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
+import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -36,6 +37,7 @@ public record RentCommand(
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
         @NotNull RegionProfileService regionProfileService,
+        @NotNull SignTextApplicator signTextApplicator,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -119,6 +121,7 @@ public record RentCommand(
             ProtectedRegion protectedRegion = region.region();
             protectedRegion.getMembers().addPlayer(sender.getUniqueId());
             regionProfileService.applyFlags(region, RegionState.LEASED, entry.getValue());
+            signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, entry.getValue());
             sender.sendMessage(messages.messageFor(MessageKeys.RENT_SUCCESS,
                     Placeholder.unparsed("region", regionId),
                     Placeholder.unparsed("price", String.valueOf(price))));

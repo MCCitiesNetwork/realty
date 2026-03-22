@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
+import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
@@ -42,6 +43,7 @@ public record SetCommandGroup(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull RegionProfileService regionProfileService,
+        @NotNull SignTextApplicator signTextApplicator,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -196,8 +198,10 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.SetTitleHolderResult.Success ignored -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
-                            executorState.mainThreadExec().execute(
-                                    () -> regionProfileService.applyFlags(region, RegionState.SOLD, placeholders));
+                            executorState.mainThreadExec().execute(() -> {
+                                    regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
+                                    signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, placeholders);
+                            });
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SUCCESS,
                                     Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
                                     Placeholder.unparsed("region", regionId)));
@@ -230,8 +234,10 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.SetTenantResult.Success ignored -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
-                            executorState.mainThreadExec().execute(
-                                    () -> regionProfileService.applyFlags(region, RegionState.LEASED, placeholders));
+                            executorState.mainThreadExec().execute(() -> {
+                                    regionProfileService.applyFlags(region, RegionState.LEASED, placeholders);
+                                    signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
+                            });
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,
                                     Placeholder.unparsed("tenant", resolveName(tenantId)),
                                     Placeholder.unparsed("region", regionId)));

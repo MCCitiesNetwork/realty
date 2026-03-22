@@ -27,15 +27,18 @@ public class SignTextApplicator {
     private final RegionProfileService regionProfileService;
     private final RealtyLogicImpl logic;
     private final Database database;
+    private final SignCache signCache;
     private final Logger logger;
 
     public SignTextApplicator(@NotNull RegionProfileService regionProfileService,
                               @NotNull RealtyLogicImpl logic,
                               @NotNull Database database,
+                              @NotNull SignCache signCache,
                               @NotNull Logger logger) {
         this.regionProfileService = regionProfileService;
         this.logic = logic;
         this.database = database;
+        this.signCache = signCache;
         this.logger = logger;
     }
 
@@ -93,6 +96,25 @@ public class SignTextApplicator {
     }
 
     /**
+     * Updates all loaded (cached) signs for a given WorldGuard region.
+     * Must be called on the main thread.
+     *
+     * @param world        the world containing the signs
+     * @param regionId     the WorldGuard region ID
+     * @param state        the region's current state
+     * @param placeholders the resolved placeholders for the region
+     */
+    public void updateLoadedSigns(@NotNull World world,
+                                   @NotNull String regionId,
+                                   @NotNull RegionState state,
+                                   @NotNull java.util.Map<String, String> placeholders) {
+        List<SignCache.BlockPosition> positions = signCache.getSignsByRegion(regionId, world.getUID());
+        for (SignCache.BlockPosition pos : positions) {
+            applySignText(world, pos.x(), pos.y(), pos.z(), regionId, state, placeholders);
+        }
+    }
+
+    /**
      * Fetches sign entities for a chunk from the database, populates the cache,
      * and applies sign text on the main thread. Stale signs (blocks that are no
      * longer signs) are cleaned up from the database.
@@ -101,13 +123,11 @@ public class SignTextApplicator {
      * @param world     the world
      * @param chunkX    chunk X coordinate
      * @param chunkZ    chunk Z coordinate
-     * @param signCache the sign cache to populate
      * @param mainThreadExec executor for scheduling main-thread work
      */
     public void loadAndApplyChunkSigns(@NotNull World world,
                                         int chunkX,
                                         int chunkZ,
-                                        @NotNull SignCache signCache,
                                         @NotNull java.util.concurrent.Executor mainThreadExec) {
         java.util.UUID worldId = world.getUID();
         try (SqlSessionWrapper session = database.openSession(true)) {

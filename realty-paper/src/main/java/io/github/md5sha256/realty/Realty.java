@@ -186,7 +186,7 @@ public final class Realty extends JavaPlugin {
             this.notificationService = new TransientNotificationService(this.executorState.mainThreadExec());
         }
         this.signTextApplicator = new SignTextApplicator(
-                this.regionProfileService, this.logic, this.database, getLogger());
+                this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
         this.profileApplicator = new ProfileApplicator(
                 this, this.regionProfileService, this.executorState, this.logic,
                 this.signTextApplicator, this.signCache);
@@ -387,6 +387,7 @@ public final class Realty extends JavaPlugin {
                         economy,
                         notificationService,
                         this.regionProfileService,
+                        this.signTextApplicator,
                         this.settings,
                         messageContainer),
                 new BuyCommand(executorState,
@@ -394,6 +395,7 @@ public final class Realty extends JavaPlugin {
                         economy,
                         notificationService,
                         this.regionProfileService,
+                        this.signTextApplicator,
                         messageContainer),
                 new CreateCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
                 new DeleteCommand(executorState, logic, this.regionProfileService, messageContainer),
@@ -406,16 +408,18 @@ public final class Realty extends JavaPlugin {
                         economy,
                         notificationService,
                         this.regionProfileService,
+                        this.signTextApplicator,
                         messageContainer),
-                new RenewCommand(executorState, logic, economy, messageContainer),
+                new RenewCommand(executorState, logic, economy, this.signTextApplicator, messageContainer),
                 new RentCommand(executorState,
                         logic,
                         economy,
                         notificationService,
                         this.regionProfileService,
+                        this.signTextApplicator,
                         messageContainer),
-                new SetCommandGroup(executorState, logic, this.regionProfileService, messageContainer),
-                new UnsetCommandGroup(this.regionProfileService, executorState, logic, messageContainer),
+                new SetCommandGroup(executorState, logic, this.regionProfileService, this.signTextApplicator, messageContainer),
+                new UnsetCommandGroup(this.regionProfileService, this.signTextApplicator, executorState, logic, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();
                     return null;

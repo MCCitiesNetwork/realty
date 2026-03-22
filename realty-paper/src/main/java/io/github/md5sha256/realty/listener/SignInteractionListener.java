@@ -118,7 +118,7 @@ public class SignInteractionListener implements Listener {
         int chunkX = event.getChunk().getX();
         int chunkZ = event.getChunk().getZ();
         executorState.dbExec().execute(() -> signTextApplicator.loadAndApplyChunkSigns(
-                event.getWorld(), chunkX, chunkZ, signCache, executorState.mainThreadExec()));
+                event.getWorld(), chunkX, chunkZ, executorState.mainThreadExec()));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

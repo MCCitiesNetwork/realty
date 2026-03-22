@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.RegionState;
+import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -18,6 +20,7 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -29,6 +32,7 @@ public record RenewCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
+        @NotNull SignTextApplicator signTextApplicator,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -58,7 +62,10 @@ public record RenewCommand(
                 RealtyLogicImpl.RenewLeaseResult result = logic.renewLease(
                         regionId, region.world().getUID(), sender.getUniqueId());
                 return switch (result) {
-                    case RealtyLogicImpl.RenewLeaseResult.Success success -> success;
+                    case RealtyLogicImpl.RenewLeaseResult.Success success -> {
+                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                        yield Map.entry(success, placeholders);
+                    }
                     case RealtyLogicImpl.RenewLeaseResult.NoLeaseContract ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NO_LEASE_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
@@ -85,10 +92,12 @@ public record RenewCommand(
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(success -> {
-            if (success == null) {
+        }, executorState.dbExec()).thenAcceptAsync(entry -> {
+            if (entry == null) {
                 return;
             }
+            RealtyLogicImpl.RenewLeaseResult.Success success = entry.getKey();
+            Map<String, String> placeholders = entry.getValue();
             double price = success.price();
             double balance = economy.getBalance(sender);
             if (balance < price) {
@@ -105,6 +114,7 @@ public record RenewCommand(
             }
             OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
             economy.depositPlayer(landlord, price);
+            signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
             sender.sendMessage(messages.messageFor(MessageKeys.RENEW_SUCCESS,
                     Placeholder.unparsed("region", regionId),
                     Placeholder.unparsed("price", String.valueOf(price))));

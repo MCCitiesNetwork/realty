@@ -7,6 +7,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
+import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -43,6 +44,7 @@ public record BuyCommand(
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
         @NotNull RegionProfileService regionProfileService,
+        @NotNull SignTextApplicator signTextApplicator,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -151,6 +153,7 @@ public record BuyCommand(
                 protectedRegion.getMembers().clear();
             }
             regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
+            signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, entry.getValue());
             sender.sendMessage(messages.messageFor(MessageKeys.BUY_SUCCESS,
                     Placeholder.unparsed("price", String.valueOf(price)),
                     Placeholder.unparsed("region", regionId)));
