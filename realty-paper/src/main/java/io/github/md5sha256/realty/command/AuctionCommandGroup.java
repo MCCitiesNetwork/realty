@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Groups all auction-related subcommands under {@code /realty auction}.
@@ -60,7 +61,7 @@ public record AuctionCommandGroup(
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
         @NotNull RegionProfileService regionProfileService,
-        @NotNull Settings settings,
+        @NotNull AtomicReference<Settings> settings,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -138,11 +139,11 @@ public record AuctionCommandGroup(
                 builder.appendNewline()
                         .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
                                 Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
-                                Placeholder.unparsed("start_date", DateFormatter.format(settings,auction.startDate())),
+                                Placeholder.unparsed("start_date", DateFormatter.format(settings.get(),auction.startDate())),
                                 Placeholder.unparsed("duration",
                                         DurationFormatter.format(Duration.ofSeconds(auction.biddingDurationSeconds()))),
-                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings, biddingEndDate)),
-                                Placeholder.unparsed("deadline", DateFormatter.format(settings,auction.paymentDeadline())),
+                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings.get(), biddingEndDate)),
+                                Placeholder.unparsed("deadline", DateFormatter.format(settings.get(),auction.paymentDeadline())),
                                 Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
                                 Placeholder.unparsed("min_step", String.valueOf(auction.minStep())),
                                 Placeholder.unparsed("highest_bid_amount", highestBidAmount),

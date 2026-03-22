@@ -34,6 +34,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Handles {@code /realty history <region> [--event <type>] [--time <duration>] [--player <name>] [--page <n>]}.
@@ -42,7 +43,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record HistoryCommand(@NotNull ExecutorState executorState,
                               @NotNull RealtyLogicImpl logic,
-                              @NotNull Settings settings,
+                              @NotNull AtomicReference<Settings> settings,
                               @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     private static final int PAGE_SIZE = 10;
@@ -131,20 +132,20 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
                     switch (entry) {
                         case HistoryEntry.Freehold freehold -> builder.append(
                                 messages.messageFor(MessageKeys.HISTORY_FREEHOLD_ENTRY,
-                                        Placeholder.unparsed("time", DateFormatter.format(settings,freehold.eventTime())),
+                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(),freehold.eventTime())),
                                         Placeholder.unparsed("event_type", freehold.eventType()),
                                         Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
                                         Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
                                         Placeholder.unparsed("price", String.valueOf(freehold.price()))));
                         case HistoryEntry.Agent agent -> builder.append(
                                 messages.messageFor(MessageKeys.HISTORY_AGENT_ENTRY,
-                                        Placeholder.unparsed("time", DateFormatter.format(settings, agent.eventTime())),
+                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
                                         Placeholder.unparsed("event_type", agent.eventType()),
                                         Placeholder.unparsed("agent", resolveName(agent.agentId())),
                                         Placeholder.unparsed("actor", resolveName(agent.actorId()))));
                         case HistoryEntry.Lease lease -> builder.append(
                                 messages.messageFor(MessageKeys.HISTORY_LEASE_ENTRY,
-                                        Placeholder.unparsed("time", DateFormatter.format(settings,lease.eventTime())),
+                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(),lease.eventTime())),
                                         Placeholder.unparsed("event_type", lease.eventType()),
                                         Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
                                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
