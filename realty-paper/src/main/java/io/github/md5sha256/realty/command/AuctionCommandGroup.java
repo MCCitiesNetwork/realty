@@ -126,15 +126,14 @@ public record AuctionCommandGroup(
                             Placeholder.unparsed("region", regionId)));
                     return;
                 }
-                LocalDateTime biddingEndDate = auction.startDate()
-                        .plusSeconds(auction.biddingDurationSeconds());
-
                 TextComponent.Builder builder = Component.text();
                 builder.append(messages.messageFor(MessageKeys.AUCTION_INFO_HEADER,
                         Placeholder.unparsed("region", regionId)));
                 FreeholdContractBid highestBid = regionInfo.highestBid();
                 String highestBidAmount = highestBid != null ? String.valueOf(highestBid.bidAmount()) : "N/A";
                 String highestBidPlayer = highestBid != null ? resolveName(highestBid.bidderId()) : "N/A";
+                LocalDateTime lastActivity = highestBid != null ? highestBid.bidTime() : auction.startDate();
+                LocalDateTime biddingEndDate = lastActivity.plusSeconds(auction.biddingDurationSeconds());
 
                 builder.appendNewline()
                         .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
@@ -142,7 +141,7 @@ public record AuctionCommandGroup(
                                 Placeholder.unparsed("start_date", DateFormatter.format(settings,auction.startDate())),
                                 Placeholder.unparsed("duration",
                                         DurationFormatter.format(Duration.ofSeconds(auction.biddingDurationSeconds()))),
-                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings,biddingEndDate)),
+                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings, biddingEndDate)),
                                 Placeholder.unparsed("deadline", DateFormatter.format(settings,auction.paymentDeadline())),
                                 Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
                                 Placeholder.unparsed("min_step", String.valueOf(auction.minStep())),

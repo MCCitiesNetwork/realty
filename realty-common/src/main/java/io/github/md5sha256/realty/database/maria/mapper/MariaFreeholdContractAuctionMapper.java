@@ -103,7 +103,10 @@ public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuct
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
             FROM FreeholdContractAuction sca
             WHERE sca.ended = FALSE
-            AND NOW() >= sca.startDate + INTERVAL sca.biddingDurationSeconds SECOND
+            AND NOW() >= COALESCE(
+                (SELECT MAX(scb.bidTime) FROM FreeholdContractBid scb WHERE scb.freeholdContractAuctionId = sca.freeholdContractAuctionId),
+                sca.startDate
+            ) + INTERVAL sca.biddingDurationSeconds SECOND
             """)
     @ConstructorArgs({
             @Arg(column = "freeholdContractAuctionId", javaType = int.class),

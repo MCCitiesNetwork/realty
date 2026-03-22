@@ -55,7 +55,10 @@ public interface MariaFreeholdContractBidMapper extends FreeholdContractBidMappe
             FROM FreeholdContractAuction sca
             WHERE sca.freeholdContractAuctionId = #{freeholdContractId}
             AND NOW() >= sca.startDate
-            AND NOW() < sca.startDate + INTERVAL sca.biddingDurationSeconds SECOND
+            AND NOW() < COALESCE(
+                (SELECT MAX(scb2.bidTime) FROM FreeholdContractBid scb2 WHERE scb2.freeholdContractAuctionId = sca.freeholdContractAuctionId),
+                sca.startDate
+            ) + INTERVAL sca.biddingDurationSeconds SECOND
             AND #{bidAmount} >= sca.minBid
             AND (
                 NOT EXISTS (SELECT 1 FROM FreeholdContractBid scb WHERE scb.freeholdContractAuctionId = #{freeholdContractId})
