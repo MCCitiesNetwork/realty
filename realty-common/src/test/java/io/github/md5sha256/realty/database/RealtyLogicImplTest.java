@@ -252,12 +252,21 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
     class CheckRegionAuthority {
 
         @Test
-        @DisplayName("returns true when player is authority of freehold")
-        void isAuthority() {
+        @DisplayName("returns true when player is title holder of freehold")
+        void isTitleHolder() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
-            Assertions.assertTrue(logic.checkRegionAuthority(regionId, WORLD_ID, AUTHORITY));
+            Assertions.assertTrue(logic.checkRegionAuthority(regionId, WORLD_ID, PLAYER_A));
+        }
+
+        @Test
+        @DisplayName("returns false when player is authority but not title holder of freehold")
+        void isAuthorityNotTitleHolder() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+
+            Assertions.assertFalse(logic.checkRegionAuthority(regionId, WORLD_ID, AUTHORITY));
         }
 
         @Test

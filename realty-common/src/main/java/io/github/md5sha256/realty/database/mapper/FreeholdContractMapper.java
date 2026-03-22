@@ -48,6 +48,20 @@ public interface FreeholdContractMapper {
                                        @NotNull UUID playerId);
 
     /**
+     * Checks whether the given player is the title holder on any freehold contract for the
+     * specified WorldGuard region, joining through the {@code RealtyRegion} and
+     * {@code Contract} tables.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param playerId           UUID of the player to check
+     * @return {@code true} if the player is the title holder on at least one freehold contract
+     */
+    boolean existsByRegionAndTitleHolder(@NotNull String worldGuardRegionId,
+                                         @NotNull UUID worldId,
+                                         @NotNull UUID playerId);
+
+    /**
      * Selects the freehold contract associated with a WorldGuard region, joining through
      * the {@code RealtyRegion} and {@code Contract} tables.
      *

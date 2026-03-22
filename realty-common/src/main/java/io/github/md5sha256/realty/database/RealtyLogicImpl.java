@@ -878,7 +878,7 @@ public class RealtyLogicImpl {
                                         @NotNull UUID playerId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
-            if (freeholdMapper.existsByRegionAndAuthority(worldGuardRegionId, worldId, playerId)) {
+            if (freeholdMapper.existsByRegionAndTitleHolder(worldGuardRegionId, worldId, playerId)) {
                 return true;
             }
             LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();

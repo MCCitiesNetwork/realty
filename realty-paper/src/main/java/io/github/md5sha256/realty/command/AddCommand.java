@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -39,7 +39,7 @@ public record AddCommand(@NotNull ExecutorState executorState,
                 .literal("add")
                 .permission("realty.command.add")
                 .required("player", StringParser.stringParser(), playerSuggestions())
-                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();
     }
@@ -59,7 +59,12 @@ public record AddCommand(@NotNull ExecutorState executorState,
             return;
         }
         String playerOrGroup = ctx.get("player");
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+        if (region == null) {
+            player.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         UUID playerId = player.getUniqueId();
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();

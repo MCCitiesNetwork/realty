@@ -285,6 +285,30 @@ class MapperTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("existsByRegionAndTitleHolder returns true for title holder")
+        void existsByTitleHolder() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                Assertions.assertTrue(wrapper.freeholdContractMapper()
+                        .existsByRegionAndTitleHolder(regionId, WORLD_ID, PLAYER_A));
+            }
+        }
+
+        @Test
+        @DisplayName("existsByRegionAndTitleHolder returns false for non-title-holder")
+        void existsByTitleHolderFalse() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                Assertions.assertFalse(wrapper.freeholdContractMapper()
+                        .existsByRegionAndTitleHolder(regionId, WORLD_ID, PLAYER_B));
+            }
+        }
+
+        @Test
         @DisplayName("updatePriceByRegion sets new price")
         void updatePrice() {
             String regionId = uniqueRegionId();

@@ -66,6 +66,22 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
 
     @Override
     @Select("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM FreeholdContract fc
+                INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
+                INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+                WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+                AND rr.worldId = #{worldId}
+                AND fc.titleHolderId = #{playerId}
+            )
+            """)
+    boolean existsByRegionAndTitleHolder(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                         @Param("worldId") @NotNull UUID worldId,
+                                         @Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
             SELECT fc.freeholdContractId, fc.authorityId, fc.titleHolderId, fc.price
             FROM FreeholdContract fc
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
