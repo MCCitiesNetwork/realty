@@ -26,10 +26,34 @@ public final class MessageKeys {
     public static final String ADD_NO_PERMISSION = "add.no-permission";
     public static final String ADD_SUCCESS = "add.success";
 
-    // agent-add
-    public static final String AGENT_ADD_SUCCESS = "agent-add.success";
-    public static final String AGENT_ADD_FAILED = "agent-add.failed";
-    public static final String AGENT_ADD_ERROR = "agent-add.error";
+    // agent-invite
+    public static final String AGENT_INVITE_SUCCESS = "agent-invite.success";
+    public static final String AGENT_INVITE_ALREADY_INVITED = "agent-invite.already-invited";
+    public static final String AGENT_INVITE_NOT_TITLEHOLDER = "agent-invite.not-titleholder";
+    public static final String AGENT_INVITE_NO_FREEHOLD = "agent-invite.no-freehold";
+    public static final String AGENT_INVITE_ERROR = "agent-invite.error";
+
+    // agent-invite-accept
+    public static final String AGENT_INVITE_ACCEPT_SUCCESS = "agent-invite-accept.success";
+    public static final String AGENT_INVITE_ACCEPT_NOT_FOUND = "agent-invite-accept.not-found";
+    public static final String AGENT_INVITE_ACCEPT_ERROR = "agent-invite-accept.error";
+
+    // agent-invite-reject
+    public static final String AGENT_INVITE_REJECT_SUCCESS = "agent-invite-reject.success";
+    public static final String AGENT_INVITE_REJECT_NOT_FOUND = "agent-invite-reject.not-found";
+    public static final String AGENT_INVITE_REJECT_ERROR = "agent-invite-reject.error";
+
+    // agent-invite-withdraw
+    public static final String AGENT_INVITE_WITHDRAW_SUCCESS = "agent-invite-withdraw.success";
+    public static final String AGENT_INVITE_WITHDRAW_NOT_FOUND = "agent-invite-withdraw.not-found";
+    public static final String AGENT_INVITE_WITHDRAW_ERROR = "agent-invite-withdraw.error";
+
+    // agent-invite notifications
+    public static final String NOTIFICATION_AGENT_INVITED = "notification.agent-invited";
+    public static final String NOTIFICATION_AGENT_INVITE_ACCEPTED = "notification.agent-invite-accepted";
+    public static final String NOTIFICATION_AGENT_INVITE_REJECTED = "notification.agent-invite-rejected";
+    public static final String NOTIFICATION_AGENT_INVITE_WITHDRAWN = "notification.agent-invite-withdrawn";
+    public static final String NOTIFICATION_AGENT_REMOVED = "notification.agent-removed";
 
     // agent-remove
     public static final String AGENT_REMOVE_SUCCESS = "agent-remove.success";
@@ -101,6 +125,7 @@ public final class MessageKeys {
     public static final String HISTORY_HEADER = "history.header";
     public static final String HISTORY_NO_RESULTS = "history.no-results";
     public static final String HISTORY_FREEHOLD_ENTRY = "history.freehold-entry";
+    public static final String HISTORY_AGENT_ENTRY = "history.agent-entry";
     public static final String HISTORY_LEASE_ENTRY = "history.lease-entry";
     public static final String HISTORY_FOOTER = "history.footer";
     public static final String HISTORY_PREVIOUS = "history.previous";

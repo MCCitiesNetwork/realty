@@ -12,7 +12,11 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractBidPaymentMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferPaymentMapper;
+import io.github.md5sha256.realty.database.mapper.AgentHistoryMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractAgentInviteMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractSanctionedAuctioneerMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaAgentHistoryMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractAgentInviteMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
@@ -88,6 +92,16 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     @Override
     public @NotNull FreeholdContractSanctionedAuctioneerMapper freeholdContractSanctionedAuctioneerMapper() {
         return session.getMapper(MariaFreeholdContractSanctionedAuctioneerMapper.class);
+    }
+
+    @Override
+    public @NotNull FreeholdContractAgentInviteMapper freeholdContractAgentInviteMapper() {
+        return session.getMapper(MariaFreeholdContractAgentInviteMapper.class);
+    }
+
+    @Override
+    public @NotNull AgentHistoryMapper agentHistoryMapper() {
+        return session.getMapper(MariaAgentHistoryMapper.class);
     }
 
     @Override

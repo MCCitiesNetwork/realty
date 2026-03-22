@@ -136,6 +136,12 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
                                         Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
                                         Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
                                         Placeholder.unparsed("price", String.valueOf(freehold.price()))));
+                        case HistoryEntry.Agent agent -> builder.append(
+                                messages.messageFor(MessageKeys.HISTORY_AGENT_ENTRY,
+                                        Placeholder.unparsed("time", DateFormatter.format(settings, agent.eventTime())),
+                                        Placeholder.unparsed("event_type", agent.eventType()),
+                                        Placeholder.unparsed("agent", resolveName(agent.agentId())),
+                                        Placeholder.unparsed("actor", resolveName(agent.actorId()))));
                         case HistoryEntry.Lease lease -> builder.append(
                                 messages.messageFor(MessageKeys.HISTORY_LEASE_ENTRY,
                                         Placeholder.unparsed("time", DateFormatter.format(settings,lease.eventTime())),

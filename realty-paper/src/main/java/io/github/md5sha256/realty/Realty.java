@@ -9,7 +9,10 @@ import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.AddCommand;
-import io.github.md5sha256.realty.command.AgentAddCommand;
+import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
+import io.github.md5sha256.realty.command.AgentInviteCommand;
+import io.github.md5sha256.realty.command.AgentInviteRejectCommand;
+import io.github.md5sha256.realty.command.AgentInviteWithdrawCommand;
 import io.github.md5sha256.realty.command.AgentRemoveCommand;
 import io.github.md5sha256.realty.command.AuctionCommandGroup;
 import io.github.md5sha256.realty.command.BuyCommand;
@@ -337,8 +340,11 @@ public final class Realty extends JavaPlugin {
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(executorState, logic, messageContainer),
-                new AgentAddCommand(executorState, logic, messageContainer),
-                new AgentRemoveCommand(executorState, logic, messageContainer),
+                new AgentInviteCommand(executorState, logic, notificationService, messageContainer),
+                new AgentInviteAcceptCommand(executorState, logic, notificationService, messageContainer),
+                new AgentInviteRejectCommand(executorState, logic, notificationService, messageContainer),
+                new AgentInviteWithdrawCommand(executorState, logic, notificationService, messageContainer),
+                new AgentRemoveCommand(executorState, logic, notificationService, messageContainer),
                 new AuctionCommandGroup(executorState,
                         logic,
                         economy,

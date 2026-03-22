@@ -6,7 +6,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public sealed interface HistoryEntry permits HistoryEntry.Freehold, HistoryEntry.Lease {
+public sealed interface HistoryEntry permits HistoryEntry.Freehold, HistoryEntry.Lease, HistoryEntry.Agent {
 
     @NotNull String eventType();
 
@@ -28,5 +28,12 @@ public sealed interface HistoryEntry permits HistoryEntry.Freehold, HistoryEntry
             @Nullable Double price,
             @Nullable Long durationSeconds,
             @Nullable Integer extensionsRemaining
+    ) implements HistoryEntry {}
+
+    record Agent(
+            @NotNull String eventType,
+            @NotNull LocalDateTime eventTime,
+            @NotNull UUID agentId,
+            @NotNull UUID actorId
     ) implements HistoryEntry {}
 }

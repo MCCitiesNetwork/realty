@@ -163,6 +163,20 @@ ALTER TABLE FreeholdContractSanctionedAuctioneers
         CONSTRAINT SanctionedAuctioneers_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE
         );
 
+CREATE TABLE IF NOT EXISTS FreeholdContractAgentInvite
+(
+    realtyRegionId INT      NOT NULL,
+    inviterId      UUID     NOT NULL,
+    inviteeId      UUID     NOT NULL,
+    inviteTime     DATETIME NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (realtyRegionId, inviteeId)
+);
+
+ALTER TABLE FreeholdContractAgentInvite
+    ADD (
+        CONSTRAINT AgentInvite_RealtyRegion_realtyRegionId_fk FOREIGN KEY (realtyRegionId) REFERENCES RealtyRegion (realtyRegionId) ON DELETE CASCADE
+        );
+
 ALTER TABLE FreeholdContractBidPayment
     ADD (
         CONSTRAINT FreeholdContractBid_BidPayment_bidId_fk FOREIGN KEY (bidId) REFERENCES FreeholdContractBid (bidId) ON DELETE CASCADE,

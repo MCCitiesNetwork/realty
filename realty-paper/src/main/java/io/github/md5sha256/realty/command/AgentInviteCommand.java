@@ -21,13 +21,14 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Handles {@code /realty agent remove <player> <region>}.
+ * Handles {@code /realty agent invite <player> <region>}.
  *
- * <p>Removes a player from the sanctioned auctioneers list for a region.</p>
+ * <p>Invites a player as a sanctioned auctioneer for a region.
+ * Only the title holder can send invites.</p>
  *
- * <p>Permission: {@code realty.command.agent.remove}.</p>
+ * <p>Permission: {@code realty.command.agent.invite}.</p>
  */
-public record AgentRemoveCommand(@NotNull ExecutorState executorState,
+public record AgentInviteCommand(@NotNull ExecutorState executorState,
                                   @NotNull RealtyLogicImpl logic,
                                   @NotNull NotificationService notificationService,
                                   @NotNull MessageContainer messages) implements CustomCommandBean.Single {
@@ -36,8 +37,8 @@ public record AgentRemoveCommand(@NotNull ExecutorState executorState,
     public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
         return builder
                 .literal("agent")
-                .literal("remove")
-                .permission("realty.command.agent.remove")
+                .literal("invite")
+                .permission("realty.command.agent.invite")
                 .required("player", AuthorityParser.authority())
                 .required("region", WorldGuardRegionParser.worldGuardRegion())
                 .handler(this::execute)
@@ -49,30 +50,38 @@ public record AgentRemoveCommand(@NotNull ExecutorState executorState,
         if (!(sender instanceof Player player)) {
             return;
         }
-        UUID targetId = ctx.get("player");
+        UUID inviteeId = ctx.get("player");
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        String targetName = resolveName(targetId);
-        UUID actorId = player.getUniqueId();
+        UUID inviterId = player.getUniqueId();
+        String inviteeName = resolveName(inviteeId);
         CompletableFuture.runAsync(() -> {
             try {
-                int rows = logic.removeSanctionedAuctioneer(regionId, worldId, targetId, actorId);
-                if (rows > 0) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_SUCCESS,
-                            Placeholder.unparsed("player", targetName),
-                            Placeholder.unparsed("region", regionId)));
-                    notificationService.queueNotification(targetId,
-                            messages.messageFor(MessageKeys.NOTIFICATION_AGENT_REMOVED,
-                                    Placeholder.unparsed("player", player.getName()),
+                RealtyLogicImpl.InviteAgentResult result = logic.inviteAgent(regionId, worldId, inviterId, inviteeId);
+                switch (result) {
+                    case RealtyLogicImpl.InviteAgentResult.Success() -> {
+                        sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_SUCCESS,
+                                Placeholder.unparsed("player", inviteeName),
+                                Placeholder.unparsed("region", regionId)));
+                        notificationService.queueNotification(inviteeId,
+                                messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITED,
+                                        Placeholder.unparsed("player", player.getName()),
+                                        Placeholder.unparsed("region", regionId)));
+                    }
+                    case RealtyLogicImpl.InviteAgentResult.NoFreeholdContract() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NO_FREEHOLD,
                                     Placeholder.unparsed("region", regionId)));
-                } else {
-                    sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_NOT_FOUND,
-                            Placeholder.unparsed("player", targetName),
-                            Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.InviteAgentResult.NotTitleHolder() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.InviteAgentResult.AlreadyInvited() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ALREADY_INVITED,
+                                    Placeholder.unparsed("player", inviteeName),
+                                    Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_ERROR,
+                sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

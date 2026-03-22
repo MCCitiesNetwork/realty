@@ -4,7 +4,9 @@ import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
+import io.github.md5sha256.realty.database.entity.AgentHistoryEntity;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
+import io.github.md5sha256.realty.database.entity.FreeholdContractAgentInviteEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.LeaseHistoryEntity;
@@ -55,27 +57,121 @@ public class RealtyLogicImpl {
 
     // --- Sanctioned Auctioneers ---
 
-    public int addSanctionedAuctioneer(@NotNull String worldGuardRegionId,
-                                        @NotNull UUID worldId,
-                                        @NotNull UUID auctioneerId) {
+    public int removeSanctionedAuctioneer(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId,
+                                           @NotNull UUID auctioneerId,
+                                           @NotNull UUID actorId) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             int rows = wrapper.freeholdContractSanctionedAuctioneerMapper()
-                    .insert(worldGuardRegionId, worldId, auctioneerId);
+                    .deleteByRegionAndAuctioneer(worldGuardRegionId, worldId, auctioneerId);
+            if (rows > 0) {
+                wrapper.agentHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.AGENT_REMOVE.name(), auctioneerId, actorId);
+            }
             session.commit();
             return rows;
         }
     }
 
-    public int removeSanctionedAuctioneer(@NotNull String worldGuardRegionId,
-                                           @NotNull UUID worldId,
-                                           @NotNull UUID auctioneerId) {
+    // --- Agent Invites ---
+
+    public sealed interface InviteAgentResult {
+        record Success() implements InviteAgentResult {}
+        record NoFreeholdContract() implements InviteAgentResult {}
+        record NotTitleHolder() implements InviteAgentResult {}
+        record AlreadyInvited() implements InviteAgentResult {}
+    }
+
+    public @NotNull InviteAgentResult inviteAgent(@NotNull String worldGuardRegionId,
+                                                   @NotNull UUID worldId,
+                                                   @NotNull UUID inviterId,
+                                                   @NotNull UUID inviteeId) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            int rows = wrapper.freeholdContractSanctionedAuctioneerMapper()
-                    .deleteByRegionAndAuctioneer(worldGuardRegionId, worldId, auctioneerId);
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new InviteAgentResult.NoFreeholdContract();
+            }
+            if (!inviterId.equals(freehold.titleHolderId())) {
+                return new InviteAgentResult.NotTitleHolder();
+            }
+            if (wrapper.freeholdContractAgentInviteMapper()
+                    .existsByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId)) {
+                return new InviteAgentResult.AlreadyInvited();
+            }
+            wrapper.freeholdContractAgentInviteMapper()
+                    .insert(worldGuardRegionId, worldId, inviterId, inviteeId);
             session.commit();
-            return rows;
+            return new InviteAgentResult.Success();
+        }
+    }
+
+    public sealed interface AcceptAgentInviteResult {
+        record Success(@NotNull UUID inviterId) implements AcceptAgentInviteResult {}
+        record NotFound() implements AcceptAgentInviteResult {}
+    }
+
+    public @NotNull AcceptAgentInviteResult acceptAgentInvite(@NotNull String worldGuardRegionId,
+                                                               @NotNull UUID worldId,
+                                                               @NotNull UUID inviteeId) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            FreeholdContractAgentInviteEntity invite = wrapper.freeholdContractAgentInviteMapper()
+                    .selectByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
+            if (invite == null) {
+                return new AcceptAgentInviteResult.NotFound();
+            }
+            wrapper.freeholdContractAgentInviteMapper()
+                    .deleteByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
+            wrapper.freeholdContractSanctionedAuctioneerMapper()
+                    .insert(worldGuardRegionId, worldId, inviteeId);
+            wrapper.agentHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.AGENT_ADD.name(), inviteeId, invite.inviterId());
+            session.commit();
+            return new AcceptAgentInviteResult.Success(invite.inviterId());
+        }
+    }
+
+    public sealed interface WithdrawAgentInviteResult {
+        record Success() implements WithdrawAgentInviteResult {}
+        record NotFound() implements WithdrawAgentInviteResult {}
+    }
+
+    public @NotNull WithdrawAgentInviteResult withdrawAgentInvite(@NotNull String worldGuardRegionId,
+                                                                    @NotNull UUID worldId,
+                                                                    @NotNull UUID inviteeId) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            int rows = wrapper.freeholdContractAgentInviteMapper()
+                    .deleteByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
+            session.commit();
+            return rows > 0
+                    ? new WithdrawAgentInviteResult.Success()
+                    : new WithdrawAgentInviteResult.NotFound();
+        }
+    }
+
+    public sealed interface RejectAgentInviteResult {
+        record Success(@NotNull UUID inviterId) implements RejectAgentInviteResult {}
+        record NotFound() implements RejectAgentInviteResult {}
+    }
+
+    public @NotNull RejectAgentInviteResult rejectAgentInvite(@NotNull String worldGuardRegionId,
+                                                                @NotNull UUID worldId,
+                                                                @NotNull UUID inviteeId) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            FreeholdContractAgentInviteEntity invite = wrapper.freeholdContractAgentInviteMapper()
+                    .selectByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
+            if (invite == null) {
+                return new RejectAgentInviteResult.NotFound();
+            }
+            wrapper.freeholdContractAgentInviteMapper()
+                    .deleteByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
+            session.commit();
+            return new RejectAgentInviteResult.Success(invite.inviterId());
         }
     }
 
@@ -1123,14 +1219,18 @@ public class RealtyLogicImpl {
                     .countHistory(worldGuardRegionId, worldId, eventType, since, playerId);
             int leaseCount = wrapper.leaseHistoryMapper()
                     .countHistory(worldGuardRegionId, worldId, eventType, since, playerId);
-            int totalCount = freeholdCount + leaseCount;
+            int agentCount = wrapper.agentHistoryMapper()
+                    .countHistory(worldGuardRegionId, worldId, eventType, since, playerId);
+            int totalCount = freeholdCount + leaseCount + agentCount;
 
             List<FreeholdHistoryEntity> freeholdResults = wrapper.freeholdHistoryMapper()
                     .searchHistory(worldGuardRegionId, worldId, eventType, since, playerId, limit, offset);
             List<LeaseHistoryEntity> leaseResults = wrapper.leaseHistoryMapper()
                     .searchHistory(worldGuardRegionId, worldId, eventType, since, playerId, limit, offset);
+            List<AgentHistoryEntity> agentResults = wrapper.agentHistoryMapper()
+                    .searchHistory(worldGuardRegionId, worldId, eventType, since, playerId, limit, offset);
 
-            List<HistoryEntry> combined = new ArrayList<>(freeholdResults.size() + leaseResults.size());
+            List<HistoryEntry> combined = new ArrayList<>(freeholdResults.size() + leaseResults.size() + agentResults.size());
             for (FreeholdHistoryEntity e : freeholdResults) {
                 combined.add(new HistoryEntry.Freehold(e.eventType(), e.eventTime(),
                         e.buyerId(), e.authorityId(), e.price()));
@@ -1138,6 +1238,10 @@ public class RealtyLogicImpl {
             for (LeaseHistoryEntity e : leaseResults) {
                 combined.add(new HistoryEntry.Lease(e.eventType(), e.eventTime(),
                         e.tenantId(), e.landlordId(), e.price(), e.durationSeconds(), e.extensionsRemaining()));
+            }
+            for (AgentHistoryEntity e : agentResults) {
+                combined.add(new HistoryEntry.Agent(e.eventType(), e.eventTime(),
+                        e.agentId(), e.actorId()));
             }
             combined.sort((a, b) -> b.eventTime().compareTo(a.eventTime()));
             return new HistoryResult(combined, totalCount);

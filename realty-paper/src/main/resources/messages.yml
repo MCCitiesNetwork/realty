@@ -20,10 +20,27 @@ add:
   no-permission: "You do not have permission to add players to this region!"
   success: "Successfully added <target> to region <region>!"
 
-agent-add:
-  success: "Added <player> as a sanctioned auctioneer for region <region>."
-  failed: "Failed to add <player> as a sanctioned auctioneer for region <region>."
-  error: "Failed to add sanctioned auctioneer: <error>"
+agent-invite:
+  success: "Invited <player> as an agent for region <region>."
+  already-invited: "<player> already has a pending invite for region <region>."
+  not-titleholder: "You are not the title holder of region <region>."
+  no-freehold: "Region <region> does not have a freehold contract."
+  error: "Failed to invite agent: <error>"
+
+agent-invite-accept:
+  success: "Accepted agent invite for region <region>."
+  not-found: "You do not have a pending invite for region <region>."
+  error: "Failed to accept agent invite: <error>"
+
+agent-invite-reject:
+  success: "Rejected agent invite for region <region>."
+  not-found: "You do not have a pending invite for region <region>."
+  error: "Failed to reject agent invite: <error>"
+
+agent-invite-withdraw:
+  success: "Withdrew agent invite for <player> on region <region>."
+  not-found: "<player> does not have a pending invite for region <region>."
+  error: "Failed to withdraw agent invite: <error>"
 
 agent-remove:
   success: "Removed <player> from the sanctioned auctioneers for region <region>."
@@ -96,6 +113,7 @@ history:
   header: "--- History: <region> ---"
   no-results: "No history found for region <region>."
   freehold-entry: "<gray><time></gray> <yellow><event_type></yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
+  agent-entry: "<gray><time></gray> <yellow><event_type></yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
   lease-entry: "<gray><time></gray> <yellow><event_type></yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
   footer: "Page <page> of <total> <previous><next>"
   previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
@@ -198,7 +216,10 @@ help:
     - "<yellow>/realty set landlord <player> <region></yellow> <gray>- Set lease landlord</gray>"
     - "<yellow>/realty set titleholder <player> <region></yellow> <gray>- Set freehold title holder</gray>"
     - "<yellow>/realty set tenant <player> <region></yellow> <gray>- Set lease tenant</gray>"
-    - "<yellow>/realty agent add <player> <region></yellow> <gray>- Add a sanctioned auctioneer</gray>"
+    - "<yellow>/realty agent invite <player> <region></yellow> <gray>- Invite a player as an agent</gray>"
+    - "<yellow>/realty agent invite accept <region></yellow> <gray>- Accept an agent invite</gray>"
+    - "<yellow>/realty agent invite reject <region></yellow> <gray>- Reject an agent invite</gray>"
+    - "<yellow>/realty agent invite withdraw <player> <region></yellow> <gray>- Withdraw an agent invite</gray>"
     - "<yellow>/realty agent remove <player> <region></yellow> <gray>- Remove a sanctioned auctioneer</gray>"
   offers:
     - "<gold>--- Realty > Offers ---</gold>"
@@ -333,3 +354,8 @@ notification:
   region-rented: "<prefix> <player> rented region <region> for <price>."
   bid-payment-expired: "<prefix> Your bid payment for region <region> has expired. <amount> has been refunded."
   offer-payment-expired: "<prefix> Your offer payment for region <region> has expired. <amount> has been refunded."
+  agent-invited: "<prefix> <player> has invited you as an agent for region <region>."
+  agent-invite-accepted: "<prefix> <player> accepted your agent invite for region <region>."
+  agent-invite-rejected: "<prefix> <player> rejected your agent invite for region <region>."
+  agent-invite-withdrawn: "<prefix> <player> withdrew your agent invite for region <region>."
+  agent-removed: "<prefix> <player> removed you as an agent for region <region>."

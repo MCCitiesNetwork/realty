@@ -31,3 +31,18 @@ CREATE TABLE IF NOT EXISTS LeaseHistory
 CREATE INDEX idx_lease_history_region ON LeaseHistory (worldGuardRegionId, worldId);
 CREATE INDEX idx_lease_history_tenant ON LeaseHistory (tenantId);
 CREATE INDEX idx_lease_history_time ON LeaseHistory (eventTime);
+
+CREATE TABLE IF NOT EXISTS AgentHistory
+(
+    historyId          INT PRIMARY KEY AUTO_INCREMENT,
+    worldGuardRegionId VARCHAR(255)                             NOT NULL,
+    worldId            UUID                                     NOT NULL,
+    eventType          ENUM ('AGENT_ADD','AGENT_REMOVE')        NOT NULL,
+    agentId            UUID                                     NOT NULL,
+    actorId            UUID                                     NOT NULL,
+    eventTime          DATETIME                                 NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_agent_history_region ON AgentHistory (worldGuardRegionId, worldId);
+CREATE INDEX idx_agent_history_agent ON AgentHistory (agentId);
+CREATE INDEX idx_agent_history_time ON AgentHistory (eventTime);
