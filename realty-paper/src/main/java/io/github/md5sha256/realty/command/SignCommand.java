@@ -4,7 +4,7 @@ import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.SignCache;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
@@ -46,7 +46,6 @@ public record SignCommand(@NotNull ExecutorState executorState,
                 .literal("sign")
                 .literal("place")
                 .permission("realty.command.sign.place")
-                .required("region", WorldGuardRegionParser.worldGuardRegion())
                 .handler(this::executePlace)
                 .build();
         Command<CommandSourceStack> remove = builder
@@ -63,19 +62,21 @@ public record SignCommand(@NotNull ExecutorState executorState,
         if (!(sender instanceof Player player)) {
             return;
         }
-        WorldGuardRegion region = ctx.get("region");
-        String regionId = region.region().getId();
-        UUID worldId = region.world().getUID();
         Block targetBlock = player.getTargetBlockExact(5);
         if (targetBlock == null || !(targetBlock.getState() instanceof Sign)) {
             sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_A_SIGN));
             return;
         }
+        WorldGuardRegion region = WorldGuardRegionResolver.resolveAtLocation(targetBlock.getLocation());
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         int blockX = targetBlock.getX();
         int blockY = targetBlock.getY();
         int blockZ = targetBlock.getZ();
-        int chunkX = Math.floorDiv(blockX, 16);
-        int chunkZ = Math.floorDiv(blockZ, 16);
         UUID signWorldId = targetBlock.getWorld().getUID();
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
@@ -87,7 +88,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
                     return;
                 }
                 int rows = session.realtySignMapper()
-                        .insert(signWorldId, blockX, blockY, blockZ, chunkX, chunkZ, regionId, worldId);
+                        .insert(signWorldId, blockX, blockY, blockZ, regionId, worldId);
                 if (rows == 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_REGISTERED,
                             Placeholder.unparsed("region", regionId)));
@@ -106,8 +107,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
                         if (block.getState() instanceof Sign) {
                             signTextApplicator.applySignText(player.getWorld(),
                                     new RealtySignEntity(signWorldId, blockX, blockY, blockZ,
-                                            regionEntity != null ? regionEntity.realtyRegionId() : 0,
-                                            chunkX, chunkZ),
+                                            regionEntity != null ? regionEntity.realtyRegionId() : 0),
                                     regionId, rws.state(), rws.placeholders());
                         }
                     });

@@ -23,8 +23,8 @@ public interface MariaRealtySignMapper extends RealtySignMapper {
 
     @Override
     @Insert("""
-            INSERT INTO RealtySign (worldId, blockX, blockY, blockZ, chunkX, chunkZ, realtyRegionId)
-            SELECT #{worldId}, #{blockX}, #{blockY}, #{blockZ}, #{chunkX}, #{chunkZ}, rr.realtyRegionId
+            INSERT INTO RealtySign (worldId, blockX, blockY, blockZ, realtyRegionId)
+            SELECT #{worldId}, #{blockX}, #{blockY}, #{blockZ}, rr.realtyRegionId
             FROM RealtyRegion rr
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{regionWorldId}
@@ -33,14 +33,12 @@ public interface MariaRealtySignMapper extends RealtySignMapper {
                @Param("blockX") int blockX,
                @Param("blockY") int blockY,
                @Param("blockZ") int blockZ,
-               @Param("chunkX") int chunkX,
-               @Param("chunkZ") int chunkZ,
                @Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                @Param("regionWorldId") @NotNull UUID regionWorldId);
 
     @Override
     @Select("""
-            SELECT worldId, blockX, blockY, blockZ, realtyRegionId, chunkX, chunkZ
+            SELECT worldId, blockX, blockY, blockZ, realtyRegionId
             FROM RealtySign
             WHERE worldId = #{worldId}
             AND blockX = #{blockX}
@@ -52,9 +50,7 @@ public interface MariaRealtySignMapper extends RealtySignMapper {
             @Arg(column = "blockX", javaType = int.class),
             @Arg(column = "blockY", javaType = int.class),
             @Arg(column = "blockZ", javaType = int.class),
-            @Arg(column = "realtyRegionId", javaType = int.class),
-            @Arg(column = "chunkX", javaType = int.class),
-            @Arg(column = "chunkZ", javaType = int.class)
+            @Arg(column = "realtyRegionId", javaType = int.class)
     })
     @Nullable RealtySignEntity selectByPosition(@Param("worldId") @NotNull UUID worldId,
                                                  @Param("blockX") int blockX,
@@ -63,20 +59,18 @@ public interface MariaRealtySignMapper extends RealtySignMapper {
 
     @Override
     @Select("""
-            SELECT worldId, blockX, blockY, blockZ, realtyRegionId, chunkX, chunkZ
+            SELECT worldId, blockX, blockY, blockZ, realtyRegionId
             FROM RealtySign
             WHERE worldId = #{worldId}
-            AND chunkX = #{chunkX}
-            AND chunkZ = #{chunkZ}
+            AND FLOOR(blockX / 16) = #{chunkX}
+            AND FLOOR(blockZ / 16) = #{chunkZ}
             """)
     @ConstructorArgs({
             @Arg(column = "worldId", javaType = UUID.class),
             @Arg(column = "blockX", javaType = int.class),
             @Arg(column = "blockY", javaType = int.class),
             @Arg(column = "blockZ", javaType = int.class),
-            @Arg(column = "realtyRegionId", javaType = int.class),
-            @Arg(column = "chunkX", javaType = int.class),
-            @Arg(column = "chunkZ", javaType = int.class)
+            @Arg(column = "realtyRegionId", javaType = int.class)
     })
     @NotNull List<RealtySignEntity> selectByChunk(@Param("worldId") @NotNull UUID worldId,
                                                    @Param("chunkX") int chunkX,
@@ -84,7 +78,7 @@ public interface MariaRealtySignMapper extends RealtySignMapper {
 
     @Override
     @Select("""
-            SELECT rs.worldId, rs.blockX, rs.blockY, rs.blockZ, rs.realtyRegionId, rs.chunkX, rs.chunkZ
+            SELECT rs.worldId, rs.blockX, rs.blockY, rs.blockZ, rs.realtyRegionId
             FROM RealtySign rs
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = rs.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -95,9 +89,7 @@ public interface MariaRealtySignMapper extends RealtySignMapper {
             @Arg(column = "blockX", javaType = int.class),
             @Arg(column = "blockY", javaType = int.class),
             @Arg(column = "blockZ", javaType = int.class),
-            @Arg(column = "realtyRegionId", javaType = int.class),
-            @Arg(column = "chunkX", javaType = int.class),
-            @Arg(column = "chunkZ", javaType = int.class)
+            @Arg(column = "realtyRegionId", javaType = int.class)
     })
     @NotNull List<RealtySignEntity> selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                     @Param("worldId") @NotNull UUID worldId);
