@@ -132,6 +132,7 @@ auction-info:
     - "<#00aaff>►</#00aaff> Payment Deadline: <yellow><deadline></yellow>"
     - "<#00aaff>►</#00aaff> Min Bid: <green>$<min_bid></green>"
     - "<#00aaff>►</#00aaff> Min Step: <green>$<min_step></green>"
+    - "<#00aaff>►</#00aaff> Highest Bid: <green>$<highest_bid_amount></green> (<yellow><highest_bid_player></yellow>)"
   error: "Failed to retrieve auction info: <error>"
 
 list:
