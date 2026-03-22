@@ -30,7 +30,6 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.jetbrains.annotations.NotNull;
@@ -66,8 +65,8 @@ public record AuctionCommandGroup(
 ) implements CustomCommandBean {
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
-        var base = manager.commandBuilder("realty").literal("auction");
+    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+        var base = builder.literal("auction");
         return List.of(
                 base.literal("info")
                         .permission("realty.command.auction.info")

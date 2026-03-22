@@ -5,7 +5,6 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.command.CommandSender;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
@@ -30,8 +29,8 @@ public record HelpCommand(
     private static final Set<String> ALL_CATEGORIES = Set.of("basics", "offers", "auctions", "admin");
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
-        var base = manager.commandBuilder("realty")
+    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+        var base = builder
                 .literal("help")
                 .permission("realty.command.help");
         return List.of(

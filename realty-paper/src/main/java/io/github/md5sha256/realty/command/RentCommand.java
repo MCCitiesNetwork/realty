@@ -19,7 +19,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -41,8 +40,8 @@ public record RentCommand(
 ) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
-        return manager.commandBuilder("realty")
+    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+        return builder
                 .literal("rent")
                 .permission("realty.command.rent")
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())

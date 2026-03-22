@@ -15,7 +15,6 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.IntegerParser;
@@ -51,8 +50,8 @@ public record ListCommand(
                     .build();
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull CommandManager<CommandSourceStack> manager) {
-        var base = manager.commandBuilder("realty")
+    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+        var base = builder
                 .literal("list")
                 .permission("realty.command.list")
                 .flag(PLAYER_FLAG)

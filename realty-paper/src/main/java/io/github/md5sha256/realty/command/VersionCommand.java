@@ -3,7 +3,6 @@ package io.github.md5sha256.realty.command;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -17,8 +16,8 @@ public record VersionCommand(
 ) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull CommandManager<CommandSourceStack> manager) {
-        return manager.commandBuilder("realty")
+    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+        return builder
                 .handler(this::execute)
                 .build();
     }
