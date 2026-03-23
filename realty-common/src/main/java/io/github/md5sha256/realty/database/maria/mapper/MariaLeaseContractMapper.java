@@ -111,7 +111,8 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             UPDATE LeaseContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
-            SET lc.tenantId = #{tenantId}, lc.startDate = NOW(), lc.currentMaxExtensions = 0
+            SET lc.tenantId = #{tenantId}, lc.startDate = NOW(),
+                lc.currentMaxExtensions = CASE WHEN lc.maxExtensions IS NOT NULL THEN 0 ELSE NULL END
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             AND lc.tenantId IS NULL
