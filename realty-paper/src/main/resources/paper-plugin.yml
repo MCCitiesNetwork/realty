@@ -60,6 +60,12 @@ permissions:
   realty.command.delete.includeworldguard:
     description: Allows deleting WorldGuard regions alongside realty regions
     default: op
+  realty.command.create.lease:
+    description: Allows using /realty create lease
+    default: op
+  realty.command.create.freehold:
+    description: Allows using /realty create freehold
+    default: op
   realty.command.register.sale:
     description: Allows using /realty register sale
     default: op

@@ -71,6 +71,14 @@ cancel-auction:
   success: "Auction for region <region> has been cancelled."
   error: "Failed to cancel auction: <error>"
 
+create:
+  lease-success: "Created WorldGuard region <region> and registered it as a rental!"
+  freehold-success: "Created WorldGuard region <region> and registered it as freehold!"
+  already-registered: "Region <region> is already registered in Realty!"
+  region-exists: "A WorldGuard region named <region> already exists!"
+  incomplete-selection: "You must make a WorldEdit selection first!"
+  error: "Failed to create region: <error>"
+
 register-rental:
   success: "Rental region registered successfully!"
   already-registered: "Region already registered!"
