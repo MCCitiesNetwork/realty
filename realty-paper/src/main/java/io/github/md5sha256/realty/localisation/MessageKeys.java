@@ -323,6 +323,16 @@ public final class MessageKeys {
     public static final String WITHDRAW_OFFER_SUCCESS = "withdraw-offer.success";
     public static final String WITHDRAW_OFFER_ERROR = "withdraw-offer.error";
 
+    // subregion
+    public static final String SUBREGION_START_SUCCESS = "subregion.start-success";
+    public static final String SUBREGION_NOT_ACTIVE = "subregion.not-active";
+    public static final String SUBREGION_APPLY_SUCCESS = "subregion.apply-success";
+    public static final String SUBREGION_WRONG_WORLD = "subregion.wrong-world";
+    public static final String SUBREGION_INCOMPLETE_SELECTION = "subregion.incomplete-selection";
+    public static final String SUBREGION_EXCEEDS_BOUNDS = "subregion.exceeds-bounds";
+    public static final String SUBREGION_OVERLAPS_SIBLING = "subregion.overlaps-sibling";
+    public static final String SUBREGION_CANCEL_SUCCESS = "subregion.cancel-success";
+
     // sign
     public static final String SIGN_PLACE_SUCCESS = "sign.place-success";
     public static final String SIGN_PLACE_NOT_A_SIGN = "sign.place-not-a-sign";
