@@ -33,16 +33,16 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Handles {@code /realty create lease <price> <period> <maxrenewals> <region>}
- * and {@code /realty create freehold [--price <price>] [--titleholder <name>] [--authority <name>] <region>}.
+ * Handles {@code /realty register lease <price> <period> <maxrenewals> <region>}
+ * and {@code /realty register freehold [--price <price>] [--titleholder <name>] [--authority <name>] <region>}.
  *
- * <p>Permissions: {@code realty.command.create.lease} / {@code realty.command.create.freehold}.</p>
+ * <p>Permissions: {@code realty.command.register.lease} / {@code realty.command.register.freehold}.</p>
  */
-public record CreateCommand(@NotNull ExecutorState executorState,
-                             @NotNull RealtyLogicImpl logic,
-                             @NotNull AtomicReference<Settings> settings,
-                             @NotNull RegionProfileService regionProfileService,
-                             @NotNull MessageContainer messages) implements CustomCommandBean {
+public record RegisterCommand(@NotNull ExecutorState executorState,
+                              @NotNull RealtyLogicImpl logic,
+                              @NotNull AtomicReference<Settings> settings,
+                              @NotNull RegionProfileService regionProfileService,
+                              @NotNull MessageContainer messages) implements CustomCommandBean {
 
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
@@ -73,10 +73,10 @@ public record CreateCommand(@NotNull ExecutorState executorState,
     @Override
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
         var base = builder
-                .literal("create");
+                .literal("register");
         return List.of(
                 base.literal("lease")
-                        .permission("realty.command.create.lease")
+                        .permission("realty.command.register.lease")
                         .required(PRICE, DoubleParser.doubleParser(0))
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_RENEWALS, IntegerParser.integerParser(-1))
@@ -85,7 +85,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                         .handler(this::executeLease)
                         .build(),
                 base.literal("freehold")
-                        .permission("realty.command.create.freehold")
+                        .permission("realty.command.register.freehold")
                         .flag(PRICE_FLAG)
                         .flag(TITLEHOLDER_FLAG)
                         .flag(AUTHORITY_FLAG)
@@ -121,14 +121,14 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         }, executorState.dbExec()).thenAcceptAsync(entry -> {
             if (entry.getKey()) {
                 regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
-                sender.sendMessage(messages.messageFor(MessageKeys.CREATE_RENTAL_SUCCESS));
+                sender.sendMessage(messages.messageFor(MessageKeys.REGISTER_RENTAL_SUCCESS));
             } else {
-                sender.sendMessage(messages.messageFor(MessageKeys.CREATE_RENTAL_ALREADY_REGISTERED));
+                sender.sendMessage(messages.messageFor(MessageKeys.REGISTER_RENTAL_ALREADY_REGISTERED));
             }
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             cause.printStackTrace();
-            sender.sendMessage(messages.messageFor(MessageKeys.CREATE_RENTAL_ERROR,
+            sender.sendMessage(messages.messageFor(MessageKeys.REGISTER_RENTAL_ERROR,
                     Placeholder.unparsed("error", cause.getMessage())));
             return null;
         });
@@ -162,14 +162,14 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                 region.region().getMembers().addPlayer(authority);
                 regionProfileService.applyFlags(region,
                         titleholder != null ? RegionState.SOLD : RegionState.FOR_SALE, entry.getValue());
-                sender.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_SUCCESS));
+                sender.sendMessage(messages.messageFor(MessageKeys.REGISTER_FREEHOLD_SUCCESS));
             } else {
-                sender.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_ALREADY_REGISTERED));
+                sender.sendMessage(messages.messageFor(MessageKeys.REGISTER_FREEHOLD_ALREADY_REGISTERED));
             }
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             cause.printStackTrace();
-            sender.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_ERROR,
+            sender.sendMessage(messages.messageFor(MessageKeys.REGISTER_FREEHOLD_ERROR,
                     Placeholder.unparsed("error", cause.getMessage())));
             return null;
         });

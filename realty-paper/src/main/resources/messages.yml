@@ -71,15 +71,15 @@ cancel-auction:
   success: "Auction for region <region> has been cancelled."
   error: "Failed to cancel auction: <error>"
 
-create-rental:
-  success: "Rental region created successfully!"
+register-rental:
+  success: "Rental region registered successfully!"
   already-registered: "Region already registered!"
-  error: "Failed to create rental region: <error>"
+  error: "Failed to register rental region: <error>"
 
-create-freehold:
-  success: "Freehold region created successfully!"
+register-freehold:
+  success: "Freehold region registered successfully!"
   already-registered: "Region already registered!"
-  error: "Failed to create freehold region: <error>"
+  error: "Failed to register freehold region: <error>"
 
 delete:
   not-registered: "Region is not registered in Realty!"

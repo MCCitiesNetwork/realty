@@ -101,15 +101,15 @@ public final class MessageKeys {
     public static final String CANCEL_AUCTION_SUCCESS = "cancel-auction.success";
     public static final String CANCEL_AUCTION_ERROR = "cancel-auction.error";
 
-    // create-freehold
-    public static final String CREATE_FREEHOLD_SUCCESS = "create-freehold.success";
-    public static final String CREATE_FREEHOLD_ALREADY_REGISTERED = "create-freehold.already-registered";
-    public static final String CREATE_FREEHOLD_ERROR = "create-freehold.error";
+    // register-freehold
+    public static final String REGISTER_FREEHOLD_SUCCESS = "register-freehold.success";
+    public static final String REGISTER_FREEHOLD_ALREADY_REGISTERED = "register-freehold.already-registered";
+    public static final String REGISTER_FREEHOLD_ERROR = "register-freehold.error";
 
-    // create-rental
-    public static final String CREATE_RENTAL_SUCCESS = "create-rental.success";
-    public static final String CREATE_RENTAL_ALREADY_REGISTERED = "create-rental.already-registered";
-    public static final String CREATE_RENTAL_ERROR = "create-rental.error";
+    // register-rental
+    public static final String REGISTER_RENTAL_SUCCESS = "register-rental.success";
+    public static final String REGISTER_RENTAL_ALREADY_REGISTERED = "register-rental.already-registered";
+    public static final String REGISTER_RENTAL_ERROR = "register-rental.error";
 
     // delete
     public static final String DELETE_NOT_REGISTERED = "delete.not-registered";

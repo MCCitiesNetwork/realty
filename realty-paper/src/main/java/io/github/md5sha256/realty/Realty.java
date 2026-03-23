@@ -19,7 +19,7 @@ import io.github.md5sha256.realty.command.AgentInviteWithdrawCommand;
 import io.github.md5sha256.realty.command.AgentRemoveCommand;
 import io.github.md5sha256.realty.command.AuctionCommandGroup;
 import io.github.md5sha256.realty.command.BuyCommand;
-import io.github.md5sha256.realty.command.CreateCommand;
+import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
 import io.github.md5sha256.realty.command.HelpCommand;
@@ -67,7 +67,6 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
 import org.jetbrains.annotations.NotNull;
-import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
 import org.spongepowered.configurate.yaml.NodeStyle;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
@@ -420,7 +419,7 @@ public final class Realty extends JavaPlugin {
                         this.regionProfileService,
                         this.signTextApplicator,
                         messageContainer),
-                new CreateCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
+                new RegisterCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
                 new DeleteCommand(executorState, logic, this.regionProfileService, messageContainer),
                 new HistoryCommand(executorState, logic, this.settings, messageContainer),
                 new InfoCommand(executorState, logic, this.settings, messageContainer),
