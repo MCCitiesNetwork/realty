@@ -162,7 +162,8 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
     @Override
     @Update("""
             UPDATE LeaseContract
-            SET tenantId = NULL
+            SET tenantId = NULL,
+                currentMaxExtensions = CASE WHEN maxExtensions IS NOT NULL THEN 0 ELSE NULL END
             WHERE leaseContractId = #{leaseContractId}
             """)
     int clearTenant(@Param("leaseContractId") int leaseContractId);
@@ -198,7 +199,11 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             UPDATE LeaseContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
-            SET lc.tenantId = #{tenantId}
+            SET lc.tenantId = #{tenantId},
+                lc.currentMaxExtensions = CASE
+                    WHEN #{tenantId} IS NULL AND lc.maxExtensions IS NOT NULL THEN 0
+                    ELSE lc.currentMaxExtensions
+                END
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
