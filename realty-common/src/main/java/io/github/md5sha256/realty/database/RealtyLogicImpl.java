@@ -691,8 +691,7 @@ public class RealtyLogicImpl {
                 return new UnrentResult.NoLeaseContract();
             }
             long totalSeconds = lease.durationSeconds();
-            long elapsedSeconds = java.time.Duration.between(lease.startDate(), java.time.LocalDateTime.now()).getSeconds();
-            long remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+            long remainingSeconds = Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
             double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
             int updated = leaseMapper.updateTenantByRegion(worldGuardRegionId, worldId, null);
             if (updated == 0) {
@@ -708,7 +707,7 @@ public class RealtyLogicImpl {
     // --- Renew Lease ---
 
     public sealed interface RenewLeaseResult {
-        record Success(double price, @NotNull UUID landlordId) implements RenewLeaseResult {}
+        record Success(double price, double refund, @NotNull UUID landlordId) implements RenewLeaseResult {}
         record NoLeaseContract() implements RenewLeaseResult {}
         record NoExtensionsRemaining() implements RenewLeaseResult {}
         record UpdateFailed() implements RenewLeaseResult {}
@@ -726,6 +725,9 @@ public class RealtyLogicImpl {
             if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
                 return new RenewLeaseResult.NoExtensionsRemaining();
             }
+            long totalSeconds = lease.durationSeconds();
+            long remainingSeconds = Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
+            double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
             int updated = leaseMapper.renewLease(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new RenewLeaseResult.UpdateFailed();
@@ -737,7 +739,7 @@ public class RealtyLogicImpl {
             wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENEW.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
             wrapper.session().commit();
-            return new RenewLeaseResult.Success(lease.price(), lease.landlordId());
+            return new RenewLeaseResult.Success(lease.price(), refund, lease.landlordId());
         }
     }
 
@@ -834,9 +836,8 @@ public class RealtyLogicImpl {
             placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
             placeholders.put("start_date", lease.startDate().toString());
-            LocalDateTime endDate = lease.startDate().plusSeconds(lease.durationSeconds());
-            placeholders.put("end_date", endDate.toString());
-            placeholders.put("expiry_date", endDate.toString());
+            placeholders.put("end_date", lease.endDate().toString());
+            placeholders.put("expiry_date", lease.endDate().toString());
             if (lease.maxExtensions() != null) {
                 placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
             } else {

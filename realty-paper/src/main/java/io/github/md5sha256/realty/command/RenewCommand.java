@@ -95,25 +95,29 @@ public record RenewCommand(
             RealtyLogicImpl.RenewLeaseResult.Success success = entry.getKey();
             Map<String, String> placeholders = entry.getValue();
             double price = success.price();
+            double refund = success.refund();
+            double cost = Math.max(0, price - refund);
             double balance = economy.getBalance(sender);
-            if (balance < price) {
+            if (balance < cost) {
                 sender.sendMessage(messages.messageFor(MessageKeys.RENEW_INSUFFICIENT_FUNDS,
                         Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
-                        Placeholder.unparsed("price", CurrencyFormatter.format(price))));
+                        Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
                 return;
             }
-            EconomyResponse response = economy.withdrawPlayer(sender, price);
-            if (!response.transactionSuccess()) {
-                sender.sendMessage(messages.messageFor(MessageKeys.RENEW_PAYMENT_FAILED,
-                        Placeholder.unparsed("error", response.errorMessage)));
-                return;
+            if (cost > 0) {
+                EconomyResponse response = economy.withdrawPlayer(sender, cost);
+                if (!response.transactionSuccess()) {
+                    sender.sendMessage(messages.messageFor(MessageKeys.RENEW_PAYMENT_FAILED,
+                            Placeholder.unparsed("error", response.errorMessage)));
+                    return;
+                }
+                OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
+                economy.depositPlayer(landlord, cost);
             }
-            OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
-            economy.depositPlayer(landlord, price);
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
             sender.sendMessage(messages.messageFor(MessageKeys.RENEW_SUCCESS,
                     Placeholder.unparsed("region", regionId),
-                    Placeholder.unparsed("price", CurrencyFormatter.format(price))));
+                    Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
         }, executorState.mainThreadExec());
     }
 

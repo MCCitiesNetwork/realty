@@ -44,7 +44,8 @@ public final class MariaSchemaMigrator {
             new MigrationStep(3, "initial schema indexes", "V3__add_indexes.sql"),
             new MigrationStep(4, "realty signs", "V4__realty_signs.sql"),
             new MigrationStep(5, "missing unrent event", "V5__add_unrent_event_type.sql"),
-            new MigrationStep(6, "freehold accepting offers", "V6__freehold_accepting_offers.sql")
+            new MigrationStep(6, "freehold accepting offers", "V6__freehold_accepting_offers.sql"),
+            new MigrationStep(7, "lease end date", "V7__lease_end_date.sql")
     );
 
     private MariaSchemaMigrator() {

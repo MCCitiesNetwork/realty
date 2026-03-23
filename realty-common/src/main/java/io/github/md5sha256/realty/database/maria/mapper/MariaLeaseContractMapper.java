@@ -48,13 +48,14 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
      */
     @Override
     @Select("""
-            INSERT INTO LeaseContract (landlordId, tenantId, price, durationSeconds, startDate, currentMaxExtensions, maxExtensions)
+            INSERT INTO LeaseContract (landlordId, tenantId, price, durationSeconds, startDate, endDate, currentMaxExtensions, maxExtensions)
             VALUES (
                 #{landlordId},
                 #{tenantId},
                 #{price},
                 #{durationSeconds},
                 NOW(),
+                NOW() + INTERVAL #{durationSeconds} SECOND,
                 CASE WHEN #{maxRenewals} >= 0 THEN 0     ELSE NULL END,
                 CASE WHEN #{maxRenewals} >= 0 THEN #{maxRenewals} ELSE NULL END
             )
@@ -86,7 +87,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
     @Override
     @Select("""
             SELECT lc.leaseContractId, lc.landlordId, lc.tenantId, lc.price, lc.durationSeconds,
-                   lc.startDate, lc.currentMaxExtensions, lc.maxExtensions
+                   lc.startDate, lc.endDate, lc.currentMaxExtensions, lc.maxExtensions
             FROM LeaseContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
@@ -100,6 +101,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             @Arg(column = "price", javaType = double.class),
             @Arg(column = "durationSeconds", javaType = long.class),
             @Arg(column = "startDate", javaType = LocalDateTime.class),
+            @Arg(column = "endDate", javaType = LocalDateTime.class),
             @Arg(column = "currentMaxExtensions", javaType = Integer.class),
             @Arg(column = "maxExtensions", javaType = Integer.class)
     })
@@ -112,6 +114,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.tenantId = #{tenantId}, lc.startDate = NOW(),
+                lc.endDate = NOW() + INTERVAL lc.durationSeconds SECOND,
                 lc.currentMaxExtensions = CASE WHEN lc.maxExtensions IS NOT NULL THEN 0 ELSE NULL END
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -126,7 +129,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             UPDATE LeaseContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
-            SET lc.startDate = NOW(),
+            SET lc.endDate = lc.endDate + INTERVAL lc.durationSeconds SECOND,
                 lc.currentMaxExtensions = CASE
                     WHEN lc.currentMaxExtensions IS NULL THEN NULL
                     ELSE lc.currentMaxExtensions + 1
@@ -148,7 +151,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             WHERE lc.tenantId IS NOT NULL
-            AND lc.startDate + INTERVAL lc.durationSeconds SECOND < NOW()
+            AND lc.endDate < NOW()
             """)
     @ConstructorArgs({
             @Arg(column = "leaseContractId", javaType = int.class),

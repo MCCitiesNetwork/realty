@@ -15,6 +15,7 @@ import java.util.UUID;
  * @param price                Rental price (must be &gt; 0)
  * @param durationSeconds      Lease duration in seconds (must be &gt; 0)
  * @param startDate            When the lease started
+ * @param endDate              When the current lease period ends
  * @param currentMaxExtensions Current extension count (nullable; must be &le; maxExtensions when present)
  * @param maxExtensions        Maximum allowed extensions (nullable)
  * @see io.github.md5sha256.realty.api.LeaseContract
@@ -26,6 +27,7 @@ public record LeaseContractEntity(
         double price,
         long durationSeconds,
         @NotNull LocalDateTime startDate,
+        @NotNull LocalDateTime endDate,
         @Nullable Integer currentMaxExtensions,
         @Nullable Integer maxExtensions
 ) {
