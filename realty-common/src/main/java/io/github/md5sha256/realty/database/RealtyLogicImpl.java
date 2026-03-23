@@ -419,7 +419,8 @@ public class RealtyLogicImpl {
             if (lease == null) {
                 return new SetMaxRenewalsResult.NoLeaseContract();
             }
-            if (maxRenewals >= 0 && lease.currentMaxExtensions() != null
+            if (maxRenewals >= 0 && lease.tenantId() != null
+                    && lease.currentMaxExtensions() != null
                     && maxRenewals < lease.currentMaxExtensions()) {
                 return new SetMaxRenewalsResult.BelowCurrentExtensions(lease.currentMaxExtensions());
             }
