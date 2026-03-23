@@ -159,7 +159,7 @@ public record UnsetCommandGroup(
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     if (previousTitleHolder != null) {
-                                        region.region().getMembers().removePlayer(previousTitleHolder);
+                                        region.region().getOwners().removePlayer(previousTitleHolder);
                                     }
                                     regionProfileService.applyFlags(region, RegionState.FOR_SALE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_SALE, placeholders);
@@ -220,7 +220,7 @@ public record UnsetCommandGroup(
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     if (previousTenant != null) {
-                                        region.region().getMembers().removePlayer(previousTenant);
+                                        region.region().getOwners().removePlayer(previousTenant);
                                     }
                                     regionProfileService.applyFlags(region, RegionState.FOR_LEASE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, placeholders);

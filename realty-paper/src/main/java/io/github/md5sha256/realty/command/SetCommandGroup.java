@@ -286,10 +286,10 @@ public record SetCommandGroup(
                             com.sk89q.worldguard.protection.regions.ProtectedRegion protectedRegion =
                                     region.region();
                             if (previousTitleHolder != null) {
-                                protectedRegion.getMembers().removePlayer(previousTitleHolder);
+                                protectedRegion.getOwners().removePlayer(previousTitleHolder);
                             }
                             if (titleHolderId != null) {
-                                protectedRegion.getMembers().addPlayer(titleHolderId);
+                                protectedRegion.getOwners().addPlayer(titleHolderId);
                             }
                             regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
                             signTextApplicator.updateLoadedSigns(region.world(),
@@ -359,9 +359,9 @@ public record SetCommandGroup(
                             com.sk89q.worldguard.protection.regions.ProtectedRegion protectedRegion =
                                     region.region();
                             if (previousTenant != null) {
-                                protectedRegion.getMembers().removePlayer(previousTenant);
+                                protectedRegion.getOwners().removePlayer(previousTenant);
                             }
-                            protectedRegion.getMembers().addPlayer(tenantId);
+                            protectedRegion.getOwners().addPlayer(tenantId);
                             regionProfileService.applyFlags(region,
                                     RegionState.LEASED,
                                     placeholders);
