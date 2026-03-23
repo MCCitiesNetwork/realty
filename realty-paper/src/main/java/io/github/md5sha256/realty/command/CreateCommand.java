@@ -41,6 +41,7 @@ import org.jetbrains.annotations.NotNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -251,6 +252,9 @@ public record CreateCommand(@NotNull ExecutorState executorState,
     private static Region getSelection(@NotNull Player player) {
         SessionManager sessionManager = WorldEdit.getInstance().getSessionManager();
         LocalSession localSession = sessionManager.get(BukkitAdapter.adapt(player));
+        if (!Objects.equals(localSession.getSelectionWorld(), BukkitAdapter.adapt(player.getWorld()))) {
+            return null;
+        }
         try {
             return localSession.getSelection().clone();
         } catch (IncompleteRegionException ex) {
