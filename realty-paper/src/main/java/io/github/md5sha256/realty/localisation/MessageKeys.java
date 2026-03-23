@@ -333,6 +333,7 @@ public final class MessageKeys {
     public static final String SUBREGION_INCOMPLETE_SELECTION = "subregion.incomplete-selection";
     public static final String SUBREGION_EXCEEDS_BOUNDS = "subregion.exceeds-bounds";
     public static final String SUBREGION_OVERLAPS_SIBLING = "subregion.overlaps-sibling";
+    public static final String SUBREGION_TOO_SMALL = "subregion.too-small";
 
     // sign
     public static final String SIGN_PLACE_SUCCESS = "sign.place-success";

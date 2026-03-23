@@ -17,12 +17,16 @@ public record Settings(
         @Setting("default-freehold-titleholder-uuid") @Nullable UUID defaultFreeholdTitleholder,
         @Setting("default-lease-authority-uuid") @Required @NotNull UUID defaultLeaseAuthority,
         @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat,
-        @Setting("profile-reapply-per-tick") int profileReapplyPerTick
+        @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
+        @Setting("subregion-min-volume") int subregionMinVolume
 ) {
 
     public Settings {
         if (profileReapplyPerTick <= 0) {
             profileReapplyPerTick = 10;
+        }
+        if (subregionMinVolume <= 0) {
+            subregionMinVolume = 20;
         }
     }
 }

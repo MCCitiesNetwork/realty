@@ -6,3 +6,5 @@ date-format: "EEE, d MMMM yyyy (HH:mm)"
 # Maximum number of region profiles to re-apply per tick during startup/reload.
 # Lower values reduce lag spikes, higher values complete faster.
 profile-reapply-per-tick: 10
+# Minimum volume (in blocks) for subregion selections.
+subregion-min-volume: 20

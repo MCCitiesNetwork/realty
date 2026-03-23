@@ -404,6 +404,7 @@ subregion:
   incomplete-selection: "Your WorldEdit selection is incomplete. Select both points first."
   exceeds-bounds: "Your selection exceeds the bounds of region <region>."
   overlaps-sibling: "Your selection overlaps with existing subregion <sibling>."
+  too-small: "Your selection is too small (<volume> blocks). Minimum volume is <min-volume> blocks."
 
 sign:
   place-success: "Sign registered for region <region>."

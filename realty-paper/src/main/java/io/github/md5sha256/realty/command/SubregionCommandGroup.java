@@ -25,6 +25,7 @@ import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -43,10 +44,12 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 public record SubregionCommandGroup(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
+        @NotNull AtomicReference<Settings> settings,
         @NotNull RegionProfileService regionProfileService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
@@ -80,6 +83,7 @@ public record SubregionCommandGroup(
         record ExceedsParentBounds() implements SelectionResult {}
         record NoRegionManager() implements SelectionResult {}
         record OverlapsSibling(@NotNull ProtectedRegion sibling) implements SelectionResult {}
+        record TooSmall(long volume, int minVolume) implements SelectionResult {}
     }
 
     private static final String BYPASS_PERMISSION = "realty.command.subregion.quickcreate.bypass";
@@ -111,7 +115,8 @@ public record SubregionCommandGroup(
             return;
         }
 
-        SelectionResult result = validateSelection(player, parentRegion, regionManager);
+        SelectionResult result = validateSelection(player, parentRegion, regionManager,
+                settings.get().subregionMinVolume());
         switch (result) {
             case SelectionResult.WrongWorld ignored ->
                     player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_WRONG_WORLD));
@@ -126,6 +131,10 @@ public record SubregionCommandGroup(
             case SelectionResult.OverlapsSibling overlap ->
                     player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_OVERLAPS_SIBLING,
                             Placeholder.unparsed("sibling", overlap.sibling().getId())));
+            case SelectionResult.TooSmall tooSmall ->
+                    player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_TOO_SMALL,
+                            Placeholder.unparsed("volume", String.valueOf(tooSmall.volume())),
+                            Placeholder.unparsed("min-volume", String.valueOf(tooSmall.minVolume()))));
             case SelectionResult.Success success -> {
                 UUID playerId = player.getUniqueId();
                 String parentId = parentRegion.region().getId();
@@ -202,7 +211,8 @@ public record SubregionCommandGroup(
 
     private static @NotNull SelectionResult validateSelection(@NotNull Player player,
                                                                @NotNull WorldGuardRegion parentRegion,
-                                                               @NotNull RegionManager regionManager) {
+                                                               @NotNull RegionManager regionManager,
+                                                               int minVolume) {
         SessionManager sessionManager = WorldEdit.getInstance().getSessionManager();
         LocalSession localSession = sessionManager.get(BukkitAdapter.adapt(player));
         if (!Objects.equals(localSession.getSelectionWorld(),
@@ -214,6 +224,10 @@ public record SubregionCommandGroup(
             selection = localSession.getSelection().clone();
         } catch (IncompleteRegionException ex) {
             return new SelectionResult.IncompleteSelection();
+        }
+        long volume = selection.getVolume();
+        if (volume < minVolume) {
+            return new SelectionResult.TooSmall(volume, minVolume);
         }
         ProtectedRegion parent = parentRegion.region();
         if (!regionIsFullyContainedByParent(selection, parent)) {

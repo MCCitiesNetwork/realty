@@ -455,7 +455,7 @@ public final class Realty extends JavaPlugin {
                 }, messageContainer),
                 new RemoveCommand(messageContainer),
                 new SignCommand(executorState, this.database, logic, this.regionProfileService, this.signCache, this.signTextApplicator, messageContainer),
-                new SubregionCommandGroup(executorState, logic, this.regionProfileService, messageContainer)
+                new SubregionCommandGroup(executorState, logic, this.settings, this.regionProfileService, messageContainer)
         );
 
         var manager = PaperCommandManager.builder()
