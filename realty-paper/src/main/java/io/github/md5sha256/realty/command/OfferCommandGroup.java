@@ -4,6 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
@@ -141,13 +142,13 @@ public record OfferCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.OfferResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_SUCCESS,
-                                    Placeholder.unparsed("price", String.valueOf(price)),
+                                    Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.titleHolderId() != null) {
                                 notificationService.queueNotification(success.titleHolderId(),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_PLACED,
                                                 Placeholder.unparsed("player", sender.getName()),
-                                                Placeholder.unparsed("price", String.valueOf(price)),
+                                                Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                                 Placeholder.unparsed("region", regionId)));
                             }
                     }
@@ -327,7 +328,7 @@ public record OfferCommandGroup(
         double balance = economy.getBalance(sender);
         if (balance < amount) {
             sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_INSUFFICIENT_FUNDS,
-                    Placeholder.unparsed("balance", String.valueOf(balance))));
+                    Placeholder.unparsed("balance", CurrencyFormatter.format(balance))));
             return;
         }
         EconomyResponse response = economy.withdrawPlayer(sender, amount);
@@ -345,15 +346,15 @@ public record OfferCommandGroup(
                 return switch (result) {
                     case RealtyLogicImpl.PayOfferResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_SUCCESS,
-                                Placeholder.unparsed("amount", String.valueOf(amount)),
+                                Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("region", regionId),
-                                Placeholder.unparsed("total", String.valueOf(success.newTotal())),
-                                Placeholder.unparsed("remaining", String.valueOf(success.remaining()))));
+                                Placeholder.unparsed("total", CurrencyFormatter.format(success.newTotal())),
+                                Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining()))));
                         yield result;
                     }
                     case RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_FULLY_PAID,
-                                Placeholder.unparsed("amount", String.valueOf(amount)),
+                                Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }
@@ -364,8 +365,8 @@ public record OfferCommandGroup(
                     }
                     case RealtyLogicImpl.PayOfferResult.ExceedsAmountOwed exceeds -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_EXCEEDS_OWED,
-                                Placeholder.unparsed("amount", String.valueOf(amount)),
-                                Placeholder.unparsed("owed", String.valueOf(exceeds.amountOwed())),
+                                Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
+                                Placeholder.unparsed("owed", CurrencyFormatter.format(exceeds.amountOwed())),
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }

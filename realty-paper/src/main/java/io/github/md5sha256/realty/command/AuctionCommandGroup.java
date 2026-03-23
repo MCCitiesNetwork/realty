@@ -4,6 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
@@ -133,7 +134,7 @@ public record AuctionCommandGroup(
                 builder.append(messages.messageFor(MessageKeys.AUCTION_INFO_HEADER,
                         Placeholder.unparsed("region", regionId)));
                 FreeholdContractBid highestBid = regionInfo.highestBid();
-                String highestBidAmount = highestBid != null ? String.valueOf(highestBid.bidAmount()) : "N/A";
+                String highestBidAmount = highestBid != null ? CurrencyFormatter.format(highestBid.bidAmount()) : "N/A";
                 String highestBidPlayer = highestBid != null ? resolveName(highestBid.bidderId()) : "N/A";
                 LocalDateTime lastActivity = highestBid != null ? highestBid.bidTime() : auction.startDate();
                 LocalDateTime biddingEndDate = lastActivity.plusSeconds(auction.biddingDurationSeconds());
@@ -146,8 +147,8 @@ public record AuctionCommandGroup(
                                         DurationFormatter.format(Duration.ofSeconds(auction.biddingDurationSeconds()))),
                                 Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings.get(), biddingEndDate)),
                                 Placeholder.unparsed("deadline", DateFormatter.format(settings.get(),auction.paymentDeadline())),
-                                Placeholder.unparsed("min_bid", String.valueOf(auction.minBid())),
-                                Placeholder.unparsed("min_step", String.valueOf(auction.minStep())),
+                                Placeholder.unparsed("min_bid", CurrencyFormatter.format(auction.minBid())),
+                                Placeholder.unparsed("min_step", CurrencyFormatter.format(auction.minStep())),
                                 Placeholder.unparsed("highest_bid_amount", highestBidAmount),
                                 Placeholder.unparsed("highest_bid_player", highestBidPlayer)));
                 sender.sendMessage(builder.build());
@@ -257,13 +258,13 @@ public record AuctionCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.BidResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_SUCCESS,
-                                    Placeholder.unparsed("amount", String.valueOf(bidAmount)),
+                                    Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.previousBidderId() != null) {
                                 notificationService.queueNotification(success.previousBidderId(),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OUTBID,
                                                 Placeholder.unparsed("region", regionId),
-                                                Placeholder.unparsed("amount", String.valueOf(bidAmount))));
+                                                Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))));
                             }
                     }
                     case RealtyLogicImpl.BidResult.NoAuction ignored ->
@@ -272,10 +273,10 @@ public record AuctionCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_IS_OWNER));
                     case RealtyLogicImpl.BidResult.BidTooLowMinimum r ->
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_TOO_LOW_MINIMUM,
-                                    Placeholder.unparsed("amount", String.valueOf(r.minBid()))));
+                                    Placeholder.unparsed("amount", CurrencyFormatter.format(r.minBid()))));
                     case RealtyLogicImpl.BidResult.BidTooLowCurrent r ->
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_TOO_LOW_CURRENT,
-                                    Placeholder.unparsed("amount", String.valueOf(r.currentHighest()))));
+                                    Placeholder.unparsed("amount", CurrencyFormatter.format(r.currentHighest()))));
                     case RealtyLogicImpl.BidResult.AlreadyHighestBidder ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_ALREADY_HIGHEST));
                 }
@@ -300,7 +301,7 @@ public record AuctionCommandGroup(
         double balance = economy.getBalance(sender);
         if (balance < amount) {
             sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_INSUFFICIENT_FUNDS,
-                    Placeholder.unparsed("balance", String.valueOf(balance))));
+                    Placeholder.unparsed("balance", CurrencyFormatter.format(balance))));
             return;
         }
         EconomyResponse response = economy.withdrawPlayer(sender, amount);
@@ -318,15 +319,15 @@ public record AuctionCommandGroup(
                 return switch (result) {
                     case RealtyLogicImpl.PayBidResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_SUCCESS,
-                                Placeholder.unparsed("amount", String.valueOf(amount)),
+                                Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("region", regionId),
-                                Placeholder.unparsed("total", String.valueOf(success.newTotal())),
-                                Placeholder.unparsed("remaining", String.valueOf(success.remaining()))));
+                                Placeholder.unparsed("total", CurrencyFormatter.format(success.newTotal())),
+                                Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining()))));
                         yield result;
                     }
                     case RealtyLogicImpl.PayBidResult.FullyPaid fullyPaid -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_FULLY_PAID,
-                                Placeholder.unparsed("amount", String.valueOf(amount)),
+                                Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }
@@ -342,8 +343,8 @@ public record AuctionCommandGroup(
                     }
                     case RealtyLogicImpl.PayBidResult.ExceedsAmountOwed exceeds -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_EXCEEDS_OWED,
-                                Placeholder.unparsed("amount", String.valueOf(amount)),
-                                Placeholder.unparsed("owed", String.valueOf(exceeds.amountOwed())),
+                                Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
+                                Placeholder.unparsed("owed", CurrencyFormatter.format(exceeds.amountOwed())),
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }

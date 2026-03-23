@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
@@ -116,12 +117,12 @@ public record UnrentCommand(
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, entry.getValue());
             sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_SUCCESS,
                     Placeholder.unparsed("region", regionId),
-                    Placeholder.unparsed("refund", String.valueOf(refund))));
+                    Placeholder.unparsed("refund", CurrencyFormatter.format(refund))));
             notificationService.queueNotification(success.landlordId(),
                     messages.messageFor(MessageKeys.NOTIFICATION_REGION_UNRENTED,
                             Placeholder.unparsed("player", sender.getName()),
                             Placeholder.unparsed("region", regionId),
-                            Placeholder.unparsed("refund", String.valueOf(refund))));
+                            Placeholder.unparsed("refund", CurrencyFormatter.format(refund))));
         }, executorState.mainThreadExec());
     }
 

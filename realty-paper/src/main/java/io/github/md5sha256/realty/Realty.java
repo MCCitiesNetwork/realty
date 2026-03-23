@@ -4,6 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RegionProfileService;
@@ -262,14 +263,14 @@ public final class Realty extends JavaPlugin {
                         this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount",
-                                        String.valueOf(payment.refundAmount()))));
+                                        CurrencyFormatter.format(payment.refundAmount()))));
             }
             for (RealtyLogicImpl.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 this.notificationService.queueNotification(payment.offererId(),
                         this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount",
-                                        String.valueOf(payment.refundAmount()))));
+                                        CurrencyFormatter.format(payment.refundAmount()))));
             }
             List<RealtyLogicImpl.ExpiredLease> expiredLeases = this.logic.clearExpiredLeases();
             if (!expiredLeases.isEmpty()) {

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
@@ -118,7 +119,7 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.SetPriceResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_SUCCESS,
-                                    Placeholder.unparsed("price", String.valueOf(price)),
+                                    Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetPriceResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_NO_FREEHOLD_CONTRACT,

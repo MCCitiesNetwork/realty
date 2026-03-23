@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.RegionState;
@@ -774,16 +775,16 @@ public class RealtyLogicImpl {
             placeholders.put("title_holder", titleHolder);
             placeholders.put("titleholder", titleHolder);
             placeholders.put("authority", nameResolver.apply(freehold.authorityId()));
-            placeholders.put("price", freehold.price() != null ? String.valueOf(freehold.price()) : "");
+            placeholders.put("price", freehold.price() != null ? CurrencyFormatter.format(freehold.price()) : "");
             Double lastSoldPrice = wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId);
-            placeholders.put("last_sold_price", lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "");
+            placeholders.put("last_sold_price", lastSoldPrice != null ? CurrencyFormatter.format(lastSoldPrice) : "");
         }
 
         LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
         if (lease != null) {
             placeholders.put("landlord", nameResolver.apply(lease.landlordId()));
             placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()) : "");
-            placeholders.put("price", String.valueOf(lease.price()));
+            placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
             placeholders.put("start_date", lease.startDate().toString());
             LocalDateTime endDate = lease.startDate().plusSeconds(lease.durationSeconds());

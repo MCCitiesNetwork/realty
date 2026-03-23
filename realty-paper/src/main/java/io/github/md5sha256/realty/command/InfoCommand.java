@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -147,9 +148,9 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                     .append(messages.messageFor(MessageKeys.INFO_FOR_SALE,
                             Placeholder.unparsed("title_holder", titleHolder),
                             Placeholder.unparsed("authority", authority),
-                            Placeholder.unparsed("price", String.valueOf(freehold.price()))));
+                            Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
         } else {
-            String lastSold = lastSoldPrice != null ? String.valueOf(lastSoldPrice) : "N/A";
+            String lastSold = lastSoldPrice != null ? CurrencyFormatter.format(lastSoldPrice) : "N/A";
             builder.appendNewline()
                     .append(messages.messageFor(MessageKeys.INFO_SOLD,
                             Placeholder.unparsed("title_holder", titleHolder),
@@ -177,7 +178,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
                         Placeholder.unparsed("members", membersStr),
                         Placeholder.unparsed("tenant", tenant),
-                        Placeholder.unparsed("price", String.valueOf(lease.price())),
+                        Placeholder.unparsed("price", CurrencyFormatter.format(lease.price())),
                         Placeholder.unparsed("duration",
                                 DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds()))),
                         Placeholder.unparsed("start_date", DateFormatter.format(settings.get(),lease.startDate())),

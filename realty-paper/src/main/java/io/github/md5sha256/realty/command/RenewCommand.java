@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
@@ -102,8 +103,8 @@ public record RenewCommand(
             double balance = economy.getBalance(sender);
             if (balance < price) {
                 sender.sendMessage(messages.messageFor(MessageKeys.RENEW_INSUFFICIENT_FUNDS,
-                        Placeholder.unparsed("balance", String.valueOf(balance)),
-                        Placeholder.unparsed("price", String.valueOf(price))));
+                        Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
+                        Placeholder.unparsed("price", CurrencyFormatter.format(price))));
                 return;
             }
             EconomyResponse response = economy.withdrawPlayer(sender, price);
@@ -117,7 +118,7 @@ public record RenewCommand(
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
             sender.sendMessage(messages.messageFor(MessageKeys.RENEW_SUCCESS,
                     Placeholder.unparsed("region", regionId),
-                    Placeholder.unparsed("price", String.valueOf(price))));
+                    Placeholder.unparsed("price", CurrencyFormatter.format(price))));
         }, executorState.mainThreadExec());
     }
 

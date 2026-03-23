@@ -4,6 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
@@ -108,8 +109,8 @@ public record BuyCommand(
         double balance = economy.getBalance(sender);
         if (balance < price) {
             sender.sendMessage(messages.messageFor(MessageKeys.BUY_INSUFFICIENT_FUNDS,
-                    Placeholder.unparsed("price", String.valueOf(price)),
-                    Placeholder.unparsed("balance", String.valueOf(balance))));
+                    Placeholder.unparsed("price", CurrencyFormatter.format(price)),
+                    Placeholder.unparsed("balance", CurrencyFormatter.format(balance))));
             return;
         }
         EconomyResponse response = economy.withdrawPlayer(sender, price);
@@ -155,13 +156,13 @@ public record BuyCommand(
             regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, entry.getValue());
             sender.sendMessage(messages.messageFor(MessageKeys.BUY_SUCCESS,
-                    Placeholder.unparsed("price", String.valueOf(price)),
+                    Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                     Placeholder.unparsed("region", regionId)));
             if (success.titleHolderId() != null) {
                 notificationService.queueNotification(success.titleHolderId(),
                         messages.messageFor(MessageKeys.NOTIFICATION_REGION_BOUGHT,
                                 Placeholder.unparsed("player", sender.getName()),
-                                Placeholder.unparsed("price", String.valueOf(price)),
+                                Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                 Placeholder.unparsed("region", regionId)));
             }
         }, executorState.mainThreadExec());

@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
@@ -108,8 +109,8 @@ public record RentCommand(
             double balance = economy.getBalance(sender);
             if (balance < price) {
                 sender.sendMessage(messages.messageFor(MessageKeys.RENT_INSUFFICIENT_FUNDS,
-                        Placeholder.unparsed("balance", String.valueOf(balance)),
-                        Placeholder.unparsed("price", String.valueOf(price))));
+                        Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
+                        Placeholder.unparsed("price", CurrencyFormatter.format(price))));
                 return;
             }
             EconomyResponse response = economy.withdrawPlayer(sender, price);
@@ -126,13 +127,13 @@ public record RentCommand(
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, entry.getValue());
             sender.sendMessage(messages.messageFor(MessageKeys.RENT_SUCCESS,
                     Placeholder.unparsed("region", regionId),
-                    Placeholder.unparsed("price", String.valueOf(price)),
+                    Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                     Placeholder.unparsed("duration",
                             DurationFormatter.format(Duration.ofSeconds(success.durationSeconds())))));
             notificationService.queueNotification(success.landlordId(),
                     messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
                             Placeholder.unparsed("player", sender.getName()),
-                            Placeholder.unparsed("price", String.valueOf(price)),
+                            Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                             Placeholder.unparsed("region", regionId)));
         }, executorState.mainThreadExec());
     }

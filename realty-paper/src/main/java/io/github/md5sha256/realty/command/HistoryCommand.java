@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
@@ -149,7 +150,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
                                         Placeholder.unparsed("time", DateFormatter.format(settings.get(), freehold.eventTime())),
                                         Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
                                         Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
-                                        Placeholder.unparsed("price", String.valueOf(freehold.price()))));
+                                        Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
                         case HistoryEntry.Agent agent -> builder.append(
                                 messages.messageFor(messageKey,
                                         Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
@@ -161,7 +162,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
                                         Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
                                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
                                         Placeholder.unparsed("price",
-                                                lease.price() != null ? String.valueOf(lease.price()) : "N/A")));
+                                                lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A")));
                     }
                 }
 
