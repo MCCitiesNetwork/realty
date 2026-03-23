@@ -17,7 +17,7 @@ public record VersionCommand(
 
     @Override
     public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
-        return builder
+        return builder.literal("version")
                 .handler(this::execute)
                 .build();
     }

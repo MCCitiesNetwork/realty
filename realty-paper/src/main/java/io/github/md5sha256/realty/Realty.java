@@ -396,6 +396,7 @@ public final class Realty extends JavaPlugin {
             @NotNull NotificationService notificationService
     ) {
         String version = getPluginMeta().getVersion();
+        var helpCommand = new HelpCommand(messageContainer);
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
@@ -421,7 +422,6 @@ public final class Realty extends JavaPlugin {
                         messageContainer),
                 new CreateCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
                 new DeleteCommand(executorState, logic, this.regionProfileService, messageContainer),
-                new HelpCommand(messageContainer),
                 new HistoryCommand(executorState, logic, this.settings, messageContainer),
                 new InfoCommand(executorState, logic, this.settings, messageContainer),
                 new ListCommand(executorState, logic, messageContainer),
@@ -463,6 +463,12 @@ public final class Realty extends JavaPlugin {
                 .buildOnEnable(this);
         manager.brigadierManager().setNativeNumberSuggestions(true);
         Command.Builder<CommandSourceStack> rootBuilder = manager.commandBuilder("realty", "rl");
+        // Register help commands and proxy the root literal to the base help command
+        List<Command<CommandSourceStack>> helpCommands = helpCommand.commands(rootBuilder);
+        for (Command<CommandSourceStack> cmd : helpCommands) {
+            manager.command(cmd);
+        }
+        manager.command(rootBuilder.proxies(helpCommands.getFirst()));
         for (CustomCommandBean bean : commands) {
             for (Command<CommandSourceStack> cmd : bean.commands(rootBuilder)) {
                 manager.command(cmd);
