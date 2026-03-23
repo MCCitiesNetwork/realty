@@ -22,6 +22,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles {@code /realty tp <region>}.
@@ -33,7 +34,8 @@ import java.util.UUID;
  */
 public record TeleportCommand(@NotNull ExecutorState executorState,
                                @NotNull Database database,
-                               @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+                               @NotNull MessageContainer messages,
+                               @NotNull SafeLocationFinder safeLocationFinder) implements CustomCommandBean.Single {
 
     private static final int SIGN_SEARCH_RADIUS = 3;
     private static final int REGION_MAX_TRIES = 50000;
@@ -63,31 +65,42 @@ public record TeleportCommand(@NotNull ExecutorState executorState,
                 try (SqlSessionWrapper session = database.openSession(true)) {
                     signs = session.realtySignMapper().selectByRegion(regionId, worldId);
                 }
-                executorState.mainThreadExec().execute(() -> {
+
+                // Build an async search chain: try each sign, then fall back to region
+                CompletableFuture<Location> search = CompletableFuture.completedFuture(null);
+                for (RealtySignEntity sign : signs) {
+                    search = search.thenCompose(loc -> {
+                        if (loc != null) {
+                            return CompletableFuture.completedFuture(loc);
+                        }
+                        World signWorld = Bukkit.getWorld(sign.worldId());
+                        if (signWorld == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return safeLocationFinder.findSafeNearSign(
+                                signWorld, sign.blockX(), sign.blockY(), sign.blockZ(),
+                                SIGN_SEARCH_RADIUS);
+                    });
+                }
+
+                search.thenCompose(loc -> {
+                    if (loc != null) {
+                        return CompletableFuture.completedFuture(loc);
+                    }
+                    return safeLocationFinder.findSafeInRegion(
+                            region.region(), region.world(), REGION_MAX_TRIES);
+                }).whenComplete((loc, ex) -> {
                     if (!player.isOnline()) {
                         return;
                     }
-                    // Try sign-based teleport first
-                    for (RealtySignEntity sign : signs) {
-                        World signWorld = Bukkit.getWorld(sign.worldId());
-                        if (signWorld == null) {
-                            continue;
-                        }
-                        Location safe = SafeLocationFinder.findSafeNearSign(
-                                signWorld, sign.blockX(), sign.blockY(), sign.blockZ(),
-                                SIGN_SEARCH_RADIUS);
-                        if (safe != null) {
-                            player.teleportAsync(safe);
-                            player.sendMessage(messages.messageFor(MessageKeys.TP_SUCCESS,
-                                    Placeholder.unparsed("region", regionId)));
-                            return;
-                        }
+                    if (ex != null) {
+                        ex.printStackTrace();
+                        player.sendMessage(messages.messageFor(MessageKeys.TP_ERROR,
+                                Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
+                        return;
                     }
-                    // Fallback: expanding cube search within region bounds
-                    Location safe = SafeLocationFinder.findSafeInRegion(
-                            region.region(), region.world(), REGION_MAX_TRIES);
-                    if (safe != null) {
-                        player.teleportAsync(safe);
+                    if (loc != null) {
+                        player.teleportAsync(loc);
                         player.sendMessage(messages.messageFor(MessageKeys.TP_SUCCESS,
                                 Placeholder.unparsed("region", regionId)));
                     } else {

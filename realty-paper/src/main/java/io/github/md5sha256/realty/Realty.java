@@ -39,6 +39,7 @@ import io.github.md5sha256.realty.command.SubregionCommandGroup;
 import io.github.md5sha256.realty.command.TeleportCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
+import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -52,6 +53,7 @@ import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
+import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.github.md5sha256.realty.util.SimpleDateFormatSerializer;
 import io.github.md5sha256.realty.util.TransientNotificationService;
@@ -189,12 +191,16 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        SafeLocationFinder safeLocationFinder;
         if (getServer().getPluginManager().isPluginEnabled("Essentials")) {
             getLogger().info("Detected Essentials, using essentials as the mail service");
             this.notificationService = new EssentialsNotificationService(this.executorState.mainThreadExec());
+            getLogger().info("Using EssentialsX safe-block predicate for teleportation");
+            safeLocationFinder = new SafeLocationFinder(new EssentialsSafeBlockPredicate());
         } else {
             getLogger().info("Using the transient notification service");
             this.notificationService = new TransientNotificationService(this.executorState.mainThreadExec());
+            safeLocationFinder = new SafeLocationFinder();
         }
         this.signTextApplicator = new SignTextApplicator(
                 this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
@@ -211,7 +217,8 @@ public final class Realty extends JavaPlugin {
                 this.logic,
                 this.messageContainer,
                 economyProvider.getProvider(),
-                this.notificationService);
+                this.notificationService,
+                safeLocationFinder);
         getLogger().info("Plugin enabled successfully");
     }
 
@@ -394,7 +401,8 @@ public final class Realty extends JavaPlugin {
             @NotNull RealtyLogicImpl logic,
             @NotNull MessageContainer messageContainer,
             @NotNull Economy economy,
-            @NotNull NotificationService notificationService
+            @NotNull NotificationService notificationService,
+            @NotNull SafeLocationFinder safeLocationFinder
     ) {
         String version = getPluginMeta().getVersion();
         var helpCommand = new HelpCommand(messageContainer);
@@ -457,7 +465,7 @@ public final class Realty extends JavaPlugin {
                 }, messageContainer),
                 new RemoveCommand(messageContainer),
                 new SignCommand(executorState, this.database, logic, this.regionProfileService, this.signCache, this.signTextApplicator, messageContainer),
-                new TeleportCommand(executorState, this.database, messageContainer),
+                new TeleportCommand(executorState, this.database, messageContainer, safeLocationFinder),
                 new SubregionCommandGroup(executorState, logic, this.settings, this.regionProfileService, messageContainer)
         );
 
