@@ -65,11 +65,6 @@ public record RentCommand(
             return;
         }
         String regionId = region.region().getId();
-        if (region.region().getOwners().contains(sender.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.RENT_IS_LANDLORD,
-                    Placeholder.unparsed("region", regionId)));
-            return;
-        }
         CompletableFuture.supplyAsync(() -> {
             try {
                 RealtyLogicImpl.RentResult result = logic.rentRegion(
