@@ -101,6 +101,13 @@ public final class MariaSchemaMigrator {
                 String sql = loadResource(resourcePath);
                 try (Statement statement = connection.createStatement()) {
                     statement.execute(sql);
+                    // Drain all results to surface errors from multi-statement batches.
+                    // With allowMultiQueries=true, execute() only returns the first
+                    // statement's result; errors from subsequent statements are hidden
+                    // unless we iterate through getMoreResults().
+                    while (statement.getMoreResults() || statement.getUpdateCount() != -1) {
+                        // iterate until exhausted
+                    }
                 }
                 try (PreparedStatement ps = connection.prepareStatement(INSERT_VERSION)) {
                     ps.setInt(1, step.version());
