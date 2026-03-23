@@ -406,7 +406,7 @@ public record OfferCommandGroup(
                     regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, placeholders);
                     SubregionLandlordUpdater.updateChildLandlords(
-                            regionId, region.world(), sender.getUniqueId(), logic, executorState);
+                            regionId, region.world(), fullyPaid.titleHolderId(), sender.getUniqueId(), logic, executorState);
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", regionId)));
                     if (fullyPaid.titleHolderId() != null) {

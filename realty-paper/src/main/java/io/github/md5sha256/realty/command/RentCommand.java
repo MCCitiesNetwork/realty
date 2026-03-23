@@ -65,6 +65,11 @@ public record RentCommand(
             return;
         }
         String regionId = region.region().getId();
+        if (region.region().getOwners().contains(sender.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.RENT_IS_LANDLORD,
+                    Placeholder.unparsed("region", regionId)));
+            return;
+        }
         CompletableFuture.supplyAsync(() -> {
             try {
                 RealtyLogicImpl.RentResult result = logic.rentRegion(
@@ -76,11 +81,6 @@ public record RentCommand(
                     }
                     case RealtyLogicImpl.RentResult.NoLeaseContract ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASE_CONTRACT,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                    case RealtyLogicImpl.RentResult.IsLandlord ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_IS_LANDLORD,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }

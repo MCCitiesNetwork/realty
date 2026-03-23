@@ -58,6 +58,11 @@ public record RenewCommand(
             return;
         }
         String regionId = region.region().getId();
+        if (!region.region().getOwners().contains(sender.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NOT_TENANT,
+                    Placeholder.unparsed("region", regionId)));
+            return;
+        }
         CompletableFuture.supplyAsync(() -> {
             try {
                 RealtyLogicImpl.RenewLeaseResult result = logic.renewLease(
@@ -69,11 +74,6 @@ public record RenewCommand(
                     }
                     case RealtyLogicImpl.RenewLeaseResult.NoLeaseContract ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NO_LEASE_CONTRACT,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                    case RealtyLogicImpl.RenewLeaseResult.NotTenant ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NOT_TENANT,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }

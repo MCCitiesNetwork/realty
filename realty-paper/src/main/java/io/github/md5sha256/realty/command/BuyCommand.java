@@ -157,7 +157,7 @@ public record BuyCommand(
             regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, entry.getValue());
             SubregionLandlordUpdater.updateChildLandlords(
-                    regionId, region.world(), sender.getUniqueId(), logic, executorState);
+                    regionId, region.world(), success.titleHolderId(), sender.getUniqueId(), logic, executorState);
             sender.sendMessage(messages.messageFor(MessageKeys.BUY_SUCCESS,
                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                     Placeholder.unparsed("region", regionId)));

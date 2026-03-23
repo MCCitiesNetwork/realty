@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,10 +22,12 @@ public final class SubregionLandlordUpdater {
     /**
      * Finds all WorldGuard child regions of the given parent and updates their
      * lease contract landlord to the new owner. Must be called on the main thread
-     * (WorldGuard region lookup). The DB update runs async.
+     * (WorldGuard region lookup). The DB update runs async, then WG owners are
+     * updated on the main thread.
      */
     public static void updateChildLandlords(@NotNull String parentRegionId,
                                              @NotNull World world,
+                                             @Nullable UUID oldLandlord,
                                              @NotNull UUID newLandlord,
                                              @NotNull RealtyLogicImpl logic,
                                              @NotNull ExecutorState executorState) {
@@ -39,20 +42,28 @@ public final class SubregionLandlordUpdater {
         if (parent == null) {
             return;
         }
-        List<String> childIds = new ArrayList<>();
+        List<ProtectedRegion> children = new ArrayList<>();
         for (ProtectedRegion region : regionManager.getRegions().values()) {
             if (parent.equals(region.getParent())) {
-                childIds.add(region.getId());
+                children.add(region);
             }
         }
-        if (childIds.isEmpty()) {
+        if (children.isEmpty()) {
             return;
         }
+        List<String> childIds = children.stream().map(ProtectedRegion::getId).toList();
         UUID worldId = world.getUID();
         CompletableFuture.runAsync(
                 () -> logic.updateSubregionLandlords(childIds, worldId, newLandlord),
                 executorState.dbExec()
-        );
+        ).thenRunAsync(() -> {
+            for (ProtectedRegion child : children) {
+                if (oldLandlord != null) {
+                    child.getOwners().removePlayer(oldLandlord);
+                }
+                child.getOwners().addPlayer(newLandlord);
+            }
+        }, executorState.mainThreadExec());
     }
 
 }

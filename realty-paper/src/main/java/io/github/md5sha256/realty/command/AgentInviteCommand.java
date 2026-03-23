@@ -54,11 +54,15 @@ public record AgentInviteCommand(@NotNull ExecutorState executorState,
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        UUID inviterId = player.getUniqueId();
         String inviteeName = resolveName(inviteeId);
+        if (!region.region().getOwners().contains(player.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
+                    Placeholder.unparsed("region", regionId)));
+            return;
+        }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.InviteAgentResult result = logic.inviteAgent(regionId, worldId, inviterId, inviteeId);
+                RealtyLogicImpl.InviteAgentResult result = logic.inviteAgent(regionId, worldId, player.getUniqueId(), inviteeId);
                 switch (result) {
                     case RealtyLogicImpl.InviteAgentResult.Success() -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_SUCCESS,
@@ -71,9 +75,6 @@ public record AgentInviteCommand(@NotNull ExecutorState executorState,
                     }
                     case RealtyLogicImpl.InviteAgentResult.NoFreeholdContract() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NO_FREEHOLD,
-                                    Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.InviteAgentResult.NotTitleHolder() ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.InviteAgentResult.IsTitleHolder() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_IS_TITLEHOLDER,

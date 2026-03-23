@@ -398,7 +398,7 @@ public final class Realty extends JavaPlugin {
         String version = getPluginMeta().getVersion();
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
-                new AddCommand(executorState, logic, messageContainer),
+                new AddCommand(messageContainer),
                 new AgentInviteCommand(executorState, logic, notificationService, messageContainer),
                 new AgentInviteAcceptCommand(executorState, logic, notificationService, messageContainer),
                 new AgentInviteRejectCommand(executorState, logic, notificationService, messageContainer),
@@ -453,7 +453,7 @@ public final class Realty extends JavaPlugin {
                     performReload();
                     return null;
                 }, messageContainer),
-                new RemoveCommand(executorState, logic, messageContainer),
+                new RemoveCommand(messageContainer),
                 new SignCommand(executorState, this.database, logic, this.regionProfileService, this.signCache, this.signTextApplicator, messageContainer),
                 new SubregionCommandGroup(executorState, logic, this.regionProfileService, messageContainer)
         );

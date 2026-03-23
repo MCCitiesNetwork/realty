@@ -83,7 +83,6 @@ public class RealtyLogicImpl {
     public sealed interface InviteAgentResult {
         record Success() implements InviteAgentResult {}
         record NoFreeholdContract() implements InviteAgentResult {}
-        record NotTitleHolder() implements InviteAgentResult {}
         record IsTitleHolder() implements InviteAgentResult {}
         record IsAuthority() implements InviteAgentResult {}
         record AlreadyAgent() implements InviteAgentResult {}
@@ -100,9 +99,6 @@ public class RealtyLogicImpl {
                     .selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new InviteAgentResult.NoFreeholdContract();
-            }
-            if (!inviterId.equals(freehold.titleHolderId())) {
-                return new InviteAgentResult.NotTitleHolder();
             }
             if (inviteeId.equals(freehold.titleHolderId())) {
                 return new InviteAgentResult.IsTitleHolder();
@@ -408,7 +404,7 @@ public class RealtyLogicImpl {
     // --- Set Landlord ---
 
     public sealed interface SetLandlordResult {
-        record Success() implements SetLandlordResult {}
+        record Success(@NotNull UUID previousLandlord) implements SetLandlordResult {}
         record NoLeaseContract() implements SetLandlordResult {}
         record UpdateFailed() implements SetLandlordResult {}
     }
@@ -422,12 +418,13 @@ public class RealtyLogicImpl {
             if (lease == null) {
                 return new SetLandlordResult.NoLeaseContract();
             }
+            UUID previousLandlord = lease.landlordId();
             int updated = leaseMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordId);
             if (updated == 0) {
                 return new SetLandlordResult.UpdateFailed();
             }
             wrapper.session().commit();
-            return new SetLandlordResult.Success();
+            return new SetLandlordResult.Success(previousLandlord);
         }
     }
 
@@ -613,7 +610,6 @@ public class RealtyLogicImpl {
     public sealed interface RentResult {
         record Success(double price, long durationSeconds, @NotNull UUID landlordId) implements RentResult {}
         record NoLeaseContract() implements RentResult {}
-        record IsLandlord() implements RentResult {}
         record AlreadyOccupied() implements RentResult {}
         record UpdateFailed() implements RentResult {}
     }
@@ -626,9 +622,6 @@ public class RealtyLogicImpl {
             LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new RentResult.NoLeaseContract();
-            }
-            if (lease.landlordId().equals(tenantId)) {
-                return new RentResult.IsLandlord();
             }
             if (lease.tenantId() != null) {
                 return new RentResult.AlreadyOccupied();
@@ -649,7 +642,6 @@ public class RealtyLogicImpl {
     public sealed interface UnrentResult {
         record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId) implements UnrentResult {}
         record NoLeaseContract() implements UnrentResult {}
-        record NotTenant() implements UnrentResult {}
         record UpdateFailed() implements UnrentResult {}
     }
 
@@ -661,9 +653,6 @@ public class RealtyLogicImpl {
             LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new UnrentResult.NoLeaseContract();
-            }
-            if (!tenantId.equals(lease.tenantId())) {
-                return new UnrentResult.NotTenant();
             }
             long totalSeconds = lease.durationSeconds();
             long elapsedSeconds = java.time.Duration.between(lease.startDate(), java.time.LocalDateTime.now()).getSeconds();
@@ -685,7 +674,6 @@ public class RealtyLogicImpl {
     public sealed interface RenewLeaseResult {
         record Success(double price, @NotNull UUID landlordId) implements RenewLeaseResult {}
         record NoLeaseContract() implements RenewLeaseResult {}
-        record NotTenant() implements RenewLeaseResult {}
         record NoExtensionsRemaining() implements RenewLeaseResult {}
         record UpdateFailed() implements RenewLeaseResult {}
     }
@@ -698,9 +686,6 @@ public class RealtyLogicImpl {
             LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new RenewLeaseResult.NoLeaseContract();
-            }
-            if (!tenantId.equals(lease.tenantId())) {
-                return new RenewLeaseResult.NotTenant();
             }
             if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
                 return new RenewLeaseResult.NoExtensionsRemaining();

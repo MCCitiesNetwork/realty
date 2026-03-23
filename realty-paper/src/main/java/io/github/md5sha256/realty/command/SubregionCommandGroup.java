@@ -130,14 +130,17 @@ public record SubregionCommandGroup(
                 UUID playerId = player.getUniqueId();
                 String parentId = parentRegion.region().getId();
                 UUID worldId = parentRegion.world().getUID();
+                if (!canBypass && !parentRegion.region().getOwners().contains(playerId)) {
+                    player.sendMessage(messages.messageFor(
+                            MessageKeys.SUBREGION_NOT_TITLEHOLDER,
+                            Placeholder.unparsed("region", parentId)));
+                    return;
+                }
                 CompletableFuture.supplyAsync(() -> {
                     try {
                         FreeholdContractEntity freehold = logic.getFreeholdContract(parentId, worldId);
                         if (freehold == null) {
                             return new QuickCreateResult.NoFreeholdContract();
-                        }
-                        if (!canBypass && !playerId.equals(freehold.titleHolderId())) {
-                            return new QuickCreateResult.NotTitleHolder();
                         }
                         boolean created = logic.createRental(
                                 name, worldId,
@@ -156,10 +159,6 @@ public record SubregionCommandGroup(
                                 player.sendMessage(messages.messageFor(
                                         MessageKeys.SUBREGION_NO_FREEHOLD,
                                         Placeholder.unparsed("region", parentId)));
-                        case QuickCreateResult.NotTitleHolder ignored ->
-                                player.sendMessage(messages.messageFor(
-                                        MessageKeys.SUBREGION_NOT_TITLEHOLDER,
-                                        Placeholder.unparsed("region", parentId)));
                         case QuickCreateResult.RegionExists ignored ->
                                 player.sendMessage(messages.messageFor(
                                         MessageKeys.SUBREGION_REGION_EXISTS,
@@ -174,6 +173,7 @@ public record SubregionCommandGroup(
                                 return;
                             }
                             regionManager.addRegion(childRegion);
+                            childRegion.getOwners().addPlayer(playerId);
                             WorldGuardRegion childWgRegion = new WorldGuardRegion(
                                     childRegion, parentRegion.world());
                             regionProfileService.applyFlags(
@@ -196,7 +196,6 @@ public record SubregionCommandGroup(
 
     private sealed interface QuickCreateResult {
         record NoFreeholdContract() implements QuickCreateResult {}
-        record NotTitleHolder() implements QuickCreateResult {}
         record RegionExists() implements QuickCreateResult {}
         record Created(@NotNull Map<String, String> placeholders) implements QuickCreateResult {}
     }

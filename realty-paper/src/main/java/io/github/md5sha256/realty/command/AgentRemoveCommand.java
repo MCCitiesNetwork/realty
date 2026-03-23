@@ -54,6 +54,12 @@ public record AgentRemoveCommand(@NotNull ExecutorState executorState,
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         String targetName = resolveName(targetId);
+        if (!region.region().getOwners().contains(player.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_NOT_FOUND,
+                    Placeholder.unparsed("player", targetName),
+                    Placeholder.unparsed("region", regionId)));
+            return;
+        }
         UUID actorId = player.getUniqueId();
         CompletableFuture.runAsync(() -> {
             try {

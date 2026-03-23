@@ -65,6 +65,11 @@ public record UnrentCommand(
             return;
         }
         String regionId = region.region().getId();
+        if (!region.region().getOwners().contains(sender.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NOT_TENANT,
+                    Placeholder.unparsed("region", regionId)));
+            return;
+        }
         CompletableFuture.supplyAsync(() -> {
             try {
                 RealtyLogicImpl.UnrentResult result = logic.unrentRegion(
@@ -76,11 +81,6 @@ public record UnrentCommand(
                     }
                     case RealtyLogicImpl.UnrentResult.NoLeaseContract ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASE_CONTRACT,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                    case RealtyLogicImpl.UnrentResult.NotTenant ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NOT_TENANT,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }

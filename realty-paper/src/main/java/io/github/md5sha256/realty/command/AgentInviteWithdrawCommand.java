@@ -47,7 +47,7 @@ public record AgentInviteWithdrawCommand(@NotNull ExecutorState executorState,
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player)) {
+        if (!(sender instanceof Player player)) {
             return;
         }
         UUID inviteeId = ctx.get("player");
@@ -55,6 +55,12 @@ public record AgentInviteWithdrawCommand(@NotNull ExecutorState executorState,
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         String inviteeName = resolveName(inviteeId);
+        if (!region.region().getOwners().contains(player.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_NOT_FOUND,
+                    Placeholder.unparsed("player", inviteeName),
+                    Placeholder.unparsed("region", regionId)));
+            return;
+        }
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.WithdrawAgentInviteResult result = logic.withdrawAgentInvite(regionId, worldId, inviteeId);
@@ -65,7 +71,7 @@ public record AgentInviteWithdrawCommand(@NotNull ExecutorState executorState,
                                 Placeholder.unparsed("region", regionId)));
                         notificationService.queueNotification(inviteeId,
                                 messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
-                                        Placeholder.unparsed("player", resolveName(((Player) sender).getUniqueId())),
+                                        Placeholder.unparsed("player", resolveName(player.getUniqueId())),
                                         Placeholder.unparsed("region", regionId)));
                     }
                     case RealtyLogicImpl.WithdrawAgentInviteResult.NotFound() ->
