@@ -176,12 +176,11 @@ public record UnsetCommandGroup(
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
                         regionId, worldId, null);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID landlordId) -> {
+                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID ignored2) -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     region.region().getOwners().clear();
                                     region.region().getMembers().clear();
-                                    region.region().getOwners().addPlayer(landlordId);
                                     regionProfileService.applyFlags(region, RegionState.FOR_LEASE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, placeholders);
                             });

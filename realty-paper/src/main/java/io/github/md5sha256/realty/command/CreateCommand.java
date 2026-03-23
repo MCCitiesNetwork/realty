@@ -120,7 +120,6 @@ public record CreateCommand(@NotNull ExecutorState executorState,
             }
         }, executorState.dbExec()).thenAcceptAsync(entry -> {
             if (entry.getKey()) {
-                region.region().getOwners().addPlayer(landlord);
                 regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
                 sender.sendMessage(messages.messageFor(MessageKeys.CREATE_RENTAL_SUCCESS));
             } else {

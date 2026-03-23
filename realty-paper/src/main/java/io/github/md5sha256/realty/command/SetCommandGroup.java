@@ -195,7 +195,6 @@ public record SetCommandGroup(
                         executorState.mainThreadExec().execute(() -> {
                             region.region().getOwners().clear();
                             region.region().getMembers().clear();
-                            region.region().getOwners().addPlayer(landlordId);
                         });
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
                                 Placeholder.unparsed("landlord", resolveName(landlordId)),
@@ -290,7 +289,7 @@ public record SetCommandGroup(
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
                         regionId, worldId, tenantId);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID landlordId) -> {
+                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID ignored2) -> {
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId,
                                 worldId);
                         executorState.mainThreadExec().execute(() -> {
@@ -298,7 +297,6 @@ public record SetCommandGroup(
                                     region.region();
                             protectedRegion.getOwners().clear();
                             protectedRegion.getMembers().clear();
-                            protectedRegion.getOwners().addPlayer(landlordId);
                             protectedRegion.getOwners().addPlayer(tenantId);
                             regionProfileService.applyFlags(region,
                                     RegionState.LEASED,
