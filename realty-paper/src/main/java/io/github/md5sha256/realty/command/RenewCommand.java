@@ -58,11 +58,6 @@ public record RenewCommand(
             return;
         }
         String regionId = region.region().getId();
-        if (!region.region().getOwners().contains(sender.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NOT_TENANT,
-                    Placeholder.unparsed("region", regionId)));
-            return;
-        }
         CompletableFuture.supplyAsync(() -> {
             try {
                 RealtyLogicImpl.RenewLeaseResult result = logic.renewLease(
