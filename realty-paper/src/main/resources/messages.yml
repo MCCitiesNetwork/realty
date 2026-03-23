@@ -394,6 +394,16 @@ notification:
   agent-removed: "<prefix> <player> removed you as an agent for region <region>."
   region-unrented: "<prefix> <player> unrented region <region>. Refund: <refund>."
 
+subregion:
+  start-success: "Started subregioning mode for region <region>. Use your WorldEdit selection to define a subregion, then run /realty subregion apply."
+  not-active: "You are not in subregioning mode. Start with /realty subregion start [region]."
+  apply-success: "Selection applied as a subregion of <region>."
+  wrong-world: "Your WorldEdit selection is in a different world than the parent region."
+  incomplete-selection: "Your WorldEdit selection is incomplete. Select both points first."
+  exceeds-bounds: "Your selection exceeds the bounds of region <region>."
+  overlaps-sibling: "Your selection overlaps with existing subregion <sibling>."
+  cancel-success: "Subregioning mode cancelled."
+
 sign:
   place-success: "Sign registered for region <region>."
   place-not-a-sign: "You must be looking at a sign block."

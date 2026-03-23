@@ -165,6 +165,15 @@ permissions:
   realty.command.reload:
     description: Allows using /realty reload
     default: op
+  realty.command.subregion.start:
+    description: Allows using /realty subregion start
+    default: op
+  realty.command.subregion.apply:
+    description: Allows using /realty subregion apply
+    default: op
+  realty.command.subregion.cancel:
+    description: Allows using /realty subregion cancel
+    default: op
   realty.command.sign.place:
     description: Allows using /realty sign place
     default: op

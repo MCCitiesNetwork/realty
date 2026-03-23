@@ -34,13 +34,16 @@ import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.SetCommandGroup;
 import io.github.md5sha256.realty.command.SignCommand;
+import io.github.md5sha256.realty.command.SubregionCommandGroup;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.subregion.PlayerSubregioningService;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
+import io.github.md5sha256.realty.listener.SubregionCleanupListener;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
@@ -106,6 +109,7 @@ public final class Realty extends JavaPlugin {
     private NotificationService notificationService;
     private Database database;
     private final SignCache signCache = new SignCache();
+    private final PlayerSubregioningService subregioningService = new PlayerSubregioningService();
     private SignTextApplicator signTextApplicator;
 
     @NotNull
@@ -204,6 +208,8 @@ public final class Realty extends JavaPlugin {
                 new SignInteractionListener(this.database, this.logic,
                         this.regionProfileService, this.executorState, this.signCache,
                         this.signTextApplicator), this);
+        getServer().getPluginManager().registerEvents(
+                new SubregionCleanupListener(this.subregioningService), this);
         scheduleTasks();
         registerCommands(this.executorState,
                 this.logic,
@@ -453,7 +459,8 @@ public final class Realty extends JavaPlugin {
                     return null;
                 }, messageContainer),
                 new RemoveCommand(executorState, logic, messageContainer),
-                new SignCommand(executorState, this.database, logic, this.regionProfileService, this.signCache, this.signTextApplicator, messageContainer)
+                new SignCommand(executorState, this.database, logic, this.regionProfileService, this.signCache, this.signTextApplicator, messageContainer),
+                new SubregionCommandGroup(this.subregioningService, messageContainer)
         );
 
         var manager = PaperCommandManager.builder()
