@@ -36,6 +36,7 @@ import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.SetCommandGroup;
 import io.github.md5sha256.realty.command.SignCommand;
 import io.github.md5sha256.realty.command.SubregionCommandGroup;
+import io.github.md5sha256.realty.command.TeleportCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
@@ -456,6 +457,7 @@ public final class Realty extends JavaPlugin {
                 }, messageContainer),
                 new RemoveCommand(messageContainer),
                 new SignCommand(executorState, this.database, logic, this.regionProfileService, this.signCache, this.signTextApplicator, messageContainer),
+                new TeleportCommand(executorState, this.database, messageContainer),
                 new SubregionCommandGroup(executorState, logic, this.settings, this.regionProfileService, messageContainer)
         );
 

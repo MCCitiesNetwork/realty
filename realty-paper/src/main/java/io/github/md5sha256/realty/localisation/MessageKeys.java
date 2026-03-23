@@ -343,6 +343,11 @@ public final class MessageKeys {
     public static final String SUBREGION_OVERLAPS_SIBLING = "subregion.overlaps-sibling";
     public static final String SUBREGION_TOO_SMALL = "subregion.too-small";
 
+    // teleport
+    public static final String TP_SUCCESS = "tp.success";
+    public static final String TP_NO_SAFE_LOCATION = "tp.no-safe-location";
+    public static final String TP_ERROR = "tp.error";
+
     // sign
     public static final String SIGN_PLACE_SUCCESS = "sign.place-success";
     public static final String SIGN_PLACE_NOT_A_SIGN = "sign.place-not-a-sign";
