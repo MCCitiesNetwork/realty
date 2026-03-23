@@ -19,6 +19,7 @@ import io.github.md5sha256.realty.command.AgentInviteWithdrawCommand;
 import io.github.md5sha256.realty.command.AgentRemoveCommand;
 import io.github.md5sha256.realty.command.AuctionCommandGroup;
 import io.github.md5sha256.realty.command.BuyCommand;
+import io.github.md5sha256.realty.command.CreateCommand;
 import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
@@ -419,6 +420,7 @@ public final class Realty extends JavaPlugin {
                         this.regionProfileService,
                         this.signTextApplicator,
                         messageContainer),
+                new CreateCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
                 new RegisterCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
                 new DeleteCommand(executorState, logic, this.regionProfileService, messageContainer),
                 new HistoryCommand(executorState, logic, this.settings, messageContainer),

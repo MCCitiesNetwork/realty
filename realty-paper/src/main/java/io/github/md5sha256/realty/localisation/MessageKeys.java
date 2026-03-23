@@ -101,6 +101,14 @@ public final class MessageKeys {
     public static final String CANCEL_AUCTION_SUCCESS = "cancel-auction.success";
     public static final String CANCEL_AUCTION_ERROR = "cancel-auction.error";
 
+    // create
+    public static final String CREATE_LEASE_SUCCESS = "create.lease-success";
+    public static final String CREATE_FREEHOLD_SUCCESS = "create.freehold-success";
+    public static final String CREATE_ALREADY_REGISTERED = "create.already-registered";
+    public static final String CREATE_REGION_EXISTS = "create.region-exists";
+    public static final String CREATE_INCOMPLETE_SELECTION = "create.incomplete-selection";
+    public static final String CREATE_ERROR = "create.error";
+
     // register-freehold
     public static final String REGISTER_FREEHOLD_SUCCESS = "register-freehold.success";
     public static final String REGISTER_FREEHOLD_ALREADY_REGISTERED = "register-freehold.already-registered";
