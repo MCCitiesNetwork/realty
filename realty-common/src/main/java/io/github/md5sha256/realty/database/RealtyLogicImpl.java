@@ -457,6 +457,23 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Update Subregion Landlords ---
+
+    public void updateSubregionLandlords(@NotNull List<String> childRegionIds,
+                                          @NotNull UUID worldId,
+                                          @NotNull UUID newLandlord) {
+        if (childRegionIds.isEmpty()) {
+            return;
+        }
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
+            for (String childRegionId : childRegionIds) {
+                leaseMapper.updateLandlordByRegion(childRegionId, worldId, newLandlord);
+            }
+            wrapper.session().commit();
+        }
+    }
+
     // --- Set Tenant ---
 
     public sealed interface SetTenantResult {
@@ -721,6 +738,13 @@ public class RealtyLogicImpl {
             @Nullable Double lastSoldPrice,
             @Nullable FreeholdContractBid highestBid
     ) {}
+
+    public @Nullable FreeholdContractEntity getFreeholdContract(@NotNull String worldGuardRegionId,
+                                                                  @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+        }
+    }
 
     public @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {

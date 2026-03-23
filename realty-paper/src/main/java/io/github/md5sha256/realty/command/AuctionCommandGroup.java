@@ -11,6 +11,7 @@ import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -382,6 +383,8 @@ public record AuctionCommandGroup(
                     Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                     regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, placeholders);
+                    SubregionLandlordUpdater.updateChildLandlords(
+                            regionId, region.world(), sender.getUniqueId(), logic, executorState);
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", regionId)));
                     if (fullyPaid.titleHolderId() != null) {

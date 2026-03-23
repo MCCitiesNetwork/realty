@@ -324,14 +324,15 @@ public final class MessageKeys {
     public static final String WITHDRAW_OFFER_ERROR = "withdraw-offer.error";
 
     // subregion
-    public static final String SUBREGION_START_SUCCESS = "subregion.start-success";
-    public static final String SUBREGION_NOT_ACTIVE = "subregion.not-active";
-    public static final String SUBREGION_APPLY_SUCCESS = "subregion.apply-success";
+    public static final String SUBREGION_CREATE_SUCCESS = "subregion.create-success";
+    public static final String SUBREGION_CREATE_ERROR = "subregion.create-error";
+    public static final String SUBREGION_REGION_EXISTS = "subregion.region-exists";
+    public static final String SUBREGION_NO_FREEHOLD = "subregion.no-freehold";
+    public static final String SUBREGION_NOT_TITLEHOLDER = "subregion.not-titleholder";
     public static final String SUBREGION_WRONG_WORLD = "subregion.wrong-world";
     public static final String SUBREGION_INCOMPLETE_SELECTION = "subregion.incomplete-selection";
     public static final String SUBREGION_EXCEEDS_BOUNDS = "subregion.exceeds-bounds";
     public static final String SUBREGION_OVERLAPS_SIBLING = "subregion.overlaps-sibling";
-    public static final String SUBREGION_CANCEL_SUCCESS = "subregion.cancel-success";
 
     // sign
     public static final String SIGN_PLACE_SUCCESS = "sign.place-success";

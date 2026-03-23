@@ -9,6 +9,7 @@ import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
+import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
@@ -155,6 +156,8 @@ public record BuyCommand(
             }
             regionProfileService.applyFlags(region, RegionState.SOLD, entry.getValue());
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, entry.getValue());
+            SubregionLandlordUpdater.updateChildLandlords(
+                    regionId, region.world(), sender.getUniqueId(), logic, executorState);
             sender.sendMessage(messages.messageFor(MessageKeys.BUY_SUCCESS,
                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                     Placeholder.unparsed("region", regionId)));
