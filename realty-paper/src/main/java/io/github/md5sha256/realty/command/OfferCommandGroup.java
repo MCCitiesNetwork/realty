@@ -270,9 +270,12 @@ public record OfferCommandGroup(
     // ── /realty offer accept <player> <region> ──
 
     private void executeAccept(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+            return;
+        }
         String playerName = ctx.get("player");
         WorldGuardRegion region = ctx.get("region");
-        CommandSender sender = ctx.sender().getSender();
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYER_NOT_FOUND,
@@ -284,6 +287,7 @@ public record OfferCommandGroup(
             try {
                 RealtyLogicImpl.AcceptOfferResult result = logic.acceptOffer(
                         regionId, region.world().getUID(),
+                        sender.getUniqueId(),
                         target.getUniqueId());
                 switch (result) {
                     case RealtyLogicImpl.AcceptOfferResult.Success ignored -> {
@@ -294,6 +298,9 @@ public record OfferCommandGroup(
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
                                             Placeholder.unparsed("region", regionId)));
                     }
+                    case RealtyLogicImpl.AcceptOfferResult.NotSanctioned ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NOT_SANCTIONED,
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.AcceptOfferResult.NoOffer ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NO_OFFER,
                                     Placeholder.unparsed("player", playerName),
@@ -490,7 +497,9 @@ public record OfferCommandGroup(
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.RejectOfferResult result = logic.rejectOffer(
-                        regionId, region.world().getUID(), target.getUniqueId());
+                        regionId, region.world().getUID(),
+                        sender.getUniqueId(),
+                        target.getUniqueId());
                 switch (result) {
                     case RealtyLogicImpl.RejectOfferResult.Success ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_SUCCESS,
@@ -500,6 +509,9 @@ public record OfferCommandGroup(
                                 messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                         Placeholder.unparsed("region", regionId)));
                     }
+                    case RealtyLogicImpl.RejectOfferResult.NotSanctioned ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.RejectOfferResult.NoOffer ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NO_OFFER,
                                     Placeholder.unparsed("player", playerName),
@@ -531,7 +543,8 @@ public record OfferCommandGroup(
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.RejectAllOffersResult result = logic.rejectAllOffers(
-                        regionId, region.world().getUID());
+                        regionId, region.world().getUID(),
+                        sender.getUniqueId());
                 switch (result) {
                     case RealtyLogicImpl.RejectAllOffersResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ALL_SUCCESS,
@@ -543,6 +556,9 @@ public record OfferCommandGroup(
                                 notificationService.queueNotification(offererId, notification);
                             }
                     }
+                    case RealtyLogicImpl.RejectAllOffersResult.NotSanctioned ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.RejectAllOffersResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));

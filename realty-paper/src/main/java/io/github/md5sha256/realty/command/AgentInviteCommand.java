@@ -92,6 +92,9 @@ public record AgentInviteCommand(@NotNull ExecutorState executorState,
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ALREADY_INVITED,
                                     Placeholder.unparsed("player", inviteeName),
                                     Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.InviteAgentResult.NotTitleHolder() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
+                                    Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ERROR,

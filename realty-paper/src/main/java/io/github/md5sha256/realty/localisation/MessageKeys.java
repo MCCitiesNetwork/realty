@@ -19,6 +19,7 @@ public final class MessageKeys {
     public static final String ACCEPT_OFFER_AUCTION_EXISTS = "accept-offer.auction-exists";
     public static final String ACCEPT_OFFER_ALREADY_ACCEPTED = "accept-offer.already-accepted";
     public static final String ACCEPT_OFFER_INSERT_FAILED = "accept-offer.insert-failed";
+    public static final String ACCEPT_OFFER_NOT_SANCTIONED = "accept-offer.not-sanctioned";
     public static final String ACCEPT_OFFER_ERROR = "accept-offer.error";
 
     // add
@@ -223,6 +224,7 @@ public final class MessageKeys {
     public static final String REJECT_OFFER_SUCCESS = "reject-offer.success";
     public static final String REJECT_OFFER_ALL_SUCCESS = "reject-offer.all-success";
     public static final String REJECT_OFFER_NO_OFFER = "reject-offer.no-offer";
+    public static final String REJECT_OFFER_NOT_SANCTIONED = "reject-offer.not-sanctioned";
     public static final String REJECT_OFFER_NO_FREEHOLD_CONTRACT = "reject-offer.no-freehold-contract";
     public static final String REJECT_OFFER_ACCEPTED = "reject-offer.accepted";
     public static final String REJECT_OFFER_ERROR = "reject-offer.error";

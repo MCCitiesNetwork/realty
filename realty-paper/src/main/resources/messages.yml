@@ -9,6 +9,7 @@ common:
 
 accept-offer:
   success: "Accepted offer from <player> on region <region>."
+  not-sanctioned: "You are not authorized to accept offers on region <region>."
   no-offer: "Player <player> does not have an offer on region <region>."
   auction-exists: "Region <region> has an auction. Offers cannot be accepted while an auction exists."
   already-accepted: "Region <region> already has an accepted offer."
@@ -383,6 +384,7 @@ withdraw-offer:
 reject-offer:
   success: "Rejected offer from <player> on region <region>."
   all-success: "Rejected <count> offer(s) on region <region>."
+  not-sanctioned: "You are not authorized to reject offers on region <region>."
   no-offer: "Player <player> does not have an offer on region <region>."
   no-freehold-contract: "Region <region> does not have a freehold contract."
   accepted: "Region <region> has an accepted offer with payment in progress. It cannot be rejected."

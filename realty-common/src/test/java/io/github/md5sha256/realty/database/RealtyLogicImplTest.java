@@ -83,7 +83,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
     private static void placeAndAcceptOffer(String regionId, UUID worldId, UUID offererId, double price) {
         OfferResult offerResult = logic.placeOffer(regionId, worldId, offererId, price);
         Assertions.assertInstanceOf(OfferResult.Success.class, offerResult);
-        AcceptOfferResult acceptResult = logic.acceptOffer(regionId, worldId, offererId);
+        AcceptOfferResult acceptResult = logic.acceptOffer(regionId, worldId, AUTHORITY, offererId);
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class, acceptResult);
     }
 
@@ -631,10 +631,50 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
 
-            logic.acceptOffer(regionId, WORLD_ID, PLAYER_B);
+            logic.acceptOffer(regionId, WORLD_ID, PLAYER_A, PLAYER_B);
 
             RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, playerC);
             Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, result);
+        }
+
+        @Test
+        @DisplayName("titleHolder can accept offer")
+        void titleHolderCanAccept() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            AcceptOfferResult result = logic.acceptOffer(regionId, WORLD_ID, PLAYER_A, PLAYER_B);
+            Assertions.assertInstanceOf(AcceptOfferResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("sanctioned auctioneer can accept offer")
+        void sanctionedAuctioneerCanAccept() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            UUID sanctioned = UUID.randomUUID();
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                wrapper.freeholdContractSanctionedAuctioneerMapper().insert(regionId, WORLD_ID, sanctioned);
+                session.commit();
+            }
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            AcceptOfferResult result = logic.acceptOffer(regionId, WORLD_ID, sanctioned, PLAYER_B);
+            Assertions.assertInstanceOf(AcceptOfferResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("non-sanctioned player cannot accept offer")
+        void nonSanctionedCannotAccept() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+
+            UUID stranger = UUID.randomUUID();
+            AcceptOfferResult result = logic.acceptOffer(regionId, WORLD_ID, stranger, PLAYER_B);
+            Assertions.assertInstanceOf(AcceptOfferResult.NotSanctioned.class, result);
         }
     }
 

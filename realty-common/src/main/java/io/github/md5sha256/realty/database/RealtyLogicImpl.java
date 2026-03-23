@@ -83,6 +83,7 @@ public class RealtyLogicImpl {
     public sealed interface InviteAgentResult {
         record Success() implements InviteAgentResult {}
         record NoFreeholdContract() implements InviteAgentResult {}
+        record NotTitleHolder() implements InviteAgentResult {}
         record IsTitleHolder() implements InviteAgentResult {}
         record IsAuthority() implements InviteAgentResult {}
         record AlreadyAgent() implements InviteAgentResult {}
@@ -99,6 +100,9 @@ public class RealtyLogicImpl {
                     .selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new InviteAgentResult.NoFreeholdContract();
+            }
+            if (!inviterId.equals(freehold.titleHolderId())) {
+                return new InviteAgentResult.NotTitleHolder();
             }
             if (inviteeId.equals(freehold.titleHolderId())) {
                 return new InviteAgentResult.IsTitleHolder();
@@ -1045,14 +1049,26 @@ public class RealtyLogicImpl {
 
     public sealed interface RejectOfferResult {
         record Success(@NotNull UUID offererId) implements RejectOfferResult {}
+        record NotSanctioned() implements RejectOfferResult {}
         record NoOffer() implements RejectOfferResult {}
         record OfferAccepted() implements RejectOfferResult {}
     }
 
     public @NotNull RejectOfferResult rejectOffer(@NotNull String worldGuardRegionId,
                                                       @NotNull UUID worldId,
+                                                      @NotNull UUID callerId,
                                                       @NotNull UUID offererId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new RejectOfferResult.NoOffer();
+            }
+            if (!callerId.equals(freehold.authorityId())
+                    && !callerId.equals(freehold.titleHolderId())
+                    && !wrapper.freeholdContractSanctionedAuctioneerMapper()
+                            .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
+                return new RejectOfferResult.NotSanctioned();
+            }
             FreeholdContractOfferMapper offerMapper = wrapper.freeholdContractOfferMapper();
             if (!offerMapper.existsByOfferer(worldGuardRegionId, worldId, offererId)) {
                 return new RejectOfferResult.NoOffer();
@@ -1070,16 +1086,25 @@ public class RealtyLogicImpl {
 
     public sealed interface RejectAllOffersResult {
         record Success(@NotNull List<UUID> offererIds) implements RejectAllOffersResult {}
+        record NotSanctioned() implements RejectAllOffersResult {}
         record NoFreeholdContract() implements RejectAllOffersResult {}
         record OfferAccepted() implements RejectAllOffersResult {}
     }
 
     public @NotNull RejectAllOffersResult rejectAllOffers(@NotNull String worldGuardRegionId,
-                                                              @NotNull UUID worldId) {
+                                                              @NotNull UUID worldId,
+                                                              @NotNull UUID callerId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
-            if (freeholdMapper.selectByRegion(worldGuardRegionId, worldId) == null) {
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
                 return new RejectAllOffersResult.NoFreeholdContract();
+            }
+            if (!callerId.equals(freehold.authorityId())
+                    && !callerId.equals(freehold.titleHolderId())
+                    && !wrapper.freeholdContractSanctionedAuctioneerMapper()
+                            .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
+                return new RejectAllOffersResult.NotSanctioned();
             }
             if (wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new RejectAllOffersResult.OfferAccepted();
@@ -1141,6 +1166,7 @@ public class RealtyLogicImpl {
 
     public sealed interface AcceptOfferResult {
         record Success() implements AcceptOfferResult {}
+        record NotSanctioned() implements AcceptOfferResult {}
         record NoOffer() implements AcceptOfferResult {}
         record AuctionExists() implements AcceptOfferResult {}
         record AlreadyAccepted() implements AcceptOfferResult {}
@@ -1149,12 +1175,23 @@ public class RealtyLogicImpl {
 
     public @NotNull AcceptOfferResult acceptOffer(@NotNull String worldGuardRegionId,
                                                    @NotNull UUID worldId,
+                                                   @NotNull UUID callerId,
                                                    @NotNull UUID offererId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractOfferMapper offerMapper = wrapper.freeholdContractOfferMapper();
             FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
             FreeholdContractAuctionMapper auctionMapper = wrapper.freeholdContractAuctionMapper();
 
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new AcceptOfferResult.NoOffer();
+            }
+            if (!callerId.equals(freehold.authorityId())
+                    && !callerId.equals(freehold.titleHolderId())
+                    && !wrapper.freeholdContractSanctionedAuctioneerMapper()
+                            .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
+                return new AcceptOfferResult.NotSanctioned();
+            }
             if (offerMapper.selectByOfferer(worldGuardRegionId, worldId, offererId) == null) {
                 return new AcceptOfferResult.NoOffer();
             }
