@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -72,10 +73,29 @@ public record UnsetCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        CompletableFuture.runAsync(() -> {
+        UUID worldId = region.world().getUID();
+        UUID playerId = sender.getUniqueId();
+        boolean canUnsetOthers = sender.hasPermission("realty.command.unset.price.others");
+        CompletableFuture.supplyAsync(() -> {
+            if (canUnsetOthers) {
+                return true;
+            }
+            try {
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_CHECK_PERMISSIONS_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+                return false;
+            }
+        }, executorState.dbExec()).thenAcceptAsync(allowed -> {
+            if (!allowed) {
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
+                return;
+            }
             try {
                 RealtyLogicImpl.UnsetPriceResult result = logic.unsetPrice(
-                        regionId, region.world().getUID());
+                        regionId, worldId);
                 switch (result) {
                     case RealtyLogicImpl.UnsetPriceResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_SUCCESS,
@@ -111,13 +131,32 @@ public record UnsetCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        CompletableFuture.runAsync(() -> {
+        UUID worldId = region.world().getUID();
+        UUID playerId = sender.getUniqueId();
+        boolean canUnsetOthers = sender.hasPermission("realty.command.unset.titleholder.others");
+        CompletableFuture.supplyAsync(() -> {
+            if (canUnsetOthers) {
+                return true;
+            }
+            try {
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_CHECK_PERMISSIONS_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+                return false;
+            }
+        }, executorState.dbExec()).thenAcceptAsync(allowed -> {
+            if (!allowed) {
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
+                return;
+            }
             try {
                 RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
-                        regionId, region.world().getUID(), null);
+                        regionId, worldId, null);
                 switch (result) {
                     case RealtyLogicImpl.SetTitleHolderResult.Success ignored -> {
-                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     regionProfileService.applyFlags(region, RegionState.FOR_SALE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_SALE, placeholders);
@@ -150,13 +189,32 @@ public record UnsetCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        CompletableFuture.runAsync(() -> {
+        UUID worldId = region.world().getUID();
+        UUID playerId = sender.getUniqueId();
+        boolean canUnsetOthers = sender.hasPermission("realty.command.unset.tenant.others");
+        CompletableFuture.supplyAsync(() -> {
+            if (canUnsetOthers) {
+                return true;
+            }
+            try {
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_CHECK_PERMISSIONS_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+                return false;
+            }
+        }, executorState.dbExec()).thenAcceptAsync(allowed -> {
+            if (!allowed) {
+                sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
+                return;
+            }
             try {
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
-                        regionId, region.world().getUID(), null);
+                        regionId, worldId, null);
                 switch (result) {
                     case RealtyLogicImpl.SetTenantResult.Success ignored -> {
-                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     regionProfileService.applyFlags(region, RegionState.FOR_LEASE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, placeholders);

@@ -115,28 +115,52 @@ permissions:
     description: Allows using /realty unrent
     default: true
   realty.command.set.price:
-    description: Allows using /realty set price
+    description: Allows using /realty set price on own regions
+    default: op
+  realty.command.set.price.others:
+    description: Allows using /realty set price on regions you don't own
     default: op
   realty.command.set.duration:
-    description: Allows using /realty set duration
+    description: Allows using /realty set duration on own regions
+    default: op
+  realty.command.set.duration.others:
+    description: Allows using /realty set duration on regions you don't own
     default: op
   realty.command.set.landlord:
-    description: Allows using /realty set landlord
+    description: Allows using /realty set landlord on own regions
+    default: op
+  realty.command.set.landlord.others:
+    description: Allows using /realty set landlord on regions you don't own
     default: op
   realty.command.set.titleholder:
-    description: Allows using /realty set titleholder
+    description: Allows using /realty set titleholder on own regions
+    default: op
+  realty.command.set.titleholder.others:
+    description: Allows using /realty set titleholder on regions you don't own
     default: op
   realty.command.set.tenant:
-    description: Allows using /realty set tenant
+    description: Allows using /realty set tenant on own regions
+    default: op
+  realty.command.set.tenant.others:
+    description: Allows using /realty set tenant on regions you don't own
     default: op
   realty.command.unset.price:
-    description: Allows using /realty unset price
+    description: Allows using /realty unset price on own regions
+    default: op
+  realty.command.unset.price.others:
+    description: Allows using /realty unset price on regions you don't own
     default: op
   realty.command.unset.titleholder:
-    description: Allows using /realty unset titleholder
+    description: Allows using /realty unset titleholder on own regions
+    default: op
+  realty.command.unset.titleholder.others:
+    description: Allows using /realty unset titleholder on regions you don't own
     default: op
   realty.command.unset.tenant:
-    description: Allows using /realty unset tenant
+    description: Allows using /realty unset tenant on own regions
+    default: op
+  realty.command.unset.tenant.others:
+    description: Allows using /realty unset tenant on regions you don't own
     default: op
   realty.command.reload:
     description: Allows using /realty reload

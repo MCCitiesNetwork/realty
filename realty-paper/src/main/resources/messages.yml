@@ -298,6 +298,10 @@ remove:
   no-permission: "You do not have permission to remove players from this region!"
   success: "Successfully removed <target> from region <region>!"
 
+set:
+  no-permission: "You do not have permission to modify this region."
+  check-permissions-error: "Failed to check permissions: <error>"
+
 set-price:
   success: "Price for region <region> set to <price>."
   no-freehold-contract: "Region <region> does not have a freehold contract."
@@ -306,6 +310,10 @@ set-price:
   bid-payment-in-progress: "Region <region> has a bid payment in progress. Price cannot be changed."
   update-failed: "Failed to update price for region <region>."
   error: "Failed to set price: <error>"
+
+unset:
+  no-permission: "You do not have permission to modify this region."
+  check-permissions-error: "Failed to check permissions: <error>"
 
 unset-price:
   success: "Price for region <region> has been cleared."

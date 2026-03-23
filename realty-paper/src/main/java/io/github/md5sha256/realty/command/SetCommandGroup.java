@@ -92,10 +92,29 @@ public record SetCommandGroup(
         double price = ctx.get("price");
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
-        CompletableFuture.runAsync(() -> {
+        UUID worldId = region.world().getUID();
+        UUID playerId = sender.getUniqueId();
+        boolean canSetOthers = sender.hasPermission("realty.command.set.price.others");
+        CompletableFuture.supplyAsync(() -> {
+            if (canSetOthers) {
+                return true;
+            }
+            try {
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_CHECK_PERMISSIONS_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+                return false;
+            }
+        }, executorState.dbExec()).thenAcceptAsync(allowed -> {
+            if (!allowed) {
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                return;
+            }
             try {
                 RealtyLogicImpl.SetPriceResult result = logic.setPrice(
-                        regionId, region.world().getUID(), price);
+                        regionId, worldId, price);
                 switch (result) {
                     case RealtyLogicImpl.SetPriceResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_SUCCESS,
@@ -131,10 +150,29 @@ public record SetCommandGroup(
         Duration duration = ctx.get("duration");
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
-        CompletableFuture.runAsync(() -> {
+        UUID worldId = region.world().getUID();
+        UUID playerId = sender.getUniqueId();
+        boolean canSetOthers = sender.hasPermission("realty.command.set.duration.others");
+        CompletableFuture.supplyAsync(() -> {
+            if (canSetOthers) {
+                return true;
+            }
+            try {
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_CHECK_PERMISSIONS_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+                return false;
+            }
+        }, executorState.dbExec()).thenAcceptAsync(allowed -> {
+            if (!allowed) {
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                return;
+            }
             try {
                 RealtyLogicImpl.SetDurationResult result = logic.setDuration(
-                        regionId, region.world().getUID(), duration.toSeconds());
+                        regionId, worldId, duration.toSeconds());
                 switch (result) {
                     case RealtyLogicImpl.SetDurationResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_SUCCESS,
@@ -161,10 +199,29 @@ public record SetCommandGroup(
         UUID landlordId = ctx.get("landlord");
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
-        CompletableFuture.runAsync(() -> {
+        UUID worldId = region.world().getUID();
+        UUID playerId = sender.getUniqueId();
+        boolean canSetOthers = sender.hasPermission("realty.command.set.landlord.others");
+        CompletableFuture.supplyAsync(() -> {
+            if (canSetOthers) {
+                return true;
+            }
+            try {
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_CHECK_PERMISSIONS_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+                return false;
+            }
+        }, executorState.dbExec()).thenAcceptAsync(allowed -> {
+            if (!allowed) {
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                return;
+            }
             try {
                 RealtyLogicImpl.SetLandlordResult result = logic.setLandlord(
-                        regionId, region.world().getUID(), landlordId);
+                        regionId, worldId, landlordId);
                 switch (result) {
                     case RealtyLogicImpl.SetLandlordResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
@@ -191,13 +248,32 @@ public record SetCommandGroup(
         UUID titleHolderId = ctx.get("titleholder");
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
-        CompletableFuture.runAsync(() -> {
+        UUID worldId = region.world().getUID();
+        UUID playerId = sender.getUniqueId();
+        boolean canSetOthers = sender.hasPermission("realty.command.set.titleholder.others");
+        CompletableFuture.supplyAsync(() -> {
+            if (canSetOthers) {
+                return true;
+            }
+            try {
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_CHECK_PERMISSIONS_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+                return false;
+            }
+        }, executorState.dbExec()).thenAcceptAsync(allowed -> {
+            if (!allowed) {
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                return;
+            }
             try {
                 RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
-                        regionId, region.world().getUID(), titleHolderId);
+                        regionId, worldId, titleHolderId);
                 switch (result) {
                     case RealtyLogicImpl.SetTitleHolderResult.Success ignored -> {
-                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, placeholders);
@@ -227,13 +303,32 @@ public record SetCommandGroup(
         UUID tenantId = ctx.get("tenant");
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
-        CompletableFuture.runAsync(() -> {
+        UUID worldId = region.world().getUID();
+        UUID playerId = sender.getUniqueId();
+        boolean canSetOthers = sender.hasPermission("realty.command.set.tenant.others");
+        CompletableFuture.supplyAsync(() -> {
+            if (canSetOthers) {
+                return true;
+            }
+            try {
+                return logic.checkRegionAuthority(regionId, worldId, playerId);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_CHECK_PERMISSIONS_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+                return false;
+            }
+        }, executorState.dbExec()).thenAcceptAsync(allowed -> {
+            if (!allowed) {
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                return;
+            }
             try {
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
-                        regionId, region.world().getUID(), tenantId);
+                        regionId, worldId, tenantId);
                 switch (result) {
                     case RealtyLogicImpl.SetTenantResult.Success ignored -> {
-                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
+                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     regionProfileService.applyFlags(region, RegionState.LEASED, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
