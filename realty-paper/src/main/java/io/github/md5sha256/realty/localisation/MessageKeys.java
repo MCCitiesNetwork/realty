@@ -256,6 +256,10 @@ public final class MessageKeys {
     public static final String RENT_PAYMENT_FAILED = "rent.payment-failed";
     public static final String RENT_ERROR = "rent.error";
 
+    // set (shared)
+    public static final String SET_NO_PERMISSION = "set.no-permission";
+    public static final String SET_CHECK_PERMISSIONS_ERROR = "set.check-permissions-error";
+
     // set-duration
     public static final String SET_DURATION_SUCCESS = "set-duration.success";
     public static final String SET_DURATION_NO_LEASE_CONTRACT = "set-duration.no-lease-contract";
@@ -288,6 +292,10 @@ public final class MessageKeys {
     public static final String SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT = "set-titleholder.no-freehold-contract";
     public static final String SET_TITLEHOLDER_UPDATE_FAILED = "set-titleholder.update-failed";
     public static final String SET_TITLEHOLDER_ERROR = "set-titleholder.error";
+
+    // unset (shared)
+    public static final String UNSET_NO_PERMISSION = "unset.no-permission";
+    public static final String UNSET_CHECK_PERMISSIONS_ERROR = "unset.check-permissions-error";
 
     // unset-price
     public static final String UNSET_PRICE_SUCCESS = "unset-price.success";
