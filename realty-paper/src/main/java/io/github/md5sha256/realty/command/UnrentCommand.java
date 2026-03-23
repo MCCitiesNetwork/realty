@@ -112,7 +112,9 @@ public record UnrentCommand(
                 economy.withdrawPlayer(landlord, refund);
             }
             ProtectedRegion protectedRegion = region.region();
-            protectedRegion.getOwners().removePlayer(sender.getUniqueId());
+            protectedRegion.getOwners().clear();
+            protectedRegion.getMembers().clear();
+            protectedRegion.getOwners().addPlayer(success.landlordId());
             regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, entry.getValue());
             sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_SUCCESS,

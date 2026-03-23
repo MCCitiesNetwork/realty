@@ -132,9 +132,8 @@ public record UnsetCommandGroup(
                     case RealtyLogicImpl.SetTitleHolderResult.Success(UUID previousTitleHolder) -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
-                                    if (previousTitleHolder != null) {
-                                        region.region().getOwners().removePlayer(previousTitleHolder);
-                                    }
+                                    region.region().getOwners().clear();
+                                    region.region().getMembers().clear();
                                     regionProfileService.applyFlags(region, RegionState.FOR_SALE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_SALE, placeholders);
                             });
@@ -177,12 +176,12 @@ public record UnsetCommandGroup(
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
                         regionId, worldId, null);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant) -> {
+                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID landlordId) -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
-                                    if (previousTenant != null) {
-                                        region.region().getOwners().removePlayer(previousTenant);
-                                    }
+                                    region.region().getOwners().clear();
+                                    region.region().getMembers().clear();
+                                    region.region().getOwners().addPlayer(landlordId);
                                     regionProfileService.applyFlags(region, RegionState.FOR_LEASE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, placeholders);
                             });

@@ -122,6 +122,9 @@ public record RentCommand(
             OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
             economy.depositPlayer(landlord, price);
             ProtectedRegion protectedRegion = region.region();
+            protectedRegion.getOwners().clear();
+            protectedRegion.getMembers().clear();
+            protectedRegion.getOwners().addPlayer(success.landlordId());
             protectedRegion.getOwners().addPlayer(sender.getUniqueId());
             regionProfileService.applyFlags(region, RegionState.LEASED, entry.getValue());
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, entry.getValue());

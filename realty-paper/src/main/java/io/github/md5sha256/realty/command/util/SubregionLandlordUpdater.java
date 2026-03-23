@@ -8,7 +8,6 @@ import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.util.ExecutorState;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +26,6 @@ public final class SubregionLandlordUpdater {
      */
     public static void updateChildLandlords(@NotNull String parentRegionId,
                                              @NotNull World world,
-                                             @Nullable UUID oldLandlord,
                                              @NotNull UUID newLandlord,
                                              @NotNull RealtyLogicImpl logic,
                                              @NotNull ExecutorState executorState) {
@@ -56,14 +54,7 @@ public final class SubregionLandlordUpdater {
         CompletableFuture.runAsync(
                 () -> logic.updateSubregionLandlords(childIds, worldId, newLandlord),
                 executorState.dbExec()
-        ).thenRunAsync(() -> {
-            for (ProtectedRegion child : children) {
-                if (oldLandlord != null) {
-                    child.getOwners().removePlayer(oldLandlord);
-                }
-                child.getOwners().addPlayer(newLandlord);
-            }
-        }, executorState.mainThreadExec());
+        );
     }
 
 }

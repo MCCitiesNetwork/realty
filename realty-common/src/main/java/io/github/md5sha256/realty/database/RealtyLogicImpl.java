@@ -475,7 +475,7 @@ public class RealtyLogicImpl {
     // --- Set Tenant ---
 
     public sealed interface SetTenantResult {
-        record Success(@Nullable UUID previousTenant) implements SetTenantResult {}
+        record Success(@Nullable UUID previousTenant, @NotNull UUID landlordId) implements SetTenantResult {}
         record NoLeaseContract() implements SetTenantResult {}
         record UpdateFailed() implements SetTenantResult {}
     }
@@ -495,7 +495,7 @@ public class RealtyLogicImpl {
                 return new SetTenantResult.UpdateFailed();
             }
             wrapper.session().commit();
-            return new SetTenantResult.Success(previousTenant);
+            return new SetTenantResult.Success(previousTenant, lease.landlordId());
         }
     }
 

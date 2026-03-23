@@ -193,7 +193,8 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.SetLandlordResult.Success(UUID previousLandlord) -> {
                         executorState.mainThreadExec().execute(() -> {
-                            region.region().getOwners().removePlayer(previousLandlord);
+                            region.region().getOwners().clear();
+                            region.region().getMembers().clear();
                             region.region().getOwners().addPlayer(landlordId);
                         });
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
@@ -238,12 +239,9 @@ public record SetCommandGroup(
                         executorState.mainThreadExec().execute(() -> {
                             com.sk89q.worldguard.protection.regions.ProtectedRegion protectedRegion =
                                     region.region();
-                            if (previousTitleHolder != null) {
-                                protectedRegion.getOwners().removePlayer(previousTitleHolder);
-                            }
-                            if (titleHolderId != null) {
-                                protectedRegion.getOwners().addPlayer(titleHolderId);
-                            }
+                            protectedRegion.getOwners().clear();
+                            protectedRegion.getMembers().clear();
+                            protectedRegion.getOwners().addPlayer(titleHolderId);
                             regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
                             signTextApplicator.updateLoadedSigns(region.world(),
                                     regionId,
@@ -252,7 +250,6 @@ public record SetCommandGroup(
                             SubregionLandlordUpdater.updateChildLandlords(
                                     regionId,
                                     region.world(),
-                                    previousTitleHolder,
                                     titleHolderId,
                                     logic,
                                     executorState);
@@ -293,15 +290,15 @@ public record SetCommandGroup(
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
                         regionId, worldId, tenantId);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant) -> {
+                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID landlordId) -> {
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId,
                                 worldId);
                         executorState.mainThreadExec().execute(() -> {
                             com.sk89q.worldguard.protection.regions.ProtectedRegion protectedRegion =
                                     region.region();
-                            if (previousTenant != null) {
-                                protectedRegion.getOwners().removePlayer(previousTenant);
-                            }
+                            protectedRegion.getOwners().clear();
+                            protectedRegion.getMembers().clear();
+                            protectedRegion.getOwners().addPlayer(landlordId);
                             protectedRegion.getOwners().addPlayer(tenantId);
                             regionProfileService.applyFlags(region,
                                     RegionState.LEASED,
