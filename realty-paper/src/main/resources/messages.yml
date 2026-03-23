@@ -424,3 +424,8 @@ sign:
   remove-not-a-sign: "You must be looking at a sign block."
   remove-not-registered: "This sign is not registered."
   remove-error: "Failed to unregister sign: <error>"
+
+tp:
+  success: "Teleported to region <region>."
+  no-safe-location: "Could not find a safe teleport location for region <region>."
+  error: "Failed to teleport: <error>"
