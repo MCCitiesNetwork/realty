@@ -155,9 +155,12 @@ public record UnsetCommandGroup(
                 RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
                         regionId, worldId, null);
                 switch (result) {
-                    case RealtyLogicImpl.SetTitleHolderResult.Success ignored -> {
+                    case RealtyLogicImpl.SetTitleHolderResult.Success(UUID previousTitleHolder) -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
+                                    if (previousTitleHolder != null) {
+                                        region.region().getMembers().removePlayer(previousTitleHolder);
+                                    }
                                     regionProfileService.applyFlags(region, RegionState.FOR_SALE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_SALE, placeholders);
                             });
@@ -213,9 +216,12 @@ public record UnsetCommandGroup(
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
                         regionId, worldId, null);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success ignored -> {
+                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant) -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
+                                    if (previousTenant != null) {
+                                        region.region().getMembers().removePlayer(previousTenant);
+                                    }
                                     regionProfileService.applyFlags(region, RegionState.FOR_LEASE, placeholders);
                                     signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, placeholders);
                             });

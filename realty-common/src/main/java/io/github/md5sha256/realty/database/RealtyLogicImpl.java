@@ -434,7 +434,7 @@ public class RealtyLogicImpl {
     // --- Set Title Holder ---
 
     public sealed interface SetTitleHolderResult {
-        record Success() implements SetTitleHolderResult {}
+        record Success(@Nullable UUID previousTitleHolder) implements SetTitleHolderResult {}
         record NoFreeholdContract() implements SetTitleHolderResult {}
         record UpdateFailed() implements SetTitleHolderResult {}
     }
@@ -448,12 +448,13 @@ public class RealtyLogicImpl {
             if (freehold == null) {
                 return new SetTitleHolderResult.NoFreeholdContract();
             }
+            UUID previousTitleHolder = freehold.titleHolderId();
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId);
             if (updated == 0) {
                 return new SetTitleHolderResult.UpdateFailed();
             }
             wrapper.session().commit();
-            return new SetTitleHolderResult.Success();
+            return new SetTitleHolderResult.Success(previousTitleHolder);
         }
     }
 
@@ -477,7 +478,7 @@ public class RealtyLogicImpl {
     // --- Set Tenant ---
 
     public sealed interface SetTenantResult {
-        record Success() implements SetTenantResult {}
+        record Success(@Nullable UUID previousTenant) implements SetTenantResult {}
         record NoLeaseContract() implements SetTenantResult {}
         record UpdateFailed() implements SetTenantResult {}
     }
@@ -491,12 +492,13 @@ public class RealtyLogicImpl {
             if (lease == null) {
                 return new SetTenantResult.NoLeaseContract();
             }
+            UUID previousTenant = lease.tenantId();
             int updated = leaseMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new SetTenantResult.UpdateFailed();
             }
             wrapper.session().commit();
-            return new SetTenantResult.Success();
+            return new SetTenantResult.Success(previousTenant);
         }
     }
 

@@ -15,7 +15,6 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -48,6 +47,12 @@ public record SetCommandGroup(
         @NotNull SignTextApplicator signTextApplicator,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
+
+    private static @NotNull String resolveName(@NotNull UUID uuid) {
+        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+        String name = player.getName();
+        return name != null ? name : uuid.toString();
+    }
 
     @Override
     public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
@@ -274,19 +279,33 @@ public record SetCommandGroup(
                 RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
                         regionId, worldId, titleHolderId);
                 switch (result) {
-                    case RealtyLogicImpl.SetTitleHolderResult.Success ignored -> {
-                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
-                            executorState.mainThreadExec().execute(() -> {
-                                    regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
-                                    signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, placeholders);
-                                    if (titleHolderId != null) {
-                                        SubregionLandlordUpdater.updateChildLandlords(
-                                                regionId, region.world(), titleHolderId, logic, executorState);
-                                    }
-                            });
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SUCCESS,
-                                    Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
-                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetTitleHolderResult.Success(UUID previousTitleHolder) -> {
+                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId,
+                                worldId);
+                        executorState.mainThreadExec().execute(() -> {
+                            com.sk89q.worldguard.protection.regions.ProtectedRegion protectedRegion =
+                                    region.region();
+                            if (previousTitleHolder != null) {
+                                protectedRegion.getMembers().removePlayer(previousTitleHolder);
+                            }
+                            if (titleHolderId != null) {
+                                protectedRegion.getMembers().addPlayer(titleHolderId);
+                            }
+                            regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
+                            signTextApplicator.updateLoadedSigns(region.world(),
+                                    regionId,
+                                    RegionState.SOLD,
+                                    placeholders);
+                            SubregionLandlordUpdater.updateChildLandlords(
+                                    regionId,
+                                    region.world(),
+                                    titleHolderId,
+                                    logic,
+                                    executorState);
+                        });
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SUCCESS,
+                                Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
+                                Placeholder.unparsed("region", regionId)));
                     }
                     case RealtyLogicImpl.SetTitleHolderResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
@@ -333,15 +352,27 @@ public record SetCommandGroup(
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
                         regionId, worldId, tenantId);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success ignored -> {
-                            Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
-                            executorState.mainThreadExec().execute(() -> {
-                                    regionProfileService.applyFlags(region, RegionState.LEASED, placeholders);
-                                    signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
-                            });
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,
-                                    Placeholder.unparsed("tenant", resolveName(tenantId)),
-                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant) -> {
+                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId,
+                                worldId);
+                        executorState.mainThreadExec().execute(() -> {
+                            com.sk89q.worldguard.protection.regions.ProtectedRegion protectedRegion =
+                                    region.region();
+                            if (previousTenant != null) {
+                                protectedRegion.getMembers().removePlayer(previousTenant);
+                            }
+                            protectedRegion.getMembers().addPlayer(tenantId);
+                            regionProfileService.applyFlags(region,
+                                    RegionState.LEASED,
+                                    placeholders);
+                            signTextApplicator.updateLoadedSigns(region.world(),
+                                    regionId,
+                                    RegionState.LEASED,
+                                    placeholders);
+                        });
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,
+                                Placeholder.unparsed("tenant", resolveName(tenantId)),
+                                Placeholder.unparsed("region", regionId)));
                     }
                     case RealtyLogicImpl.SetTenantResult.NoLeaseContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASE_CONTRACT,
@@ -355,12 +386,6 @@ public record SetCommandGroup(
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());
-    }
-
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
-        String name = player.getName();
-        return name != null ? name : uuid.toString();
     }
 
 }
