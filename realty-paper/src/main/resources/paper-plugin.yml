@@ -165,14 +165,11 @@ permissions:
   realty.command.reload:
     description: Allows using /realty reload
     default: op
-  realty.command.subregion.start:
-    description: Allows using /realty subregion start
+  realty.command.subregion.quickcreate:
+    description: Allows using /realty subregion quickcreate
     default: op
-  realty.command.subregion.apply:
-    description: Allows using /realty subregion apply
-    default: op
-  realty.command.subregion.cancel:
-    description: Allows using /realty subregion cancel
+  realty.command.subregion.quickcreate.bypass:
+    description: Allows subregioning on freehold regions you don't own
     default: op
   realty.command.sign.place:
     description: Allows using /realty sign place

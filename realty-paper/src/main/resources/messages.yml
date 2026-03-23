@@ -395,14 +395,15 @@ notification:
   region-unrented: "<prefix> <player> unrented region <region>. Refund: <refund>."
 
 subregion:
-  start-success: "Started subregioning mode for region <region>. Use your WorldEdit selection to define a subregion, then run /realty subregion apply."
-  not-active: "You are not in subregioning mode. Start with /realty subregion start [region]."
-  apply-success: "Selection applied as a subregion of <region>."
+  create-success: "Subregion <region> created as a child of <parent>."
+  create-error: "Failed to create subregion: <error>"
+  region-exists: "A region named <region> already exists."
+  no-freehold: "Region <region> is not a freehold region."
+  not-titleholder: "You are not the titleholder of region <region>."
   wrong-world: "Your WorldEdit selection is in a different world than the parent region."
   incomplete-selection: "Your WorldEdit selection is incomplete. Select both points first."
   exceeds-bounds: "Your selection exceeds the bounds of region <region>."
   overlaps-sibling: "Your selection overlaps with existing subregion <sibling>."
-  cancel-success: "Subregioning mode cancelled."
 
 sign:
   place-success: "Sign registered for region <region>."
