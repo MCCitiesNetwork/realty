@@ -181,6 +181,7 @@ offers-inbound:
 offer:
   success: "Offer of <price> placed on region <region>."
   no-freehold-contract: "Region <region> does not have an active freehold contract."
+  not-accepting: "Region <region> is not currently accepting offers."
   is-owner: "You cannot place an offer on a region you own."
   already-has-offer: "You already have an offer on region <region>. Withdraw it first before placing a new one."
   auction-exists: "Region <region> has an auction. Offers cannot be placed while an auction exists."
@@ -389,6 +390,13 @@ reject-offer:
   no-freehold-contract: "Region <region> does not have a freehold contract."
   accepted: "Region <region> has an accepted offer with payment in progress. It cannot be rejected."
   error: "Failed to decline offer: <error>"
+
+toggle-offers:
+  success: "Offers on region <region> are now <state>."
+  not-sanctioned: "You are not authorized to toggle offers on region <region>."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
+  update-failed: "Failed to update offer status on region <region>."
+  error: "Failed to toggle offers: <error>"
 
 notification:
   offer-placed: "<prefix> <player> placed an offer of <price> on region <region>."

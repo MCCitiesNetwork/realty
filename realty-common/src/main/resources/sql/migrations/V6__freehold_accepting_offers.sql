@@ -1,0 +1,2 @@
+ALTER TABLE FreeholdContract
+    ADD COLUMN acceptingOffers BOOLEAN NOT NULL DEFAULT TRUE;

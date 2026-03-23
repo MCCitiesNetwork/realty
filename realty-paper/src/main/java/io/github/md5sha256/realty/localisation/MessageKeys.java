@@ -179,6 +179,7 @@ public final class MessageKeys {
     // offer
     public static final String OFFER_SUCCESS = "offer.success";
     public static final String OFFER_NO_FREEHOLD_CONTRACT = "offer.no-freehold-contract";
+    public static final String OFFER_NOT_ACCEPTING = "offer.not-accepting";
     public static final String OFFER_IS_OWNER = "offer.is-owner";
     public static final String OFFER_ALREADY_HAS_OFFER = "offer.already-has-offer";
     public static final String OFFER_AUCTION_EXISTS = "offer.auction-exists";
@@ -228,6 +229,13 @@ public final class MessageKeys {
     public static final String REJECT_OFFER_NO_FREEHOLD_CONTRACT = "reject-offer.no-freehold-contract";
     public static final String REJECT_OFFER_ACCEPTED = "reject-offer.accepted";
     public static final String REJECT_OFFER_ERROR = "reject-offer.error";
+
+    // toggle-offers
+    public static final String TOGGLE_OFFERS_SUCCESS = "toggle-offers.success";
+    public static final String TOGGLE_OFFERS_NOT_SANCTIONED = "toggle-offers.not-sanctioned";
+    public static final String TOGGLE_OFFERS_NO_FREEHOLD_CONTRACT = "toggle-offers.no-freehold-contract";
+    public static final String TOGGLE_OFFERS_UPDATE_FAILED = "toggle-offers.update-failed";
+    public static final String TOGGLE_OFFERS_ERROR = "toggle-offers.error";
 
     // reload
     public static final String RELOAD_SUCCESS = "reload.success";

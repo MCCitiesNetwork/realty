@@ -110,4 +110,16 @@ public interface FreeholdContractMapper {
                                   @NotNull UUID worldId,
                                   @Nullable UUID titleHolder);
 
+    /**
+     * Updates only the accepting-offers flag on the freehold contract associated with a WorldGuard region.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param acceptingOffers    whether the region should accept offers
+     * @return number of rows updated (1 on success, 0 if no matching contract)
+     */
+    int updateAcceptingOffersByRegion(@NotNull String worldGuardRegionId,
+                                      @NotNull UUID worldId,
+                                      boolean acceptingOffers);
+
 }

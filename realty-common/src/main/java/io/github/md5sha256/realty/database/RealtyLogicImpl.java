@@ -1125,6 +1125,7 @@ public class RealtyLogicImpl {
     public sealed interface OfferResult {
         record Success(@Nullable UUID titleHolderId) implements OfferResult {}
         record NoFreeholdContract() implements OfferResult {}
+        record NotAcceptingOffers() implements OfferResult {}
         record IsOwner() implements OfferResult {}
         record AlreadyHasOffer() implements OfferResult {}
         record AuctionExists() implements OfferResult {}
@@ -1144,6 +1145,9 @@ public class RealtyLogicImpl {
             if (freehold == null) {
                 return new OfferResult.NoFreeholdContract();
             }
+            if (!freehold.acceptingOffers()) {
+                return new OfferResult.NotAcceptingOffers();
+            }
             if (auctionMapper.existsByRegion(worldGuardRegionId, worldId)) {
                 return new OfferResult.AuctionExists();
             }
@@ -1159,6 +1163,42 @@ public class RealtyLogicImpl {
                 return new OfferResult.InsertFailed();
             }
             return new OfferResult.Success(freehold.titleHolderId());
+        }
+    }
+
+    // --- Toggle Offers ---
+
+    public sealed interface ToggleOffersResult {
+        record Success(boolean acceptingOffers) implements ToggleOffersResult {}
+        record NotSanctioned() implements ToggleOffersResult {}
+        record NoFreeholdContract() implements ToggleOffersResult {}
+        record UpdateFailed() implements ToggleOffersResult {}
+    }
+
+    public @NotNull ToggleOffersResult toggleOffers(@NotNull String worldGuardRegionId,
+                                                     @NotNull UUID worldId,
+                                                     @NotNull UUID callerId,
+                                                     boolean acceptingOffers,
+                                                     boolean bypassAuth) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new ToggleOffersResult.NoFreeholdContract();
+            }
+            if (!bypassAuth
+                    && !callerId.equals(freehold.authorityId())
+                    && !callerId.equals(freehold.titleHolderId())
+                    && !wrapper.freeholdContractSanctionedAuctioneerMapper()
+                            .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
+                return new ToggleOffersResult.NotSanctioned();
+            }
+            int updated = wrapper.freeholdContractMapper().updateAcceptingOffersByRegion(
+                    worldGuardRegionId, worldId, acceptingOffers);
+            if (updated == 0) {
+                return new ToggleOffersResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new ToggleOffersResult.Success(acceptingOffers);
         }
     }
 
