@@ -82,7 +82,7 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
 
     @Override
     @Select("""
-            SELECT fc.freeholdContractId, fc.authorityId, fc.titleHolderId, fc.price
+            SELECT fc.freeholdContractId, fc.authorityId, fc.titleHolderId, fc.price, fc.acceptingOffers
             FROM FreeholdContract fc
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
@@ -93,7 +93,8 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             @Arg(column = "freeholdContractId", javaType = int.class),
             @Arg(column = "authorityId", javaType = UUID.class),
             @Arg(column = "titleHolderId", javaType = UUID.class),
-            @Arg(column = "price", javaType = Double.class)
+            @Arg(column = "price", javaType = Double.class),
+            @Arg(column = "acceptingOffers", javaType = boolean.class)
     })
     @Nullable FreeholdContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                     @Param("worldId") @NotNull UUID worldId);
@@ -137,5 +138,18 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
     int updateTitleHolderByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                   @Param("worldId") @NotNull UUID worldId,
                                   @Param("titleHolder") @Nullable UUID titleHolder);
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContract fc
+            INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET fc.acceptingOffers = #{acceptingOffers}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int updateAcceptingOffersByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                      @Param("worldId") @NotNull UUID worldId,
+                                      @Param("acceptingOffers") boolean acceptingOffers);
 
 }

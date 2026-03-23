@@ -1056,4 +1056,72 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             Assertions.assertEquals(2, refunds.size());
         }
     }
+
+    // --- Toggle Offers ---
+
+    @Nested
+    @DisplayName("toggleOffers")
+    class ToggleOffers {
+
+        @Test
+        @DisplayName("titleHolder can toggle offers off")
+        void titleHolderCanToggleOff() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+
+            RealtyLogicImpl.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, PLAYER_A, false, false);
+            Assertions.assertInstanceOf(RealtyLogicImpl.ToggleOffersResult.Success.class, result);
+            Assertions.assertFalse(((RealtyLogicImpl.ToggleOffersResult.Success) result).acceptingOffers());
+        }
+
+        @Test
+        @DisplayName("sanctioned auctioneer can toggle offers")
+        void sanctionedAuctioneerCanToggle() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            UUID sanctioned = UUID.randomUUID();
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                wrapper.freeholdContractSanctionedAuctioneerMapper().insert(regionId, WORLD_ID, sanctioned);
+                session.commit();
+            }
+
+            RealtyLogicImpl.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, sanctioned, false, false);
+            Assertions.assertInstanceOf(RealtyLogicImpl.ToggleOffersResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("non-sanctioned player cannot toggle offers")
+        void nonSanctionedCannotToggle() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+
+            UUID stranger = UUID.randomUUID();
+            RealtyLogicImpl.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, stranger, false, false);
+            Assertions.assertInstanceOf(RealtyLogicImpl.ToggleOffersResult.NotSanctioned.class, result);
+        }
+
+        @Test
+        @DisplayName("placing offer fails when not accepting offers")
+        void placeOfferFailsWhenNotAccepting() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.toggleOffers(regionId, WORLD_ID, PLAYER_A, false, false);
+
+            OfferResult result = logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            Assertions.assertInstanceOf(OfferResult.NotAcceptingOffers.class, result);
+        }
+
+        @Test
+        @DisplayName("placing offer succeeds after re-enabling offers")
+        void placeOfferSucceedsAfterReEnable() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.toggleOffers(regionId, WORLD_ID, PLAYER_A, false, false);
+            logic.toggleOffers(regionId, WORLD_ID, PLAYER_A, true, false);
+
+            OfferResult result = logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            Assertions.assertInstanceOf(OfferResult.Success.class, result);
+        }
+    }
 }

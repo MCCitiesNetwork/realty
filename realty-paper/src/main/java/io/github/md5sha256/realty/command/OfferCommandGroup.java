@@ -31,6 +31,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.parser.standard.BooleanParser;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
@@ -113,6 +114,12 @@ public record OfferCommandGroup(
                         .permission("realty.command.offer.reject")
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeRejectAll)
+                        .build(),
+                base.literal("toggle")
+                        .permission("realty.command.offer.toggle")
+                        .required("enabled", BooleanParser.booleanParser())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                        .handler(this::executeToggle)
                         .build()
         );
     }
@@ -155,6 +162,9 @@ public record OfferCommandGroup(
                     }
                     case RealtyLogicImpl.OfferResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NO_FREEHOLD_CONTRACT,
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.OfferResult.NotAcceptingOffers ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NOT_ACCEPTING,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.OfferResult.IsOwner ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_IS_OWNER));
@@ -568,6 +578,49 @@ public record OfferCommandGroup(
                 }
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+            }
+        }, executorState.dbExec());
+    }
+
+    // ── /realty offer toggle <yes/no> [region] ──
+
+    private void executeToggle(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+            return;
+        }
+        boolean accepting = ctx.get("enabled");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
+        String regionId = region.region().getId();
+        boolean bypass = sender.hasPermission("realty.command.offer.toggle.bypass");
+        CompletableFuture.runAsync(() -> {
+            try {
+                RealtyLogicImpl.ToggleOffersResult result = logic.toggleOffers(
+                        regionId, region.world().getUID(),
+                        sender.getUniqueId(), accepting, bypass);
+                switch (result) {
+                    case RealtyLogicImpl.ToggleOffersResult.Success success ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_SUCCESS,
+                                    Placeholder.unparsed("region", regionId),
+                                    Placeholder.unparsed("state", success.acceptingOffers() ? "yes" : "no")));
+                    case RealtyLogicImpl.ToggleOffersResult.NotSanctioned ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_NOT_SANCTIONED,
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.ToggleOffersResult.NoFreeholdContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_NO_FREEHOLD_CONTRACT,
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.ToggleOffersResult.UpdateFailed ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_UPDATE_FAILED,
+                                    Placeholder.unparsed("region", regionId)));
+                }
+            } catch (Exception ex) {
+                sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

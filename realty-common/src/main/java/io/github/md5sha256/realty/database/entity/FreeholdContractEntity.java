@@ -12,12 +12,14 @@ import java.util.UUID;
  * @param authorityId        UUID of the authority overseeing the freehold
  * @param titleHolderId      UUID of the current title holder, or {@code null} if the region is for freehold
  * @param price              Freehold price (must be &gt; 0), or {@code null} if the region is not for freehold
+ * @param acceptingOffers    Whether the region is currently accepting offers
  * @see io.github.md5sha256.realty.api.FreeholdContract
  */
 public record FreeholdContractEntity(
         int freeholdContractId,
         @NotNull UUID authorityId,
         @Nullable UUID titleHolderId,
-        @Nullable Double price
+        @Nullable Double price,
+        boolean acceptingOffers
 ) {
 }

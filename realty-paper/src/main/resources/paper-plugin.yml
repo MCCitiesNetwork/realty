@@ -96,6 +96,12 @@ permissions:
   realty.command.offer.reject:
     description: Allows using /realty offer reject
     default: true
+  realty.command.offer.toggle:
+    description: Allows using /realty offer toggle
+    default: op
+  realty.command.offer.toggle.bypass:
+    description: Bypasses ownership/agent check for /realty offer toggle
+    default: op
   realty.command.auction:
     description: Allows using /realty auction (create)
     default: op
