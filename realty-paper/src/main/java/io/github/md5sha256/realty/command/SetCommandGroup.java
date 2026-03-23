@@ -21,6 +21,7 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.standard.DoubleParser;
+import org.incendo.cloud.parser.standard.IntegerParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
@@ -38,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
  *   <li>{@code /realty set landlord <player> <region>} — set lease landlord</li>
  *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
  *   <li>{@code /realty set tenant <player> <region>} — set lease tenant</li>
+ *   <li>{@code /realty set maxrenewals <count> <region>} — set lease max renewals (-1 for unlimited)</li>
  * </ul>
  */
 public record SetCommandGroup(
@@ -88,6 +90,12 @@ public record SetCommandGroup(
                         .required("tenant", AuthorityParser.authority())
                         .required("region", WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeSetTenant)
+                        .build(),
+                base.literal("maxrenewals")
+                        .permission("realty.command.set.maxrenewals")
+                        .required("maxrenewals", IntegerParser.integerParser(-1))
+                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .handler(this::executeSetMaxRenewals)
                         .build()
         );
     }
@@ -319,6 +327,47 @@ public record SetCommandGroup(
                 }
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+            }
+        }, executorState.dbExec());
+    }
+
+    private void executeSetMaxRenewals(@NotNull CommandContext<CommandSourceStack> ctx) {
+        if (!(ctx.sender().getSender() instanceof Player sender)) {
+            return;
+        }
+        int maxRenewals = ctx.get("maxrenewals");
+        WorldGuardRegion region = ctx.get("region");
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        if (!sender.hasPermission("realty.command.set.maxrenewals.others")
+                && !region.region().getOwners().contains(sender.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                RealtyLogicImpl.SetMaxRenewalsResult result = logic.setMaxRenewals(
+                        regionId, worldId, maxRenewals);
+                switch (result) {
+                    case RealtyLogicImpl.SetMaxRenewalsResult.Success ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_SUCCESS,
+                                    Placeholder.unparsed("maxrenewals",
+                                            maxRenewals < 0 ? "unlimited" : String.valueOf(maxRenewals)),
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetMaxRenewalsResult.NoLeaseContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_NO_LEASE_CONTRACT,
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetMaxRenewalsResult.BelowCurrentExtensions(int current) ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_BELOW_CURRENT,
+                                    Placeholder.unparsed("current", String.valueOf(current)),
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetMaxRenewalsResult.UpdateFailed ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_UPDATE_FAILED,
+                                    Placeholder.unparsed("region", regionId)));
+                }
+            } catch (Exception ex) {
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

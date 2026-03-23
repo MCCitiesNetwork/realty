@@ -401,6 +401,37 @@ public class RealtyLogicImpl {
         }
     }
 
+    // --- Set Max Renewals ---
+
+    public sealed interface SetMaxRenewalsResult {
+        record Success() implements SetMaxRenewalsResult {}
+        record NoLeaseContract() implements SetMaxRenewalsResult {}
+        record BelowCurrentExtensions(int currentExtensions) implements SetMaxRenewalsResult {}
+        record UpdateFailed() implements SetMaxRenewalsResult {}
+    }
+
+    public @NotNull SetMaxRenewalsResult setMaxRenewals(@NotNull String worldGuardRegionId,
+                                                          @NotNull UUID worldId,
+                                                          int maxRenewals) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
+            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new SetMaxRenewalsResult.NoLeaseContract();
+            }
+            if (maxRenewals >= 0 && lease.currentMaxExtensions() != null
+                    && maxRenewals < lease.currentMaxExtensions()) {
+                return new SetMaxRenewalsResult.BelowCurrentExtensions(lease.currentMaxExtensions());
+            }
+            int updated = leaseMapper.updateMaxRenewalsByRegion(worldGuardRegionId, worldId, maxRenewals);
+            if (updated == 0) {
+                return new SetMaxRenewalsResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new SetMaxRenewalsResult.Success();
+        }
+    }
+
     // --- Set Landlord ---
 
     public sealed interface SetLandlordResult {
