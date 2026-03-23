@@ -8,5 +8,6 @@ public enum HistoryEventType {
     AGENT_REMOVE,
     RENT,
     UNRENT,
+    RENEW,
     LEASE_EXPIRY
 }

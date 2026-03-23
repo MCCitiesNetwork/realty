@@ -143,6 +143,7 @@ public final class MessageKeys {
     public static final String HISTORY_EVENT_AGENT_REMOVE = "history.event.agent-remove";
     public static final String HISTORY_EVENT_RENT = "history.event.rent";
     public static final String HISTORY_EVENT_UNRENT = "history.event.unrent";
+    public static final String HISTORY_EVENT_RENEW = "history.event.renew";
     public static final String HISTORY_EVENT_LEASE_EXPIRY = "history.event.lease-expiry";
 
     // info

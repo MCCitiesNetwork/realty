@@ -57,6 +57,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
             "AGENT_REMOVE", MessageKeys.HISTORY_EVENT_AGENT_REMOVE,
             "RENT", MessageKeys.HISTORY_EVENT_RENT,
             "UNRENT", MessageKeys.HISTORY_EVENT_UNRENT,
+            "RENEW", MessageKeys.HISTORY_EVENT_RENEW,
             "LEASE_EXPIRY", MessageKeys.HISTORY_EVENT_LEASE_EXPIRY
     );
 

@@ -693,7 +693,7 @@ public class RealtyLogicImpl {
             if (lease.maxExtensions() != null) {
                 extensionsRemaining = lease.maxExtensions() - (lease.currentMaxExtensions() + 1);
             }
-            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, "RENEW",
+            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENEW.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
             wrapper.session().commit();
             return new RenewLeaseResult.Success(lease.price(), lease.landlordId());
