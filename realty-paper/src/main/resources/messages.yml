@@ -337,6 +337,13 @@ set-duration:
   update-failed: "Failed to update duration for region <region>."
   error: "Failed to set duration: <error>"
 
+set-maxrenewals:
+  success: "Max renewals for region <region> set to <maxrenewals>."
+  no-lease-contract: "Region <region> does not have a lease contract."
+  below-current: "Max renewals cannot be less than the current renewal count (<current>) for region <region>."
+  update-failed: "Failed to update max renewals for region <region>."
+  error: "Failed to set max renewals: <error>"
+
 set-landlord:
   success: "Landlord for region <region> set to <landlord>."
   no-lease-contract: "Region <region> does not have a lease contract."

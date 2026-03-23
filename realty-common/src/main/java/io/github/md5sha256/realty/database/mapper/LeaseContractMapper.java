@@ -154,4 +154,20 @@ public interface LeaseContractMapper {
                               @NotNull UUID worldId,
                               @Nullable UUID tenantId);
 
+    /**
+     * Updates the max extensions on a lease contract for the specified WorldGuard region.
+     * When {@code maxRenewals} is negative, both {@code maxExtensions} and
+     * {@code currentMaxExtensions} are set to {@code NULL} (unlimited).
+     * Otherwise {@code maxExtensions} is set to {@code maxRenewals} and
+     * {@code currentMaxExtensions} is reset to {@code 0}.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @param maxRenewals        the new max renewals, or negative for unlimited
+     * @return number of rows updated (1 on success, 0 if no matching lease exists)
+     */
+    int updateMaxRenewalsByRegion(@NotNull String worldGuardRegionId,
+                                   @NotNull UUID worldId,
+                                   int maxRenewals);
+
 }
