@@ -218,7 +218,6 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyLogicImpl.SetLandlordResult.Success(UUID previousLandlord) -> {
                         executorState.mainThreadExec().execute(() -> {
-                            region.region().getOwners().clear();
                             region.region().getMembers().clear();
                         });
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
