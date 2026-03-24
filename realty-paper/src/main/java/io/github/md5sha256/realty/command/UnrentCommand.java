@@ -71,60 +71,85 @@ public record UnrentCommand(
                     Placeholder.unparsed("region", regionId)));
             return;
         }
+        // Step 1: preview (DB read, no mutation)
         CompletableFuture.supplyAsync(() -> {
             try {
-                RealtyLogicImpl.UnrentResult result = logic.unrentRegion(
-                        regionId, region.world().getUID(), sender.getUniqueId());
-                return switch (result) {
-                    case RealtyLogicImpl.UnrentResult.Success success -> {
-                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
-                        yield Map.entry(success, placeholders);
-                    }
-                    case RealtyLogicImpl.UnrentResult.NoLeaseholdContract ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                    case RealtyLogicImpl.UnrentResult.UpdateFailed ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_UPDATE_FAILED,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                };
+                return logic.previewUnrent(regionId, region.world().getUID());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(entry -> {
-            if (entry == null) {
+        }, executorState.dbExec()).thenAcceptAsync(preview -> {
+            if (preview == null) {
                 return;
             }
-            RealtyLogicImpl.UnrentResult.Success success = entry.getKey();
-            double refund = success.refund();
-            if (refund > 0) {
-                EconomyResponse response = economy.depositPlayer(sender, refund);
-                if (!response.transactionSuccess()) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_REFUND_FAILED,
-                            Placeholder.unparsed("error", response.errorMessage)));
-                    return;
+            switch (preview) {
+                case RealtyLogicImpl.UnrentResult.NoLeaseholdContract ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.UnrentResult.UpdateFailed ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_UPDATE_FAILED,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.UnrentResult.Success success -> {
+                    double refund = success.refund();
+                    // Step 2: economy — withdraw from landlord, deposit to tenant (main thread)
+                    if (refund > 0) {
+                        OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
+                        EconomyResponse withdrawResponse = economy.withdrawPlayer(landlord, refund);
+                        if (!withdrawResponse.transactionSuccess()) {
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_REFUND_FAILED,
+                                    Placeholder.unparsed("error", withdrawResponse.errorMessage)));
+                            return;
+                        }
+                        EconomyResponse depositResponse = economy.depositPlayer(sender, refund);
+                        if (!depositResponse.transactionSuccess()) {
+                            economy.depositPlayer(landlord, refund);
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_REFUND_FAILED,
+                                    Placeholder.unparsed("error", depositResponse.errorMessage)));
+                            return;
+                        }
+                    }
+                    // Step 3: DB mutation
+                    CompletableFuture.supplyAsync(() -> {
+                        try {
+                            RealtyLogicImpl.UnrentResult result = logic.unrentRegion(
+                                    regionId, region.world().getUID(), sender.getUniqueId());
+                            if (result instanceof RealtyLogicImpl.UnrentResult.Success) {
+                                return logic.getRegionPlaceholders(regionId, region.world().getUID());
+                            }
+                            return null;
+                        } catch (Exception ex) {
+                            return null;
+                        }
+                    }, executorState.dbExec()).thenAcceptAsync(placeholders -> {
+                        // Step 4: finalize or revert
+                        if (placeholders == null) {
+                            if (refund > 0) {
+                                economy.withdrawPlayer(sender, refund);
+                                OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
+                                economy.depositPlayer(landlord, refund);
+                            }
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_UPDATE_FAILED,
+                                    Placeholder.unparsed("region", regionId)));
+                            return;
+                        }
+                        ProtectedRegion protectedRegion = region.region();
+                        protectedRegion.getOwners().clear();
+                        protectedRegion.getMembers().clear();
+                        regionProfileService.applyFlags(region, RegionState.FOR_LEASE, placeholders);
+                        signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, placeholders);
+                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_SUCCESS,
+                                Placeholder.unparsed("region", regionId),
+                                Placeholder.unparsed("refund", CurrencyFormatter.format(refund))));
+                        notificationService.queueNotification(success.landlordId(),
+                                messages.messageFor(MessageKeys.NOTIFICATION_REGION_UNRENTED,
+                                        Placeholder.unparsed("player", sender.getName()),
+                                        Placeholder.unparsed("region", regionId),
+                                        Placeholder.unparsed("refund", CurrencyFormatter.format(refund))));
+                    }, executorState.mainThreadExec());
                 }
-                OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
-                economy.withdrawPlayer(landlord, refund);
             }
-            ProtectedRegion protectedRegion = region.region();
-            protectedRegion.getOwners().clear();
-            protectedRegion.getMembers().clear();
-            regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
-            signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.FOR_LEASE, entry.getValue());
-            sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_SUCCESS,
-                    Placeholder.unparsed("region", regionId),
-                    Placeholder.unparsed("refund", CurrencyFormatter.format(refund))));
-            notificationService.queueNotification(success.landlordId(),
-                    messages.messageFor(MessageKeys.NOTIFICATION_REGION_UNRENTED,
-                            Placeholder.unparsed("player", sender.getName()),
-                            Placeholder.unparsed("region", regionId),
-                            Placeholder.unparsed("refund", CurrencyFormatter.format(refund))));
         }, executorState.mainThreadExec());
     }
 
