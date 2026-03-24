@@ -1,3 +1,5 @@
+ALTER TABLE LeaseholdContract MODIFY COLUMN startDate DATETIME NULL;
+
 UPDATE LeaseholdContract
 SET startDate = NULL,
     endDate = NULL
