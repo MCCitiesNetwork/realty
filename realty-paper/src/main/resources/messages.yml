@@ -228,7 +228,7 @@ help:
     - "<yellow>/realty list [owned|rented] [--page <n>] [--player <name>]</yellow> <gray>- List regions</gray>"
     - "<yellow>/realty buy <region></yellow> <gray>- Buy a region at the listed price</gray>"
     - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
-    - "<yellow>/realty renew <region></yellow> <gray>- Renew a lease</gray>"
+    - "<yellow>/realty extend <region></yellow> <gray>- Extend a lease</gray>"
     - "<yellow>/realty unrent <region></yellow> <gray>- Unrent a region (prorated refund)</gray>"
   management:
     - "<gold>--- Realty > Management ---</gold>"
@@ -271,15 +271,15 @@ help:
     - "<yellow>/realty delete <region> [includeworldguard]</yellow> <gray>- Delete a region</gray>"
     - "<yellow>/realty reload</yellow> <gray>- Reload configuration</gray>"
 
-renew:
-  success: "Lease for region <region> has been renewed for <price>."
+extend:
+  success: "Lease for region <region> has been extended for <price>."
   no-leasehold-contract: "Region <region> does not have a lease contract."
   not-tenant: "You are not the tenant of region <region>."
   no-extensions: "Region <region> has no remaining lease extensions."
-  update-failed: "Failed to renew lease for region <region>."
-  insufficient-funds: "You do not have enough funds. Your balance: <balance>. Renewal price: <price>."
+  update-failed: "Failed to extend lease for region <region>."
+  insufficient-funds: "You do not have enough funds. Your balance: <balance>. Extension price: <price>."
   payment-failed: "Payment failed: <error>"
-  error: "Failed to renew lease: <error>"
+  error: "Failed to extend lease: <error>"
 
 unrent:
   success: "You have unrented region <region>. Refund: <refund>."

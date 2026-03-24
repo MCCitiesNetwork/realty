@@ -30,7 +30,7 @@ import io.github.md5sha256.realty.command.ListCommand;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
-import io.github.md5sha256.realty.command.RenewCommand;
+import io.github.md5sha256.realty.command.ExtendCommand;
 import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.SetCommandGroup;
@@ -442,7 +442,7 @@ public final class Realty extends JavaPlugin {
                         this.regionProfileService,
                         this.signTextApplicator,
                         messageContainer),
-                new RenewCommand(executorState, logic, economy, this.signTextApplicator, messageContainer),
+                new ExtendCommand(executorState, logic, economy, this.signTextApplicator, messageContainer),
                 new RentCommand(executorState,
                         logic,
                         economy,

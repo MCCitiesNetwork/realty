@@ -25,11 +25,11 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Handles {@code /realty renew <region>}.
+ * Handles {@code /realty extend <region>}.
  *
- * <p>Permission: {@code realty.command.renew}.</p>
+ * <p>Permission: {@code realty.command.extend}.</p>
  */
-public record RenewCommand(
+public record ExtendCommand(
         @NotNull ExecutorState executorState,
         @NotNull RealtyLogicImpl logic,
         @NotNull Economy economy,
@@ -40,8 +40,8 @@ public record RenewCommand(
     @Override
     public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
         return builder
-                .literal("renew")
-                .permission("realty.command.renew")
+                .literal("extend")
+                .permission("realty.command.extend")
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();
@@ -68,23 +68,23 @@ public record RenewCommand(
                         yield Map.entry(success, placeholders);
                     }
                     case RealtyLogicImpl.RenewLeaseholdResult.NoLeaseholdContract ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NO_LEASEHOLD_CONTRACT,
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.RenewLeaseholdResult.NoExtensionsRemaining ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NO_EXTENSIONS,
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_EXTENSIONS,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                     case RealtyLogicImpl.RenewLeaseholdResult.UpdateFailed ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENEW_UPDATE_FAILED,
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
                 };
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor(MessageKeys.RENEW_ERROR,
+                sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
@@ -99,7 +99,7 @@ public record RenewCommand(
             double cost = Math.max(0, price - refund);
             double balance = economy.getBalance(sender);
             if (balance < cost) {
-                sender.sendMessage(messages.messageFor(MessageKeys.RENEW_INSUFFICIENT_FUNDS,
+                sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_INSUFFICIENT_FUNDS,
                         Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
                         Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
                 return;
@@ -107,7 +107,7 @@ public record RenewCommand(
             if (cost > 0) {
                 EconomyResponse response = economy.withdrawPlayer(sender, cost);
                 if (!response.transactionSuccess()) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENEW_PAYMENT_FAILED,
+                    sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_PAYMENT_FAILED,
                             Placeholder.unparsed("error", response.errorMessage)));
                     return;
                 }
@@ -115,7 +115,7 @@ public record RenewCommand(
                 economy.depositPlayer(landlord, cost);
             }
             signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
-            sender.sendMessage(messages.messageFor(MessageKeys.RENEW_SUCCESS,
+            sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_SUCCESS,
                     Placeholder.unparsed("region", regionId),
                     Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
         }, executorState.mainThreadExec());

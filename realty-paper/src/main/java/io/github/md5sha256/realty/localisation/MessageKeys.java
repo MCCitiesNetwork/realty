@@ -246,15 +246,15 @@ public final class MessageKeys {
     public static final String REMOVE_NO_PERMISSION = "remove.no-permission";
     public static final String REMOVE_SUCCESS = "remove.success";
 
-    // renew
-    public static final String RENEW_SUCCESS = "renew.success";
-    public static final String RENEW_NO_LEASEHOLD_CONTRACT = "renew.no-leasehold-contract";
-    public static final String RENEW_NOT_TENANT = "renew.not-tenant";
-    public static final String RENEW_NO_EXTENSIONS = "renew.no-extensions";
-    public static final String RENEW_UPDATE_FAILED = "renew.update-failed";
-    public static final String RENEW_INSUFFICIENT_FUNDS = "renew.insufficient-funds";
-    public static final String RENEW_PAYMENT_FAILED = "renew.payment-failed";
-    public static final String RENEW_ERROR = "renew.error";
+    // extend
+    public static final String EXTEND_SUCCESS = "extend.success";
+    public static final String EXTEND_NO_LEASEHOLD_CONTRACT = "extend.no-leasehold-contract";
+    public static final String EXTEND_NOT_TENANT = "extend.not-tenant";
+    public static final String EXTEND_NO_EXTENSIONS = "extend.no-extensions";
+    public static final String EXTEND_UPDATE_FAILED = "extend.update-failed";
+    public static final String EXTEND_INSUFFICIENT_FUNDS = "extend.insufficient-funds";
+    public static final String EXTEND_PAYMENT_FAILED = "extend.payment-failed";
+    public static final String EXTEND_ERROR = "extend.error";
 
     // unrent
     public static final String UNRENT_SUCCESS = "unrent.success";
