@@ -650,6 +650,21 @@ public class RealtyLogicImpl {
         record UpdateFailed() implements RentResult {}
     }
 
+    public @NotNull RentResult previewRent(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new RentResult.NoLeaseholdContract();
+            }
+            if (lease.tenantId() != null) {
+                return new RentResult.AlreadyOccupied();
+            }
+            return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId());
+        }
+    }
+
     public @NotNull RentResult rentRegion(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
                                            @NotNull UUID tenantId) {
