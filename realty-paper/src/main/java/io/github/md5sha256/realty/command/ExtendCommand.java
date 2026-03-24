@@ -60,64 +60,72 @@ public record ExtendCommand(
         String regionId = region.region().getId();
         CompletableFuture.supplyAsync(() -> {
             try {
-                RealtyLogicImpl.RenewLeaseholdResult result = logic.renewLeasehold(
-                        regionId, region.world().getUID(), sender.getUniqueId());
-                return switch (result) {
-                    case RealtyLogicImpl.RenewLeaseholdResult.Success success -> {
-                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
-                        yield Map.entry(success, placeholders);
-                    }
-                    case RealtyLogicImpl.RenewLeaseholdResult.NoLeaseholdContract ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_LEASEHOLD_CONTRACT,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                    case RealtyLogicImpl.RenewLeaseholdResult.NoExtensionsRemaining ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_EXTENSIONS,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                    case RealtyLogicImpl.RenewLeaseholdResult.UpdateFailed ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_UPDATE_FAILED,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                };
+                return logic.previewRenewLeasehold(regionId, region.world().getUID());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(entry -> {
-            if (entry == null) {
+        }, executorState.dbExec()).thenAcceptAsync(preview -> {
+            if (preview == null) {
                 return;
             }
-            RealtyLogicImpl.RenewLeaseholdResult.Success success = entry.getKey();
-            Map<String, String> placeholders = entry.getValue();
-            double price = success.price();
-            double refund = success.refund();
-            double cost = Math.max(0, price - refund);
-            double balance = economy.getBalance(sender);
-            if (balance < cost) {
-                sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_INSUFFICIENT_FUNDS,
-                        Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
-                        Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
-                return;
-            }
-            if (cost > 0) {
-                EconomyResponse response = economy.withdrawPlayer(sender, cost);
-                if (!response.transactionSuccess()) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_PAYMENT_FAILED,
-                            Placeholder.unparsed("error", response.errorMessage)));
-                    return;
+            switch (preview) {
+                case RealtyLogicImpl.RenewLeaseholdResult.NoLeaseholdContract ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_LEASEHOLD_CONTRACT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.RenewLeaseholdResult.NoExtensionsRemaining ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_EXTENSIONS,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.RenewLeaseholdResult.UpdateFailed ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_UPDATE_FAILED,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.RenewLeaseholdResult.Success success -> {
+                    double cost = Math.max(0, success.price() - success.refund());
+                    double balance = economy.getBalance(sender);
+                    if (balance < cost) {
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_INSUFFICIENT_FUNDS,
+                                Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
+                                Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
+                        return;
+                    }
+                    if (cost > 0) {
+                        EconomyResponse response = economy.withdrawPlayer(sender, cost);
+                        if (!response.transactionSuccess()) {
+                            sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_PAYMENT_FAILED,
+                                    Placeholder.unparsed("error", response.errorMessage)));
+                            return;
+                        }
+                        OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
+                        economy.depositPlayer(landlord, cost);
+                    }
+                    CompletableFuture.supplyAsync(() -> {
+                        try {
+                            RealtyLogicImpl.RenewLeaseholdResult result = logic.renewLeasehold(
+                                    regionId, region.world().getUID(), sender.getUniqueId());
+                            if (result instanceof RealtyLogicImpl.RenewLeaseholdResult.Success) {
+                                return logic.getRegionPlaceholders(regionId, region.world().getUID());
+                            }
+                            return null;
+                        } catch (Exception ex) {
+                            return null;
+                        }
+                    }, executorState.dbExec()).thenAcceptAsync(placeholders -> {
+                        if (placeholders == null) {
+                            if (cost > 0) {
+                                economy.depositPlayer(sender, cost);
+                            }
+                            sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_UPDATE_FAILED,
+                                    Placeholder.unparsed("region", regionId)));
+                            return;
+                        }
+                        signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_SUCCESS,
+                                Placeholder.unparsed("region", regionId),
+                                Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
+                    }, executorState.mainThreadExec());
                 }
-                OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
-                economy.depositPlayer(landlord, cost);
             }
-            signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
-            sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_SUCCESS,
-                    Placeholder.unparsed("region", regionId),
-                    Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
         }, executorState.mainThreadExec());
     }
 

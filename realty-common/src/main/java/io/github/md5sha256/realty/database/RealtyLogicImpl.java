@@ -714,6 +714,25 @@ public class RealtyLogicImpl {
         record UpdateFailed() implements RenewLeaseholdResult {}
     }
 
+    public @NotNull RenewLeaseholdResult previewRenewLeasehold(@NotNull String worldGuardRegionId,
+                                                              @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new RenewLeaseholdResult.NoLeaseholdContract();
+            }
+            if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
+                return new RenewLeaseholdResult.NoExtensionsRemaining();
+            }
+            long totalSeconds = lease.durationSeconds();
+            long remainingSeconds = lease.endDate() == null ? 0
+                    : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
+            double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
+            return new RenewLeaseholdResult.Success(lease.price(), refund, lease.landlordId());
+        }
+    }
+
     public @NotNull RenewLeaseholdResult renewLeasehold(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId,
                                                  @NotNull UUID tenantId) {
