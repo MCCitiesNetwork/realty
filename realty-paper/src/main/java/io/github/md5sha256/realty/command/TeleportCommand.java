@@ -53,6 +53,7 @@ public record TeleportCommand(@NotNull ExecutorState executorState,
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
         if (!(sender instanceof Player player)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         WorldGuardRegion region = ctx.get("region");

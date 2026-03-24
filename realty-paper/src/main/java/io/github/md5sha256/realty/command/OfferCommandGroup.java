@@ -11,7 +11,6 @@ import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
@@ -76,7 +75,7 @@ public record OfferCommandGroup(
                 base.literal("send")
                         .permission("realty.command.offer.send")
                         .required("price", DoubleParser.doubleParser(0, Double.MAX_VALUE))
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSend)
                         .build(),
                 base.literal("inbox")
@@ -90,13 +89,13 @@ public record OfferCommandGroup(
                 base.literal("accept")
                         .permission("realty.command.offer.accept")
                         .required("player", StringParser.stringParser(), playerSuggestions())
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeAccept)
                         .build(),
                 base.literal("pay")
                         .permission("realty.command.offer.pay")
                         .required("amount", DoubleParser.doubleParser(0, Double.MAX_VALUE))
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executePay)
                         .build(),
                 base.literal("withdraw")
@@ -137,10 +136,16 @@ public record OfferCommandGroup(
 
     private void executeSend(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         double price = ctx.get("price");
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
@@ -285,7 +290,12 @@ public record OfferCommandGroup(
             return;
         }
         String playerName = ctx.get("player");
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYER_NOT_FOUND,
@@ -340,7 +350,12 @@ public record OfferCommandGroup(
             return;
         }
         double amount = ctx.get("amount");
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         String regionId = region.region().getId();
         // Balance check on main thread
         double balance = economy.getBalance(sender);
@@ -446,6 +461,7 @@ public record OfferCommandGroup(
 
     private void executeWithdraw(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
@@ -487,6 +503,7 @@ public record OfferCommandGroup(
 
     private void executeReject(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         String playerName = ctx.get("player");
@@ -541,6 +558,7 @@ public record OfferCommandGroup(
 
     private void executeRejectAll(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")

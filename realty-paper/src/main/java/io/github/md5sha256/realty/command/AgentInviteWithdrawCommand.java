@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -40,7 +41,7 @@ public record AgentInviteWithdrawCommand(@NotNull ExecutorState executorState,
                 .literal("withdraw")
                 .permission("realty.command.agent.invite.withdraw")
                 .required("player", AuthorityParser.authority())
-                .required("region", WorldGuardRegionParser.worldGuardRegion())
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();
     }
@@ -48,10 +49,16 @@ public record AgentInviteWithdrawCommand(@NotNull ExecutorState executorState,
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
         if (!(sender instanceof Player player)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         UUID inviteeId = ctx.get("player");
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+        if (region == null) {
+            player.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         String inviteeName = resolveName(inviteeId);

@@ -5,7 +5,7 @@ import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -16,6 +16,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.key.CloudKey;
@@ -47,8 +48,6 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
     private static final CloudKey<Integer> MAX_EXTENSIONS = CloudKey.of("maxrenewals", Integer.class);
-    private static final CloudKey<WorldGuardRegion> REGION = CloudKey.of("region",
-            WorldGuardRegion.class);
     private static final CommandFlag<UUID> AUTHORITY_FLAG =
             CommandFlag.<CommandSourceStack>builder("authority")
                     .withComponent(AuthorityParser.authority())
@@ -81,7 +80,7 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_EXTENSIONS, IntegerParser.integerParser(-1))
                         .flag(LANDLORD_FLAG)
-                        .required(REGION, WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeLeasehold)
                         .build(),
                 base.literal("freehold")
@@ -89,7 +88,7 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
                         .flag(PRICE_FLAG)
                         .flag(TITLEHOLDER_FLAG)
                         .flag(AUTHORITY_FLAG)
-                        .required(REGION, WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeFreehold)
                         .build()
         );
@@ -97,15 +96,18 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
 
     private void executeLeasehold(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player)) {
-            return;
-        }
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
         UUID landlord = ctx.flags()
                 .getValue(LANDLORD_FLAG, settings.get().defaultLeaseholdAuthority());
-        WorldGuardRegion region = ctx.get(REGION);
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         CompletableFuture.supplyAsync(() -> {
             try {
                 boolean created = logic.createLeasehold(
@@ -136,15 +138,18 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
 
     private void executeFreehold(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player)) {
-            return;
-        }
         Double price = ctx.flags().getValue(PRICE_FLAG, null);
         UUID authority = ctx.flags()
                 .getValue(AUTHORITY_FLAG, settings.get().defaultFreeholdAuthority());
         UUID titleholder = ctx.flags()
                 .getValue(TITLEHOLDER_FLAG, settings.get().defaultFreeholdTitleholder());
-        WorldGuardRegion region = ctx.get(REGION);
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         CompletableFuture.supplyAsync(() -> {
             try {
                 boolean created = logic.createFreehold(

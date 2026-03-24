@@ -9,6 +9,7 @@ import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -17,6 +18,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -64,52 +66,57 @@ public record SetCommandGroup(
                 base.literal("price")
                         .permission("realty.command.set.price")
                         .required("price", DoubleParser.doubleParser(0, Double.MAX_VALUE))
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetPrice)
                         .build(),
                 base.literal("duration")
                         .permission("realty.command.set.duration")
                         .required("duration", DurationParser.duration())
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetDuration)
                         .build(),
                 base.literal("landlord")
                         .permission("realty.command.set.landlord")
                         .required("landlord", AuthorityParser.authority())
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetLandlord)
                         .build(),
                 base.literal("titleholder")
                         .permission("realty.command.set.titleholder")
                         .required("titleholder", AuthorityParser.authority())
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetTitleHolder)
                         .build(),
                 base.literal("tenant")
                         .permission("realty.command.set.tenant")
                         .required("tenant", AuthorityParser.authority())
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetTenant)
                         .build(),
                 base.literal("maxextensions")
                         .permission("realty.command.set.maxextensions")
                         .required("maxextensions", IntegerParser.integerParser(-1))
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetMaxExtensions)
                         .build()
         );
     }
 
     private void executeSetPrice(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
+        CommandSender sender = ctx.sender().getSender();
+        double price = ctx.get("price");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        double price = ctx.get("price");
-        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.set.price.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.set.price.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }
@@ -146,15 +153,20 @@ public record SetCommandGroup(
     }
 
     private void executeSetDuration(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
+        CommandSender sender = ctx.sender().getSender();
+        Duration duration = ctx.get("duration");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        Duration duration = ctx.get("duration");
-        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.set.duration.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.set.duration.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }
@@ -182,15 +194,20 @@ public record SetCommandGroup(
     }
 
     private void executeSetLandlord(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
+        CommandSender sender = ctx.sender().getSender();
+        UUID landlordId = ctx.get("landlord");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        UUID landlordId = ctx.get("landlord");
-        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.set.landlord.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.set.landlord.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }
@@ -223,15 +240,20 @@ public record SetCommandGroup(
     }
 
     private void executeSetTitleHolder(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
+        CommandSender sender = ctx.sender().getSender();
+        UUID titleHolderId = ctx.get("titleholder");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        UUID titleHolderId = ctx.get("titleholder");
-        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.set.titleholder.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.set.titleholder.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }
@@ -280,15 +302,20 @@ public record SetCommandGroup(
     }
 
     private void executeSetTenant(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
+        CommandSender sender = ctx.sender().getSender();
+        UUID tenantId = ctx.get("tenant");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        UUID tenantId = ctx.get("tenant");
-        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.set.tenant.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.set.tenant.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }
@@ -333,15 +360,20 @@ public record SetCommandGroup(
     }
 
     private void executeSetMaxExtensions(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
+        CommandSender sender = ctx.sender().getSender();
+        int maxExtensions = ctx.get("maxextensions");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        int maxExtensions = ctx.get("maxextensions");
-        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.set.maxextensions.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.set.maxextensions.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }

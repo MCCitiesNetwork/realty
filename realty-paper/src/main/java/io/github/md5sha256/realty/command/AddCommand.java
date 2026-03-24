@@ -51,19 +51,18 @@ public record AddCommand(@NotNull MessageContainer messages) implements CustomCo
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player player)) {
-            return;
-        }
         String playerOrGroup = ctx.get("player");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
-            player.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
 
-        if (!sender.hasPermission("realty.command.add.others")
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.add.others")
                 && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.ADD_NO_PERMISSION));
             return;
