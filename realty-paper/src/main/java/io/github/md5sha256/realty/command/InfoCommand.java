@@ -176,7 +176,9 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("price", CurrencyFormatter.format(leasehold.price())),
                         Placeholder.unparsed("duration",
                                 DurationFormatter.format(Duration.ofSeconds(leasehold.durationSeconds()))),
-                        Placeholder.unparsed("start_date", DateFormatter.format(settings.get(), leasehold.startDate())),
+                        Placeholder.unparsed("start_date", leasehold.startDate() != null
+                                ? DateFormatter.format(settings.get(), leasehold.startDate())
+                                : "N/A"),
                         Placeholder.unparsed("end_date", leasehold.endDate() != null
                                 ? DateFormatter.format(settings.get(), leasehold.endDate())
                                 : "N/A"),

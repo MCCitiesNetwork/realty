@@ -874,7 +874,7 @@ public class RealtyLogicImpl {
             placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()) : "");
             placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
-            placeholders.put("start_date", dateFormatter.apply(lease.startDate()));
+            placeholders.put("start_date", lease.startDate() != null ? dateFormatter.apply(lease.startDate()) : "N/A");
             placeholders.put("end_date", lease.endDate() != null ? dateFormatter.apply(lease.endDate()) : "N/A");
             if (lease.maxExtensions() != null) {
                 placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());

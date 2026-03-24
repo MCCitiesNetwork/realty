@@ -14,8 +14,8 @@ import java.util.UUID;
  * @param tenantId             UUID of the tenant, or {@code null} if the region is for rent
  * @param price                Rental price (must be &gt; 0)
  * @param durationSeconds      Leasehold duration in seconds (must be &gt; 0)
- * @param startDate            When the leasehold started
- * @param endDate              When the current leasehold period ends, or {@code null} if unknown
+ * @param startDate            When the leasehold started, or {@code null} if no tenant
+ * @param endDate              When the current leasehold period ends, or {@code null} if no tenant
  * @param currentMaxExtensions Current extension count (nullable; must be &le; maxExtensions when present)
  * @param maxExtensions        Maximum allowed extensions (nullable)
  * @see io.github.md5sha256.realty.api.LeaseContract
@@ -26,7 +26,7 @@ public record LeaseholdContractEntity(
         @Nullable UUID tenantId,
         double price,
         long durationSeconds,
-        @NotNull LocalDateTime startDate,
+        @Nullable LocalDateTime startDate,
         @Nullable LocalDateTime endDate,
         @Nullable Integer currentMaxExtensions,
         @Nullable Integer maxExtensions
