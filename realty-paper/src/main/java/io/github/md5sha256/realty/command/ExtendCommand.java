@@ -82,23 +82,23 @@ public record ExtendCommand(
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyLogicImpl.RenewLeaseholdResult.Success success -> {
-                    double cost = Math.max(0, success.price() - success.refund());
+                    double price = success.price();
                     double balance = economy.getBalance(sender);
-                    if (balance < cost) {
+                    if (balance < price) {
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_INSUFFICIENT_FUNDS,
                                 Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
-                                Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
+                                Placeholder.unparsed("price", CurrencyFormatter.format(price))));
                         return;
                     }
-                    if (cost > 0) {
-                        EconomyResponse response = economy.withdrawPlayer(sender, cost);
+                    if (price > 0) {
+                        EconomyResponse response = economy.withdrawPlayer(sender, price);
                         if (!response.transactionSuccess()) {
                             sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_PAYMENT_FAILED,
                                     Placeholder.unparsed("error", response.errorMessage)));
                             return;
                         }
                         OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
-                        economy.depositPlayer(landlord, cost);
+                        economy.depositPlayer(landlord, price);
                     }
                     CompletableFuture.supplyAsync(() -> {
                         try {
@@ -113,8 +113,8 @@ public record ExtendCommand(
                         }
                     }, executorState.dbExec()).thenAcceptAsync(placeholders -> {
                         if (placeholders == null) {
-                            if (cost > 0) {
-                                economy.depositPlayer(sender, cost);
+                            if (price > 0) {
+                                economy.depositPlayer(sender, price);
                             }
                             sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
@@ -123,7 +123,7 @@ public record ExtendCommand(
                         signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_SUCCESS,
                                 Placeholder.unparsed("region", regionId),
-                                Placeholder.unparsed("price", CurrencyFormatter.format(cost))));
+                                Placeholder.unparsed("price", CurrencyFormatter.format(price))));
                     }, executorState.mainThreadExec());
                 }
             }

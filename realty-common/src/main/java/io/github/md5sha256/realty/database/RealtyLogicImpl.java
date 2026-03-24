@@ -723,7 +723,7 @@ public class RealtyLogicImpl {
     // --- Renew Leasehold ---
 
     public sealed interface RenewLeaseholdResult {
-        record Success(double price, double refund, @NotNull UUID landlordId) implements RenewLeaseholdResult {}
+        record Success(double price, @NotNull UUID landlordId) implements RenewLeaseholdResult {}
         record NoLeaseholdContract() implements RenewLeaseholdResult {}
         record NoExtensionsRemaining() implements RenewLeaseholdResult {}
         record UpdateFailed() implements RenewLeaseholdResult {}
@@ -740,11 +740,7 @@ public class RealtyLogicImpl {
             if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
                 return new RenewLeaseholdResult.NoExtensionsRemaining();
             }
-            long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = lease.endDate() == null ? 0
-                    : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
-            double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
-            return new RenewLeaseholdResult.Success(lease.price(), refund, lease.landlordId());
+            return new RenewLeaseholdResult.Success(lease.price(), lease.landlordId());
         }
     }
 
@@ -760,10 +756,6 @@ public class RealtyLogicImpl {
             if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
                 return new RenewLeaseholdResult.NoExtensionsRemaining();
             }
-            long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = lease.endDate() == null ? 0
-                    : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
-            double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
             int updated = leaseholdMapper.renewLeasehold(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new RenewLeaseholdResult.UpdateFailed();
@@ -775,7 +767,7 @@ public class RealtyLogicImpl {
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENEW.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
             wrapper.session().commit();
-            return new RenewLeaseholdResult.Success(lease.price(), refund, lease.landlordId());
+            return new RenewLeaseholdResult.Success(lease.price(), lease.landlordId());
         }
     }
 
