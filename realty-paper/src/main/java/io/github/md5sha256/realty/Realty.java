@@ -52,6 +52,7 @@ import io.github.md5sha256.realty.settings.RegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
+import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -184,7 +185,7 @@ public final class Realty extends JavaPlugin {
         this.logic = new RealtyLogicImpl(mariaDatabase, uuid -> {
             OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
             return player.getName() != null ? player.getName() : uuid.toString();
-        });
+        }, dateTime -> DateFormatter.format(this.settings.get(), dateTime));
         var economyProvider = getServer().getServicesManager().getRegistration(Economy.class);
         if (economyProvider == null) {
             getLogger().severe("Economy not found, plugin will now disable!");

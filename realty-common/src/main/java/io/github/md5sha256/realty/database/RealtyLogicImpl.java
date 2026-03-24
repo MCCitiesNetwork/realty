@@ -47,12 +47,16 @@ public class RealtyLogicImpl {
 
     private final Database database;
     private final Function<UUID, String> nameResolver;
+    private final Function<LocalDateTime, String> dateFormatter;
     // TODO: load from configuration
     private long offerPaymentDurationSeconds = 86400;
 
-    public RealtyLogicImpl(@NotNull Database database, @NotNull Function<UUID, String> nameResolver) {
+    public RealtyLogicImpl(@NotNull Database database,
+                           @NotNull Function<UUID, String> nameResolver,
+                           @NotNull Function<LocalDateTime, String> dateFormatter) {
         this.database = database;
         this.nameResolver = nameResolver;
+        this.dateFormatter = dateFormatter;
     }
 
     public void setOfferPaymentDurationSeconds(long offerPaymentDurationSeconds) {
@@ -863,8 +867,8 @@ public class RealtyLogicImpl {
             placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()) : "");
             placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
-            placeholders.put("start_date", lease.startDate().toString());
-            placeholders.put("end_date", lease.endDate() != null ? lease.endDate().toString() : "N/A");
+            placeholders.put("start_date", dateFormatter.apply(lease.startDate()));
+            placeholders.put("end_date", lease.endDate() != null ? dateFormatter.apply(lease.endDate()) : "N/A");
             if (lease.maxExtensions() != null) {
                 placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
             } else {
