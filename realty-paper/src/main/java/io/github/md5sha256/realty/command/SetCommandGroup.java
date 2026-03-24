@@ -35,11 +35,11 @@ import java.util.concurrent.CompletableFuture;
  *
  * <ul>
  *   <li>{@code /realty set price <price> <region>} — set freehold price</li>
- *   <li>{@code /realty set duration <duration> <region>} — set lease duration</li>
- *   <li>{@code /realty set landlord <player> <region>} — set lease landlord</li>
+ *   <li>{@code /realty set duration <duration> <region>} — set leasehold duration</li>
+ *   <li>{@code /realty set landlord <player> <region>} — set leasehold landlord</li>
  *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
- *   <li>{@code /realty set tenant <player> <region>} — set lease tenant</li>
- *   <li>{@code /realty set maxrenewals <count> <region>} — set lease max renewals (-1 for unlimited)</li>
+ *   <li>{@code /realty set tenant <player> <region>} — set leasehold tenant</li>
+ *   <li>{@code /realty set maxrenewals <count> <region>} — set leasehold max renewals (-1 for unlimited)</li>
  * </ul>
  */
 public record SetCommandGroup(
@@ -167,8 +167,8 @@ public record SetCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_SUCCESS,
                                     Placeholder.unparsed("duration", duration.toString()),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetDurationResult.NoLeaseContract ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_NO_LEASE_CONTRACT,
+                    case RealtyLogicImpl.SetDurationResult.NoLeaseholdContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetDurationResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_UPDATE_FAILED,
@@ -208,8 +208,8 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("landlord", resolveName(landlordId)),
                                 Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetLandlordResult.NoLeaseContract ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASE_CONTRACT,
+                    case RealtyLogicImpl.SetLandlordResult.NoLeaseholdContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetLandlordResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_UPDATE_FAILED,
@@ -318,8 +318,8 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("tenant", resolveName(tenantId)),
                                 Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetTenantResult.NoLeaseContract ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASE_CONTRACT,
+                    case RealtyLogicImpl.SetTenantResult.NoLeaseholdContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetTenantResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_UPDATE_FAILED,
@@ -355,8 +355,8 @@ public record SetCommandGroup(
                                     Placeholder.unparsed("maxrenewals",
                                             maxRenewals < 0 ? "unlimited" : String.valueOf(maxRenewals)),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetMaxRenewalsResult.NoLeaseContract ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_NO_LEASE_CONTRACT,
+                    case RealtyLogicImpl.SetMaxRenewalsResult.NoLeaseholdContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetMaxRenewalsResult.BelowCurrentExtensions(int current) ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_BELOW_CURRENT,

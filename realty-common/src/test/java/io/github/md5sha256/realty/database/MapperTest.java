@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.database;
 
-import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
+import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
-import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
@@ -41,8 +41,8 @@ class MapperTest extends AbstractDatabaseTest {
         Assertions.assertTrue(created);
     }
 
-    private static void createLeaseRegion(String regionId, UUID landlord) {
-        boolean created = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, landlord);
+    private static void createLeaseholdRegion(String regionId, UUID landlord) {
+        boolean created = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, landlord);
         Assertions.assertTrue(created);
     }
 
@@ -181,7 +181,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectRegionsByTenant returns rented regions")
         void selectByTenant() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -218,7 +218,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("countRegionsByTenant returns correct count")
         void countByTenant() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -377,20 +377,20 @@ class MapperTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== LeaseContractMapper ====================
+    // ==================== LeaseholdContractMapper ====================
 
     @Nested
-    @DisplayName("LeaseContractMapper")
-    class LeaseContractMapperTests {
+    @DisplayName("LeaseholdContractMapper")
+    class LeaseholdContractMapperTests {
 
         @Test
-        @DisplayName("selectByRegion returns lease contract")
+        @DisplayName("selectByRegion returns leasehold contract")
         void selectByRegion() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                LeaseContractEntity entity = wrapper.leaseContractMapper()
+                LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
                 Assertions.assertEquals(AUTHORITY, entity.landlordId());
@@ -403,7 +403,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectByRegion returns null for nonexistent")
         void selectByRegionNull() {
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                LeaseContractEntity entity = wrapper.leaseContractMapper()
+                LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
                         .selectByRegion("nonexistent", WORLD_ID);
                 Assertions.assertNull(entity);
             }
@@ -413,11 +413,11 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegionAndTenant returns true for tenant")
         void existsByTenant() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertTrue(wrapper.leaseContractMapper()
+                Assertions.assertTrue(wrapper.leaseholdContractMapper()
                         .existsByRegionAndTenant(regionId, WORLD_ID, PLAYER_A));
             }
         }
@@ -426,10 +426,10 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("existsByRegionAndTenant returns false for non-tenant")
         void existsByTenantFalse() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                Assertions.assertFalse(wrapper.leaseContractMapper()
+                Assertions.assertFalse(wrapper.leaseholdContractMapper()
                         .existsByRegionAndTenant(regionId, WORLD_ID, PLAYER_A));
             }
         }
@@ -438,16 +438,16 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("rentRegion sets tenant and returns 1")
         void rentRegion() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.leaseContractMapper()
+                int updated = wrapper.leaseholdContractMapper()
                         .rentRegion(regionId, WORLD_ID, PLAYER_A);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                LeaseContractEntity entity = wrapper.leaseContractMapper()
+                LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertEquals(PLAYER_A, entity.tenantId());
             }
@@ -457,12 +457,12 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("rentRegion returns 0 when tenant already set")
         void rentRegionAlreadyOccupied() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.leaseContractMapper()
+                int updated = wrapper.leaseholdContractMapper()
                         .rentRegion(regionId, WORLD_ID, PLAYER_B);
                 session.commit();
                 Assertions.assertEquals(0, updated);
@@ -470,36 +470,36 @@ class MapperTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("renewLease increments extension count")
-        void renewLease() {
+        @DisplayName("renewLeasehold increments extension count")
+        void renewLeasehold() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.leaseContractMapper()
-                        .renewLease(regionId, WORLD_ID, PLAYER_A);
+                int updated = wrapper.leaseholdContractMapper()
+                        .renewLeasehold(regionId, WORLD_ID, PLAYER_A);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                LeaseContractEntity entity = wrapper.leaseContractMapper()
+                LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertEquals(1, entity.currentMaxExtensions());
             }
         }
 
         @Test
-        @DisplayName("renewLease returns 0 for wrong tenant")
-        void renewLeaseWrongTenant() {
+        @DisplayName("renewLeasehold returns 0 for wrong tenant")
+        void renewLeaseholdWrongTenant() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.leaseContractMapper()
-                        .renewLease(regionId, WORLD_ID, PLAYER_B);
+                int updated = wrapper.leaseholdContractMapper()
+                        .renewLeasehold(regionId, WORLD_ID, PLAYER_B);
                 session.commit();
                 Assertions.assertEquals(0, updated);
             }
@@ -509,34 +509,34 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("clearTenant sets tenant to null")
         void clearTenant() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                LeaseContractEntity lease = wrapper.leaseContractMapper()
+                LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
-                int updated = wrapper.leaseContractMapper().clearTenant(lease.leaseContractId());
+                int updated = wrapper.leaseholdContractMapper().clearTenant(lease.leaseholdContractId());
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                LeaseContractEntity after = wrapper.leaseContractMapper()
+                LeaseholdContractEntity after = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNull(after.tenantId());
             }
         }
 
         @Test
-        @DisplayName("selectExpiredLeases returns expired leases with tenants")
-        void selectExpiredLeases() throws InterruptedException {
+        @DisplayName("selectExpiredLeaseholds returns expired leases with tenants")
+        void selectExpiredLeaseholds() throws InterruptedException {
             String regionId = uniqueRegionId();
-            logic.createRental(regionId, WORLD_ID, 100.0, 1, -1, AUTHORITY);
+            logic.createLeasehold(regionId, WORLD_ID, 100.0, 1, -1, AUTHORITY);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             Thread.sleep(2500);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                List<ExpiredLeaseView> expired = wrapper.leaseContractMapper().selectExpiredLeases();
+                List<ExpiredLeaseholdView> expired = wrapper.leaseholdContractMapper().selectExpiredLeaseholds();
                 Assertions.assertFalse(expired.isEmpty());
                 boolean found = expired.stream()
                         .anyMatch(e -> e.worldGuardRegionId().equals(regionId));
@@ -548,16 +548,16 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("updateDurationByRegion updates duration")
         void updateDuration() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.leaseContractMapper()
+                int updated = wrapper.leaseholdContractMapper()
                         .updateDurationByRegion(regionId, WORLD_ID, 172800);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                LeaseContractEntity entity = wrapper.leaseContractMapper()
+                LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertEquals(172800, entity.durationSeconds());
             }
@@ -568,7 +568,7 @@ class MapperTest extends AbstractDatabaseTest {
         void updateDurationNonexistent() {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.leaseContractMapper()
+                int updated = wrapper.leaseholdContractMapper()
                         .updateDurationByRegion("nonexistent", WORLD_ID, 172800);
                 session.commit();
                 Assertions.assertEquals(0, updated);
@@ -579,16 +579,16 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("updateLandlordByRegion updates landlord")
         void updateLandlord() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.leaseContractMapper()
+                int updated = wrapper.leaseholdContractMapper()
                         .updateLandlordByRegion(regionId, WORLD_ID, PLAYER_A);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
-                LeaseContractEntity entity = wrapper.leaseContractMapper()
+                LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertEquals(PLAYER_A, entity.landlordId());
             }
@@ -599,7 +599,7 @@ class MapperTest extends AbstractDatabaseTest {
         void updateLandlordNonexistent() {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int updated = wrapper.leaseContractMapper()
+                int updated = wrapper.leaseholdContractMapper()
                         .updateLandlordByRegion("nonexistent", WORLD_ID, PLAYER_A);
                 session.commit();
                 Assertions.assertEquals(0, updated);
@@ -1483,21 +1483,21 @@ class MapperTest extends AbstractDatabaseTest {
         }
     }
 
-    // ==================== LeaseHistoryMapper ====================
+    // ==================== LeaseholdHistoryMapper ====================
 
     @Nested
-    @DisplayName("LeaseHistoryMapper")
-    class LeaseHistoryMapperTests {
+    @DisplayName("LeaseholdHistoryMapper")
+    class LeaseholdHistoryMapperTests {
 
         @Test
-        @DisplayName("insert records lease history")
+        @DisplayName("insert records leasehold history")
         void insert() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int inserted = wrapper.leaseHistoryMapper()
+                int inserted = wrapper.leaseholdHistoryMapper()
                         .insert(regionId, WORLD_ID, "RENT", PLAYER_A, AUTHORITY,
                                 200.0, 86400L, 5);
                 session.commit();
@@ -1509,12 +1509,12 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("insert with null optional fields")
         void insertNulls() {
             String regionId = uniqueRegionId();
-            createLeaseRegion(regionId, AUTHORITY);
+            createLeaseholdRegion(regionId, AUTHORITY);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                int inserted = wrapper.leaseHistoryMapper()
-                        .insert(regionId, WORLD_ID, "LEASE_EXPIRY", PLAYER_A, AUTHORITY,
+                int inserted = wrapper.leaseholdHistoryMapper()
+                        .insert(regionId, WORLD_ID, "LEASEHOLD_EXPIRY", PLAYER_A, AUTHORITY,
                                 null, null, null);
                 session.commit();
                 Assertions.assertEquals(1, inserted);

@@ -151,7 +151,7 @@ public record SubregionCommandGroup(
                         if (freehold == null) {
                             return new QuickCreateResult.NoFreeholdContract();
                         }
-                        boolean created = logic.createRental(
+                        boolean created = logic.createLeasehold(
                                 name, worldId,
                                 price, duration.toSeconds(), -1, playerId);
                         if (!created) {

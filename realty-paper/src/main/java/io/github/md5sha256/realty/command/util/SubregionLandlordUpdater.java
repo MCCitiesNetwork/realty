@@ -20,7 +20,7 @@ public final class SubregionLandlordUpdater {
 
     /**
      * Finds all WorldGuard child regions of the given parent and updates their
-     * lease contract landlord to the new owner. Must be called on the main thread
+     * leasehold contract landlord to the new owner. Must be called on the main thread
      * (WorldGuard region lookup). The DB update runs async, then WG owners are
      * updated on the main thread.
      */

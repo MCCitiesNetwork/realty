@@ -59,7 +59,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
             "RENT", MessageKeys.HISTORY_EVENT_RENT,
             "UNRENT", MessageKeys.HISTORY_EVENT_UNRENT,
             "RENEW", MessageKeys.HISTORY_EVENT_RENEW,
-            "LEASE_EXPIRY", MessageKeys.HISTORY_EVENT_LEASE_EXPIRY
+            "LEASEHOLD_EXPIRY", MessageKeys.HISTORY_EVENT_LEASEHOLD_EXPIRY
     );
 
     private static final CloudKey<WorldGuardRegion> REGION = CloudKey.of("region",
@@ -156,7 +156,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
                                         Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
                                         Placeholder.unparsed("agent", resolveName(agent.agentId())),
                                         Placeholder.unparsed("actor", resolveName(agent.actorId()))));
-                        case HistoryEntry.Lease lease -> builder.append(
+                        case HistoryEntry.Leasehold lease -> builder.append(
                                 messages.messageFor(messageKey,
                                         Placeholder.unparsed("time", DateFormatter.format(settings.get(), lease.eventTime())),
                                         Placeholder.unparsed("tenant", resolveName(lease.tenantId())),

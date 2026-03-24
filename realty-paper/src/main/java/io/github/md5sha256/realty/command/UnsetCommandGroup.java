@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
  * <ul>
  *   <li>{@code /realty unset price [region]} — clear freehold price</li>
  *   <li>{@code /realty unset titleholder [region]} — clear freehold title holder</li>
- *   <li>{@code /realty unset tenant [region]} — clear lease tenant</li>
+ *   <li>{@code /realty unset tenant [region]} — clear leasehold tenant</li>
  * </ul>
  */
 public record UnsetCommandGroup(
@@ -187,8 +187,8 @@ public record UnsetCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetTenantResult.NoLeaseContract ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_NO_LEASE_CONTRACT,
+                    case RealtyLogicImpl.SetTenantResult.NoLeaseholdContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetTenantResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_UPDATE_FAILED,

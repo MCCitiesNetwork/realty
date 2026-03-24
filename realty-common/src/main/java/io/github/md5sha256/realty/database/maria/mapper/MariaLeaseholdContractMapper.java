@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
-import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
-import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
-import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
+import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
+import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Param;
@@ -15,65 +15,36 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * MariaDB-specific MyBatis mapper for CRUD operations on the {@code LeaseContract} table.
- *
- * <p>The {@code LeaseContract} table stores the tenant, rental price, period, and extension limits
- * for a rental contract. Its association with a {@code RealtyRegion} is tracked through the
- * {@code Contract} table (managed by {@link MariaContractMapper}); callers must insert the
- * corresponding {@code Contract} row <em>before</em> invoking {@link #insertLease} so that
- * referential integrity is maintained at the application level.
- *
- * @see LeaseContractEntity
- */
-public interface MariaLeaseContractMapper extends LeaseContractMapper {
+public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Inserts a single row into the {@code LeaseContract} table. The {@code regionId} parameter
-     * is accepted for API consistency (and may be used by callers to look up the region) but is
-     * not written to the {@code LeaseContract} table itself — that linkage is recorded in the
-     * {@code Contract} table.
-     *
-     * <p>The {@code startDate} column is populated with {@code NOW()} by MariaDB at insert time.
-     *
-     * <p>When {@code maxRenewals} is negative, both {@code currentMaxExtensions} and
-     * {@code maxExtensions} are stored as {@code NULL}, indicating an unlimited number of renewals.
-     * Otherwise {@code currentMaxExtensions} is initialised to {@code 0} and {@code maxExtensions}
-     * is set to {@code maxRenewals}.
-     *
-     * <p>The generated {@code leaseContractId} is set back onto the parameter map by MyBatis via
-     * {@code useGeneratedKeys}.
-     */
     @Override
     @Select("""
-            INSERT INTO LeaseContract (landlordId, tenantId, price, durationSeconds, startDate, endDate, currentMaxExtensions, maxExtensions)
+            INSERT INTO LeaseholdContract (landlordId, tenantId, price, durationSeconds, startDate, endDate, currentMaxExtensions, maxExtensions)
             VALUES (
                 #{landlordId},
                 #{tenantId},
                 #{price},
                 #{durationSeconds},
                 NOW(),
-                CASE WHEN #{tenantId} IS NOT NULL THEN NOW() + INTERVAL #{durationSeconds} SECOND ELSE NULL END,
+                NOW() + INTERVAL #{durationSeconds} SECOND,
                 CASE WHEN #{maxRenewals} >= 0 THEN 0     ELSE NULL END,
                 CASE WHEN #{maxRenewals} >= 0 THEN #{maxRenewals} ELSE NULL END
             )
-            RETURNING leaseContractId
+            RETURNING leaseholdContractId
             """)
-    int insertLease(@Param("regionId") int regionId,
-                    @Param("price") double price,
-                    @Param("durationSeconds") long durationSeconds,
-                    @Param("maxRenewals") int maxRenewals,
-                    @Param("landlordId") @NotNull UUID landlordId,
-                    @Param("tenantId") @Nullable UUID tenantId);
+    int insertLeasehold(@Param("regionId") int regionId,
+                        @Param("price") double price,
+                        @Param("durationSeconds") long durationSeconds,
+                        @Param("maxRenewals") int maxRenewals,
+                        @Param("landlordId") @NotNull UUID landlordId,
+                        @Param("tenantId") @Nullable UUID tenantId);
 
     @Override
     @Select("""
             SELECT EXISTS (
                 SELECT 1
-                FROM LeaseContract lc
-                INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+                FROM LeaseholdContract lc
+                INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
                 INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
                 WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
                 AND rr.worldId = #{worldId}
@@ -86,16 +57,16 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
 
     @Override
     @Select("""
-            SELECT lc.leaseContractId, lc.landlordId, lc.tenantId, lc.price, lc.durationSeconds,
+            SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId, lc.price, lc.durationSeconds,
                    lc.startDate, lc.endDate, lc.currentMaxExtensions, lc.maxExtensions
-            FROM LeaseContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            FROM LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
     @ConstructorArgs({
-            @Arg(column = "leaseContractId", javaType = int.class),
+            @Arg(column = "leaseholdContractId", javaType = int.class),
             @Arg(column = "landlordId", javaType = UUID.class),
             @Arg(column = "tenantId", javaType = UUID.class),
             @Arg(column = "price", javaType = double.class),
@@ -105,13 +76,13 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             @Arg(column = "currentMaxExtensions", javaType = Integer.class),
             @Arg(column = "maxExtensions", javaType = Integer.class)
     })
-    @Nullable LeaseContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
-                                                @Param("worldId") @NotNull UUID worldId);
+    @Nullable LeaseholdContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                                     @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Update("""
-            UPDATE LeaseContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.tenantId = #{tenantId}, lc.startDate = NOW(),
                 lc.endDate = NOW() + INTERVAL lc.durationSeconds SECOND,
@@ -126,8 +97,8 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
 
     @Override
     @Update("""
-            UPDATE LeaseContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.endDate = lc.endDate + INTERVAL lc.durationSeconds SECOND,
                 lc.currentMaxExtensions = CASE
@@ -139,43 +110,42 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             AND lc.tenantId = #{tenantId}
             AND (lc.currentMaxExtensions IS NULL OR lc.currentMaxExtensions < lc.maxExtensions)
             """)
-    int renewLease(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
-                   @Param("worldId") @NotNull UUID worldId,
-                   @Param("tenantId") @NotNull UUID tenantId);
+    int renewLeasehold(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                       @Param("worldId") @NotNull UUID worldId,
+                       @Param("tenantId") @NotNull UUID tenantId);
 
     @Override
     @Select("""
-            SELECT lc.leaseContractId, lc.landlordId, lc.tenantId,
+            SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId,
                    rr.worldGuardRegionId, rr.worldId
-            FROM LeaseContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            FROM LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             WHERE lc.tenantId IS NOT NULL
             AND lc.endDate < NOW()
             """)
     @ConstructorArgs({
-            @Arg(column = "leaseContractId", javaType = int.class),
+            @Arg(column = "leaseholdContractId", javaType = int.class),
             @Arg(column = "landlordId", javaType = UUID.class),
             @Arg(column = "tenantId", javaType = UUID.class),
             @Arg(column = "worldGuardRegionId", javaType = String.class),
             @Arg(column = "worldId", javaType = UUID.class)
     })
-    @NotNull List<ExpiredLeaseView> selectExpiredLeases();
+    @NotNull List<ExpiredLeaseholdView> selectExpiredLeaseholds();
 
     @Override
     @Update("""
-            UPDATE LeaseContract
+            UPDATE LeaseholdContract
             SET tenantId = NULL,
-                endDate = NULL,
                 currentMaxExtensions = CASE WHEN maxExtensions IS NOT NULL THEN 0 ELSE NULL END
-            WHERE leaseContractId = #{leaseContractId}
+            WHERE leaseholdContractId = #{leaseholdContractId}
             """)
-    int clearTenant(@Param("leaseContractId") int leaseContractId);
+    int clearTenant(@Param("leaseholdContractId") int leaseholdContractId);
 
     @Override
     @Update("""
-            UPDATE LeaseContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.durationSeconds = #{durationSeconds}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -187,8 +157,8 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
 
     @Override
     @Update("""
-            UPDATE LeaseContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.landlordId = #{landlordId}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -200,14 +170,10 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
 
     @Override
     @Update("""
-            UPDATE LeaseContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.tenantId = #{tenantId},
-                lc.endDate = CASE
-                    WHEN #{tenantId} IS NULL THEN NULL
-                    ELSE lc.endDate
-                END,
                 lc.currentMaxExtensions = CASE
                     WHEN #{tenantId} IS NULL AND lc.maxExtensions IS NOT NULL THEN 0
                     ELSE lc.currentMaxExtensions
@@ -216,13 +182,13 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             AND rr.worldId = #{worldId}
             """)
     int updateTenantByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
-                              @Param("worldId") @NotNull UUID worldId,
-                              @Param("tenantId") @Nullable UUID tenantId);
+                             @Param("worldId") @NotNull UUID worldId,
+                             @Param("tenantId") @Nullable UUID tenantId);
 
     @Override
     @Update("""
-            UPDATE LeaseContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.maxExtensions = CASE WHEN #{maxRenewals} >= 0 THEN #{maxRenewals} ELSE NULL END,
                 lc.currentMaxExtensions = CASE WHEN #{maxRenewals} >= 0 THEN 0 ELSE NULL END
@@ -230,7 +196,6 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             AND rr.worldId = #{worldId}
             """)
     int updateMaxRenewalsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
-                                   @Param("worldId") @NotNull UUID worldId,
-                                   @Param("maxRenewals") int maxRenewals);
-
+                                  @Param("worldId") @NotNull UUID worldId,
+                                  @Param("maxRenewals") int maxRenewals);
 }

@@ -127,21 +127,21 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         }
     }
 
-    // --- CreateRental ---
+    // --- CreateLeasehold ---
 
     @Nested
-    @DisplayName("createRental")
-    class CreateRental {
+    @DisplayName("createLeasehold")
+    class CreateLeasehold {
 
         @Test
         @DisplayName("succeeds for a new region")
         void succeeds() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            boolean result = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
-            Assertions.assertNotNull(info.lease());
+            Assertions.assertNotNull(info.leasehold());
         }
 
         @Test
@@ -150,7 +150,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
 
-            boolean second = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_B);
+            boolean second = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_B);
             Assertions.assertFalse(second);
         }
 
@@ -158,12 +158,12 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("succeeds with null tenant (for rent)")
         void succeedsWithNullTenant() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            boolean result = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
-            Assertions.assertNotNull(info.lease());
-            Assertions.assertNull(info.lease().tenantId());
+            Assertions.assertNotNull(info.leasehold());
+            Assertions.assertNull(info.leasehold().tenantId());
         }
     }
 
@@ -218,7 +218,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         void noContracts() {
             RegionInfo info = logic.getRegionInfo("nonexistent", WORLD_ID);
             Assertions.assertNull(info.freehold());
-            Assertions.assertNull(info.lease());
+            Assertions.assertNull(info.leasehold());
             Assertions.assertNull(info.auction());
         }
 
@@ -230,17 +230,17 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
             Assertions.assertNotNull(info.freehold());
-            Assertions.assertNull(info.lease());
+            Assertions.assertNull(info.leasehold());
         }
 
         @Test
-        @DisplayName("returns lease when rental exists")
-        void withLease() {
+        @DisplayName("returns leasehold when rental exists")
+        void withLeasehold() {
             String regionId = uniqueRegionId();
-            logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
-            Assertions.assertNotNull(info.lease());
+            Assertions.assertNotNull(info.leasehold());
             Assertions.assertNull(info.freehold());
         }
     }
@@ -270,10 +270,10 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("returns true when player is tenant of lease")
+        @DisplayName("returns true when player is tenant of leasehold")
         void isTenant() {
             String regionId = uniqueRegionId();
-            logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
 
             Assertions.assertTrue(logic.checkRegionAuthority(regionId, WORLD_ID, PLAYER_A));
         }
@@ -335,7 +335,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
         @DisplayName("counts rented region for tenant")
         void rentedRegion() {
             String regionId = uniqueRegionId();
-            logic.createRental(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             ListResult result = logic.listRegions(PLAYER_B, 10, 0);

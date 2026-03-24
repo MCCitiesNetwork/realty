@@ -103,7 +103,7 @@ public final class MessageKeys {
     public static final String CANCEL_AUCTION_ERROR = "cancel-auction.error";
 
     // create
-    public static final String CREATE_LEASE_SUCCESS = "create.lease-success";
+    public static final String CREATE_LEASEHOLD_SUCCESS = "create.leasehold-success";
     public static final String CREATE_FREEHOLD_SUCCESS = "create.freehold-success";
     public static final String CREATE_ALREADY_REGISTERED = "create.already-registered";
     public static final String CREATE_REGION_EXISTS = "create.region-exists";
@@ -153,14 +153,14 @@ public final class MessageKeys {
     public static final String HISTORY_EVENT_RENT = "history.event.rent";
     public static final String HISTORY_EVENT_UNRENT = "history.event.unrent";
     public static final String HISTORY_EVENT_RENEW = "history.event.renew";
-    public static final String HISTORY_EVENT_LEASE_EXPIRY = "history.event.lease-expiry";
+    public static final String HISTORY_EVENT_LEASEHOLD_EXPIRY = "history.event.leasehold-expiry";
 
     // info
     public static final String INFO_HEADER = "info.header";
     public static final String INFO_NO_CONTRACTS = "info.no-contracts";
     public static final String INFO_SOLD = "info.sold";
     public static final String INFO_FOR_SALE = "info.for-sale";
-    public static final String INFO_LEASE = "info.lease";
+    public static final String INFO_LEASEHOLD = "info.leasehold";
     public static final String INFO_AUCTION_ACTIVE = "info.auction-active";
     public static final String INFO_ERROR = "info.error";
 
@@ -248,7 +248,7 @@ public final class MessageKeys {
 
     // renew
     public static final String RENEW_SUCCESS = "renew.success";
-    public static final String RENEW_NO_LEASE_CONTRACT = "renew.no-lease-contract";
+    public static final String RENEW_NO_LEASEHOLD_CONTRACT = "renew.no-leasehold-contract";
     public static final String RENEW_NOT_TENANT = "renew.not-tenant";
     public static final String RENEW_NO_EXTENSIONS = "renew.no-extensions";
     public static final String RENEW_UPDATE_FAILED = "renew.update-failed";
@@ -258,7 +258,7 @@ public final class MessageKeys {
 
     // unrent
     public static final String UNRENT_SUCCESS = "unrent.success";
-    public static final String UNRENT_NO_LEASE_CONTRACT = "unrent.no-lease-contract";
+    public static final String UNRENT_NO_LEASEHOLD_CONTRACT = "unrent.no-leasehold-contract";
     public static final String UNRENT_NOT_TENANT = "unrent.not-tenant";
     public static final String UNRENT_UPDATE_FAILED = "unrent.update-failed";
     public static final String UNRENT_REFUND_FAILED = "unrent.refund-failed";
@@ -266,7 +266,7 @@ public final class MessageKeys {
 
     // rent
     public static final String RENT_SUCCESS = "rent.success";
-    public static final String RENT_NO_LEASE_CONTRACT = "rent.no-lease-contract";
+    public static final String RENT_NO_LEASEHOLD_CONTRACT = "rent.no-leasehold-contract";
     public static final String RENT_IS_LANDLORD = "rent.is-landlord";
     public static final String RENT_ALREADY_OCCUPIED = "rent.already-occupied";
     public static final String RENT_UPDATE_FAILED = "rent.update-failed";
@@ -280,20 +280,20 @@ public final class MessageKeys {
 
     // set-duration
     public static final String SET_DURATION_SUCCESS = "set-duration.success";
-    public static final String SET_DURATION_NO_LEASE_CONTRACT = "set-duration.no-lease-contract";
+    public static final String SET_DURATION_NO_LEASEHOLD_CONTRACT = "set-duration.no-leasehold-contract";
     public static final String SET_DURATION_UPDATE_FAILED = "set-duration.update-failed";
     public static final String SET_DURATION_ERROR = "set-duration.error";
 
     // set-maxrenewals
     public static final String SET_MAX_RENEWALS_SUCCESS = "set-maxrenewals.success";
-    public static final String SET_MAX_RENEWALS_NO_LEASE_CONTRACT = "set-maxrenewals.no-lease-contract";
+    public static final String SET_MAX_RENEWALS_NO_LEASEHOLD_CONTRACT = "set-maxrenewals.no-leasehold-contract";
     public static final String SET_MAX_RENEWALS_BELOW_CURRENT = "set-maxrenewals.below-current";
     public static final String SET_MAX_RENEWALS_UPDATE_FAILED = "set-maxrenewals.update-failed";
     public static final String SET_MAX_RENEWALS_ERROR = "set-maxrenewals.error";
 
     // set-landlord
     public static final String SET_LANDLORD_SUCCESS = "set-landlord.success";
-    public static final String SET_LANDLORD_NO_LEASE_CONTRACT = "set-landlord.no-lease-contract";
+    public static final String SET_LANDLORD_NO_LEASEHOLD_CONTRACT = "set-landlord.no-leasehold-contract";
     public static final String SET_LANDLORD_UPDATE_FAILED = "set-landlord.update-failed";
     public static final String SET_LANDLORD_ERROR = "set-landlord.error";
 
@@ -308,7 +308,7 @@ public final class MessageKeys {
 
     // set-tenant
     public static final String SET_TENANT_SUCCESS = "set-tenant.success";
-    public static final String SET_TENANT_NO_LEASE_CONTRACT = "set-tenant.no-lease-contract";
+    public static final String SET_TENANT_NO_LEASEHOLD_CONTRACT = "set-tenant.no-leasehold-contract";
     public static final String SET_TENANT_UPDATE_FAILED = "set-tenant.update-failed";
     public static final String SET_TENANT_ERROR = "set-tenant.error";
 
@@ -332,7 +332,7 @@ public final class MessageKeys {
 
     // unset-tenant
     public static final String UNSET_TENANT_SUCCESS = "unset-tenant.success";
-    public static final String UNSET_TENANT_NO_LEASE_CONTRACT = "unset-tenant.no-lease-contract";
+    public static final String UNSET_TENANT_NO_LEASEHOLD_CONTRACT = "unset-tenant.no-leasehold-contract";
     public static final String UNSET_TENANT_UPDATE_FAILED = "unset-tenant.update-failed";
     public static final String UNSET_TENANT_ERROR = "unset-tenant.error";
 
@@ -390,7 +390,7 @@ public final class MessageKeys {
     public static final String NOTIFICATION_REGION_RENTED = "notification.region-rented";
     public static final String NOTIFICATION_BID_PAYMENT_EXPIRED = "notification.bid-payment-expired";
     public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED = "notification.offer-payment-expired";
-    public static final String NOTIFICATION_LEASE_EXPIRED = "notification.lease-expired";
-    public static final String NOTIFICATION_LEASE_EXPIRED_LANDLORD = "notification.lease-expired-landlord";
+    public static final String NOTIFICATION_LEASEHOLD_EXPIRED = "notification.leasehold-expired";
+    public static final String NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD = "notification.leasehold-expired-landlord";
     public static final String NOTIFICATION_REGION_UNRENTED = "notification.region-unrented";
 }

@@ -73,7 +73,7 @@ cancel-auction:
   error: "Failed to cancel auction: <error>"
 
 create:
-  lease-success: "Created WorldGuard region <region> and registered it as a rental!"
+  leasehold-success: "Created WorldGuard region <region> and registered it as a rental!"
   freehold-success: "Created WorldGuard region <region> and registered it as freehold!"
   already-registered: "Region <region> is already registered in Realty!"
   region-exists: "A WorldGuard region named <region> already exists!"
@@ -110,7 +110,7 @@ info:
     - "<#00aaff>►</#00aaff> Title Holder: <#00aaff><title_holder></#00aaff>"
     - "<#00aaff>►</#00aaff> Price: <green>$<price></green>"
     - "<#00aaff>►</#00aaff> Authority: <dark_green><authority></dark_green>"
-  lease:
+  leasehold:
     - "Lease:"
     - "Landlord: <landlord>"
     - "Tenant: <tenant>"
@@ -133,7 +133,7 @@ history:
     agent-remove: "<gray><time></gray> <yellow>Agent Removed</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
     rent: "<gray><time></gray> <yellow>Rented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
     unrent: "<gray><time></gray> <yellow>Unrented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-    lease-expiry: "<gray><time></gray> <yellow>Lease Expired</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
+    leasehold-expiry: "<gray><time></gray> <yellow>Lease Expired</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
   footer: "Page <page> of <total> <previous><next>"
   previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
   next: " <click:run_command:<command>><yellow>Next ></yellow></click>"
@@ -266,14 +266,14 @@ help:
   admin:
     - "<gold>--- Realty > Admin ---</gold>"
     - "<yellow>/realty create freehold <price> [--titleholder <name>] [--authority <name>] <region></yellow> <gray>- Create a freehold</gray>"
-    - "<yellow>/realty create lease <price> <period> <maxrenewals> [--landlord <name>] <region></yellow> <gray>- Create a lease</gray>"
+    - "<yellow>/realty create leasehold <price> <period> <maxrenewals> [--landlord <name>] <region></yellow> <gray>- Create a lease</gray>"
     - "<yellow>/realty remove <player> <region></yellow> <gray>- Remove a player from a region</gray>"
     - "<yellow>/realty delete <region> [includeworldguard]</yellow> <gray>- Delete a region</gray>"
     - "<yellow>/realty reload</yellow> <gray>- Reload configuration</gray>"
 
 renew:
   success: "Lease for region <region> has been renewed for <price>."
-  no-lease-contract: "Region <region> does not have a lease contract."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
   not-tenant: "You are not the tenant of region <region>."
   no-extensions: "Region <region> has no remaining lease extensions."
   update-failed: "Failed to renew lease for region <region>."
@@ -283,7 +283,7 @@ renew:
 
 unrent:
   success: "You have unrented region <region>. Refund: <refund>."
-  no-lease-contract: "Region <region> does not have a lease contract."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
   not-tenant: "You are not the tenant of region <region>."
   update-failed: "Failed to unrent region <region>."
   refund-failed: "Failed to process refund: <error>"
@@ -291,7 +291,7 @@ unrent:
 
 rent:
   success: "You are now renting region <region> for <price> for <duration>."
-  no-lease-contract: "Region <region> does not have a lease contract."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
   is-landlord: "You cannot rent region <region> because you are the landlord."
   already-occupied: "Region <region> already has a tenant."
   update-failed: "Failed to rent region <region>."
@@ -335,20 +335,20 @@ unset-price:
 
 set-duration:
   success: "Duration for region <region> set to <duration>."
-  no-lease-contract: "Region <region> does not have a lease contract."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
   update-failed: "Failed to update duration for region <region>."
   error: "Failed to set duration: <error>"
 
 set-maxrenewals:
   success: "Max renewals for region <region> set to <maxrenewals>."
-  no-lease-contract: "Region <region> does not have a lease contract."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
   below-current: "Max renewals cannot be less than the current renewal count (<current>) for region <region>."
   update-failed: "Failed to update max renewals for region <region>."
   error: "Failed to set max renewals: <error>"
 
 set-landlord:
   success: "Landlord for region <region> set to <landlord>."
-  no-lease-contract: "Region <region> does not have a lease contract."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
   update-failed: "Failed to update landlord for region <region>."
   error: "Failed to set landlord: <error>"
 
@@ -360,7 +360,7 @@ set-titleholder:
 
 set-tenant:
   success: "Tenant for region <region> set to <tenant>."
-  no-lease-contract: "Region <region> does not have a lease contract."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
   update-failed: "Failed to update tenant for region <region>."
   error: "Failed to set tenant: <error>"
 
@@ -372,7 +372,7 @@ unset-titleholder:
 
 unset-tenant:
   success: "Tenant for region <region> has been cleared."
-  no-lease-contract: "Region <region> does not have a lease contract."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
   update-failed: "Failed to clear tenant for region <region>."
   error: "Failed to unset tenant: <error>"
 

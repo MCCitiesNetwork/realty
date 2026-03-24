@@ -9,5 +9,5 @@ public enum HistoryEventType {
     RENT,
     UNRENT,
     RENEW,
-    LEASE_EXPIRY
+    LEASEHOLD_EXPIRY
 }

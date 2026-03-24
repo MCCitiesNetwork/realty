@@ -6,12 +6,12 @@ import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.entity.AgentHistoryEntity;
-import io.github.md5sha256.realty.database.entity.ExpiredLeaseView;
+import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAgentInviteEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
-import io.github.md5sha256.realty.database.entity.LeaseHistoryEntity;
-import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
@@ -21,7 +21,7 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
-import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
+import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractBidMapper;
@@ -383,7 +383,7 @@ public class RealtyLogicImpl {
 
     public sealed interface SetDurationResult {
         record Success() implements SetDurationResult {}
-        record NoLeaseContract() implements SetDurationResult {}
+        record NoLeaseholdContract() implements SetDurationResult {}
         record UpdateFailed() implements SetDurationResult {}
     }
 
@@ -391,12 +391,12 @@ public class RealtyLogicImpl {
                                                     @NotNull UUID worldId,
                                                     long durationSeconds) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
-                return new SetDurationResult.NoLeaseContract();
+                return new SetDurationResult.NoLeaseholdContract();
             }
-            int updated = leaseMapper.updateDurationByRegion(worldGuardRegionId, worldId, durationSeconds);
+            int updated = leaseholdMapper.updateDurationByRegion(worldGuardRegionId, worldId, durationSeconds);
             if (updated == 0) {
                 return new SetDurationResult.UpdateFailed();
             }
@@ -409,7 +409,7 @@ public class RealtyLogicImpl {
 
     public sealed interface SetMaxRenewalsResult {
         record Success() implements SetMaxRenewalsResult {}
-        record NoLeaseContract() implements SetMaxRenewalsResult {}
+        record NoLeaseholdContract() implements SetMaxRenewalsResult {}
         record BelowCurrentExtensions(int currentExtensions) implements SetMaxRenewalsResult {}
         record UpdateFailed() implements SetMaxRenewalsResult {}
     }
@@ -418,17 +418,17 @@ public class RealtyLogicImpl {
                                                           @NotNull UUID worldId,
                                                           int maxRenewals) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
-                return new SetMaxRenewalsResult.NoLeaseContract();
+                return new SetMaxRenewalsResult.NoLeaseholdContract();
             }
             if (maxRenewals >= 0 && lease.tenantId() != null
                     && lease.currentMaxExtensions() != null
                     && maxRenewals < lease.currentMaxExtensions()) {
                 return new SetMaxRenewalsResult.BelowCurrentExtensions(lease.currentMaxExtensions());
             }
-            int updated = leaseMapper.updateMaxRenewalsByRegion(worldGuardRegionId, worldId, maxRenewals);
+            int updated = leaseholdMapper.updateMaxRenewalsByRegion(worldGuardRegionId, worldId, maxRenewals);
             if (updated == 0) {
                 return new SetMaxRenewalsResult.UpdateFailed();
             }
@@ -441,7 +441,7 @@ public class RealtyLogicImpl {
 
     public sealed interface SetLandlordResult {
         record Success(@NotNull UUID previousLandlord) implements SetLandlordResult {}
-        record NoLeaseContract() implements SetLandlordResult {}
+        record NoLeaseholdContract() implements SetLandlordResult {}
         record UpdateFailed() implements SetLandlordResult {}
     }
 
@@ -449,13 +449,13 @@ public class RealtyLogicImpl {
                                                     @NotNull UUID worldId,
                                                     @NotNull UUID landlordId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
-                return new SetLandlordResult.NoLeaseContract();
+                return new SetLandlordResult.NoLeaseholdContract();
             }
             UUID previousLandlord = lease.landlordId();
-            int updated = leaseMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordId);
+            int updated = leaseholdMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordId);
             if (updated == 0) {
                 return new SetLandlordResult.UpdateFailed();
             }
@@ -500,9 +500,9 @@ public class RealtyLogicImpl {
             return;
         }
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             for (String childRegionId : childRegionIds) {
-                leaseMapper.updateLandlordByRegion(childRegionId, worldId, newLandlord);
+                leaseholdMapper.updateLandlordByRegion(childRegionId, worldId, newLandlord);
             }
             wrapper.session().commit();
         }
@@ -512,7 +512,7 @@ public class RealtyLogicImpl {
 
     public sealed interface SetTenantResult {
         record Success(@Nullable UUID previousTenant, @NotNull UUID landlordId) implements SetTenantResult {}
-        record NoLeaseContract() implements SetTenantResult {}
+        record NoLeaseholdContract() implements SetTenantResult {}
         record UpdateFailed() implements SetTenantResult {}
     }
 
@@ -520,13 +520,13 @@ public class RealtyLogicImpl {
                                                 @NotNull UUID worldId,
                                                 @Nullable UUID tenantId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
-                return new SetTenantResult.NoLeaseContract();
+                return new SetTenantResult.NoLeaseholdContract();
             }
             UUID previousTenant = lease.tenantId();
-            int updated = leaseMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId);
+            int updated = leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new SetTenantResult.UpdateFailed();
             }
@@ -621,7 +621,7 @@ public class RealtyLogicImpl {
 
     // --- Create Rental ---
 
-    public boolean createRental(@NotNull String worldGuardRegionId,
+    public boolean createLeasehold(@NotNull String worldGuardRegionId,
                                 @NotNull UUID worldId,
                                 double price,
                                 long durationSeconds,
@@ -634,8 +634,8 @@ public class RealtyLogicImpl {
                 return false;
             }
             int regionId = regionMapper.registerWorldGuardRegion(worldGuardRegionId, worldId);
-            int leaseContractId = wrapper.leaseContractMapper().insertLease(regionId, price, durationSeconds, maxRenewals, landlordId, null);
-            wrapper.contractMapper().insert(new ContractEntity(leaseContractId, "contract", regionId));
+            int leaseholdContractId = wrapper.leaseholdContractMapper().insertLeasehold(regionId, price, durationSeconds, maxRenewals, landlordId, null);
+            wrapper.contractMapper().insert(new ContractEntity(leaseholdContractId, "leasehold", regionId));
             session.commit();
             return true;
         }
@@ -645,7 +645,7 @@ public class RealtyLogicImpl {
 
     public sealed interface RentResult {
         record Success(double price, long durationSeconds, @NotNull UUID landlordId) implements RentResult {}
-        record NoLeaseContract() implements RentResult {}
+        record NoLeaseholdContract() implements RentResult {}
         record AlreadyOccupied() implements RentResult {}
         record UpdateFailed() implements RentResult {}
     }
@@ -654,19 +654,19 @@ public class RealtyLogicImpl {
                                            @NotNull UUID worldId,
                                            @NotNull UUID tenantId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
-                return new RentResult.NoLeaseContract();
+                return new RentResult.NoLeaseholdContract();
             }
             if (lease.tenantId() != null) {
                 return new RentResult.AlreadyOccupied();
             }
-            int updated = leaseMapper.rentRegion(worldGuardRegionId, worldId, tenantId);
+            int updated = leaseholdMapper.rentRegion(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new RentResult.UpdateFailed();
             }
-            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENT.name(),
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENT.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId());
@@ -677,7 +677,7 @@ public class RealtyLogicImpl {
 
     public sealed interface UnrentResult {
         record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId) implements UnrentResult {}
-        record NoLeaseContract() implements UnrentResult {}
+        record NoLeaseholdContract() implements UnrentResult {}
         record UpdateFailed() implements UnrentResult {}
     }
 
@@ -685,61 +685,63 @@ public class RealtyLogicImpl {
                                                @NotNull UUID worldId,
                                                @NotNull UUID tenantId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
-                return new UnrentResult.NoLeaseContract();
+                return new UnrentResult.NoLeaseholdContract();
             }
             long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
+            long remainingSeconds = lease.endDate() == null ? 0
+                    : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
             double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
-            int updated = leaseMapper.updateTenantByRegion(worldGuardRegionId, worldId, null);
+            int updated = leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, null);
             if (updated == 0) {
                 return new UnrentResult.UpdateFailed();
             }
-            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.UNRENT.name(),
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.UNRENT.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             return new UnrentResult.Success(refund, tenantId, lease.landlordId());
         }
     }
 
-    // --- Renew Lease ---
+    // --- Renew Leasehold ---
 
-    public sealed interface RenewLeaseResult {
-        record Success(double price, double refund, @NotNull UUID landlordId) implements RenewLeaseResult {}
-        record NoLeaseContract() implements RenewLeaseResult {}
-        record NoExtensionsRemaining() implements RenewLeaseResult {}
-        record UpdateFailed() implements RenewLeaseResult {}
+    public sealed interface RenewLeaseholdResult {
+        record Success(double price, double refund, @NotNull UUID landlordId) implements RenewLeaseholdResult {}
+        record NoLeaseholdContract() implements RenewLeaseholdResult {}
+        record NoExtensionsRemaining() implements RenewLeaseholdResult {}
+        record UpdateFailed() implements RenewLeaseholdResult {}
     }
 
-    public @NotNull RenewLeaseResult renewLease(@NotNull String worldGuardRegionId,
+    public @NotNull RenewLeaseholdResult renewLeasehold(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId,
                                                  @NotNull UUID tenantId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
-                return new RenewLeaseResult.NoLeaseContract();
+                return new RenewLeaseholdResult.NoLeaseholdContract();
             }
             if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
-                return new RenewLeaseResult.NoExtensionsRemaining();
+                return new RenewLeaseholdResult.NoExtensionsRemaining();
             }
             long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
+            long remainingSeconds = lease.endDate() == null ? 0
+                    : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
             double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
-            int updated = leaseMapper.renewLease(worldGuardRegionId, worldId, tenantId);
+            int updated = leaseholdMapper.renewLeasehold(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
-                return new RenewLeaseResult.UpdateFailed();
+                return new RenewLeaseholdResult.UpdateFailed();
             }
             Integer extensionsRemaining = null;
             if (lease.maxExtensions() != null) {
                 extensionsRemaining = lease.maxExtensions() - (lease.currentMaxExtensions() + 1);
             }
-            wrapper.leaseHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENEW.name(),
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENEW.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
             wrapper.session().commit();
-            return new RenewLeaseResult.Success(lease.price(), refund, lease.landlordId());
+            return new RenewLeaseholdResult.Success(lease.price(), refund, lease.landlordId());
         }
     }
 
@@ -758,7 +760,7 @@ public class RealtyLogicImpl {
 
     public record RegionInfo(
             @Nullable FreeholdContractEntity freehold,
-            @Nullable LeaseContractEntity lease,
+            @Nullable LeaseholdContractEntity leasehold,
             @Nullable FreeholdContractAuctionEntity auction,
             @Nullable Double lastSoldPrice,
             @Nullable FreeholdContractBid highestBid
@@ -774,7 +776,7 @@ public class RealtyLogicImpl {
     public @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
-            LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractEntity lease = wrapper.leaseholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
             FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper().selectActiveByRegion(worldGuardRegionId, worldId);
             Double lastSoldPrice = freehold != null
                     ? wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId)
@@ -792,7 +794,7 @@ public class RealtyLogicImpl {
             if (freehold != null) {
                 return freehold.titleHolderId() != null ? RegionState.SOLD : RegionState.FOR_SALE;
             }
-            LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractEntity lease = wrapper.leaseholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
             if (lease != null) {
                 return lease.tenantId() != null ? RegionState.LEASED : RegionState.FOR_LEASE;
             }
@@ -829,14 +831,14 @@ public class RealtyLogicImpl {
             placeholders.put("last_sold_price", lastSoldPrice != null ? CurrencyFormatter.format(lastSoldPrice) : "");
         }
 
-        LeaseContractEntity lease = wrapper.leaseContractMapper().selectByRegion(worldGuardRegionId, worldId);
+        LeaseholdContractEntity lease = wrapper.leaseholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
         if (lease != null) {
             placeholders.put("landlord", nameResolver.apply(lease.landlordId()));
             placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()) : "");
             placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
             placeholders.put("start_date", lease.startDate().toString());
-            placeholders.put("end_date", lease.endDate() != null ? lease.endDate().toString() : "");
+            placeholders.put("end_date", lease.endDate() != null ? lease.endDate().toString() : "N/A");
             if (lease.maxExtensions() != null) {
                 placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
             } else {
@@ -873,7 +875,7 @@ public class RealtyLogicImpl {
                             placeholders));
                     continue;
                 }
-                LeaseContractEntity lease = wrapper.leaseContractMapper()
+                LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
                         .selectByRegion(region.worldGuardRegionId(), region.worldId());
                 if (lease != null) {
                     result.add(new RegionWithState(region,
@@ -908,7 +910,7 @@ public class RealtyLogicImpl {
                         freehold.titleHolderId() != null ? RegionState.SOLD : RegionState.FOR_SALE,
                         placeholders);
             }
-            LeaseContractEntity lease = wrapper.leaseContractMapper()
+            LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
                     .selectByRegion(worldGuardRegionId, worldId);
             if (lease != null) {
                 return new RegionWithState(region,
@@ -929,11 +931,11 @@ public class RealtyLogicImpl {
             if (freeholdMapper.existsByRegionAndTitleHolder(worldGuardRegionId, worldId, playerId)) {
                 return true;
             }
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
-            if (leaseMapper.existsByRegionAndTenant(worldGuardRegionId, worldId, playerId)) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            if (leaseholdMapper.existsByRegionAndTenant(worldGuardRegionId, worldId, playerId)) {
                 return true;
             }
-            LeaseContractEntity lease = leaseMapper.selectByRegion(worldGuardRegionId, worldId);
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             return lease != null && lease.landlordId().equals(playerId);
         }
     }
@@ -1453,29 +1455,29 @@ public class RealtyLogicImpl {
         return refunds;
     }
 
-    // --- Expired Leases ---
+    // --- Expired Leaseholds ---
 
-    public record ExpiredLease(
+    public record ExpiredLeasehold(
             @NotNull UUID tenantId,
             @NotNull UUID landlordId,
             @NotNull String worldGuardRegionId,
             @NotNull UUID worldId
     ) {}
 
-    public @NotNull List<ExpiredLease> clearExpiredLeases() {
-        List<ExpiredLeaseView> expired;
+    public @NotNull List<ExpiredLeasehold> clearExpiredLeaseholds() {
+        List<ExpiredLeaseholdView> expired;
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            expired = wrapper.leaseContractMapper().selectExpiredLeases();
+            expired = wrapper.leaseholdContractMapper().selectExpiredLeaseholds();
         }
-        List<ExpiredLease> results = new ArrayList<>();
-        for (ExpiredLeaseView lease : expired) {
+        List<ExpiredLeasehold> results = new ArrayList<>();
+        for (ExpiredLeaseholdView lease : expired) {
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                wrapper.leaseContractMapper().clearTenant(lease.leaseContractId());
-                wrapper.leaseHistoryMapper().insert(lease.worldGuardRegionId(), lease.worldId(),
-                        HistoryEventType.LEASE_EXPIRY.name(), lease.tenantId(), lease.landlordId(),
+                wrapper.leaseholdContractMapper().clearTenant(lease.leaseholdContractId());
+                wrapper.leaseholdHistoryMapper().insert(lease.worldGuardRegionId(), lease.worldId(),
+                        HistoryEventType.LEASEHOLD_EXPIRY.name(), lease.tenantId(), lease.landlordId(),
                         null, null, null);
                 wrapper.session().commit();
-                results.add(new ExpiredLease(lease.tenantId(), lease.landlordId(),
+                results.add(new ExpiredLeasehold(lease.tenantId(), lease.landlordId(),
                         lease.worldGuardRegionId(), lease.worldId()));
             }
         }
@@ -1496,26 +1498,26 @@ public class RealtyLogicImpl {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             int freeholdCount = wrapper.freeholdHistoryMapper()
                     .countHistory(worldGuardRegionId, worldId, eventType, since, playerId);
-            int leaseCount = wrapper.leaseHistoryMapper()
+            int leaseholdCount = wrapper.leaseholdHistoryMapper()
                     .countHistory(worldGuardRegionId, worldId, eventType, since, playerId);
             int agentCount = wrapper.agentHistoryMapper()
                     .countHistory(worldGuardRegionId, worldId, eventType, since, playerId);
-            int totalCount = freeholdCount + leaseCount + agentCount;
+            int totalCount = freeholdCount + leaseholdCount + agentCount;
 
             List<FreeholdHistoryEntity> freeholdResults = wrapper.freeholdHistoryMapper()
                     .searchHistory(worldGuardRegionId, worldId, eventType, since, playerId, limit, offset);
-            List<LeaseHistoryEntity> leaseResults = wrapper.leaseHistoryMapper()
+            List<LeaseholdHistoryEntity> leaseholdResults = wrapper.leaseholdHistoryMapper()
                     .searchHistory(worldGuardRegionId, worldId, eventType, since, playerId, limit, offset);
             List<AgentHistoryEntity> agentResults = wrapper.agentHistoryMapper()
                     .searchHistory(worldGuardRegionId, worldId, eventType, since, playerId, limit, offset);
 
-            List<HistoryEntry> combined = new ArrayList<>(freeholdResults.size() + leaseResults.size() + agentResults.size());
+            List<HistoryEntry> combined = new ArrayList<>(freeholdResults.size() + leaseholdResults.size() + agentResults.size());
             for (FreeholdHistoryEntity e : freeholdResults) {
                 combined.add(new HistoryEntry.Freehold(e.eventType(), e.eventTime(),
                         e.buyerId(), e.authorityId(), e.price()));
             }
-            for (LeaseHistoryEntity e : leaseResults) {
-                combined.add(new HistoryEntry.Lease(e.eventType(), e.eventTime(),
+            for (LeaseholdHistoryEntity e : leaseholdResults) {
+                combined.add(new HistoryEntry.Leasehold(e.eventType(), e.eventTime(),
                         e.tenantId(), e.landlordId(), e.price(), e.durationSeconds(), e.extensionsRemaining()));
             }
             for (AgentHistoryEntity e : agentResults) {

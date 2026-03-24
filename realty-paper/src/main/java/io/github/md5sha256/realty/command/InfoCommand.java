@@ -5,7 +5,7 @@ import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
-import io.github.md5sha256.realty.database.entity.LeaseContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.DateFormatter;
@@ -104,10 +104,10 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("region", regionId)));
 
                 FreeholdContractEntity freehold = info.freehold();
-                LeaseContractEntity lease = info.lease();
+                LeaseholdContractEntity leasehold = info.leasehold();
                 boolean hasAuction = info.auction() != null;
 
-                if (freehold == null && lease == null && !hasAuction) {
+                if (freehold == null && leasehold == null && !hasAuction) {
                     builder.appendNewline()
                             .append(messages.messageFor(MessageKeys.INFO_NO_CONTRACTS));
                     sender.sendMessage(builder.build());
@@ -121,8 +121,8 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                                     Placeholder.unparsed("has_auction", hasAuction ? "Yes" : "No")));
                 }
 
-                if (lease != null) {
-                    appendLeaseInfo(builder, lease, membersStr);
+                if (leasehold != null) {
+                    appendLeaseholdInfo(builder, leasehold, membersStr);
                 }
 
 
@@ -159,27 +159,29 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         }
     }
 
-    private void appendLeaseInfo(@NotNull TextComponent.Builder builder,
-                                 @NotNull LeaseContractEntity lease,
-                                 @NotNull String membersStr) {
-        String tenant = lease.tenantId() != null ? resolveName(lease.tenantId()) : "N/A";
+    private void appendLeaseholdInfo(@NotNull TextComponent.Builder builder,
+                                     @NotNull LeaseholdContractEntity leasehold,
+                                     @NotNull String membersStr) {
+        String tenant = leasehold.tenantId() != null ? resolveName(leasehold.tenantId()) : "N/A";
         String extensions;
-        if (lease.maxExtensions() != null) {
-            extensions = lease.currentMaxExtensions() + "/" + lease.maxExtensions();
+        if (leasehold.maxExtensions() != null) {
+            extensions = leasehold.currentMaxExtensions() + "/" + leasehold.maxExtensions();
         } else {
             extensions = "unlimited";
         }
 
         builder.appendNewline()
-                .append(messages.messageFor(MessageKeys.INFO_LEASE,
-                        Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
+                .append(messages.messageFor(MessageKeys.INFO_LEASEHOLD,
+                        Placeholder.unparsed("landlord", resolveName(leasehold.landlordId())),
                         Placeholder.unparsed("members", membersStr),
                         Placeholder.unparsed("tenant", tenant),
-                        Placeholder.unparsed("price", CurrencyFormatter.format(lease.price())),
+                        Placeholder.unparsed("price", CurrencyFormatter.format(leasehold.price())),
                         Placeholder.unparsed("duration",
-                                DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds()))),
-                        Placeholder.unparsed("start_date", DateFormatter.format(settings.get(),lease.startDate())),
-                        Placeholder.unparsed("end_date", DateFormatter.format(settings.get(), lease.endDate())),
+                                DurationFormatter.format(Duration.ofSeconds(leasehold.durationSeconds()))),
+                        Placeholder.unparsed("start_date", DateFormatter.format(settings.get(), leasehold.startDate())),
+                        Placeholder.unparsed("end_date", leasehold.endDate() != null
+                                ? DateFormatter.format(settings.get(), leasehold.endDate())
+                                : "N/A"),
                         Placeholder.unparsed("extensions", extensions)));
     }
 

@@ -4,12 +4,12 @@ import org.apache.ibatis.jdbc.SQL;
 
 import java.util.Map;
 
-public class LeaseHistorySqlProvider {
+public class LeaseholdHistorySqlProvider {
 
     public String searchHistory(Map<String, Object> params) {
         return new SQL() {{
             SELECT("historyId, worldGuardRegionId, worldId, eventType, tenantId, landlordId, price, durationSeconds, extensionsRemaining, eventTime");
-            FROM("LeaseHistory");
+            FROM("LeaseholdHistory");
             WHERE("worldGuardRegionId = #{worldGuardRegionId}");
             WHERE("worldId = #{worldId}");
             if (params.get("eventType") != null) {
@@ -30,7 +30,7 @@ public class LeaseHistorySqlProvider {
     public String countHistory(Map<String, Object> params) {
         return new SQL() {{
             SELECT("COUNT(*)");
-            FROM("LeaseHistory");
+            FROM("LeaseholdHistory");
             WHERE("worldGuardRegionId = #{worldGuardRegionId}");
             WHERE("worldId = #{worldId}");
             if (params.get("eventType") != null) {

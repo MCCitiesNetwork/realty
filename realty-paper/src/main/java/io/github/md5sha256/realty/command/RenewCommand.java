@@ -60,24 +60,24 @@ public record RenewCommand(
         String regionId = region.region().getId();
         CompletableFuture.supplyAsync(() -> {
             try {
-                RealtyLogicImpl.RenewLeaseResult result = logic.renewLease(
+                RealtyLogicImpl.RenewLeaseholdResult result = logic.renewLeasehold(
                         regionId, region.world().getUID(), sender.getUniqueId());
                 return switch (result) {
-                    case RealtyLogicImpl.RenewLeaseResult.Success success -> {
+                    case RealtyLogicImpl.RenewLeaseholdResult.Success success -> {
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                         yield Map.entry(success, placeholders);
                     }
-                    case RealtyLogicImpl.RenewLeaseResult.NoLeaseContract ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NO_LEASE_CONTRACT,
+                    case RealtyLogicImpl.RenewLeaseholdResult.NoLeaseholdContract ignored -> {
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
-                    case RealtyLogicImpl.RenewLeaseResult.NoExtensionsRemaining ignored -> {
+                    case RealtyLogicImpl.RenewLeaseholdResult.NoExtensionsRemaining ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.RENEW_NO_EXTENSIONS,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }
-                    case RealtyLogicImpl.RenewLeaseResult.UpdateFailed ignored -> {
+                    case RealtyLogicImpl.RenewLeaseholdResult.UpdateFailed ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.RENEW_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
@@ -92,7 +92,7 @@ public record RenewCommand(
             if (entry == null) {
                 return;
             }
-            RealtyLogicImpl.RenewLeaseResult.Success success = entry.getKey();
+            RealtyLogicImpl.RenewLeaseholdResult.Success success = entry.getKey();
             Map<String, String> placeholders = entry.getValue();
             double price = success.price();
             double refund = success.refund();

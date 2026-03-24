@@ -33,10 +33,10 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Handles {@code /realty register lease <price> <period> <maxrenewals> <region>}
+ * Handles {@code /realty register leasehold <price> <period> <maxrenewals> <region>}
  * and {@code /realty register freehold [--price <price>] [--titleholder <name>] [--authority <name>] <region>}.
  *
- * <p>Permissions: {@code realty.command.register.lease} / {@code realty.command.register.freehold}.</p>
+ * <p>Permissions: {@code realty.command.register.leasehold} / {@code realty.command.register.freehold}.</p>
  */
 public record RegisterCommand(@NotNull ExecutorState executorState,
                               @NotNull RealtyLogicImpl logic,
@@ -75,14 +75,14 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
         var base = builder
                 .literal("register");
         return List.of(
-                base.literal("lease")
-                        .permission("realty.command.register.lease")
+                base.literal("leasehold")
+                        .permission("realty.command.register.leasehold")
                         .required(PRICE, DoubleParser.doubleParser(0))
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_RENEWALS, IntegerParser.integerParser(-1))
                         .flag(LANDLORD_FLAG)
                         .required(REGION, WorldGuardRegionParser.worldGuardRegion())
-                        .handler(this::executeLease)
+                        .handler(this::executeLeasehold)
                         .build(),
                 base.literal("freehold")
                         .permission("realty.command.register.freehold")
@@ -95,7 +95,7 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
         );
     }
 
-    private void executeLease(@NotNull CommandContext<CommandSourceStack> ctx) {
+    private void executeLeasehold(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
         if (!(sender instanceof Player)) {
             return;
@@ -104,11 +104,11 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
         Duration period = ctx.get(PERIOD);
         int maxRenewals = ctx.get(MAX_RENEWALS);
         UUID landlord = ctx.flags()
-                .getValue(LANDLORD_FLAG, settings.get().defaultLeaseAuthority());
+                .getValue(LANDLORD_FLAG, settings.get().defaultLeaseholdAuthority());
         WorldGuardRegion region = ctx.get(REGION);
         CompletableFuture.supplyAsync(() -> {
             try {
-                boolean created = logic.createRental(
+                boolean created = logic.createLeasehold(
                         region.region().getId(), region.world().getUID(),
                         price, period.toSeconds(), maxRenewals, landlord);
                 Map<String, String> placeholders = created
