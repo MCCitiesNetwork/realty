@@ -6,7 +6,7 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
-import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
+import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.RealtySignMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
@@ -44,19 +44,19 @@ public class ImportJob {
             @NotNull Database database,
             @NotNull Audience audience,
             @NotNull List<FreeholdDto> freeholds,
-            @NotNull List<LeaseDto> leases,
+            @NotNull List<LeaseholdDto> leaseholds,
             @NotNull List<SignDto> signs) {
         int imported = 0;
         int skipped = 0;
         int failed = 0;
         int processed = 0;
         int signsImported = 0;
-        int total = freeholds.size() + leases.size();
+        int total = freeholds.size() + leaseholds.size();
         try (SqlSessionWrapper wrapper = database.openSession(ExecutorType.REUSE, false);
              SqlSession session = wrapper.session()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
-            LeaseContractMapper leaseMapper = wrapper.leaseContractMapper();
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             ContractMapper contractMapper = wrapper.contractMapper();
             FreeholdHistoryMapper freeholdHistoryMapper = wrapper.freeholdHistoryMapper();
             RealtySignMapper signMapper = wrapper.realtySignMapper();
@@ -95,7 +95,7 @@ public class ImportJob {
                     reportProgress(audience, processed, total);
                 }
             }
-            for (LeaseDto lease : leases) {
+            for (LeaseholdDto lease : leaseholds) {
                 try {
                     if (regionMapper.selectByWorldGuardRegion(lease.worldGuardRegionId(),
                             lease.worldId()) != null) {
@@ -103,21 +103,21 @@ public class ImportJob {
                     } else {
                         int regionId = regionMapper.registerWorldGuardRegion(lease.worldGuardRegionId(),
                                 lease.worldId());
-                        int leaseContractId = leaseMapper.insertLease(regionId,
+                        int leaseholdContractId = leaseholdMapper.insertLeasehold(regionId,
                                 lease.price(),
                                 lease.durationSeconds(),
                                 lease.maxRenewals(),
                                 lease.landlordId(),
                                 lease.tenantId());
-                        contractMapper.insert(new ContractEntity(leaseContractId,
-                                "contract",
+                        contractMapper.insert(new ContractEntity(leaseholdContractId,
+                                "leasehold",
                                 regionId));
                         imported++;
                     }
                 } catch (Exception ex) {
                     failed++;
                     audience.sendMessage(Component.text(
-                            "Failed to import lease region " + lease.worldGuardRegionId() + ": " + ex.getMessage(),
+                            "Failed to import leasehold region " + lease.worldGuardRegionId() + ": " + ex.getMessage(),
                             NamedTextColor.RED));
                 }
                 processed++;
@@ -184,7 +184,7 @@ public class ImportJob {
                 })
                 .filter(Objects::nonNull)
                 .toList();
-        List<LeaseDto> rentRegions = fileManager.getRentsRef().stream()
+        List<LeaseholdDto> rentRegions = fileManager.getRentsRef().stream()
                 .map(region -> {
                     ProtectedRegion protectedRegion = region.getRegion();
                     World world = region.getWorld();
@@ -193,9 +193,9 @@ public class ImportJob {
                         return null;
                     }
 
-                    UUID authorityId = Objects.requireNonNullElse(region.getLandlord(), settings.defaultLeaseAuthority());
+                    UUID authorityId = Objects.requireNonNullElse(region.getLandlord(), settings.defaultLeaseholdAuthority());
                     UUID tenantId = region.getRenter();
-                    return new LeaseDto(protectedRegion.getId(),
+                    return new LeaseholdDto(protectedRegion.getId(),
                             world.getUID(),
                             region.getPrice(),
                             TimeUnit.MILLISECONDS.toSeconds(region.getDuration()),
@@ -212,7 +212,7 @@ public class ImportJob {
         int totalRegions = buyRegions.size() + rentRegions.size();
         audience.sendMessage(Component.text(
                 "Starting import: " + buyRegions.size() + " freehold regions, "
-                        + rentRegions.size() + " lease regions (" + totalRegions + " total), "
+                        + rentRegions.size() + " leasehold regions (" + totalRegions + " total), "
                         + signs.size() + " sign(s)",
                 NamedTextColor.YELLOW));
         return CompletableFuture.supplyAsync(() -> importAll(database, audience, buyRegions, rentRegions, signs), executor);
@@ -235,7 +235,7 @@ public class ImportJob {
                            @Nullable UUID titleHolder) {
     }
 
-    private record LeaseDto(@NotNull String worldGuardRegionId,
+    private record LeaseholdDto(@NotNull String worldGuardRegionId,
                             @NotNull UUID worldId,
                             double price,
                             long durationSeconds,

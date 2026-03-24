@@ -48,12 +48,12 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Handles {@code /realty create lease <name> <price> <period> <maxrenewals>}
+ * Handles {@code /realty create leasehold <name> <price> <period> <maxrenewals>}
  * and {@code /realty create freehold <name> [--price <price>] [--titleholder <name>] [--authority <name>]}.
  *
  * <p>Creates a new WorldGuard region from the player's WorldEdit selection, then registers it in Realty.</p>
  *
- * <p>Permissions: {@code realty.command.create.lease} / {@code realty.command.create.freehold}.</p>
+ * <p>Permissions: {@code realty.command.create.leasehold} / {@code realty.command.create.freehold}.</p>
  */
 public record CreateCommand(@NotNull ExecutorState executorState,
                              @NotNull RealtyLogicImpl logic,
@@ -90,14 +90,14 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         var base = builder
                 .literal("create");
         return List.of(
-                base.literal("lease")
-                        .permission("realty.command.create.lease")
+                base.literal("leasehold")
+                        .permission("realty.command.create.leasehold")
                         .required(NAME, StringParser.stringParser())
                         .required(PRICE, DoubleParser.doubleParser(0))
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_RENEWALS, IntegerParser.integerParser(-1))
                         .flag(LANDLORD_FLAG)
-                        .handler(this::executeLease)
+                        .handler(this::executeLeasehold)
                         .build(),
                 base.literal("freehold")
                         .permission("realty.command.create.freehold")
@@ -110,7 +110,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         );
     }
 
-    private void executeLease(@NotNull CommandContext<CommandSourceStack> ctx) {
+    private void executeLeasehold(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player player)) {
             ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
@@ -120,7 +120,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         Duration period = ctx.get(PERIOD);
         int maxRenewals = ctx.get(MAX_RENEWALS);
         UUID landlord = ctx.flags()
-                .getValue(LANDLORD_FLAG, settings.get().defaultLeaseAuthority());
+                .getValue(LANDLORD_FLAG, settings.get().defaultLeaseholdAuthority());
 
         RegionManager regionManager = getRegionManager(player.getWorld());
         if (regionManager == null) {
@@ -146,7 +146,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
 
         CompletableFuture.supplyAsync(() -> {
             try {
-                boolean created = logic.createRental(
+                boolean created = logic.createLeasehold(
                         name, world.getUID(),
                         price, period.toSeconds(), maxRenewals, landlord);
                 Map<String, String> placeholders = created
@@ -159,7 +159,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         }, executorState.dbExec()).thenAcceptAsync(entry -> {
             if (entry.getKey()) {
                 regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
-                player.sendMessage(messages.messageFor(MessageKeys.CREATE_LEASE_SUCCESS,
+                player.sendMessage(messages.messageFor(MessageKeys.CREATE_LEASEHOLD_SUCCESS,
                         Placeholder.unparsed("region", name)));
             } else {
                 regionManager.removeRegion(name);

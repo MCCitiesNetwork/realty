@@ -2,9 +2,9 @@ package io.github.md5sha256.realty.database.maria;
 
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
-import io.github.md5sha256.realty.database.mapper.LeaseContractMapper;
+import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
-import io.github.md5sha256.realty.database.mapper.LeaseHistoryMapper;
+import io.github.md5sha256.realty.database.mapper.LeaseholdHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractBidMapper;
@@ -19,9 +19,9 @@ import io.github.md5sha256.realty.database.mapper.RealtySignMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaAgentHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractAgentInviteMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseContractMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
-import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseHistoryMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractAuctionMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractBidMapper;
@@ -42,8 +42,8 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     }
 
     @Override
-    public @NotNull LeaseContractMapper leaseContractMapper() {
-        return session.getMapper(MariaLeaseContractMapper.class);
+    public @NotNull LeaseholdContractMapper leaseholdContractMapper() {
+        return session.getMapper(MariaLeaseholdContractMapper.class);
     }
 
     @Override
@@ -57,8 +57,8 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     }
 
     @Override
-    public @NotNull LeaseHistoryMapper leaseHistoryMapper() {
-        return session.getMapper(MariaLeaseHistoryMapper.class);
+    public @NotNull LeaseholdHistoryMapper leaseholdHistoryMapper() {
+        return session.getMapper(MariaLeaseholdHistoryMapper.class);
     }
 
     @Override

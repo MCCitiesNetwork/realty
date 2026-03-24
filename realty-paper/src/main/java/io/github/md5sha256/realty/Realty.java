@@ -281,41 +281,41 @@ public final class Realty extends JavaPlugin {
                                 Placeholder.unparsed("amount",
                                         CurrencyFormatter.format(payment.refundAmount()))));
             }
-            List<RealtyLogicImpl.ExpiredLease> expiredLeases = this.logic.clearExpiredLeases();
-            if (!expiredLeases.isEmpty()) {
-                Map<String, Map<String, String>> leaseePlaceholders = new HashMap<>();
-                for (RealtyLogicImpl.ExpiredLease lease : expiredLeases) {
-                    leaseePlaceholders.put(lease.worldGuardRegionId(),
-                            this.logic.getRegionPlaceholders(lease.worldGuardRegionId(), lease.worldId()));
+            List<RealtyLogicImpl.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
+            if (!expiredLeaseholds.isEmpty()) {
+                Map<String, Map<String, String>> leaseholdPlaceholders = new HashMap<>();
+                for (RealtyLogicImpl.ExpiredLeasehold expired : expiredLeaseholds) {
+                    leaseholdPlaceholders.put(expired.worldGuardRegionId(),
+                            this.logic.getRegionPlaceholders(expired.worldGuardRegionId(), expired.worldId()));
                 }
                 scheduler.runTask(this, () -> {
-                    for (RealtyLogicImpl.ExpiredLease lease : expiredLeases) {
-                        World world = getServer().getWorld(lease.worldId());
+                    for (RealtyLogicImpl.ExpiredLeasehold expired : expiredLeaseholds) {
+                        World world = getServer().getWorld(expired.worldId());
                         if (world != null) {
                             RegionManager regionManager = WorldGuard.getInstance()
                                     .getPlatform()
                                     .getRegionContainer()
                                     .get(BukkitAdapter.adapt(world));
                             if (regionManager != null) {
-                                ProtectedRegion protectedRegion = regionManager.getRegion(lease.worldGuardRegionId());
+                                ProtectedRegion protectedRegion = regionManager.getRegion(expired.worldGuardRegionId());
                                 if (protectedRegion != null) {
-                                    protectedRegion.getOwners().removePlayer(lease.tenantId());
+                                    protectedRegion.getOwners().removePlayer(expired.tenantId());
                                     regionProfileService.applyFlags(
                                             new WorldGuardRegion(protectedRegion, world),
                                             RegionState.FOR_LEASE,
-                                            leaseePlaceholders.getOrDefault(lease.worldGuardRegionId(), Map.of()));
+                                            leaseholdPlaceholders.getOrDefault(expired.worldGuardRegionId(), Map.of()));
                                 }
                             }
                         }
-                        this.notificationService.queueNotification(lease.tenantId(),
-                                this.messageContainer.messageFor(MessageKeys.NOTIFICATION_LEASE_EXPIRED,
+                        this.notificationService.queueNotification(expired.tenantId(),
+                                this.messageContainer.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED,
                                         Placeholder.unparsed("region",
-                                                lease.worldGuardRegionId())));
-                        this.notificationService.queueNotification(lease.landlordId(),
+                                                expired.worldGuardRegionId())));
+                        this.notificationService.queueNotification(expired.landlordId(),
                                 this.messageContainer.messageFor(
-                                        MessageKeys.NOTIFICATION_LEASE_EXPIRED_LANDLORD,
+                                        MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD,
                                         Placeholder.unparsed("region",
-                                                lease.worldGuardRegionId())));
+                                                expired.worldGuardRegionId())));
                     }
                 });
             }
