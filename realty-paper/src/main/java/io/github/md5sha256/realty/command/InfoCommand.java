@@ -25,7 +25,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -171,8 +170,6 @@ public record InfoCommand(@NotNull ExecutorState executorState,
             extensions = "unlimited";
         }
 
-        LocalDateTime leaseEndDate = lease.startDate().plusSeconds(lease.durationSeconds());
-
         builder.appendNewline()
                 .append(messages.messageFor(MessageKeys.INFO_LEASE,
                         Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
@@ -182,7 +179,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("duration",
                                 DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds()))),
                         Placeholder.unparsed("start_date", DateFormatter.format(settings.get(),lease.startDate())),
-                        Placeholder.unparsed("end_date", DateFormatter.format(settings.get(),leaseEndDate)),
+                        Placeholder.unparsed("end_date", DateFormatter.format(settings.get(), lease.endDate())),
                         Placeholder.unparsed("extensions", extensions)));
     }
 
