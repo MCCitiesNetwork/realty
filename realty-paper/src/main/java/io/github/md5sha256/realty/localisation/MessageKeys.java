@@ -284,12 +284,12 @@ public final class MessageKeys {
     public static final String SET_DURATION_UPDATE_FAILED = "set-duration.update-failed";
     public static final String SET_DURATION_ERROR = "set-duration.error";
 
-    // set-maxrenewals
-    public static final String SET_MAX_RENEWALS_SUCCESS = "set-maxrenewals.success";
-    public static final String SET_MAX_RENEWALS_NO_LEASEHOLD_CONTRACT = "set-maxrenewals.no-leasehold-contract";
-    public static final String SET_MAX_RENEWALS_BELOW_CURRENT = "set-maxrenewals.below-current";
-    public static final String SET_MAX_RENEWALS_UPDATE_FAILED = "set-maxrenewals.update-failed";
-    public static final String SET_MAX_RENEWALS_ERROR = "set-maxrenewals.error";
+    // set-maxextensions
+    public static final String SET_MAX_EXTENSIONS_SUCCESS = "set-maxextensions.success";
+    public static final String SET_MAX_EXTENSIONS_NO_LEASEHOLD_CONTRACT = "set-maxextensions.no-leasehold-contract";
+    public static final String SET_MAX_EXTENSIONS_BELOW_CURRENT = "set-maxextensions.below-current";
+    public static final String SET_MAX_EXTENSIONS_UPDATE_FAILED = "set-maxextensions.update-failed";
+    public static final String SET_MAX_EXTENSIONS_ERROR = "set-maxextensions.error";
 
     // set-landlord
     public static final String SET_LANDLORD_SUCCESS = "set-landlord.success";

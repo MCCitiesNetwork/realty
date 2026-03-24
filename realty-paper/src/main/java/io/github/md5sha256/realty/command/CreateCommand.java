@@ -48,7 +48,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Handles {@code /realty create leasehold <name> <price> <period> <maxrenewals>}
+ * Handles {@code /realty create leasehold <name> <price> <period> <maxextensions>}
  * and {@code /realty create freehold <name> [--price <price>] [--titleholder <name>] [--authority <name>]}.
  *
  * <p>Creates a new WorldGuard region from the player's WorldEdit selection, then registers it in Realty.</p>
@@ -64,7 +64,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
     private static final CloudKey<String> NAME = CloudKey.of("name", String.class);
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
-    private static final CloudKey<Integer> MAX_RENEWALS = CloudKey.of("maxrenewals", Integer.class);
+    private static final CloudKey<Integer> MAX_EXTENSIONS = CloudKey.of("maxextensions", Integer.class);
     private static final CommandFlag<UUID> AUTHORITY_FLAG =
             CommandFlag.<CommandSourceStack>builder("authority")
                     .withComponent(AuthorityParser.authority())
@@ -95,7 +95,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                         .required(NAME, StringParser.stringParser())
                         .required(PRICE, DoubleParser.doubleParser(0))
                         .required(PERIOD, DurationParser.duration())
-                        .required(MAX_RENEWALS, IntegerParser.integerParser(-1))
+                        .required(MAX_EXTENSIONS, IntegerParser.integerParser(-1))
                         .flag(LANDLORD_FLAG)
                         .handler(this::executeLeasehold)
                         .build(),
@@ -118,7 +118,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         String name = ctx.get(NAME);
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
-        int maxRenewals = ctx.get(MAX_RENEWALS);
+        int maxExtensions = ctx.get(MAX_EXTENSIONS);
         UUID landlord = ctx.flags()
                 .getValue(LANDLORD_FLAG, settings.get().defaultLeaseholdAuthority());
 
@@ -148,7 +148,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
             try {
                 boolean created = logic.createLeasehold(
                         name, world.getUID(),
-                        price, period.toSeconds(), maxRenewals, landlord);
+                        price, period.toSeconds(), maxExtensions, landlord);
                 Map<String, String> placeholders = created
                         ? logic.getRegionPlaceholders(name, world.getUID())
                         : Map.<String, String>of();

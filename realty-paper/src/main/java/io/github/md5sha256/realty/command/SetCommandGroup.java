@@ -39,7 +39,7 @@ import java.util.concurrent.CompletableFuture;
  *   <li>{@code /realty set landlord <player> <region>} — set leasehold landlord</li>
  *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
  *   <li>{@code /realty set tenant <player> <region>} — set leasehold tenant</li>
- *   <li>{@code /realty set maxrenewals <count> <region>} — set leasehold max renewals (-1 for unlimited)</li>
+ *   <li>{@code /realty set maxextensions <count> <region>} — set leasehold max extensions (-1 for unlimited)</li>
  * </ul>
  */
 public record SetCommandGroup(
@@ -91,11 +91,11 @@ public record SetCommandGroup(
                         .required("region", WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeSetTenant)
                         .build(),
-                base.literal("maxrenewals")
-                        .permission("realty.command.set.maxrenewals")
-                        .required("maxrenewals", IntegerParser.integerParser(-1))
+                base.literal("maxextensions")
+                        .permission("realty.command.set.maxextensions")
+                        .required("maxextensions", IntegerParser.integerParser(-1))
                         .required("region", WorldGuardRegionParser.worldGuardRegion())
-                        .handler(this::executeSetMaxRenewals)
+                        .handler(this::executeSetMaxExtensions)
                         .build()
         );
     }
@@ -332,15 +332,15 @@ public record SetCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeSetMaxRenewals(@NotNull CommandContext<CommandSourceStack> ctx) {
+    private void executeSetMaxExtensions(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
             return;
         }
-        int maxRenewals = ctx.get("maxrenewals");
+        int maxExtensions = ctx.get("maxextensions");
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.set.maxrenewals.others")
+        if (!sender.hasPermission("realty.command.set.maxextensions.others")
                 && !region.region().getOwners().contains(sender.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
@@ -348,26 +348,26 @@ public record SetCommandGroup(
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.SetMaxRenewalsResult result = logic.setMaxRenewals(
-                        regionId, worldId, maxRenewals);
+                        regionId, worldId, maxExtensions);
                 switch (result) {
                     case RealtyLogicImpl.SetMaxRenewalsResult.Success ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_SUCCESS,
-                                    Placeholder.unparsed("maxrenewals",
-                                            maxRenewals < 0 ? "unlimited" : String.valueOf(maxRenewals)),
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_SUCCESS,
+                                    Placeholder.unparsed("maxextensions",
+                                            maxExtensions < 0 ? "unlimited" : String.valueOf(maxExtensions)),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetMaxRenewalsResult.NoLeaseholdContract ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_NO_LEASEHOLD_CONTRACT,
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetMaxRenewalsResult.BelowCurrentExtensions(int current) ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_BELOW_CURRENT,
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_BELOW_CURRENT,
                                     Placeholder.unparsed("current", String.valueOf(current)),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.SetMaxRenewalsResult.UpdateFailed ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_UPDATE_FAILED,
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_RENEWALS_ERROR,
+                sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         }, executorState.dbExec());

@@ -159,11 +159,11 @@ permissions:
   realty.command.set.tenant.others:
     description: Allows using /realty set tenant on regions you don't own
     default: op
-  realty.command.set.maxrenewals:
-    description: Allows using /realty set maxrenewals on own regions
+  realty.command.set.maxextensions:
+    description: Allows using /realty set maxextensions on own regions
     default: op
-  realty.command.set.maxrenewals.others:
-    description: Allows using /realty set maxrenewals on regions you don't own
+  realty.command.set.maxextensions.others:
+    description: Allows using /realty set maxextensions on regions you don't own
     default: op
   realty.command.unset.price:
     description: Allows using /realty unset price on own regions

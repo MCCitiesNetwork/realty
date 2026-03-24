@@ -266,7 +266,7 @@ help:
   admin:
     - "<gold>--- Realty > Admin ---</gold>"
     - "<yellow>/realty create freehold <price> [--titleholder <name>] [--authority <name>] <region></yellow> <gray>- Create a freehold</gray>"
-    - "<yellow>/realty create leasehold <price> <period> <maxrenewals> [--landlord <name>] <region></yellow> <gray>- Create a lease</gray>"
+    - "<yellow>/realty create leasehold <price> <period> <maxextensions> [--landlord <name>] <region></yellow> <gray>- Create a lease</gray>"
     - "<yellow>/realty remove <player> <region></yellow> <gray>- Remove a player from a region</gray>"
     - "<yellow>/realty delete <region> [includeworldguard]</yellow> <gray>- Delete a region</gray>"
     - "<yellow>/realty reload</yellow> <gray>- Reload configuration</gray>"
@@ -339,12 +339,12 @@ set-duration:
   update-failed: "Failed to update duration for region <region>."
   error: "Failed to set duration: <error>"
 
-set-maxrenewals:
-  success: "Max renewals for region <region> set to <maxrenewals>."
+set-maxextensions:
+  success: "Max extensions for region <region> set to <maxextensions>."
   no-leasehold-contract: "Region <region> does not have a lease contract."
-  below-current: "Max renewals cannot be less than the current renewal count (<current>) for region <region>."
-  update-failed: "Failed to update max renewals for region <region>."
-  error: "Failed to set max renewals: <error>"
+  below-current: "Max extensions cannot be less than the current extension count (<current>) for region <region>."
+  update-failed: "Failed to update max extensions for region <region>."
+  error: "Failed to set max extensions: <error>"
 
 set-landlord:
   success: "Landlord for region <region> set to <landlord>."

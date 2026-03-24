@@ -33,7 +33,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Handles {@code /realty register leasehold <price> <period> <maxrenewals> <region>}
+ * Handles {@code /realty register leasehold <price> <period> <maxextensions> <region>}
  * and {@code /realty register freehold [--price <price>] [--titleholder <name>] [--authority <name>] <region>}.
  *
  * <p>Permissions: {@code realty.command.register.leasehold} / {@code realty.command.register.freehold}.</p>
@@ -46,7 +46,7 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
 
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
-    private static final CloudKey<Integer> MAX_RENEWALS = CloudKey.of("maxrenewals", Integer.class);
+    private static final CloudKey<Integer> MAX_EXTENSIONS = CloudKey.of("maxrenewals", Integer.class);
     private static final CloudKey<WorldGuardRegion> REGION = CloudKey.of("region",
             WorldGuardRegion.class);
     private static final CommandFlag<UUID> AUTHORITY_FLAG =
@@ -79,7 +79,7 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
                         .permission("realty.command.register.leasehold")
                         .required(PRICE, DoubleParser.doubleParser(0))
                         .required(PERIOD, DurationParser.duration())
-                        .required(MAX_RENEWALS, IntegerParser.integerParser(-1))
+                        .required(MAX_EXTENSIONS, IntegerParser.integerParser(-1))
                         .flag(LANDLORD_FLAG)
                         .required(REGION, WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeLeasehold)
@@ -102,7 +102,7 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
         }
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
-        int maxRenewals = ctx.get(MAX_RENEWALS);
+        int maxExtensions = ctx.get(MAX_EXTENSIONS);
         UUID landlord = ctx.flags()
                 .getValue(LANDLORD_FLAG, settings.get().defaultLeaseholdAuthority());
         WorldGuardRegion region = ctx.get(REGION);
@@ -110,7 +110,7 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
             try {
                 boolean created = logic.createLeasehold(
                         region.region().getId(), region.world().getUID(),
-                        price, period.toSeconds(), maxRenewals, landlord);
+                        price, period.toSeconds(), maxExtensions, landlord);
                 Map<String, String> placeholders = created
                         ? logic.getRegionPlaceholders(region.region().getId(), region.world().getUID())
                         : Map.<String, String>of();
