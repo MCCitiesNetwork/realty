@@ -55,7 +55,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
                 #{price},
                 #{durationSeconds},
                 NOW(),
-                NOW() + INTERVAL #{durationSeconds} SECOND,
+                CASE WHEN #{tenantId} IS NOT NULL THEN NOW() + INTERVAL #{durationSeconds} SECOND ELSE NULL END,
                 CASE WHEN #{maxRenewals} >= 0 THEN 0     ELSE NULL END,
                 CASE WHEN #{maxRenewals} >= 0 THEN #{maxRenewals} ELSE NULL END
             )
@@ -166,6 +166,7 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
     @Update("""
             UPDATE LeaseContract
             SET tenantId = NULL,
+                endDate = NULL,
                 currentMaxExtensions = CASE WHEN maxExtensions IS NOT NULL THEN 0 ELSE NULL END
             WHERE leaseContractId = #{leaseContractId}
             """)
@@ -203,6 +204,10 @@ public interface MariaLeaseContractMapper extends LeaseContractMapper {
             INNER JOIN Contract c ON c.contractId = lc.leaseContractId AND c.contractType = 'contract'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.tenantId = #{tenantId},
+                lc.endDate = CASE
+                    WHEN #{tenantId} IS NULL THEN NULL
+                    ELSE lc.endDate
+                END,
                 lc.currentMaxExtensions = CASE
                     WHEN #{tenantId} IS NULL AND lc.maxExtensions IS NOT NULL THEN 0
                     ELSE lc.currentMaxExtensions

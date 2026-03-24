@@ -836,7 +836,7 @@ public class RealtyLogicImpl {
             placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
             placeholders.put("start_date", lease.startDate().toString());
-            placeholders.put("end_date", lease.endDate().toString());
+            placeholders.put("end_date", lease.endDate() != null ? lease.endDate().toString() : "");
             if (lease.maxExtensions() != null) {
                 placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
             } else {
