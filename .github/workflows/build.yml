@@ -5,11 +5,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # opt into Node.js 24 ahead of the June 2026 forced migration
+
 jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
       jars: ${{ steps.collect.outputs.jars }}   # JSON array of filenames (basenames)
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,12 +26,10 @@ jobs:
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4   # v4 supports Node.js 24
 
       - name: Build
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon shadowJar
+        run: ./gradlew --no-daemon shadowJar   # gradlew is already executable after checkout
 
       - name: Collect runtime JARs (flatten)
         run: |
@@ -46,12 +49,17 @@ jobs:
           files=()
           while IFS= read -r -d '' f; do
             files+=("$(basename "$f")")
-          done < <(find jars -type f -name "*.jar" -print0)
+          done < <(find jars -type f -name "*.jar" -print0 | sort -z)
 
           if [ ${#files[@]} -eq 0 ]; then
             json='[]'
           else
-            printf -v json '[%s]' "$(printf '"%s",' "${files[@]}" | sed 's/,$//')"
+            # Use jq if available for safe JSON construction, otherwise fall back to printf
+            if command -v jq &>/dev/null; then
+              json=$(printf '%s\n' "${files[@]}" | jq -R . | jq -sc .)
+            else
+              printf -v json '[%s]' "$(printf '"%s",' "${files[@]}" | sed 's/,$//')"
+            fi
           fi
 
           echo "jars=$json" >> "$GITHUB_OUTPUT"
@@ -63,12 +71,14 @@ jobs:
           name: all-jars
           path: jars/*.jar
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1   # only needed as a staging area for upload-each; no need to keep it longer
 
   upload-each:
     needs: build
     if: needs.build.outputs.jars != '[]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +90,7 @@ jobs:
           name: all-jars
           path: jars
 
-      - name: Upload this JAR as its own artifact
+      - name: Upload ${{ matrix.jar }} as its own artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.jar }}
