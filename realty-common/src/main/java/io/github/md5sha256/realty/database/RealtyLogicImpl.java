@@ -691,7 +691,8 @@ public class RealtyLogicImpl {
                 return new UnrentResult.NoLeaseContract();
             }
             long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
+            long remainingSeconds = lease.endDate() == null ? 0
+                    : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
             double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
             int updated = leaseMapper.updateTenantByRegion(worldGuardRegionId, worldId, null);
             if (updated == 0) {
@@ -726,7 +727,8 @@ public class RealtyLogicImpl {
                 return new RenewLeaseResult.NoExtensionsRemaining();
             }
             long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
+            long remainingSeconds = lease.endDate() == null ? 0
+                    : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
             double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
             int updated = leaseMapper.renewLease(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
@@ -836,7 +838,7 @@ public class RealtyLogicImpl {
             placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
             placeholders.put("start_date", lease.startDate().toString());
-            placeholders.put("end_date", lease.endDate().toString());
+            placeholders.put("end_date", lease.endDate() != null ? lease.endDate().toString() : "N/A");
             if (lease.maxExtensions() != null) {
                 placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
             } else {

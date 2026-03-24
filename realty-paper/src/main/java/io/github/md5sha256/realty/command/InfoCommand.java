@@ -179,7 +179,9 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("duration",
                                 DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds()))),
                         Placeholder.unparsed("start_date", DateFormatter.format(settings.get(),lease.startDate())),
-                        Placeholder.unparsed("end_date", DateFormatter.format(settings.get(), lease.endDate())),
+                        Placeholder.unparsed("end_date", lease.endDate() != null
+                                ? DateFormatter.format(settings.get(), lease.endDate())
+                                : "N/A"),
                         Placeholder.unparsed("extensions", extensions)));
     }
 
