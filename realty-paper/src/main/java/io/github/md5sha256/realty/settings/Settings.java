@@ -15,7 +15,7 @@ import java.util.UUID;
 public record Settings(
         @Setting("default-freehold-authority-uuid") @Required @NotNull UUID defaultFreeholdAuthority,
         @Setting("default-freehold-titleholder-uuid") @Nullable UUID defaultFreeholdTitleholder,
-        @Setting("default-lease-authority-uuid") @Required @NotNull UUID defaultLeaseAuthority,
+        @Setting("default-leasehold-authority-uuid") @Required @NotNull UUID defaultLeaseholdAuthority,
         @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat,
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
         @Setting("subregion-min-volume") int subregionMinVolume

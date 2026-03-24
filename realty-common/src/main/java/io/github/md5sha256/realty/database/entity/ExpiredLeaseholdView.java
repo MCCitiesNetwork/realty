@@ -4,8 +4,8 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
 
-public record ExpiredLeaseView(
-        int leaseContractId,
+public record ExpiredLeaseholdView(
+        int leaseholdContractId,
         @NotNull UUID landlordId,
         @NotNull UUID tenantId,
         @NotNull String worldGuardRegionId,

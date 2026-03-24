@@ -1,7 +1,7 @@
 # default-freehold-titleholder-uuid is optional, leave it blank to default to no-titleholder
 # default-freehold-titleholder-uuid: "00000000-0000-0000-0000-000000000000"
 default-freehold-authority-uuid: "00000000-0000-0000-0000-000000000000"
-default-lease-authority-uuid: "00000000-0000-0000-0000-000000000000"
+default-leasehold-authority-uuid: "00000000-0000-0000-0000-000000000000"
 date-format: "EEE, d MMMM yyyy (HH:mm)"
 # Maximum number of region profiles to re-apply per tick during startup/reload.
 # Lower values reduce lag spikes, higher values complete faster.

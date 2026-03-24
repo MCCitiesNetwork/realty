@@ -79,8 +79,8 @@ public record UnrentCommand(
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                         yield Map.entry(success, placeholders);
                     }
-                    case RealtyLogicImpl.UnrentResult.NoLeaseContract ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASE_CONTRACT,
+                    case RealtyLogicImpl.UnrentResult.NoLeaseholdContract ignored -> {
+                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }

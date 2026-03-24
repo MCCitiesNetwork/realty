@@ -74,8 +74,8 @@ public record RentCommand(
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                         yield Map.entry(success, placeholders);
                     }
-                    case RealtyLogicImpl.RentResult.NoLeaseContract ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASE_CONTRACT,
+                    case RealtyLogicImpl.RentResult.NoLeaseholdContract ignored -> {
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
                         yield null;
                     }

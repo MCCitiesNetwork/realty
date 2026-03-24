@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
-import io.github.md5sha256.realty.database.entity.LeaseHistoryEntity;
-import io.github.md5sha256.realty.database.mapper.LeaseHistoryMapper;
+import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
+import io.github.md5sha256.realty.database.mapper.LeaseholdHistoryMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Insert;
@@ -14,12 +14,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-public interface MariaLeaseHistoryMapper extends LeaseHistoryMapper {
+public interface MariaLeaseholdHistoryMapper extends LeaseholdHistoryMapper {
 
     @Override
     @Insert("""
-            INSERT INTO LeaseHistory (worldGuardRegionId, worldId, eventType, tenantId, landlordId,
-                                      price, durationSeconds, extensionsRemaining)
+            INSERT INTO LeaseholdHistory (worldGuardRegionId, worldId, eventType, tenantId, landlordId,
+                                          price, durationSeconds, extensionsRemaining)
             VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{tenantId}, #{landlordId},
                     #{price}, #{durationSeconds}, #{extensionsRemaining})
             """)
@@ -33,7 +33,7 @@ public interface MariaLeaseHistoryMapper extends LeaseHistoryMapper {
                @Param("extensionsRemaining") @Nullable Integer extensionsRemaining);
 
     @Override
-    @SelectProvider(type = LeaseHistorySqlProvider.class, method = "searchHistory")
+    @SelectProvider(type = LeaseholdHistorySqlProvider.class, method = "searchHistory")
     @ConstructorArgs({
             @Arg(column = "historyId", javaType = int.class),
             @Arg(column = "worldGuardRegionId", javaType = String.class),
@@ -46,7 +46,7 @@ public interface MariaLeaseHistoryMapper extends LeaseHistoryMapper {
             @Arg(column = "extensionsRemaining", javaType = Integer.class),
             @Arg(column = "eventTime", javaType = LocalDateTime.class)
     })
-    @NotNull List<LeaseHistoryEntity> searchHistory(
+    @NotNull List<LeaseholdHistoryEntity> searchHistory(
             @Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
             @Param("worldId") @NotNull UUID worldId,
             @Param("eventType") @Nullable String eventType,
@@ -56,11 +56,10 @@ public interface MariaLeaseHistoryMapper extends LeaseHistoryMapper {
             @Param("offset") int offset);
 
     @Override
-    @SelectProvider(type = LeaseHistorySqlProvider.class, method = "countHistory")
+    @SelectProvider(type = LeaseholdHistorySqlProvider.class, method = "countHistory")
     int countHistory(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                      @Param("worldId") @NotNull UUID worldId,
                      @Param("eventType") @Nullable String eventType,
                      @Param("since") @Nullable LocalDateTime since,
                      @Param("playerId") @Nullable UUID playerId);
-
 }

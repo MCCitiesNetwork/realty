@@ -125,8 +125,8 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
     @Select("""
             SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
             FROM RealtyRegion rr
-            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'contract'
-            INNER JOIN LeaseContract lc ON lc.leaseContractId = c.contractId
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
+            INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
             WHERE lc.tenantId = #{playerId}
             LIMIT #{limit} OFFSET #{offset}
             """)
@@ -163,8 +163,8 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
     @Select("""
             SELECT COUNT(*)
             FROM RealtyRegion rr
-            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'contract'
-            INNER JOIN LeaseContract lc ON lc.leaseContractId = c.contractId
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
+            INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
             WHERE lc.tenantId = #{playerId}
             """)
     int countRegionsByTenant(@Param("playerId") @NotNull UUID playerId);
