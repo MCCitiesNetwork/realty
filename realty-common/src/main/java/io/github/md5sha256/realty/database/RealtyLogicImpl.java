@@ -700,22 +700,6 @@ public class RealtyLogicImpl {
         record UpdateFailed() implements UnrentResult {}
     }
 
-    public @NotNull UnrentResult previewUnrent(@NotNull String worldGuardRegionId,
-                                               @NotNull UUID worldId) {
-        try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
-            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
-            if (lease == null) {
-                return new UnrentResult.NoLeaseholdContract();
-            }
-            long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = lease.endDate() == null ? 0
-                    : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
-            double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
-            return new UnrentResult.Success(refund, lease.tenantId(), lease.landlordId());
-        }
-    }
-
     public @NotNull UnrentResult unrentRegion(@NotNull String worldGuardRegionId,
                                                @NotNull UUID worldId,
                                                @NotNull UUID tenantId) {
@@ -816,6 +800,13 @@ public class RealtyLogicImpl {
                                                                   @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             return wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+        }
+    }
+
+    public @Nullable LeaseholdContractEntity getLeaseholdContract(@NotNull String worldGuardRegionId,
+                                                                    @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
         }
     }
 
