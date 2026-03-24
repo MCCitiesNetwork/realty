@@ -65,73 +65,90 @@ public record RentCommand(
             return;
         }
         String regionId = region.region().getId();
+        // Step 1: preview rent eligibility (DB, no mutation)
         CompletableFuture.supplyAsync(() -> {
             try {
-                RealtyLogicImpl.RentResult result = logic.rentRegion(
-                        regionId, region.world().getUID(), sender.getUniqueId());
-                return switch (result) {
-                    case RealtyLogicImpl.RentResult.Success success -> {
-                        Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
-                        yield Map.entry(success, placeholders);
-                    }
-                    case RealtyLogicImpl.RentResult.NoLeaseholdContract ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASEHOLD_CONTRACT,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                    case RealtyLogicImpl.RentResult.AlreadyOccupied ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_ALREADY_OCCUPIED,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                    case RealtyLogicImpl.RentResult.UpdateFailed ignored -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_UPDATE_FAILED,
-                                Placeholder.unparsed("region", regionId)));
-                        yield null;
-                    }
-                };
+                return logic.previewRent(regionId, region.world().getUID());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.RENT_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
                 return null;
             }
-        }, executorState.dbExec()).thenAcceptAsync(entry -> {
-            if (entry == null) {
+        }, executorState.dbExec()).thenAcceptAsync(preview -> {
+            if (preview == null) {
                 return;
             }
-            RealtyLogicImpl.RentResult.Success success = entry.getKey();
-            double price = success.price();
-            double balance = economy.getBalance(sender);
-            if (balance < price) {
-                sender.sendMessage(messages.messageFor(MessageKeys.RENT_INSUFFICIENT_FUNDS,
-                        Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
-                        Placeholder.unparsed("price", CurrencyFormatter.format(price))));
-                return;
+            switch (preview) {
+                case RealtyLogicImpl.RentResult.NoLeaseholdContract ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASEHOLD_CONTRACT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.RentResult.AlreadyOccupied ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_ALREADY_OCCUPIED,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.RentResult.UpdateFailed ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_UPDATE_FAILED,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.RentResult.Success success -> {
+                    // Step 2: balance check + payment (main thread)
+                    double price = success.price();
+                    double balance = economy.getBalance(sender);
+                    if (balance < price) {
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_INSUFFICIENT_FUNDS,
+                                Placeholder.unparsed("balance", CurrencyFormatter.format(balance)),
+                                Placeholder.unparsed("price", CurrencyFormatter.format(price))));
+                        return;
+                    }
+                    if (price > 0) {
+                        EconomyResponse response = economy.withdrawPlayer(sender, price);
+                        if (!response.transactionSuccess()) {
+                            sender.sendMessage(messages.messageFor(MessageKeys.RENT_PAYMENT_FAILED,
+                                    Placeholder.unparsed("error", response.errorMessage)));
+                            return;
+                        }
+                        OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
+                        economy.depositPlayer(landlord, price);
+                    }
+                    // Step 3: execute DB mutation
+                    CompletableFuture.supplyAsync(() -> {
+                        try {
+                            RealtyLogicImpl.RentResult result = logic.rentRegion(
+                                    regionId, region.world().getUID(), sender.getUniqueId());
+                            if (result instanceof RealtyLogicImpl.RentResult.Success) {
+                                return logic.getRegionPlaceholders(regionId, region.world().getUID());
+                            }
+                            return null;
+                        } catch (Exception ex) {
+                            return null;
+                        }
+                    }, executorState.dbExec()).thenAcceptAsync(placeholders -> {
+                        // Step 4: finalize or refund
+                        if (placeholders == null) {
+                            if (price > 0) {
+                                economy.depositPlayer(sender, price);
+                            }
+                            sender.sendMessage(messages.messageFor(MessageKeys.RENT_UPDATE_FAILED,
+                                    Placeholder.unparsed("region", regionId)));
+                            return;
+                        }
+                        ProtectedRegion protectedRegion = region.region();
+                        protectedRegion.getOwners().clear();
+                        protectedRegion.getMembers().clear();
+                        protectedRegion.getOwners().addPlayer(sender.getUniqueId());
+                        regionProfileService.applyFlags(region, RegionState.LEASED, placeholders);
+                        signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_SUCCESS,
+                                Placeholder.unparsed("region", regionId),
+                                Placeholder.unparsed("price", CurrencyFormatter.format(price)),
+                                Placeholder.unparsed("duration",
+                                        DurationFormatter.format(Duration.ofSeconds(success.durationSeconds())))));
+                        notificationService.queueNotification(success.landlordId(),
+                                messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
+                                        Placeholder.unparsed("player", sender.getName()),
+                                        Placeholder.unparsed("price", CurrencyFormatter.format(price)),
+                                        Placeholder.unparsed("region", regionId)));
+                    }, executorState.mainThreadExec());
+                }
             }
-            EconomyResponse response = economy.withdrawPlayer(sender, price);
-            if (!response.transactionSuccess()) {
-                sender.sendMessage(messages.messageFor(MessageKeys.RENT_PAYMENT_FAILED,
-                        Placeholder.unparsed("error", response.errorMessage)));
-                return;
-            }
-            OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
-            economy.depositPlayer(landlord, price);
-            ProtectedRegion protectedRegion = region.region();
-            protectedRegion.getOwners().clear();
-            protectedRegion.getMembers().clear();
-            protectedRegion.getOwners().addPlayer(sender.getUniqueId());
-            regionProfileService.applyFlags(region, RegionState.LEASED, entry.getValue());
-            signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, entry.getValue());
-            sender.sendMessage(messages.messageFor(MessageKeys.RENT_SUCCESS,
-                    Placeholder.unparsed("region", regionId),
-                    Placeholder.unparsed("price", CurrencyFormatter.format(price)),
-                    Placeholder.unparsed("duration",
-                            DurationFormatter.format(Duration.ofSeconds(success.durationSeconds())))));
-            notificationService.queueNotification(success.landlordId(),
-                    messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
-                            Placeholder.unparsed("player", sender.getName()),
-                            Placeholder.unparsed("price", CurrencyFormatter.format(price)),
-                            Placeholder.unparsed("region", regionId)));
         }, executorState.mainThreadExec());
     }
 
