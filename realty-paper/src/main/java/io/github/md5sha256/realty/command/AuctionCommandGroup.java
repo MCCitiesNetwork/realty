@@ -13,7 +13,6 @@ import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
@@ -83,7 +82,7 @@ public record AuctionCommandGroup(
                         .required("paymentDuration", DurationParser.duration())
                         .required("minBid", DoubleParser.doubleParser(0))
                         .required("minBidStep", DoubleParser.doubleParser(0))
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeCreate)
                         .build(),
                 base.literal("cancel")
@@ -94,13 +93,13 @@ public record AuctionCommandGroup(
                 base.literal("bid")
                         .permission("realty.command.auction.bid")
                         .required("bid", DoubleParser.doubleParser(0))
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeBid)
                         .build(),
                 base.literal("paybid")
                         .permission("realty.command.auction.paybid")
                         .required("amount", DoubleParser.doubleParser(0, Double.MAX_VALUE))
-                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executePayBid)
                         .build()
         );
@@ -110,11 +109,9 @@ public record AuctionCommandGroup(
 
     private void executeInfo(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player player)) {
-            return;
-        }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
@@ -171,13 +168,19 @@ public record AuctionCommandGroup(
     private void executeCreate(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
         if (!(sender instanceof Player player)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         Duration bidDuration = ctx.get("bidDuration");
         Duration paymentDuration = ctx.get("paymentDuration");
         double minBid = ctx.get("minBid");
         double minBidStep = ctx.get("minBidStep");
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
@@ -211,11 +214,10 @@ public record AuctionCommandGroup(
     // ── /realty auction cancel [region] ──
 
     private void executeCancel(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            return;
-        }
+        CommandSender sender = ctx.sender().getSender();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
@@ -246,10 +248,16 @@ public record AuctionCommandGroup(
 
     private void executeBid(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         double bidAmount = ctx.<Double>get("bid");
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
@@ -296,7 +304,12 @@ public record AuctionCommandGroup(
             return;
         }
         double amount = ctx.get("amount");
-        WorldGuardRegion region = ctx.get("region");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
         String regionId = region.region().getId();
         // Balance check on main thread
         double balance = economy.getBalance(sender);

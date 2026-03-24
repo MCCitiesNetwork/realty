@@ -62,6 +62,7 @@ public record BuyCommand(
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         if (!(ctx.sender().getSender() instanceof Player sender)) {
+            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")

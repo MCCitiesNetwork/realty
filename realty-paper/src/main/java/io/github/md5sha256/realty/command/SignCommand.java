@@ -59,6 +59,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
     private void executePlace(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
         if (!(sender instanceof Player player)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         Block targetBlock = player.getTargetBlockExact(5);
@@ -123,6 +124,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
     private void executeRemove(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
         if (!(sender instanceof Player player)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         Block targetBlock = player.getTargetBlockExact(5);

@@ -12,6 +12,7 @@ import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -63,19 +64,19 @@ public record UnsetCommandGroup(
     }
 
     private void executeUnsetPrice(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            return;
-        }
+        CommandSender sender = ctx.sender().getSender();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.unset.price.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.unset.price.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
             return;
         }
@@ -108,19 +109,19 @@ public record UnsetCommandGroup(
     }
 
     private void executeUnsetTitleHolder(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            return;
-        }
+        CommandSender sender = ctx.sender().getSender();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.unset.titleholder.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.unset.titleholder.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
             return;
         }
@@ -155,19 +156,19 @@ public record UnsetCommandGroup(
     }
 
     private void executeUnsetTenant(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            return;
-        }
+        CommandSender sender = ctx.sender().getSender();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (!sender.hasPermission("realty.command.unset.tenant.others")
-                && !region.region().getOwners().contains(sender.getUniqueId())) {
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.unset.tenant.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
             return;
         }

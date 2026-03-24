@@ -82,11 +82,9 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player player)) {
-            return;
-        }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;

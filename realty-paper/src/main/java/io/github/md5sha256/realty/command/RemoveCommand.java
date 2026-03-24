@@ -51,19 +51,18 @@ public record RemoveCommand(@NotNull MessageContainer messages) implements Custo
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player player)) {
-            return;
-        }
         String playerOrGroup = ctx.get("player");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
-            player.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
         String regionId = region.region().getId();
 
-        if (!sender.hasPermission("realty.command.remove.others")
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.remove.others")
                 && !region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.REMOVE_NO_PERMISSION));
             return;

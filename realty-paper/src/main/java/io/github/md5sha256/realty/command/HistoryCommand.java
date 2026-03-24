@@ -6,7 +6,7 @@ import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -23,7 +23,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
-import org.incendo.cloud.key.CloudKey;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.EnumParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
@@ -62,9 +61,6 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
             "LEASEHOLD_EXPIRY", MessageKeys.HISTORY_EVENT_LEASEHOLD_EXPIRY
     );
 
-    private static final CloudKey<WorldGuardRegion> REGION = CloudKey.of("region",
-            WorldGuardRegion.class);
-
     private static final CommandFlag<HistoryEventType> EVENT_FLAG =
             CommandFlag.<CommandSourceStack>builder("event")
                     .withComponent(EnumParser.enumParser(HistoryEventType.class))
@@ -90,7 +86,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
         return builder
                 .literal("history")
                 .permission("realty.command.history")
-                .required(REGION, WorldGuardRegionParser.worldGuardRegion())
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .flag(EVENT_FLAG)
                 .flag(TIME_FLAG)
                 .flag(PLAYER_FLAG)
@@ -101,10 +97,13 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
 
     private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
-        if (!(sender instanceof Player)) {
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        WorldGuardRegion region = ctx.get(REGION);
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
 
