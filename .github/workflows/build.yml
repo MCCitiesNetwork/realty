@@ -2,18 +2,16 @@ name: Build
 
 on:
   push:
-    branches: [main, master, develop]   # ignore noise from short-lived feature branches
+    branches: [main, master, develop]
   pull_request:
   workflow_dispatch:
 
-# Cancel any in-progress run on the same branch/PR when a new one is triggered.
-# This prevents redundant builds piling up while you're actively pushing.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # opt into Node.js 24 ahead of June 2026 forced migration
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -32,12 +30,12 @@ jobs:
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Build
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon shadowJar
+          ./gradlew shadowJar
 
       - name: Collect JARs
         run: |
@@ -52,7 +50,7 @@ jobs:
       - name: Upload JARs
         uses: actions/upload-artifact@v4
         with:
-          name: jars-${{ github.sha }}      # include commit SHA so each run's artifact is uniquely identifiable
+          name: jars-${{ github.sha }}
           path: jars/*.jar
           if-no-files-found: error
           retention-days: 14
