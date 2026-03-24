@@ -137,6 +137,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
     @Update("""
             UPDATE LeaseholdContract
             SET tenantId = NULL,
+                startDate = NULL,
+                endDate = NULL,
                 currentMaxExtensions = CASE WHEN maxExtensions IS NOT NULL THEN 0 ELSE NULL END
             WHERE leaseholdContractId = #{leaseholdContractId}
             """)
@@ -174,6 +176,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.tenantId = #{tenantId},
+                lc.startDate = CASE WHEN #{tenantId} IS NULL THEN NULL ELSE lc.startDate END,
+                lc.endDate = CASE WHEN #{tenantId} IS NULL THEN NULL ELSE lc.endDate END,
                 lc.currentMaxExtensions = CASE
                     WHEN #{tenantId} IS NULL AND lc.maxExtensions IS NOT NULL THEN 0
                     ELSE lc.currentMaxExtensions
