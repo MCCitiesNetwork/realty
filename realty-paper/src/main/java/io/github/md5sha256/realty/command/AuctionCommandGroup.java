@@ -215,9 +215,12 @@ public record AuctionCommandGroup(
 
     private void executeCancel(@NotNull CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.sender().getSender();
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+            return;
+        }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> sender instanceof Player player
-                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
@@ -225,16 +228,27 @@ public record AuctionCommandGroup(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(regionId, region.world().getUID());
-                if (result.deleted() == 0) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_NO_AUCTION));
-                    return;
-                }
-                sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_SUCCESS,
-                        Placeholder.unparsed("region", regionId)));
-                for (UUID bidderId : result.bidderIds()) {
-                    notificationService.queueNotification(bidderId,
-                            messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
+                RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(
+                        regionId, region.world().getUID(), player.getUniqueId());
+                switch (result) {
+                    case RealtyLogicImpl.CancelAuctionResult.Success success -> {
+                        if (success.deleted() == 0) {
+                            sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_NO_AUCTION));
+                            return;
+                        }
+                        sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_SUCCESS,
+                                Placeholder.unparsed("region", regionId)));
+                        for (UUID bidderId : success.bidderIds()) {
+                            notificationService.queueNotification(bidderId,
+                                    messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
+                                            Placeholder.unparsed("region", regionId)));
+                        }
+                    }
+                    case RealtyLogicImpl.CancelAuctionResult.NotSanctioned ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NOT_SANCTIONED,
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.CancelAuctionResult.NoFreeholdContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {

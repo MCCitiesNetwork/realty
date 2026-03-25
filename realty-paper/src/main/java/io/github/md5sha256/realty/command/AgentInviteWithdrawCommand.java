@@ -70,7 +70,8 @@ public record AgentInviteWithdrawCommand(@NotNull ExecutorState executorState,
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.WithdrawAgentInviteResult result = logic.withdrawAgentInvite(regionId, worldId, inviteeId);
+                RealtyLogicImpl.WithdrawAgentInviteResult result = logic.withdrawAgentInvite(
+                        regionId, worldId, player.getUniqueId(), inviteeId);
                 switch (result) {
                     case RealtyLogicImpl.WithdrawAgentInviteResult.Success() -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_SUCCESS,
@@ -81,6 +82,12 @@ public record AgentInviteWithdrawCommand(@NotNull ExecutorState executorState,
                                         Placeholder.unparsed("player", resolveName(player.getUniqueId())),
                                         Placeholder.unparsed("region", regionId)));
                     }
+                    case RealtyLogicImpl.WithdrawAgentInviteResult.NoFreeholdContract() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NO_FREEHOLD,
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.WithdrawAgentInviteResult.NotTitleHolder() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
+                                    Placeholder.unparsed("region", regionId)));
                     case RealtyLogicImpl.WithdrawAgentInviteResult.NotFound() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_NOT_FOUND,
                                     Placeholder.unparsed("player", inviteeName),

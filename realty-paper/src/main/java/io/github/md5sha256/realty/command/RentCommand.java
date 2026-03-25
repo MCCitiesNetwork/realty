@@ -12,6 +12,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.util.DeferredEconomySettlement;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -69,7 +70,7 @@ public record RentCommand(
         // Step 1: preview rent eligibility (DB, no mutation)
         CompletableFuture.supplyAsync(() -> {
             try {
-                return logic.previewRent(regionId, region.world().getUID());
+                return logic.previewRent(regionId, region.world().getUID(), sender.getUniqueId());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.RENT_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
@@ -82,6 +83,9 @@ public record RentCommand(
             switch (preview) {
                 case RealtyLogicImpl.RentResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASEHOLD_CONTRACT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.RentResult.IsLandlord ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_IS_LANDLORD,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyLogicImpl.RentResult.AlreadyOccupied ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_ALREADY_OCCUPIED,
@@ -106,9 +110,17 @@ public record RentCommand(
                                     Placeholder.unparsed("error", response.errorMessage)));
                             return;
                         }
-                        OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
-                        economy.depositPlayer(landlord, price);
                     }
+                    // Do not pay the landlord until the lease write commits; otherwise
+                    // a failed DB write can duplicate currency.
+                    DeferredEconomySettlement settlement = price > 0
+                            ? new DeferredEconomySettlement(
+                            () -> economy.depositPlayer(sender, price),
+                            () -> {
+                                OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
+                                economy.depositPlayer(landlord, price);
+                            })
+                            : null;
                     // Step 3: execute DB mutation
                     CompletableFuture.supplyAsync(() -> {
                         try {
@@ -124,12 +136,15 @@ public record RentCommand(
                     }, executorState.dbExec()).thenAcceptAsync(placeholders -> {
                         // Step 4: finalize or refund
                         if (placeholders == null) {
-                            if (price > 0) {
-                                economy.depositPlayer(sender, price);
+                            if (settlement != null) {
+                                settlement.refundPayer();
                             }
                             sender.sendMessage(messages.messageFor(MessageKeys.RENT_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                             return;
+                        }
+                        if (settlement != null) {
+                            settlement.settleRecipient();
                         }
                         ProtectedRegion protectedRegion = region.region();
                         protectedRegion.getOwners().clear();

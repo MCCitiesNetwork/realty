@@ -45,6 +45,10 @@ import java.util.function.Function;
 
 public class RealtyLogicImpl {
 
+    // Treat sub-cent floating-point residue as settled so partial payments
+    // cannot get stuck behind binary rounding noise.
+    private static final double PAYMENT_EPSILON = 0.01;
+
     private final Database database;
     private final Function<UUID, String> nameResolver;
     private final Function<LocalDateTime, String> dateFormatter;
@@ -63,22 +67,62 @@ public class RealtyLogicImpl {
         this.offerPaymentDurationSeconds = offerPaymentDurationSeconds;
     }
 
+    // Freehold mutations follow the persisted title holder, while leasehold
+    // mutations follow the persisted landlord. WorldGuard owners are rewritten
+    // for presentation and can point at the current tenant instead.
+    private boolean isFreeholdTitleHolder(@NotNull FreeholdContractEntity freehold,
+                                          @Nullable UUID callerId) {
+        return callerId != null && callerId.equals(freehold.titleHolderId());
+    }
+
+    private boolean isLeaseholdLandlord(@NotNull LeaseholdContractEntity lease,
+                                        @Nullable UUID callerId) {
+        return callerId != null && callerId.equals(lease.landlordId());
+    }
+
+    private boolean isSanctionedAuctionActor(@NotNull SqlSessionWrapper wrapper,
+                                             @NotNull String worldGuardRegionId,
+                                             @NotNull UUID worldId,
+                                             @Nullable UUID callerId,
+                                             @NotNull FreeholdContractEntity freehold) {
+        return callerId != null
+                && (callerId.equals(freehold.authorityId())
+                || callerId.equals(freehold.titleHolderId())
+                || wrapper.freeholdContractSanctionedAuctioneerMapper()
+                        .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId));
+    }
+
     // --- Sanctioned Auctioneers ---
 
-    public int removeSanctionedAuctioneer(@NotNull String worldGuardRegionId,
-                                           @NotNull UUID worldId,
-                                           @NotNull UUID auctioneerId,
-                                           @NotNull UUID actorId) {
+    public sealed interface RemoveSanctionedAuctioneerResult {
+        record Success() implements RemoveSanctionedAuctioneerResult {}
+        record NoFreeholdContract() implements RemoveSanctionedAuctioneerResult {}
+        record NotTitleHolder() implements RemoveSanctionedAuctioneerResult {}
+        record NotFound() implements RemoveSanctionedAuctioneerResult {}
+    }
+
+    public @NotNull RemoveSanctionedAuctioneerResult removeSanctionedAuctioneer(@NotNull String worldGuardRegionId,
+                                                                                @NotNull UUID worldId,
+                                                                                @NotNull UUID auctioneerId,
+                                                                                @NotNull UUID actorId) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new RemoveSanctionedAuctioneerResult.NoFreeholdContract();
+            }
+            if (!isFreeholdTitleHolder(freehold, actorId)) {
+                return new RemoveSanctionedAuctioneerResult.NotTitleHolder();
+            }
             int rows = wrapper.freeholdContractSanctionedAuctioneerMapper()
                     .deleteByRegionAndAuctioneer(worldGuardRegionId, worldId, auctioneerId);
-            if (rows > 0) {
-                wrapper.agentHistoryMapper().insert(worldGuardRegionId, worldId,
-                        HistoryEventType.AGENT_REMOVE.name(), auctioneerId, actorId);
+            if (rows == 0) {
+                return new RemoveSanctionedAuctioneerResult.NotFound();
             }
+            wrapper.agentHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.AGENT_REMOVE.name(), auctioneerId, actorId);
             session.commit();
-            return rows;
+            return new RemoveSanctionedAuctioneerResult.Success();
         }
     }
 
@@ -165,20 +209,31 @@ public class RealtyLogicImpl {
 
     public sealed interface WithdrawAgentInviteResult {
         record Success() implements WithdrawAgentInviteResult {}
+        record NoFreeholdContract() implements WithdrawAgentInviteResult {}
+        record NotTitleHolder() implements WithdrawAgentInviteResult {}
         record NotFound() implements WithdrawAgentInviteResult {}
     }
 
     public @NotNull WithdrawAgentInviteResult withdrawAgentInvite(@NotNull String worldGuardRegionId,
-                                                                    @NotNull UUID worldId,
-                                                                    @NotNull UUID inviteeId) {
+                                                                  @NotNull UUID worldId,
+                                                                  @NotNull UUID inviterId,
+                                                                  @NotNull UUID inviteeId) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new WithdrawAgentInviteResult.NoFreeholdContract();
+            }
+            if (!isFreeholdTitleHolder(freehold, inviterId)) {
+                return new WithdrawAgentInviteResult.NotTitleHolder();
+            }
             int rows = wrapper.freeholdContractAgentInviteMapper()
                     .deleteByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
+            if (rows == 0) {
+                return new WithdrawAgentInviteResult.NotFound();
+            }
             session.commit();
-            return rows > 0
-                    ? new WithdrawAgentInviteResult.Success()
-                    : new WithdrawAgentInviteResult.NotFound();
+            return new WithdrawAgentInviteResult.Success();
         }
     }
 
@@ -239,14 +294,30 @@ public class RealtyLogicImpl {
         }
     }
 
-    public record CancelAuctionResult(int deleted, @NotNull List<UUID> bidderIds) {}
+    public sealed interface CancelAuctionResult {
+        record Success(int deleted, @NotNull List<UUID> bidderIds) implements CancelAuctionResult {}
+        record NotSanctioned() implements CancelAuctionResult {}
+        record NoFreeholdContract() implements CancelAuctionResult {}
+    }
 
-    public @NotNull CancelAuctionResult cancelAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+    public @NotNull CancelAuctionResult cancelAuction(@NotNull String worldGuardRegionId,
+                                                       @NotNull UUID worldId,
+                                                       @NotNull UUID callerId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new CancelAuctionResult.NoFreeholdContract();
+            }
+            if (!callerId.equals(freehold.authorityId())
+                    && !callerId.equals(freehold.titleHolderId())
+                    && !wrapper.freeholdContractSanctionedAuctioneerMapper()
+                            .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
+                return new CancelAuctionResult.NotSanctioned();
+            }
             List<UUID> bidderIds = wrapper.freeholdContractBidMapper().selectDistinctBidders(worldGuardRegionId, worldId);
             int deleted = wrapper.freeholdContractAuctionMapper().deleteActiveAuctionByRegion(worldGuardRegionId, worldId);
             wrapper.session().commit();
-            return new CancelAuctionResult(deleted, bidderIds);
+            return new CancelAuctionResult.Success(deleted, bidderIds);
         }
     }
 
@@ -316,6 +387,7 @@ public class RealtyLogicImpl {
 
     public sealed interface SetPriceResult {
         record Success() implements SetPriceResult {}
+        record NotAuthorized() implements SetPriceResult {}
         record NoFreeholdContract() implements SetPriceResult {}
         record AuctionExists() implements SetPriceResult {}
         record OfferPaymentInProgress() implements SetPriceResult {}
@@ -324,13 +396,24 @@ public class RealtyLogicImpl {
     }
 
     public @NotNull SetPriceResult setPrice(@NotNull String worldGuardRegionId,
-                                             @NotNull UUID worldId,
-                                             double price) {
+                                            @NotNull UUID worldId,
+                                            double price) {
+        return setPrice(worldGuardRegionId, worldId, price, null, true);
+    }
+
+    public @NotNull SetPriceResult setPrice(@NotNull String worldGuardRegionId,
+                                            @NotNull UUID worldId,
+                                            double price,
+                                            @Nullable UUID callerId,
+                                            boolean bypassAuth) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new SetPriceResult.NoFreeholdContract();
+            }
+            if (!bypassAuth && !isFreeholdTitleHolder(freehold, callerId)) {
+                return new SetPriceResult.NotAuthorized();
             }
             if (wrapper.freeholdContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new SetPriceResult.AuctionExists();
@@ -354,6 +437,7 @@ public class RealtyLogicImpl {
 
     public sealed interface UnsetPriceResult {
         record Success() implements UnsetPriceResult {}
+        record NotAuthorized() implements UnsetPriceResult {}
         record NoFreeholdContract() implements UnsetPriceResult {}
         record OfferPaymentInProgress() implements UnsetPriceResult {}
         record BidPaymentInProgress() implements UnsetPriceResult {}
@@ -361,12 +445,22 @@ public class RealtyLogicImpl {
     }
 
     public @NotNull UnsetPriceResult unsetPrice(@NotNull String worldGuardRegionId,
-                                                  @NotNull UUID worldId) {
+                                                @NotNull UUID worldId) {
+        return unsetPrice(worldGuardRegionId, worldId, null, true);
+    }
+
+    public @NotNull UnsetPriceResult unsetPrice(@NotNull String worldGuardRegionId,
+                                                @NotNull UUID worldId,
+                                                @Nullable UUID callerId,
+                                                boolean bypassAuth) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new UnsetPriceResult.NoFreeholdContract();
+            }
+            if (!bypassAuth && !isFreeholdTitleHolder(freehold, callerId)) {
+                return new UnsetPriceResult.NotAuthorized();
             }
             if (wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new UnsetPriceResult.OfferPaymentInProgress();
@@ -387,18 +481,30 @@ public class RealtyLogicImpl {
 
     public sealed interface SetDurationResult {
         record Success() implements SetDurationResult {}
+        record NotAuthorized() implements SetDurationResult {}
         record NoLeaseholdContract() implements SetDurationResult {}
         record UpdateFailed() implements SetDurationResult {}
     }
 
     public @NotNull SetDurationResult setDuration(@NotNull String worldGuardRegionId,
-                                                    @NotNull UUID worldId,
-                                                    long durationSeconds) {
+                                                  @NotNull UUID worldId,
+                                                  long durationSeconds) {
+        return setDuration(worldGuardRegionId, worldId, durationSeconds, null, true);
+    }
+
+    public @NotNull SetDurationResult setDuration(@NotNull String worldGuardRegionId,
+                                                  @NotNull UUID worldId,
+                                                  long durationSeconds,
+                                                  @Nullable UUID callerId,
+                                                  boolean bypassAuth) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new SetDurationResult.NoLeaseholdContract();
+            }
+            if (!bypassAuth && !isLeaseholdLandlord(lease, callerId)) {
+                return new SetDurationResult.NotAuthorized();
             }
             int updated = leaseholdMapper.updateDurationByRegion(worldGuardRegionId, worldId, durationSeconds);
             if (updated == 0) {
@@ -413,19 +519,31 @@ public class RealtyLogicImpl {
 
     public sealed interface SetMaxRenewalsResult {
         record Success() implements SetMaxRenewalsResult {}
+        record NotAuthorized() implements SetMaxRenewalsResult {}
         record NoLeaseholdContract() implements SetMaxRenewalsResult {}
         record BelowCurrentExtensions(int currentExtensions) implements SetMaxRenewalsResult {}
         record UpdateFailed() implements SetMaxRenewalsResult {}
     }
 
     public @NotNull SetMaxRenewalsResult setMaxRenewals(@NotNull String worldGuardRegionId,
-                                                          @NotNull UUID worldId,
-                                                          int maxRenewals) {
+                                                        @NotNull UUID worldId,
+                                                        int maxRenewals) {
+        return setMaxRenewals(worldGuardRegionId, worldId, maxRenewals, null, true);
+    }
+
+    public @NotNull SetMaxRenewalsResult setMaxRenewals(@NotNull String worldGuardRegionId,
+                                                        @NotNull UUID worldId,
+                                                        int maxRenewals,
+                                                        @Nullable UUID callerId,
+                                                        boolean bypassAuth) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new SetMaxRenewalsResult.NoLeaseholdContract();
+            }
+            if (!bypassAuth && !isLeaseholdLandlord(lease, callerId)) {
+                return new SetMaxRenewalsResult.NotAuthorized();
             }
             if (maxRenewals >= 0 && lease.tenantId() != null
                     && lease.currentMaxExtensions() != null
@@ -445,18 +563,30 @@ public class RealtyLogicImpl {
 
     public sealed interface SetLandlordResult {
         record Success(@NotNull UUID previousLandlord) implements SetLandlordResult {}
+        record NotAuthorized() implements SetLandlordResult {}
         record NoLeaseholdContract() implements SetLandlordResult {}
         record UpdateFailed() implements SetLandlordResult {}
     }
 
     public @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
-                                                    @NotNull UUID worldId,
-                                                    @NotNull UUID landlordId) {
+                                                  @NotNull UUID worldId,
+                                                  @NotNull UUID landlordId) {
+        return setLandlord(worldGuardRegionId, worldId, landlordId, null, true);
+    }
+
+    public @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
+                                                  @NotNull UUID worldId,
+                                                  @NotNull UUID landlordId,
+                                                  @Nullable UUID callerId,
+                                                  boolean bypassAuth) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new SetLandlordResult.NoLeaseholdContract();
+            }
+            if (!bypassAuth && !isLeaseholdLandlord(lease, callerId)) {
+                return new SetLandlordResult.NotAuthorized();
             }
             UUID previousLandlord = lease.landlordId();
             int updated = leaseholdMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordId);
@@ -472,18 +602,30 @@ public class RealtyLogicImpl {
 
     public sealed interface SetTitleHolderResult {
         record Success(@Nullable UUID previousTitleHolder) implements SetTitleHolderResult {}
+        record NotAuthorized() implements SetTitleHolderResult {}
         record NoFreeholdContract() implements SetTitleHolderResult {}
         record UpdateFailed() implements SetTitleHolderResult {}
     }
 
     public @NotNull SetTitleHolderResult setTitleHolder(@NotNull String worldGuardRegionId,
-                                                         @NotNull UUID worldId,
-                                                         @Nullable UUID titleHolderId) {
+                                                        @NotNull UUID worldId,
+                                                        @Nullable UUID titleHolderId) {
+        return setTitleHolder(worldGuardRegionId, worldId, titleHolderId, null, true);
+    }
+
+    public @NotNull SetTitleHolderResult setTitleHolder(@NotNull String worldGuardRegionId,
+                                                        @NotNull UUID worldId,
+                                                        @Nullable UUID titleHolderId,
+                                                        @Nullable UUID callerId,
+                                                        boolean bypassAuth) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new SetTitleHolderResult.NoFreeholdContract();
+            }
+            if (!bypassAuth && !isFreeholdTitleHolder(freehold, callerId)) {
+                return new SetTitleHolderResult.NotAuthorized();
             }
             UUID previousTitleHolder = freehold.titleHolderId();
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId);
@@ -516,18 +658,30 @@ public class RealtyLogicImpl {
 
     public sealed interface SetTenantResult {
         record Success(@Nullable UUID previousTenant, @NotNull UUID landlordId) implements SetTenantResult {}
+        record NotAuthorized() implements SetTenantResult {}
         record NoLeaseholdContract() implements SetTenantResult {}
         record UpdateFailed() implements SetTenantResult {}
     }
 
     public @NotNull SetTenantResult setTenant(@NotNull String worldGuardRegionId,
-                                                @NotNull UUID worldId,
-                                                @Nullable UUID tenantId) {
+                                              @NotNull UUID worldId,
+                                              @Nullable UUID tenantId) {
+        return setTenant(worldGuardRegionId, worldId, tenantId, null, true);
+    }
+
+    public @NotNull SetTenantResult setTenant(@NotNull String worldGuardRegionId,
+                                              @NotNull UUID worldId,
+                                              @Nullable UUID tenantId,
+                                              @Nullable UUID callerId,
+                                              boolean bypassAuth) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new SetTenantResult.NoLeaseholdContract();
+            }
+            if (!bypassAuth && !isLeaseholdLandlord(lease, callerId)) {
+                return new SetTenantResult.NotAuthorized();
             }
             UUID previousTenant = lease.tenantId();
             int updated = leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId);
@@ -650,17 +804,27 @@ public class RealtyLogicImpl {
     public sealed interface RentResult {
         record Success(double price, long durationSeconds, @NotNull UUID landlordId) implements RentResult {}
         record NoLeaseholdContract() implements RentResult {}
+        record IsLandlord() implements RentResult {}
         record AlreadyOccupied() implements RentResult {}
         record UpdateFailed() implements RentResult {}
     }
 
     public @NotNull RentResult previewRent(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId) {
+        return previewRent(worldGuardRegionId, worldId, null);
+    }
+
+    public @NotNull RentResult previewRent(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId,
+                                           @Nullable UUID tenantId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new RentResult.NoLeaseholdContract();
+            }
+            if (tenantId != null && tenantId.equals(lease.landlordId())) {
+                return new RentResult.IsLandlord();
             }
             if (lease.tenantId() != null) {
                 return new RentResult.AlreadyOccupied();
@@ -677,6 +841,9 @@ public class RealtyLogicImpl {
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new RentResult.NoLeaseholdContract();
+            }
+            if (tenantId.equals(lease.landlordId())) {
+                return new RentResult.IsLandlord();
             }
             if (lease.tenantId() != null) {
                 return new RentResult.AlreadyOccupied();
@@ -697,6 +864,7 @@ public class RealtyLogicImpl {
     public sealed interface UnrentResult {
         record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId) implements UnrentResult {}
         record NoLeaseholdContract() implements UnrentResult {}
+        record NotTenant() implements UnrentResult {}
         record UpdateFailed() implements UnrentResult {}
     }
 
@@ -708,6 +876,9 @@ public class RealtyLogicImpl {
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new UnrentResult.NoLeaseholdContract();
+            }
+            if (!tenantId.equals(lease.tenantId())) {
+                return new UnrentResult.NotTenant();
             }
             long totalSeconds = lease.durationSeconds();
             long remainingSeconds = lease.endDate() == null ? 0
@@ -729,17 +900,27 @@ public class RealtyLogicImpl {
     public sealed interface RenewLeaseholdResult {
         record Success(double price, @NotNull UUID landlordId) implements RenewLeaseholdResult {}
         record NoLeaseholdContract() implements RenewLeaseholdResult {}
+        record NotTenant() implements RenewLeaseholdResult {}
         record NoExtensionsRemaining() implements RenewLeaseholdResult {}
         record UpdateFailed() implements RenewLeaseholdResult {}
     }
 
     public @NotNull RenewLeaseholdResult previewRenewLeasehold(@NotNull String worldGuardRegionId,
-                                                              @NotNull UUID worldId) {
+                                                               @NotNull UUID worldId) {
+        return previewRenewLeasehold(worldGuardRegionId, worldId, null);
+    }
+
+    public @NotNull RenewLeaseholdResult previewRenewLeasehold(@NotNull String worldGuardRegionId,
+                                                               @NotNull UUID worldId,
+                                                               @Nullable UUID tenantId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new RenewLeaseholdResult.NoLeaseholdContract();
+            }
+            if (tenantId != null && !tenantId.equals(lease.tenantId())) {
+                return new RenewLeaseholdResult.NotTenant();
             }
             if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
                 return new RenewLeaseholdResult.NoExtensionsRemaining();
@@ -756,6 +937,9 @@ public class RealtyLogicImpl {
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new RenewLeaseholdResult.NoLeaseholdContract();
+            }
+            if (!tenantId.equals(lease.tenantId())) {
+                return new RenewLeaseholdResult.NotTenant();
             }
             if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
                 return new RenewLeaseholdResult.NoExtensionsRemaining();
@@ -1312,15 +1496,19 @@ public class RealtyLogicImpl {
                 return new PayOfferResult.NoPaymentRecord();
             }
             double amountOwed = payment.offerPrice() - payment.currentPayment();
-            if (amount > amountOwed) {
+            double newTotal = payment.currentPayment() + amount;
+            double remaining = payment.offerPrice() - newTotal;
+            if (remaining < -PAYMENT_EPSILON) {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);
             }
-            double newTotal = payment.currentPayment() + amount;
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             UUID authorityId = freehold.authorityId();
             UUID titleHolderId = freehold.titleHolderId();
-            if (newTotal == payment.offerPrice()) {
+            // A near-zero remainder here is floating-point residue from prior
+            // partial payments, so finish the transfer instead of leaving a
+            // dust balance that can never be paid exactly.
+            if (Math.abs(remaining) < PAYMENT_EPSILON) {
                 // Fully paid — transfer ownership, reset price (not for freehold)
                 freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
                 freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
@@ -1335,7 +1523,7 @@ public class RealtyLogicImpl {
                 paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, newTotal);
             }
             wrapper.session().commit();
-            return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal, authorityId, titleHolderId);
+            return new PayOfferResult.Success(newTotal, remaining, authorityId, titleHolderId);
         }
     }
 
@@ -1364,15 +1552,19 @@ public class RealtyLogicImpl {
                 return new PayBidResult.PaymentExpired();
             }
             double amountOwed = payment.bidPrice() - payment.currentPayment();
-            if (amount > amountOwed) {
+            double newTotal = payment.currentPayment() + amount;
+            double remaining = payment.bidPrice() - newTotal;
+            if (remaining < -PAYMENT_EPSILON) {
                 return new PayBidResult.ExceedsAmountOwed(amountOwed);
             }
-            double newTotal = payment.currentPayment() + amount;
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             UUID authorityId = freehold.authorityId();
             UUID titleHolderId = freehold.titleHolderId();
-            if (newTotal == payment.bidPrice()) {
+            // A near-zero remainder here is floating-point residue from prior
+            // partial payments, so finish the transfer instead of leaving a
+            // dust balance that can never be paid exactly.
+            if (Math.abs(remaining) < PAYMENT_EPSILON) {
                 // Fully paid — transfer ownership, reset price (not for freehold)
                 freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
                 freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
@@ -1385,7 +1577,7 @@ public class RealtyLogicImpl {
             }
             paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, newTotal);
             wrapper.session().commit();
-            return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal, authorityId, titleHolderId);
+            return new PayBidResult.Success(newTotal, remaining, authorityId, titleHolderId);
         }
     }
 

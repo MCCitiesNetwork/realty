@@ -208,13 +208,19 @@ public class RegionProfileService {
     }
 
     private @NotNull List<String> resolveCommands(@Nullable List<String> commands,
-                                                   @NotNull Map<String, String> placeholders) {
+                                                  @NotNull Map<String, String> placeholders) {
         if (commands == null || commands.isEmpty()) {
             return List.of();
         }
         List<String> resolved = new ArrayList<>(commands.size());
         for (String command : commands) {
-            resolved.add(replacePlaceholders(command, placeholders));
+            // Validate after placeholder expansion so config values cannot
+            // smuggle blank, multiline, or slash-prefixed commands through.
+            String sanitized = SignCommandSanitizer.sanitize(
+                    replacePlaceholders(command, placeholders), this.logger);
+            if (sanitized != null) {
+                resolved.add(sanitized);
+            }
         }
         return resolved;
     }
