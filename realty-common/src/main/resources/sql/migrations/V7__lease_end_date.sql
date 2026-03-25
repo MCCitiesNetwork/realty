@@ -3,4 +3,4 @@ ALTER TABLE LeaseContract
 
 UPDATE LeaseContract
 SET endDate = startDate + INTERVAL durationSeconds SECOND
-WHERE tenant IS NOT NULL;
+WHERE tenantId IS NOT NULL;
