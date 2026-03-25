@@ -15,3 +15,6 @@ dependencies:
     AreaShop:
       join-classpath: true
       required: true
+    Essentials:
+      join-classpath: true
+      required: false
