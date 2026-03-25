@@ -1,6 +1,8 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -137,7 +139,7 @@ public record ListCommand(
         builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", targetName));
         appendCategory(builder, "Owned", result.owned());
         appendCategory(builder, "Landlord", result.landlord());
-        appendCategory(builder, "Rented", result.rented());
+        appendRentedCategory(builder, "Rented", result.rented());
         appendFooter(builder, targetName, null, page, totalPages);
         sender.sendMessage(builder.build());
     }
@@ -165,7 +167,11 @@ public record ListCommand(
         String label = "owned".equals(category) ? "Owned" : "Rented";
         TextComponent.Builder builder = Component.text();
         builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", targetName));
-        appendCategory(builder, label, result.regions());
+        if ("owned".equals(category)) {
+            appendCategory(builder, label, result.regions());
+        } else {
+            appendRentedCategory(builder, label, result.regions());
+        }
         appendFooter(builder, targetName, category, page, totalPages);
         sender.sendMessage(builder.build());
     }
@@ -180,6 +186,25 @@ public record ListCommand(
         for (RealtyRegionEntity region : regions) {
             builder.appendNewline()
                     .append(parseMiniMessage(MessageKeys.LIST_ENTRY, "<region>", region.worldGuardRegionId()));
+        }
+    }
+
+    private void appendRentedCategory(@NotNull TextComponent.Builder builder, @NotNull String label,
+                                      @NotNull List<RealtyRegionEntity> regions) {
+        if (regions.isEmpty()) {
+            return;
+        }
+        builder.appendNewline()
+                .append(parseMiniMessage(MessageKeys.LIST_CATEGORY, "<label>", label));
+        for (RealtyRegionEntity region : regions) {
+            LeaseholdContractEntity leasehold = logic.getLeaseholdContract(region.worldGuardRegionId(), region.worldId());
+            String timeLeft = DurationFormatter.formatTimeLeft(leasehold != null ? leasehold.endDate() : null);
+            builder.appendNewline()
+                    .append(parseMiniMessage(
+                            MessageKeys.LIST_RENTED_ENTRY,
+                            "<region>", region.worldGuardRegionId(),
+                            "<time_left>", timeLeft
+                    ));
         }
     }
 
