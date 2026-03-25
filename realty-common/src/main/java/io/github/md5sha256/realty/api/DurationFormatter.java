@@ -1,8 +1,10 @@
 package io.github.md5sha256.realty.api;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 
 public final class DurationFormatter {
 
@@ -56,5 +58,28 @@ public final class DurationFormatter {
             sb.append(seconds).append("s");
         }
         return sb.toString();
+    }
+
+    /**
+     * Formats the remaining time until the given end date.
+     *
+     * <p>Returns {@code "N/A"} when no end date exists and {@code "Expired"}
+     * when the end date has already passed.</p>
+     */
+    public static @NotNull String formatTimeLeft(@Nullable LocalDateTime endDate) {
+        return formatTimeLeft(endDate, LocalDateTime.now());
+    }
+
+    static @NotNull String formatTimeLeft(@Nullable LocalDateTime endDate, @NotNull LocalDateTime now) {
+        if (endDate == null) {
+            return "N/A";
+        }
+
+        Duration remaining = Duration.between(now, endDate);
+        if (remaining.isZero() || remaining.isNegative()) {
+            return "Expired";
+        }
+
+        return format(remaining);
     }
 }
