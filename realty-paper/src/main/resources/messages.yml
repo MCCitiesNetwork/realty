@@ -118,6 +118,7 @@ info:
     - "Duration: <duration>"
     - "Start Date: <start_date>"
     - "End Date: <end_date>"
+    - "Time Left: <time_left>"
     - "Extensions: <extensions>"
   auction-active: "<#00aaff>►</#00aaff> Active Auction: <yellow><has_auction></yellow>"
   error: "Failed to retrieve region info: <error>"
