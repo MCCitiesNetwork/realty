@@ -44,6 +44,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
         Command<CommandSourceStack> place = builder
                 .literal("sign")
                 .literal("place")
+                .required("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .permission("realty.command.sign.place")
                 .handler(this::executePlace)
                 .build();
@@ -67,11 +68,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
             sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_A_SIGN));
             return;
         }
-        WorldGuardRegion region = WorldGuardRegionResolver.resolveAtLocation(targetBlock.getLocation());
-        if (region == null) {
-            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
-            return;
-        }
+        WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         int blockX = targetBlock.getX();
