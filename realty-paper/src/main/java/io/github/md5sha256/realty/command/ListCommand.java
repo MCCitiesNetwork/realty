@@ -1,5 +1,8 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.command.util.AuthorityParser;
+import io.github.md5sha256.realty.command.util.NamedAuthority;
+import io.github.md5sha256.realty.command.util.NamedAuthorityParser;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -15,6 +18,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
+import org.incendo.cloud.bukkit.parser.PlayerParser;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.IntegerParser;
@@ -39,9 +43,9 @@ public record ListCommand(
 
     private static final int PAGE_SIZE = 10;
 
-    private static final CommandFlag<String> PLAYER_FLAG =
+    private static final CommandFlag<NamedAuthority> PLAYER_FLAG =
             CommandFlag.<CommandSourceStack>builder("player")
-                    .withComponent(StringParser.stringParser())
+                    .withComponent(NamedAuthorityParser.namedAuthority())
                     .build();
 
     private static final CommandFlag<Integer> PAGE_FLAG =
@@ -72,9 +76,9 @@ public record ListCommand(
                          @Nullable String category) {
         CommandSender sender = ctx.sender().getSender();
         int page = ctx.flags().getValue(PAGE_FLAG, 1);
-        String playerName = ctx.flags().getValue(PLAYER_FLAG, null);
-        if (playerName != null) {
-            resolvePlayer(sender, playerName, category, page);
+        NamedAuthority authority = ctx.flags().getValue(PLAYER_FLAG, null);
+        if (authority != null) {
+            resolvePlayer(sender, authority, category, page);
         } else {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage(messages.messageFor(MessageKeys.LIST_PLAYERS_ONLY));
@@ -84,17 +88,9 @@ public record ListCommand(
         }
     }
 
-    private void resolvePlayer(@NotNull CommandSender sender, @NotNull String playerName,
+    private void resolvePlayer(@NotNull CommandSender sender, @NotNull NamedAuthority authority,
                                 @Nullable String category, int page) {
-        @SuppressWarnings("deprecation")
-        OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
-        if (!target.hasPlayedBefore() && !target.isOnline()) {
-            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYER_NOT_FOUND,
-                    Placeholder.unparsed("player", playerName)));
-            return;
-        }
-        String name = target.getName() != null ? target.getName() : playerName;
-        listRegions(sender, target.getUniqueId(), name, category, page);
+        listRegions(sender, authority.uuid(), authority.name(), category, page);
     }
 
     private void listRegions(@NotNull CommandSender sender, @NotNull UUID targetId,
