@@ -45,6 +45,9 @@ public class MariaDatabase implements Database {
     public MariaDatabase(@NotNull DatabaseSettings settings, @NotNull Logger logger) {
         this.settings = settings;
         this.dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", "jdbc:" + settings.url(), settings.username(), settings.password());
+        this.dataSource.setPoolPingEnabled(true);
+        this.dataSource.setPoolPingQuery("SELECT 1");
+        this.dataSource.setPoolPingConnectionsNotUsedFor(600000);
         this.sessionFactory = buildSessionFactory(this.dataSource);
         this.logger = logger;
     }
