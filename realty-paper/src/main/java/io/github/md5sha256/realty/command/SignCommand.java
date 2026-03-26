@@ -90,29 +90,26 @@ public record SignCommand(@NotNull ExecutorState executorState,
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RealtySignEntity existing = session.realtySignMapper()
                         .selectByPosition(signWorldId, blockX, blockY, blockZ);
-                if (existing != null) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_ALREADY_REGISTERED,
-                            Placeholder.unparsed("region", regionId)));
-                    return;
-                }
-                int rows = session.realtySignMapper()
-                        .insert(signWorldId, blockX, blockY, blockZ, regionId, worldId);
-                if (rows == 0) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_REGISTERED,
-                            Placeholder.unparsed("region", regionId)));
-                    return;
-                }
-                RealtyRegionEntity regionEntity = session.realtyRegionMapper()
-                        .selectByWorldGuardRegion(regionId, worldId);
-                if (regionEntity != null) {
-                    signCache.put(signWorldId, blockX, blockY, blockZ,
-                            regionEntity.realtyRegionId(), regionId, worldId);
+                if (existing == null) {
+                    int rows = session.realtySignMapper()
+                            .insert(signWorldId, blockX, blockY, blockZ, regionId, worldId);
+                    if (rows == 0) {
+                        sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_REGISTERED,
+                                Placeholder.unparsed("region", regionId)));
+                        return;
+                    }
+                    RealtyRegionEntity regionEntity = session.realtyRegionMapper()
+                            .selectByWorldGuardRegion(regionId, worldId);
+                    if (regionEntity != null) {
+                        signCache.put(signWorldId, blockX, blockY, blockZ,
+                                regionEntity.realtyRegionId(), regionId, worldId);
+                    }
                 }
                 RealtyLogicImpl.RegionWithState rws = logic.getRegionWithState(regionId, worldId);
                 if (rws != null) {
                     executorState.mainThreadExec().execute(() -> {
                         Block block = player.getWorld().getBlockAt(blockX, blockY, blockZ);
-                        if (block.getState() instanceof Sign) {
+                        if (block.getState(false) instanceof Sign) {
                             signTextApplicator.applySignText(player.getWorld(),
                                     blockX, blockY, blockZ,
                                     regionId, rws.state(), rws.placeholders());

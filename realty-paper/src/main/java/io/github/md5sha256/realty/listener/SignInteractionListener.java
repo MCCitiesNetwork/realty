@@ -52,7 +52,7 @@ public class SignInteractionListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerInteract(@NotNull PlayerInteractEvent event) {
         Block block = event.getClickedBlock();
-        if (block == null || !(block.getState() instanceof Sign)) {
+        if (block == null || !(block.getState(false) instanceof Sign)) {
             return;
         }
         Action action = event.getAction();
@@ -96,7 +96,7 @@ public class SignInteractionListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(@NotNull BlockBreakEvent event) {
         Block block = event.getBlock();
-        if (!(block.getState() instanceof Sign)) {
+        if (!(block.getState(false) instanceof Sign)) {
             return;
         }
         UUID worldId = block.getWorld().getUID();
