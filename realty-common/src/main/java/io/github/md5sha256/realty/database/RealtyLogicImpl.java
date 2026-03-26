@@ -345,6 +345,9 @@ public class RealtyLogicImpl {
             if (updated == 0) {
                 return new SetPriceResult.UpdateFailed();
             }
+            wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.SET_PRICE.name(),
+                    freehold.authorityId(), freehold.authorityId(), price);
             wrapper.session().commit();
             return new SetPriceResult.Success();
         }
@@ -378,6 +381,10 @@ public class RealtyLogicImpl {
             if (updated == 0) {
                 return new UnsetPriceResult.UpdateFailed();
             }
+            double previousPrice = freehold.price() != null ? freehold.price() : 0;
+            wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.UNSET_PRICE.name(),
+                    freehold.authorityId(), freehold.authorityId(), previousPrice);
             wrapper.session().commit();
             return new UnsetPriceResult.Success();
         }
@@ -404,6 +411,11 @@ public class RealtyLogicImpl {
             if (updated == 0) {
                 return new SetDurationResult.UpdateFailed();
             }
+            UUID tenantForHistory = lease.tenantId() != null ? lease.tenantId() : lease.landlordId();
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.SET_DURATION.name(),
+                    tenantForHistory, lease.landlordId(),
+                    lease.price(), durationSeconds, null);
             wrapper.session().commit();
             return new SetDurationResult.Success();
         }
@@ -436,6 +448,12 @@ public class RealtyLogicImpl {
             if (updated == 0) {
                 return new SetMaxRenewalsResult.UpdateFailed();
             }
+            UUID tenantForHistory = lease.tenantId() != null ? lease.tenantId() : lease.landlordId();
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.SET_MAX_EXTENSIONS.name(),
+                    tenantForHistory, lease.landlordId(),
+                    lease.price(), lease.durationSeconds(),
+                    maxRenewals < 0 ? null : maxRenewals);
             wrapper.session().commit();
             return new SetMaxRenewalsResult.Success();
         }
@@ -463,6 +481,11 @@ public class RealtyLogicImpl {
             if (updated == 0) {
                 return new SetLandlordResult.UpdateFailed();
             }
+            UUID tenantForHistory = lease.tenantId() != null ? lease.tenantId() : previousLandlord;
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.SET_LANDLORD.name(),
+                    tenantForHistory, landlordId,
+                    lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             return new SetLandlordResult.Success(previousLandlord);
         }
@@ -489,6 +512,17 @@ public class RealtyLogicImpl {
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId);
             if (updated == 0) {
                 return new SetTitleHolderResult.UpdateFailed();
+            }
+            double historyPrice = freehold.price() != null ? freehold.price() : 0;
+            if (titleHolderId != null) {
+                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.SET_TITLEHOLDER.name(),
+                        titleHolderId, freehold.authorityId(), historyPrice);
+            } else {
+                UUID historyBuyerId = previousTitleHolder != null ? previousTitleHolder : freehold.authorityId();
+                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.UNSET_TITLEHOLDER.name(),
+                        historyBuyerId, freehold.authorityId(), historyPrice);
             }
             wrapper.session().commit();
             return new SetTitleHolderResult.Success(previousTitleHolder);
@@ -533,6 +567,18 @@ public class RealtyLogicImpl {
             int updated = leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new SetTenantResult.UpdateFailed();
+            }
+            if (tenantId != null) {
+                wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.SET_TENANT.name(),
+                        tenantId, lease.landlordId(),
+                        lease.price(), lease.durationSeconds(), null);
+            } else {
+                UUID historyTenantId = previousTenant != null ? previousTenant : lease.landlordId();
+                wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.UNSET_TENANT.name(),
+                        historyTenantId, lease.landlordId(),
+                        lease.price(), lease.durationSeconds(), null);
             }
             wrapper.session().commit();
             return new SetTenantResult.Success(previousTenant, lease.landlordId());

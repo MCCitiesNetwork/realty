@@ -49,16 +49,25 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
 
     private static final int PAGE_SIZE = 10;
 
-    private static final Map<String, String> EVENT_TYPE_MESSAGE_KEYS = Map.of(
-            "BUY", MessageKeys.HISTORY_EVENT_BUY,
-            "AUCTION_BUY", MessageKeys.HISTORY_EVENT_AUCTION_BUY,
-            "OFFER_BUY", MessageKeys.HISTORY_EVENT_OFFER_BUY,
-            "AGENT_ADD", MessageKeys.HISTORY_EVENT_AGENT_ADD,
-            "AGENT_REMOVE", MessageKeys.HISTORY_EVENT_AGENT_REMOVE,
-            "RENT", MessageKeys.HISTORY_EVENT_RENT,
-            "UNRENT", MessageKeys.HISTORY_EVENT_UNRENT,
-            "RENEW", MessageKeys.HISTORY_EVENT_RENEW,
-            "LEASEHOLD_EXPIRY", MessageKeys.HISTORY_EVENT_LEASEHOLD_EXPIRY
+    private static final Map<String, String> EVENT_TYPE_MESSAGE_KEYS = Map.ofEntries(
+            Map.entry("BUY", MessageKeys.HISTORY_EVENT_BUY),
+            Map.entry("AUCTION_BUY", MessageKeys.HISTORY_EVENT_AUCTION_BUY),
+            Map.entry("OFFER_BUY", MessageKeys.HISTORY_EVENT_OFFER_BUY),
+            Map.entry("AGENT_ADD", MessageKeys.HISTORY_EVENT_AGENT_ADD),
+            Map.entry("AGENT_REMOVE", MessageKeys.HISTORY_EVENT_AGENT_REMOVE),
+            Map.entry("RENT", MessageKeys.HISTORY_EVENT_RENT),
+            Map.entry("UNRENT", MessageKeys.HISTORY_EVENT_UNRENT),
+            Map.entry("RENEW", MessageKeys.HISTORY_EVENT_RENEW),
+            Map.entry("LEASEHOLD_EXPIRY", MessageKeys.HISTORY_EVENT_LEASEHOLD_EXPIRY),
+            Map.entry("SET_PRICE", MessageKeys.HISTORY_EVENT_SET_PRICE),
+            Map.entry("UNSET_PRICE", MessageKeys.HISTORY_EVENT_UNSET_PRICE),
+            Map.entry("SET_TITLEHOLDER", MessageKeys.HISTORY_EVENT_SET_TITLEHOLDER),
+            Map.entry("UNSET_TITLEHOLDER", MessageKeys.HISTORY_EVENT_UNSET_TITLEHOLDER),
+            Map.entry("SET_DURATION", MessageKeys.HISTORY_EVENT_SET_DURATION),
+            Map.entry("SET_LANDLORD", MessageKeys.HISTORY_EVENT_SET_LANDLORD),
+            Map.entry("SET_TENANT", MessageKeys.HISTORY_EVENT_SET_TENANT),
+            Map.entry("UNSET_TENANT", MessageKeys.HISTORY_EVENT_UNSET_TENANT),
+            Map.entry("SET_MAX_EXTENSIONS", MessageKeys.HISTORY_EVENT_SET_MAX_EXTENSIONS)
     );
 
     private static final CommandFlag<HistoryEventType> EVENT_FLAG =

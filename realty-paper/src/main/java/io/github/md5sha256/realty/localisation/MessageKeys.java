@@ -154,6 +154,15 @@ public final class MessageKeys {
     public static final String HISTORY_EVENT_UNRENT = "history.event.unrent";
     public static final String HISTORY_EVENT_RENEW = "history.event.renew";
     public static final String HISTORY_EVENT_LEASEHOLD_EXPIRY = "history.event.leasehold-expiry";
+    public static final String HISTORY_EVENT_SET_PRICE = "history.event.set-price";
+    public static final String HISTORY_EVENT_UNSET_PRICE = "history.event.unset-price";
+    public static final String HISTORY_EVENT_SET_TITLEHOLDER = "history.event.set-titleholder";
+    public static final String HISTORY_EVENT_UNSET_TITLEHOLDER = "history.event.unset-titleholder";
+    public static final String HISTORY_EVENT_SET_DURATION = "history.event.set-duration";
+    public static final String HISTORY_EVENT_SET_LANDLORD = "history.event.set-landlord";
+    public static final String HISTORY_EVENT_SET_TENANT = "history.event.set-tenant";
+    public static final String HISTORY_EVENT_UNSET_TENANT = "history.event.unset-tenant";
+    public static final String HISTORY_EVENT_SET_MAX_EXTENSIONS = "history.event.set-max-extensions";
 
     // info
     public static final String INFO_HEADER = "info.header";

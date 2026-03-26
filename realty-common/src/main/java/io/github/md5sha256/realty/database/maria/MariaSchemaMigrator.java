@@ -47,7 +47,8 @@ public final class MariaSchemaMigrator {
             new MigrationStep(6, "freehold accepting offers", "V6__freehold_accepting_offers.sql"),
             new MigrationStep(7, "lease end date", "V7__lease_end_date.sql"),
             new MigrationStep(8, "leasehold rename", "V8__leasehold_rename.sql"),
-            new MigrationStep(9, "clear dates without tenant", "V9__clear_dates_no_tenant.sql")
+            new MigrationStep(9, "clear dates without tenant", "V9__clear_dates_no_tenant.sql"),
+            new MigrationStep(10, "set unset history events", "V10__set_unset_history_events.sql")
     );
 
     private MariaSchemaMigrator() {
