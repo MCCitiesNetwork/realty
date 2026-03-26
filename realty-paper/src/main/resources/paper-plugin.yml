@@ -201,3 +201,6 @@ permissions:
   realty.command.sign.remove:
     description: Allows using /realty sign remove
     default: op
+  realty.command.sign.list:
+    description: Allows using /realty sign list
+    default: op

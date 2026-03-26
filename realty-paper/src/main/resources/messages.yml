@@ -450,6 +450,10 @@ sign:
   remove-not-a-sign: "You must be looking at a sign block."
   remove-not-registered: "This sign is not registered."
   remove-error: "Failed to unregister sign: <error>"
+  list-header: "--- Signs for <region> ---"
+  list-entry: "  <click:run_command:/minecraft:tp @s <x> <y> <z>><yellow><x>, <y>, <z></yellow> <gray>(<world>)</gray></click>"
+  list-no-signs: "No signs registered for region <region>."
+  list-error: "Failed to list signs: <error>"
 
 tp:
   success: "Teleported to region <region>."

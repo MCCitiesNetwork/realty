@@ -15,6 +15,8 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.command.CommandSender;
@@ -27,9 +29,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Handles {@code /realty sign place <region>} and {@code /realty sign remove}.
+ * Handles {@code /realty sign place <region>}, {@code /realty sign remove},
+ * and {@code /realty sign list <region>}.
  *
- * <p>Permissions: {@code realty.command.sign.place}, {@code realty.command.sign.remove}.</p>
+ * <p>Permissions: {@code realty.command.sign.place}, {@code realty.command.sign.remove},
+ * {@code realty.command.sign.list}.</p>
  */
 public record SignCommand(@NotNull ExecutorState executorState,
                            @NotNull Database database,
@@ -54,7 +58,14 @@ public record SignCommand(@NotNull ExecutorState executorState,
                 .permission("realty.command.sign.remove")
                 .handler(this::executeRemove)
                 .build();
-        return List.of(place, remove);
+        Command<CommandSourceStack> list = builder
+                .literal("sign")
+                .literal("list")
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                .permission("realty.command.sign.list")
+                .handler(this::executeList)
+                .build();
+        return List.of(place, remove, list);
     }
 
     private void executePlace(@NotNull CommandContext<CommandSourceStack> ctx) {
@@ -148,6 +159,48 @@ public record SignCommand(@NotNull ExecutorState executorState,
             } catch (Exception ex) {
                 ex.printStackTrace();
                 sender.sendMessage(messages.messageFor(MessageKeys.SIGN_REMOVE_ERROR,
+                        Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
+            }
+        });
+    }
+
+    private void executeList(@NotNull CommandContext<CommandSourceStack> ctx) {
+        CommandSender sender = ctx.sender().getSender();
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+            return;
+        }
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        executorState.dbExec().execute(() -> {
+            try (SqlSessionWrapper session = database.openSession(true)) {
+                List<RealtySignEntity> signs = session.realtySignMapper()
+                        .selectByRegion(regionId, worldId);
+                if (signs.isEmpty()) {
+                    sender.sendMessage(messages.messageFor(MessageKeys.SIGN_LIST_NO_SIGNS,
+                            Placeholder.unparsed("region", regionId)));
+                    return;
+                }
+                sender.sendMessage(messages.messageFor(MessageKeys.SIGN_LIST_HEADER,
+                        Placeholder.unparsed("region", regionId)));
+                for (RealtySignEntity sign : signs) {
+                    World signWorld = Bukkit.getWorld(sign.worldId());
+                    String worldName = signWorld != null ? signWorld.getName() : sign.worldId().toString();
+                    sender.sendMessage(messages.messageFor(MessageKeys.SIGN_LIST_ENTRY,
+                            Placeholder.unparsed("world", worldName),
+                            Placeholder.unparsed("x", String.valueOf(sign.blockX())),
+                            Placeholder.unparsed("y", String.valueOf(sign.blockY())),
+                            Placeholder.unparsed("z", String.valueOf(sign.blockZ()))));
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                sender.sendMessage(messages.messageFor(MessageKeys.SIGN_LIST_ERROR,
                         Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
             }
         });

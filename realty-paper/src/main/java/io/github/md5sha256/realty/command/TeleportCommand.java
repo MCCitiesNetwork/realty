@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import com.sk89q.worldedit.math.BlockVector3;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -67,9 +68,13 @@ public record TeleportCommand(@NotNull ExecutorState executorState,
                     signs = session.realtySignMapper().selectByRegion(regionId, worldId);
                 }
 
-                // Build an async search chain: try each sign, then fall back to region
+                // Build an async search chain: try each sign inside the region, then fall back
                 CompletableFuture<Location> search = CompletableFuture.completedFuture(null);
                 for (RealtySignEntity sign : signs) {
+                    if (!region.region().contains(BlockVector3.at(
+                            sign.blockX(), sign.blockY(), sign.blockZ()))) {
+                        continue;
+                    }
                     search = search.thenCompose(loc -> {
                         if (loc != null) {
                             return CompletableFuture.completedFuture(loc);

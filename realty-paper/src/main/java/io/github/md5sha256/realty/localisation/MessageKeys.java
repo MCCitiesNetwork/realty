@@ -384,6 +384,10 @@ public final class MessageKeys {
     public static final String SIGN_REMOVE_NOT_A_SIGN = "sign.remove-not-a-sign";
     public static final String SIGN_REMOVE_NOT_REGISTERED = "sign.remove-not-registered";
     public static final String SIGN_REMOVE_ERROR = "sign.remove-error";
+    public static final String SIGN_LIST_HEADER = "sign.list-header";
+    public static final String SIGN_LIST_ENTRY = "sign.list-entry";
+    public static final String SIGN_LIST_NO_SIGNS = "sign.list-no-signs";
+    public static final String SIGN_LIST_ERROR = "sign.list-error";
 
     // notification
     public static final String NOTIFICATION_OFFER_PLACED = "notification.offer-placed";
