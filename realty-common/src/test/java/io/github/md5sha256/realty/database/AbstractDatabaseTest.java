@@ -64,7 +64,7 @@ abstract class AbstractDatabaseTest {
                     SET FOREIGN_KEY_CHECKS = 0;
                     TRUNCATE TABLE AgentHistory;
                     TRUNCATE TABLE FreeholdHistory;
-                    TRUNCATE TABLE LeaseHistory;
+                    TRUNCATE TABLE LeaseholdHistory;
                     TRUNCATE TABLE FreeholdContractAgentInvite;
                     TRUNCATE TABLE FreeholdContractBidPayment;
                     TRUNCATE TABLE FreeholdContractBid;
@@ -72,7 +72,7 @@ abstract class AbstractDatabaseTest {
                     TRUNCATE TABLE FreeholdContractOffer;
                     TRUNCATE TABLE FreeholdContractSanctionedAuctioneers;
                     TRUNCATE TABLE FreeholdContractAuction;
-                    TRUNCATE TABLE LeaseContract;
+                    TRUNCATE TABLE LeaseholdContract;
                     TRUNCATE TABLE FreeholdContract;
                     TRUNCATE TABLE Contract;
                     TRUNCATE TABLE RealtyRegion;
