@@ -84,7 +84,7 @@ public class SignTextApplicator {
                                   @NotNull RegionState state,
                                   @NotNull java.util.Map<String, String> placeholders) {
         Block block = world.getBlockAt(blockX, blockY, blockZ);
-        if (!(block.getState() instanceof Sign sign)) {
+        if (!(block.getState(false) instanceof Sign sign)) {
             return false;
         }
         RegionProfileService.ResolvedSignProfile profile =
@@ -93,6 +93,33 @@ public class SignTextApplicator {
             applyLines(sign, profile);
         }
         return true;
+    }
+
+    public enum ApplyResult {
+        BLOCK_NOT_LOADED,
+        SUCCESS,
+        FAILED
+    }
+
+    @NotNull
+    public ApplyResult applySignTextIfLoaded(@NotNull World world,
+                                 int blockX, int blockY, int blockZ,
+                                 @NotNull String regionId,
+                                 @NotNull RegionState state,
+                                 @NotNull java.util.Map<String, String> placeholders) {
+        Block block = world.getBlockAt(blockX, blockY, blockZ);
+        if (!block.getChunk().isLoaded()) {
+            return ApplyResult.BLOCK_NOT_LOADED;
+        }
+        if (!(block.getState(false) instanceof Sign sign)) {
+            return ApplyResult.FAILED;
+        }
+        RegionProfileService.ResolvedSignProfile profile =
+                regionProfileService.resolveSignProfile(regionId, state, placeholders);
+        if (profile != null) {
+            applyLines(sign, profile);
+        }
+        return ApplyResult.SUCCESS;
     }
 
     /**
@@ -157,9 +184,9 @@ public class SignTextApplicator {
                 mainThreadExec.execute(() -> {
                     List<RealtySignEntity> stale = new ArrayList<>();
                     for (SignWithRegion swr : resolved) {
-                        if (!applySignText(world, swr.signEntity().blockX(),
+                        if (applySignTextIfLoaded(world, swr.signEntity().blockX(),
                                 swr.signEntity().blockY(), swr.signEntity().blockZ(),
-                                swr.regionId(), swr.state(), swr.placeholders())) {
+                                swr.regionId(), swr.state(), swr.placeholders()) == ApplyResult.BLOCK_NOT_LOADED) {
                             stale.add(swr.signEntity());
                         }
                     }
