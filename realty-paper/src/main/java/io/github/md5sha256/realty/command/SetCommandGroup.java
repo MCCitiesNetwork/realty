@@ -114,21 +114,21 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.set.price.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            return;
-        }
+        // Shared logic owns the real authorization check because WorldGuard
+        // owners are rewritten during rental flows.
+        UUID callerId = sender instanceof Player player ? player.getUniqueId() : null;
+        boolean bypassAuth = !(sender instanceof Player) || sender.hasPermission("realty.command.set.price.others");
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.SetPriceResult result = logic.setPrice(
-                        regionId, worldId, price);
+                        regionId, worldId, price, callerId, bypassAuth);
                 switch (result) {
                     case RealtyLogicImpl.SetPriceResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_SUCCESS,
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetPriceResult.NotAuthorized ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
                     case RealtyLogicImpl.SetPriceResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
@@ -164,21 +164,19 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.set.duration.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            return;
-        }
+        UUID callerId = sender instanceof Player player ? player.getUniqueId() : null;
+        boolean bypassAuth = !(sender instanceof Player) || sender.hasPermission("realty.command.set.duration.others");
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.SetDurationResult result = logic.setDuration(
-                        regionId, worldId, duration.toSeconds());
+                        regionId, worldId, duration.toSeconds(), callerId, bypassAuth);
                 switch (result) {
                     case RealtyLogicImpl.SetDurationResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_SUCCESS,
                                     Placeholder.unparsed("duration", duration.toString()),
                                     Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetDurationResult.NotAuthorized ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
                     case RealtyLogicImpl.SetDurationResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
@@ -205,16 +203,12 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.set.landlord.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            return;
-        }
+        UUID callerId = sender instanceof Player player ? player.getUniqueId() : null;
+        boolean bypassAuth = !(sender instanceof Player) || sender.hasPermission("realty.command.set.landlord.others");
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.SetLandlordResult result = logic.setLandlord(
-                        regionId, worldId, landlordId);
+                        regionId, worldId, landlordId, callerId, bypassAuth);
                 switch (result) {
                     case RealtyLogicImpl.SetLandlordResult.Success(UUID previousLandlord) -> {
                         executorState.mainThreadExec().execute(() -> {
@@ -224,6 +218,8 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("landlord", resolveName(landlordId)),
                                 Placeholder.unparsed("region", regionId)));
                     }
+                    case RealtyLogicImpl.SetLandlordResult.NotAuthorized ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
                     case RealtyLogicImpl.SetLandlordResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
@@ -250,16 +246,12 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.set.titleholder.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            return;
-        }
+        UUID callerId = sender instanceof Player player ? player.getUniqueId() : null;
+        boolean bypassAuth = !(sender instanceof Player) || sender.hasPermission("realty.command.set.titleholder.others");
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
-                        regionId, worldId, titleHolderId);
+                        regionId, worldId, titleHolderId, callerId, bypassAuth);
                 switch (result) {
                     case RealtyLogicImpl.SetTitleHolderResult.Success(UUID previousTitleHolder) -> {
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId,
@@ -286,6 +278,8 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
                                 Placeholder.unparsed("region", regionId)));
                     }
+                    case RealtyLogicImpl.SetTitleHolderResult.NotAuthorized ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
                     case RealtyLogicImpl.SetTitleHolderResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
@@ -312,16 +306,12 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.set.tenant.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            return;
-        }
+        UUID callerId = sender instanceof Player player ? player.getUniqueId() : null;
+        boolean bypassAuth = !(sender instanceof Player) || sender.hasPermission("realty.command.set.tenant.others");
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.SetTenantResult result = logic.setTenant(
-                        regionId, worldId, tenantId);
+                        regionId, worldId, tenantId, callerId, bypassAuth);
                 switch (result) {
                     case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID ignored2) -> {
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId,
@@ -344,6 +334,8 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("tenant", resolveName(tenantId)),
                                 Placeholder.unparsed("region", regionId)));
                     }
+                    case RealtyLogicImpl.SetTenantResult.NotAuthorized ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
                     case RealtyLogicImpl.SetTenantResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
@@ -370,22 +362,20 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.set.maxextensions.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            return;
-        }
+        UUID callerId = sender instanceof Player player ? player.getUniqueId() : null;
+        boolean bypassAuth = !(sender instanceof Player) || sender.hasPermission("realty.command.set.maxextensions.others");
         CompletableFuture.runAsync(() -> {
             try {
                 RealtyLogicImpl.SetMaxRenewalsResult result = logic.setMaxRenewals(
-                        regionId, worldId, maxExtensions);
+                        regionId, worldId, maxExtensions, callerId, bypassAuth);
                 switch (result) {
                     case RealtyLogicImpl.SetMaxRenewalsResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_SUCCESS,
                                     Placeholder.unparsed("maxextensions",
                                             maxExtensions < 0 ? "unlimited" : String.valueOf(maxExtensions)),
                                     Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.SetMaxRenewalsResult.NotAuthorized ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
                     case RealtyLogicImpl.SetMaxRenewalsResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));

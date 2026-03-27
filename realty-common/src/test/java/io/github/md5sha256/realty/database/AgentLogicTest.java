@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.database.RealtyLogicImpl.AcceptAgentInviteResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.InviteAgentResult;
+import io.github.md5sha256.realty.database.RealtyLogicImpl.RemoveSanctionedAuctioneerResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.RejectAgentInviteResult;
 import io.github.md5sha256.realty.database.RealtyLogicImpl.WithdrawAgentInviteResult;
 import org.apache.ibatis.session.SqlSession;
@@ -202,7 +203,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId);
             logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
 
-            WithdrawAgentInviteResult result = logic.withdrawAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            WithdrawAgentInviteResult result = logic.withdrawAgentInvite(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
             Assertions.assertInstanceOf(WithdrawAgentInviteResult.Success.class, result);
         }
 
@@ -212,8 +213,15 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            WithdrawAgentInviteResult result = logic.withdrawAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            WithdrawAgentInviteResult result = logic.withdrawAgentInvite(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
             Assertions.assertInstanceOf(WithdrawAgentInviteResult.NotFound.class, result);
+        }
+
+        @Test
+        @DisplayName("returns NoFreeholdContract when region has no freehold")
+        void noFreeholdContract() {
+            WithdrawAgentInviteResult result = logic.withdrawAgentInvite("missing", WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            Assertions.assertInstanceOf(WithdrawAgentInviteResult.NoFreeholdContract.class, result);
         }
 
         @Test
@@ -222,10 +230,24 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
             logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
-            logic.withdrawAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            logic.withdrawAgentInvite(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
 
             AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
             Assertions.assertInstanceOf(AcceptAgentInviteResult.NotFound.class, result);
+        }
+
+        @Test
+        @DisplayName("returns NotTitleHolder when caller is not the title holder")
+        void notTitleHolder() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId);
+            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+
+            WithdrawAgentInviteResult result = logic.withdrawAgentInvite(regionId, WORLD_ID, PLAYER_B, PLAYER_A);
+            Assertions.assertInstanceOf(WithdrawAgentInviteResult.NotTitleHolder.class, result);
+
+            AcceptAgentInviteResult stillPending = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            Assertions.assertInstanceOf(AcceptAgentInviteResult.Success.class, stillPending);
         }
     }
 
@@ -284,18 +306,26 @@ class AgentLogicTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId);
             inviteAndAcceptAgent(regionId, PLAYER_A);
 
-            int rows = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
-            Assertions.assertEquals(1, rows);
+            RemoveSanctionedAuctioneerResult result = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.Success.class, result);
         }
 
         @Test
-        @DisplayName("returns 0 when agent does not exist")
+        @DisplayName("returns NotFound when agent does not exist")
         void notFound() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            int rows = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
-            Assertions.assertEquals(0, rows);
+            RemoveSanctionedAuctioneerResult result = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.NotFound.class, result);
+        }
+
+        @Test
+        @DisplayName("returns NoFreeholdContract when region has no freehold")
+        void noFreeholdContract() {
+            RemoveSanctionedAuctioneerResult result = logic.removeSanctionedAuctioneer(
+                    "missing", WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.NoFreeholdContract.class, result);
         }
 
         @Test
@@ -305,23 +335,38 @@ class AgentLogicTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId);
             inviteAndAcceptAgent(regionId, PLAYER_A);
 
-            logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            RemoveSanctionedAuctioneerResult removal = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.Success.class, removal);
 
             InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
             Assertions.assertInstanceOf(InviteAgentResult.Success.class, result);
         }
 
         @Test
-        @DisplayName("removing is idempotent - second removal returns 0")
+        @DisplayName("removing is idempotent - second removal returns NotFound")
         void doubleRemoval() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
             inviteAndAcceptAgent(regionId, PLAYER_A);
 
-            int first = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
-            int second = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
-            Assertions.assertEquals(1, first);
-            Assertions.assertEquals(0, second);
+            RemoveSanctionedAuctioneerResult first = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            RemoveSanctionedAuctioneerResult second = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.Success.class, first);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.NotFound.class, second);
+        }
+
+        @Test
+        @DisplayName("returns NotTitleHolder when caller is not the title holder")
+        void notTitleHolder() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId);
+            inviteAndAcceptAgent(regionId, PLAYER_A);
+
+            RemoveSanctionedAuctioneerResult result = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, PLAYER_B);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.NotTitleHolder.class, result);
+
+            InviteAgentResult stillAgent = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            Assertions.assertInstanceOf(InviteAgentResult.AlreadyAgent.class, stillAgent);
         }
     }
 
@@ -350,8 +395,8 @@ class AgentLogicTest extends AbstractDatabaseTest {
             Assertions.assertInstanceOf(InviteAgentResult.AlreadyAgent.class, duplicate);
 
             // Remove
-            int rows = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
-            Assertions.assertEquals(1, rows);
+            RemoveSanctionedAuctioneerResult removal = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.Success.class, removal);
 
             // Can invite again after removal
             InviteAgentResult reInvite = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
@@ -368,10 +413,10 @@ class AgentLogicTest extends AbstractDatabaseTest {
             inviteAndAcceptAgent(regionId, PLAYER_B);
 
             // Both should be removable independently
-            int rowsA = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
-            int rowsB = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_B, TITLE_HOLDER);
-            Assertions.assertEquals(1, rowsA);
-            Assertions.assertEquals(1, rowsB);
+            RemoveSanctionedAuctioneerResult rowsA = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
+            RemoveSanctionedAuctioneerResult rowsB = logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_B, TITLE_HOLDER);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.Success.class, rowsA);
+            Assertions.assertInstanceOf(RemoveSanctionedAuctioneerResult.Success.class, rowsB);
         }
     }
 }

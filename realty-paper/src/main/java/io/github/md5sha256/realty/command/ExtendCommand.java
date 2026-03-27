@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.util.DeferredEconomySettlement;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -61,7 +62,7 @@ public record ExtendCommand(
         String regionId = region.region().getId();
         CompletableFuture.supplyAsync(() -> {
             try {
-                return logic.previewRenewLeasehold(regionId, region.world().getUID());
+                return logic.previewRenewLeasehold(regionId, region.world().getUID(), sender.getUniqueId());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_ERROR,
                         Placeholder.unparsed("error", ex.getMessage())));
@@ -74,6 +75,9 @@ public record ExtendCommand(
             switch (preview) {
                 case RealtyLogicImpl.RenewLeaseholdResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_LEASEHOLD_CONTRACT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyLogicImpl.RenewLeaseholdResult.NotTenant ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NOT_TENANT,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyLogicImpl.RenewLeaseholdResult.NoExtensionsRemaining ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_EXTENSIONS,
@@ -97,9 +101,17 @@ public record ExtendCommand(
                                     Placeholder.unparsed("error", response.errorMessage)));
                             return;
                         }
-                        OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
-                        economy.depositPlayer(landlord, price);
                     }
+                    // Mirror the rent flow: keep the landlord payment deferred until
+                    // the renewal is durably written.
+                    DeferredEconomySettlement settlement = price > 0
+                            ? new DeferredEconomySettlement(
+                            () -> economy.depositPlayer(sender, price),
+                            () -> {
+                                OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
+                                economy.depositPlayer(landlord, price);
+                            })
+                            : null;
                     CompletableFuture.supplyAsync(() -> {
                         try {
                             RealtyLogicImpl.RenewLeaseholdResult result = logic.renewLeasehold(
@@ -113,12 +125,15 @@ public record ExtendCommand(
                         }
                     }, executorState.dbExec()).thenAcceptAsync(placeholders -> {
                         if (placeholders == null) {
-                            if (price > 0) {
-                                economy.depositPlayer(sender, price);
+                            if (settlement != null) {
+                                settlement.refundPayer();
                             }
                             sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                             return;
+                        }
+                        if (settlement != null) {
+                            settlement.settleRecipient();
                         }
                         signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.LEASED, placeholders);
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_SUCCESS,

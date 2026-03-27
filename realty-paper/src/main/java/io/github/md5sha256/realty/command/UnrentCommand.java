@@ -140,6 +140,11 @@ public record UnrentCommand(
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
                     }
+                    case RealtyLogicImpl.UnrentResult.NotTenant ignored -> {
+                        revertEconomy(sender, lease, refund);
+                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NOT_TENANT,
+                                Placeholder.unparsed("region", regionId)));
+                    }
                     case RealtyLogicImpl.UnrentResult.UpdateFailed ignored -> {
                         revertEconomy(sender, lease, refund);
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_UPDATE_FAILED,

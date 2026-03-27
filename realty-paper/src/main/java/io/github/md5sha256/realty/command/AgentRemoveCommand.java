@@ -70,19 +70,28 @@ public record AgentRemoveCommand(@NotNull ExecutorState executorState,
         UUID actorId = player.getUniqueId();
         CompletableFuture.runAsync(() -> {
             try {
-                int rows = logic.removeSanctionedAuctioneer(regionId, worldId, targetId, actorId);
-                if (rows > 0) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_SUCCESS,
-                            Placeholder.unparsed("player", targetName),
-                            Placeholder.unparsed("region", regionId)));
-                    notificationService.queueNotification(targetId,
-                            messages.messageFor(MessageKeys.NOTIFICATION_AGENT_REMOVED,
-                                    Placeholder.unparsed("player", player.getName()),
+                RealtyLogicImpl.RemoveSanctionedAuctioneerResult result = logic.removeSanctionedAuctioneer(
+                        regionId, worldId, targetId, actorId);
+                switch (result) {
+                    case RealtyLogicImpl.RemoveSanctionedAuctioneerResult.Success() -> {
+                        sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_SUCCESS,
+                                Placeholder.unparsed("player", targetName),
+                                Placeholder.unparsed("region", regionId)));
+                        notificationService.queueNotification(targetId,
+                                messages.messageFor(MessageKeys.NOTIFICATION_AGENT_REMOVED,
+                                        Placeholder.unparsed("player", player.getName()),
+                                        Placeholder.unparsed("region", regionId)));
+                    }
+                    case RealtyLogicImpl.RemoveSanctionedAuctioneerResult.NoFreeholdContract() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NO_FREEHOLD,
                                     Placeholder.unparsed("region", regionId)));
-                } else {
-                    sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_NOT_FOUND,
-                            Placeholder.unparsed("player", targetName),
-                            Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.RemoveSanctionedAuctioneerResult.NotTitleHolder() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
+                                    Placeholder.unparsed("region", regionId)));
+                    case RealtyLogicImpl.RemoveSanctionedAuctioneerResult.NotFound() ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_NOT_FOUND,
+                                    Placeholder.unparsed("player", targetName),
+                                    Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_ERROR,
