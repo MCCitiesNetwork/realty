@@ -107,7 +107,6 @@ public class SignInteractionListener implements Listener {
                 block.getWorld().getUID(), block.getX(), block.getY(), block.getZ());
         if (entry != null) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(messages.messageFor(MessageKeys.SIGN_EDIT_DENIED));
         }
     }
 

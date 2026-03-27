@@ -388,7 +388,6 @@ public final class MessageKeys {
     public static final String SIGN_LIST_ENTRY = "sign.list-entry";
     public static final String SIGN_LIST_NO_SIGNS = "sign.list-no-signs";
     public static final String SIGN_LIST_ERROR = "sign.list-error";
-    public static final String SIGN_EDIT_DENIED = "sign.edit-denied";
 
     // notification
     public static final String NOTIFICATION_OFFER_PLACED = "notification.offer-placed";

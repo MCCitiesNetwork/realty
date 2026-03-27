@@ -454,7 +454,6 @@ sign:
   list-entry: "  <click:run_command:'/tp @s <x> <y> <z>'><yellow><x>, <y>, <z></yellow> <gray>(<world>)</gray></click>"
   list-no-signs: "No signs registered for region <region>."
   list-error: "Failed to list signs: <error>"
-  edit-denied: "Region signs may not be edited."
 
 tp:
   success: "Teleported to region <region>."
