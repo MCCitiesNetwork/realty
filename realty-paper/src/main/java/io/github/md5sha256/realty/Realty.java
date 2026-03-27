@@ -212,7 +212,7 @@ public final class Realty extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new SignInteractionListener(this.database, this.logic,
                         this.regionProfileService, this.executorState, this.signCache,
-                        this.signTextApplicator), this);
+                        this.signTextApplicator, this.messageContainer), this);
         scheduleTasks();
         registerCommands(this.executorState,
                 this.logic,

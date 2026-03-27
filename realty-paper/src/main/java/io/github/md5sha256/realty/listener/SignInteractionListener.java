@@ -6,6 +6,8 @@ import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyLogicImpl;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
@@ -34,19 +36,22 @@ public class SignInteractionListener implements Listener {
     private final ExecutorState executorState;
     private final SignCache signCache;
     private final SignTextApplicator signTextApplicator;
+    private final MessageContainer messages;
 
     public SignInteractionListener(@NotNull Database database,
                                     @NotNull RealtyLogicImpl logic,
                                     @NotNull RegionProfileService regionProfileService,
                                     @NotNull ExecutorState executorState,
                                     @NotNull SignCache signCache,
-                                    @NotNull SignTextApplicator signTextApplicator) {
+                                    @NotNull SignTextApplicator signTextApplicator,
+                                    @NotNull MessageContainer messages) {
         this.database = database;
         this.logic = logic;
         this.regionProfileService = regionProfileService;
         this.executorState = executorState;
         this.signCache = signCache;
         this.signTextApplicator = signTextApplicator;
+        this.messages = messages;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -105,10 +110,12 @@ public class SignInteractionListener implements Listener {
         int blockZ = block.getZ();
         SignCache.SignCacheEntry entry = signCache.remove(worldId, blockX, blockY, blockZ);
         if (entry != null) {
+            Player player = event.getPlayer();
             executorState.dbExec().execute(() -> {
                 try (SqlSessionWrapper session = database.openSession(true)) {
                     session.realtySignMapper().deleteByPosition(worldId, blockX, blockY, blockZ);
                 }
+                player.sendMessage(messages.messageFor(MessageKeys.SIGN_REMOVE_SUCCESS));
             });
         }
     }
