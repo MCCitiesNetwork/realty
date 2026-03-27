@@ -190,10 +190,10 @@ public record SignCommand(@NotNull ExecutorState executorState,
                     World signWorld = Bukkit.getWorld(sign.worldId());
                     String worldName = signWorld != null ? signWorld.getName() : sign.worldId().toString();
                     sender.sendMessage(messages.messageFor(MessageKeys.SIGN_LIST_ENTRY,
-                            Placeholder.unparsed("world", worldName),
-                            Placeholder.unparsed("x", String.valueOf(sign.blockX())),
-                            Placeholder.unparsed("y", String.valueOf(sign.blockY())),
-                            Placeholder.unparsed("z", String.valueOf(sign.blockZ()))));
+                            Placeholder.parsed("world", worldName),
+                            Placeholder.parsed("x", String.valueOf(sign.blockX())),
+                            Placeholder.parsed("y", String.valueOf(sign.blockY())),
+                            Placeholder.parsed("z", String.valueOf(sign.blockZ()))));
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
