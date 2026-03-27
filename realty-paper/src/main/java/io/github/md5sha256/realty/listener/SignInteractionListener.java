@@ -18,6 +18,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerSignOpenEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.jetbrains.annotations.NotNull;
@@ -96,6 +97,18 @@ public class SignInteractionListener implements Listener {
                 });
             }
         });
+    }
+
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onSignOpen(@NotNull PlayerSignOpenEvent event) {
+        Sign sign = event.getSign();
+        Block block = sign.getBlock();
+        SignCache.SignCacheEntry entry = signCache.get(
+                block.getWorld().getUID(), block.getX(), block.getY(), block.getZ());
+        if (entry != null) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(messages.messageFor(MessageKeys.SIGN_EDIT_DENIED));
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
