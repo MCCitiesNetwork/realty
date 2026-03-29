@@ -9,6 +9,7 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
+import io.papermc.paper.event.player.PlayerOpenSignEvent;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
@@ -100,7 +101,7 @@ public class SignInteractionListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onSignOpen(@NotNull PlayerSignOpenEvent event) {
+    public void onSignOpen(@NotNull PlayerOpenSignEvent event) {
         Sign sign = event.getSign();
         Block block = sign.getBlock();
         SignCache.SignCacheEntry entry = signCache.get(

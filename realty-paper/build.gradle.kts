@@ -15,7 +15,7 @@ dependencies {
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    compileOnly("net.essentialsx:EssentialsX:2.19.0") {
+    compileOnly("net.essentialsx:EssentialsX:2.21.2") {
         exclude(group = "org.bukkit", module = "bukkit")
         exclude(group = "org.spigotmc", module = "spigot-api")
     }
