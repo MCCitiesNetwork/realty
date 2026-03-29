@@ -18,7 +18,8 @@ public record Settings(
         @Setting("default-leasehold-authority-uuid") @Required @NotNull UUID defaultLeaseholdAuthority,
         @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat,
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
-        @Setting("subregion-min-volume") int subregionMinVolume
+        @Setting("subregion-min-volume") int subregionMinVolume,
+        @Setting("offer-payment-duration-seconds") long offerPaymentDurationSeconds
 ) {
 
     public Settings {
@@ -27,6 +28,9 @@ public record Settings(
         }
         if (subregionMinVolume <= 0) {
             subregionMinVolume = 20;
+        }
+        if (offerPaymentDurationSeconds <= 0) {
+            offerPaymentDurationSeconds = 86400;
         }
     }
 }

@@ -43,25 +43,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 public class RealtyApiImpl implements RealtyApi {
 
     private final Database database;
     private final Function<UUID, String> nameResolver;
     private final Function<LocalDateTime, String> dateFormatter;
-    // TODO: load from configuration
-    private long offerPaymentDurationSeconds = 86400;
+    private final LongSupplier offerPaymentDurationSeconds;
 
     public RealtyApiImpl(@NotNull Database database,
                            @NotNull Function<UUID, String> nameResolver,
-                           @NotNull Function<LocalDateTime, String> dateFormatter) {
+                           @NotNull Function<LocalDateTime, String> dateFormatter,
+                           @NotNull LongSupplier offerPaymentDurationSeconds) {
         this.database = database;
         this.nameResolver = nameResolver;
         this.dateFormatter = dateFormatter;
-    }
-
-    @Override
-    public void setOfferPaymentDurationSeconds(long offerPaymentDurationSeconds) {
         this.offerPaymentDurationSeconds = offerPaymentDurationSeconds;
     }
 
@@ -1199,7 +1196,7 @@ public class RealtyApiImpl implements RealtyApi {
             if (paymentMapper.existsByRegion(worldGuardRegionId, worldId)) {
                 return new AcceptOfferResult.AlreadyAccepted();
             }
-            LocalDateTime paymentDeadline = LocalDateTime.now().plusSeconds(offerPaymentDurationSeconds);
+            LocalDateTime paymentDeadline = LocalDateTime.now().plusSeconds(offerPaymentDurationSeconds.getAsLong());
             int inserted = paymentMapper.insertPayment(worldGuardRegionId, worldId, offererId, 0, paymentDeadline);
             if (inserted == 0) {
                 return new AcceptOfferResult.InsertFailed();

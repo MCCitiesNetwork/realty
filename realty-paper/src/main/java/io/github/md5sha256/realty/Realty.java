@@ -187,7 +187,8 @@ public final class Realty extends JavaPlugin {
         this.logic = new RealtyApiImpl(mariaDatabase, uuid -> {
             OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
             return player.getName() != null ? player.getName() : uuid.toString();
-        }, dateTime -> DateFormatter.format(this.settings.get(), dateTime));
+        }, dateTime -> DateFormatter.format(this.settings.get(), dateTime),
+                () -> this.settings.get().offerPaymentDurationSeconds());
         var economyProvider = getServer().getServicesManager().getRegistration(Economy.class);
         if (economyProvider == null) {
             getLogger().severe("Economy not found, plugin will now disable!");

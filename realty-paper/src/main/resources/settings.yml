@@ -8,3 +8,5 @@ date-format: "EEE, d MMMM yyyy (HH:mm)"
 profile-reapply-per-tick: 10
 # Minimum volume (in blocks) for subregion selections.
 subregion-min-volume: 20
+# Duration (in seconds) for an accepted offer payment deadline. Default: 86400 (24 hours).
+offer-payment-duration-seconds: 86400

@@ -18,10 +18,6 @@ import java.util.UUID;
 
 public interface RealtyApi {
 
-    // --- Configuration ---
-
-    void setOfferPaymentDurationSeconds(long offerPaymentDurationSeconds);
-
     // --- Sanctioned Auctioneers ---
 
     int removeSanctionedAuctioneer(@NotNull String worldGuardRegionId,
