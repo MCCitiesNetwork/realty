@@ -12,7 +12,7 @@ import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -57,7 +57,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record OfferCommandGroup(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
         @NotNull RegionProfileService regionProfileService,
@@ -149,11 +149,11 @@ public record OfferCommandGroup(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.OfferResult result = logic.placeOffer(
+                RealtyApi.OfferResult result = logic.placeOffer(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(), price);
                 switch (result) {
-                    case RealtyLogicImpl.OfferResult.Success success -> {
+                    case RealtyApi.OfferResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_SUCCESS,
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
@@ -165,21 +165,21 @@ public record OfferCommandGroup(
                                                 Placeholder.unparsed("region", regionId)));
                             }
                     }
-                    case RealtyLogicImpl.OfferResult.NoFreeholdContract ignored ->
+                    case RealtyApi.OfferResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.OfferResult.NotAcceptingOffers ignored ->
+                    case RealtyApi.OfferResult.NotAcceptingOffers ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NOT_ACCEPTING,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.OfferResult.IsOwner ignored ->
+                    case RealtyApi.OfferResult.IsOwner ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_IS_OWNER));
-                    case RealtyLogicImpl.OfferResult.AlreadyHasOffer ignored ->
+                    case RealtyApi.OfferResult.AlreadyHasOffer ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_ALREADY_HAS_OFFER,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.OfferResult.AuctionExists ignored ->
+                    case RealtyApi.OfferResult.AuctionExists ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_AUCTION_EXISTS,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.OfferResult.InsertFailed ignored ->
+                    case RealtyApi.OfferResult.InsertFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_INSERT_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -305,12 +305,12 @@ public record OfferCommandGroup(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.AcceptOfferResult result = logic.acceptOffer(
+                RealtyApi.AcceptOfferResult result = logic.acceptOffer(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(),
                         target.getUniqueId());
                 switch (result) {
-                    case RealtyLogicImpl.AcceptOfferResult.Success ignored -> {
+                    case RealtyApi.AcceptOfferResult.Success ignored -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
@@ -318,20 +318,20 @@ public record OfferCommandGroup(
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
                                             Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.AcceptOfferResult.NotSanctioned ignored ->
+                    case RealtyApi.AcceptOfferResult.NotSanctioned ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NOT_SANCTIONED,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.AcceptOfferResult.NoOffer ignored ->
+                    case RealtyApi.AcceptOfferResult.NoOffer ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NO_OFFER,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.AcceptOfferResult.AuctionExists ignored ->
+                    case RealtyApi.AcceptOfferResult.AuctionExists ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_AUCTION_EXISTS,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.AcceptOfferResult.AlreadyAccepted ignored ->
+                    case RealtyApi.AcceptOfferResult.AlreadyAccepted ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_ALREADY_ACCEPTED,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.AcceptOfferResult.InsertFailed ignored ->
+                    case RealtyApi.AcceptOfferResult.InsertFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_INSERT_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -373,11 +373,11 @@ public record OfferCommandGroup(
         // DB logic on async thread
         CompletableFuture.supplyAsync(() -> {
             try {
-                RealtyLogicImpl.PayOfferResult result = logic.payOffer(
+                RealtyApi.PayOfferResult result = logic.payOffer(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(), amount);
                 return switch (result) {
-                    case RealtyLogicImpl.PayOfferResult.Success success -> {
+                    case RealtyApi.PayOfferResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_SUCCESS,
                                 Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("region", regionId),
@@ -385,18 +385,18 @@ public record OfferCommandGroup(
                                 Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining()))));
                         yield result;
                     }
-                    case RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid -> {
+                    case RealtyApi.PayOfferResult.FullyPaid fullyPaid -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_FULLY_PAID,
                                 Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }
-                    case RealtyLogicImpl.PayOfferResult.NoPaymentRecord ignored -> {
+                    case RealtyApi.PayOfferResult.NoPaymentRecord ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }
-                    case RealtyLogicImpl.PayOfferResult.ExceedsAmountOwed exceeds -> {
+                    case RealtyApi.PayOfferResult.ExceedsAmountOwed exceeds -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_EXCEEDS_OWED,
                                 Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("owed", CurrencyFormatter.format(exceeds.amountOwed())),
@@ -411,13 +411,13 @@ public record OfferCommandGroup(
             }
         }, executorState.dbExec()).thenAcceptAsync(result -> {
             switch (result) {
-                case RealtyLogicImpl.PayOfferResult.Success success -> {
+                case RealtyApi.PayOfferResult.Success success -> {
                     UUID recipientId = success.titleHolderId() != null
                             ? success.titleHolderId() : success.authorityId();
                     OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
                     economy.depositPlayer(recipient, amount);
                 }
-                case RealtyLogicImpl.PayOfferResult.FullyPaid fullyPaid -> {
+                case RealtyApi.PayOfferResult.FullyPaid fullyPaid -> {
                     UUID recipientId = fullyPaid.titleHolderId() != null
                             ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
                     OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
@@ -448,9 +448,9 @@ public record OfferCommandGroup(
                                         Placeholder.unparsed("region", regionId)));
                     }
                 }
-                case RealtyLogicImpl.PayOfferResult.NoPaymentRecord ignored ->
+                case RealtyApi.PayOfferResult.NoPaymentRecord ignored ->
                         economy.depositPlayer(sender, amount);
-                case RealtyLogicImpl.PayOfferResult.ExceedsAmountOwed ignored ->
+                case RealtyApi.PayOfferResult.ExceedsAmountOwed ignored ->
                         economy.depositPlayer(sender, amount);
                 case null -> economy.depositPlayer(sender, amount);
             }
@@ -473,9 +473,9 @@ public record OfferCommandGroup(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId());
+                RealtyApi.WithdrawOfferResult result = logic.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId());
                 switch (result) {
-                    case RealtyLogicImpl.WithdrawOfferResult.Success(var titleHolderId) -> {
+                    case RealtyApi.WithdrawOfferResult.Success(var titleHolderId) -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                             if (titleHolderId != null) {
@@ -485,10 +485,10 @@ public record OfferCommandGroup(
                                                 Placeholder.unparsed("region", regionId)));
                             }
                     }
-                    case RealtyLogicImpl.WithdrawOfferResult.NoOffer() ->
+                    case RealtyApi.WithdrawOfferResult.NoOffer() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_NO_OFFER,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.WithdrawOfferResult.OfferAccepted() ->
+                    case RealtyApi.WithdrawOfferResult.OfferAccepted() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_ACCEPTED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -523,12 +523,12 @@ public record OfferCommandGroup(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.RejectOfferResult result = logic.rejectOffer(
+                RealtyApi.RejectOfferResult result = logic.rejectOffer(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(),
                         target.getUniqueId());
                 switch (result) {
-                    case RealtyLogicImpl.RejectOfferResult.Success ignored -> {
+                    case RealtyApi.RejectOfferResult.Success ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_SUCCESS,
                                 Placeholder.unparsed("player", playerName),
                                 Placeholder.unparsed("region", regionId)));
@@ -536,14 +536,14 @@ public record OfferCommandGroup(
                                 messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                         Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.RejectOfferResult.NotSanctioned ignored ->
+                    case RealtyApi.RejectOfferResult.NotSanctioned ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.RejectOfferResult.NoOffer ignored ->
+                    case RealtyApi.RejectOfferResult.NoOffer ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NO_OFFER,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.RejectOfferResult.OfferAccepted ignored ->
+                    case RealtyApi.RejectOfferResult.OfferAccepted ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ACCEPTED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -570,11 +570,11 @@ public record OfferCommandGroup(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.RejectAllOffersResult result = logic.rejectAllOffers(
+                RealtyApi.RejectAllOffersResult result = logic.rejectAllOffers(
                         regionId, region.world().getUID(),
                         sender.getUniqueId());
                 switch (result) {
-                    case RealtyLogicImpl.RejectAllOffersResult.Success success -> {
+                    case RealtyApi.RejectAllOffersResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ALL_SUCCESS,
                                     Placeholder.unparsed("count", String.valueOf(success.offererIds().size())),
                                     Placeholder.unparsed("region", regionId)));
@@ -584,13 +584,13 @@ public record OfferCommandGroup(
                                 notificationService.queueNotification(offererId, notification);
                             }
                     }
-                    case RealtyLogicImpl.RejectAllOffersResult.NotSanctioned ignored ->
+                    case RealtyApi.RejectAllOffersResult.NotSanctioned ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.RejectAllOffersResult.NoFreeholdContract ignored ->
+                    case RealtyApi.RejectAllOffersResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.RejectAllOffersResult.OfferAccepted ignored ->
+                    case RealtyApi.RejectAllOffersResult.OfferAccepted ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ACCEPTED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -619,21 +619,21 @@ public record OfferCommandGroup(
         boolean bypass = sender.hasPermission("realty.command.offer.toggle.bypass");
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.ToggleOffersResult result = logic.toggleOffers(
+                RealtyApi.ToggleOffersResult result = logic.toggleOffers(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(), accepting, bypass);
                 switch (result) {
-                    case RealtyLogicImpl.ToggleOffersResult.Success success ->
+                    case RealtyApi.ToggleOffersResult.Success success ->
                             sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_SUCCESS,
                                     Placeholder.unparsed("region", regionId),
                                     Placeholder.unparsed("state", success.acceptingOffers() ? "yes" : "no")));
-                    case RealtyLogicImpl.ToggleOffersResult.NotSanctioned ignored ->
+                    case RealtyApi.ToggleOffersResult.NotSanctioned ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_NOT_SANCTIONED,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.ToggleOffersResult.NoFreeholdContract ignored ->
+                    case RealtyApi.ToggleOffersResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.ToggleOffersResult.UpdateFailed ignored ->
+                    case RealtyApi.ToggleOffersResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }

@@ -5,7 +5,7 @@ import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.agent.invite}.</p>
  */
 public record AgentInviteCommand(@NotNull ExecutorState executorState,
-                                  @NotNull RealtyLogicImpl logic,
+                                  @NotNull RealtyApi logic,
                                   @NotNull NotificationService notificationService,
                                   @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
@@ -69,9 +69,9 @@ public record AgentInviteCommand(@NotNull ExecutorState executorState,
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.InviteAgentResult result = logic.inviteAgent(regionId, worldId, player.getUniqueId(), inviteeId);
+                RealtyApi.InviteAgentResult result = logic.inviteAgent(regionId, worldId, player.getUniqueId(), inviteeId);
                 switch (result) {
-                    case RealtyLogicImpl.InviteAgentResult.Success() -> {
+                    case RealtyApi.InviteAgentResult.Success() -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_SUCCESS,
                                 Placeholder.unparsed("player", inviteeName),
                                 Placeholder.unparsed("region", regionId)));
@@ -80,26 +80,26 @@ public record AgentInviteCommand(@NotNull ExecutorState executorState,
                                         Placeholder.unparsed("player", player.getName()),
                                         Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.InviteAgentResult.NoFreeholdContract() ->
+                    case RealtyApi.InviteAgentResult.NoFreeholdContract() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NO_FREEHOLD,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.InviteAgentResult.IsTitleHolder() ->
+                    case RealtyApi.InviteAgentResult.IsTitleHolder() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_IS_TITLEHOLDER,
                                     Placeholder.unparsed("player", inviteeName),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.InviteAgentResult.IsAuthority() ->
+                    case RealtyApi.InviteAgentResult.IsAuthority() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_IS_AUTHORITY,
                                     Placeholder.unparsed("player", inviteeName),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.InviteAgentResult.AlreadyAgent() ->
+                    case RealtyApi.InviteAgentResult.AlreadyAgent() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ALREADY_AGENT,
                                     Placeholder.unparsed("player", inviteeName),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.InviteAgentResult.AlreadyInvited() ->
+                    case RealtyApi.InviteAgentResult.AlreadyInvited() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ALREADY_INVITED,
                                     Placeholder.unparsed("player", inviteeName),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.InviteAgentResult.NotTitleHolder() ->
+                    case RealtyApi.InviteAgentResult.NotTitleHolder() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
                                     Placeholder.unparsed("region", regionId)));
                 }

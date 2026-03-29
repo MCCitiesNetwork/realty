@@ -5,7 +5,7 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.util.ExecutorState;
 import org.bukkit.Server;
@@ -29,7 +29,7 @@ public class ProfileApplicator {
     private final Server server;
     private final RegionProfileService regionProfileService;
     private final ExecutorState executorState;
-    private final RealtyLogicImpl logic;
+    private final RealtyApi logic;
     private final SignTextApplicator signTextApplicator;
     private final SignCache signCache;
     private BukkitTask currentTask;
@@ -37,7 +37,7 @@ public class ProfileApplicator {
     public ProfileApplicator(@NotNull Plugin plugin,
                              @NotNull RegionProfileService regionProfileService,
                              @NotNull ExecutorState executorState,
-                             @NotNull RealtyLogicImpl logic,
+                             @NotNull RealtyApi logic,
                              @NotNull SignTextApplicator signTextApplicator,
                              @NotNull SignCache signCache) {
         this.plugin = plugin;
@@ -69,7 +69,7 @@ public class ProfileApplicator {
                     taskHolder[0] = this.server.getScheduler().runTaskTimer(this.plugin, () -> {
                         int processed = 0;
                         while (index[0] < regions.size() && processed < perTick) {
-                            RealtyLogicImpl.RegionWithState rws = regions.get(index[0]++);
+                            RealtyApi.RegionWithState rws = regions.get(index[0]++);
                             RealtyRegionEntity entity = rws.region();
                             World world = this.server.getWorld(entity.worldId());
                             if (world == null) {

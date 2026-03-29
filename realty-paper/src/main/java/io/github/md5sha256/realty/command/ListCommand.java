@@ -3,7 +3,7 @@ package io.github.md5sha256.realty.command;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.NamedAuthority;
 import io.github.md5sha256.realty.command.util.NamedAuthorityParser;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -37,7 +37,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record ListCommand(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -112,7 +112,7 @@ public record ListCommand(
     private void listAll(@NotNull CommandSender sender, @NotNull UUID targetId,
                          @NotNull String targetName, int page) {
         int globalOffset = (page - 1) * PAGE_SIZE;
-        RealtyLogicImpl.ListResult result = logic.listRegions(targetId, PAGE_SIZE, globalOffset);
+        RealtyApi.ListResult result = logic.listRegions(targetId, PAGE_SIZE, globalOffset);
 
         int totalCount = result.totalCount();
         if (totalCount == 0) {
@@ -140,7 +140,7 @@ public record ListCommand(
 
     private void listCategory(@NotNull CommandSender sender, @NotNull UUID targetId,
                                @NotNull String targetName, @NotNull String category, int page) {
-        RealtyLogicImpl.SingleCategoryResult result = "owned".equals(category)
+        RealtyApi.SingleCategoryResult result = "owned".equals(category)
                 ? logic.listOwnedRegions(targetId, PAGE_SIZE, (page - 1) * PAGE_SIZE)
                 : logic.listRentedRegions(targetId, PAGE_SIZE, (page - 1) * PAGE_SIZE);
 

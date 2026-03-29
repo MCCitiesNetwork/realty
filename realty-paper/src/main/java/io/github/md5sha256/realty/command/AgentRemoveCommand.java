@@ -5,7 +5,7 @@ import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -29,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.agent.remove}.</p>
  */
 public record AgentRemoveCommand(@NotNull ExecutorState executorState,
-                                  @NotNull RealtyLogicImpl logic,
+                                  @NotNull RealtyApi logic,
                                   @NotNull NotificationService notificationService,
                                   @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 

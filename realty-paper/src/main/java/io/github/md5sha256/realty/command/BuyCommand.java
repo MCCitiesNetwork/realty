@@ -12,7 +12,7 @@ import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -42,7 +42,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record BuyCommand(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
         @NotNull RegionProfileService regionProfileService,
@@ -86,17 +86,17 @@ public record BuyCommand(
                 return;
             }
             switch (validation) {
-                case RealtyLogicImpl.BuyValidation.Eligible eligible ->
+                case RealtyApi.BuyValidation.Eligible eligible ->
                         handlePaymentAndTransfer(sender, region, regionId, eligible);
-                case RealtyLogicImpl.BuyValidation.NoFreeholdContract ignored ->
+                case RealtyApi.BuyValidation.NoFreeholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.BuyValidation.NotForFreehold ignored ->
+                case RealtyApi.BuyValidation.NotForFreehold ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_NOT_FOR_SALE,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.BuyValidation.IsAuthority ignored ->
+                case RealtyApi.BuyValidation.IsAuthority ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_IS_AUTHORITY));
-                case RealtyLogicImpl.BuyValidation.IsTitleHolder ignored ->
+                case RealtyApi.BuyValidation.IsTitleHolder ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_IS_TITLE_HOLDER));
             }
         }, executorState.mainThreadExec());
@@ -105,7 +105,7 @@ public record BuyCommand(
     private void handlePaymentAndTransfer(@NotNull Player sender,
                                           @NotNull WorldGuardRegion region,
                                           @NotNull String regionId,
-                                          @NotNull RealtyLogicImpl.BuyValidation.Eligible eligible) {
+                                          @NotNull RealtyApi.BuyValidation.Eligible eligible) {
         double price = eligible.price();
         // Step 2: economy withdrawal (main thread)
         double balance = economy.getBalance(sender);
@@ -124,7 +124,7 @@ public record BuyCommand(
         // Step 3: execute DB transfer (async)
         CompletableFuture.supplyAsync(() -> {
             try {
-                RealtyLogicImpl.BuyResult result = logic.executeBuy(regionId, region.world().getUID(), sender.getUniqueId());
+                RealtyApi.BuyResult result = logic.executeBuy(regionId, region.world().getUID(), sender.getUniqueId());
                 Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                 return Map.entry(result, placeholders);
             } catch (Exception ex) {
@@ -134,7 +134,7 @@ public record BuyCommand(
             }
         }, executorState.dbExec()).thenAcceptAsync(entry -> {
             // Step 4: finalize on main thread
-            if (entry == null || !(entry.getKey() instanceof RealtyLogicImpl.BuyResult.Success success)) {
+            if (entry == null || !(entry.getKey() instanceof RealtyApi.BuyResult.Success success)) {
                 // Transfer failed — refund
                 economy.depositPlayer(sender, price);
                 sender.sendMessage(messages.messageFor(MessageKeys.BUY_TRANSFER_FAILED,

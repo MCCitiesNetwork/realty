@@ -5,7 +5,7 @@ import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -36,7 +36,7 @@ public record UnsetCommandGroup(
         @NotNull RegionProfileService regionProfileService,
         @NotNull SignTextApplicator signTextApplicator,
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -82,22 +82,22 @@ public record UnsetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.UnsetPriceResult result = logic.unsetPrice(
+                RealtyApi.UnsetPriceResult result = logic.unsetPrice(
                         regionId, worldId);
                 switch (result) {
-                    case RealtyLogicImpl.UnsetPriceResult.Success ignored ->
+                    case RealtyApi.UnsetPriceResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.UnsetPriceResult.NoFreeholdContract ignored ->
+                    case RealtyApi.UnsetPriceResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.UnsetPriceResult.OfferPaymentInProgress ignored ->
+                    case RealtyApi.UnsetPriceResult.OfferPaymentInProgress ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_OFFER_PAYMENT_IN_PROGRESS,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.UnsetPriceResult.BidPaymentInProgress ignored ->
+                    case RealtyApi.UnsetPriceResult.BidPaymentInProgress ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_BID_PAYMENT_IN_PROGRESS,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.UnsetPriceResult.UpdateFailed ignored ->
+                    case RealtyApi.UnsetPriceResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -127,10 +127,10 @@ public record UnsetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
+                RealtyApi.SetTitleHolderResult result = logic.setTitleHolder(
                         regionId, worldId, null);
                 switch (result) {
-                    case RealtyLogicImpl.SetTitleHolderResult.Success(UUID previousTitleHolder) -> {
+                    case RealtyApi.SetTitleHolderResult.Success(UUID previousTitleHolder) -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     region.region().getOwners().clear();
@@ -141,10 +141,10 @@ public record UnsetCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetTitleHolderResult.NoFreeholdContract ignored ->
+                    case RealtyApi.SetTitleHolderResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetTitleHolderResult.UpdateFailed ignored ->
+                    case RealtyApi.SetTitleHolderResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -174,10 +174,10 @@ public record UnsetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.SetTenantResult result = logic.setTenant(
+                RealtyApi.SetTenantResult result = logic.setTenant(
                         regionId, worldId, null);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID ignored2) -> {
+                    case RealtyApi.SetTenantResult.Success(UUID previousTenant, UUID ignored2) -> {
                             Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, worldId);
                             executorState.mainThreadExec().execute(() -> {
                                     region.region().getOwners().clear();
@@ -188,10 +188,10 @@ public record UnsetCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetTenantResult.NoLeaseholdContract ignored ->
+                    case RealtyApi.SetTenantResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetTenantResult.UpdateFailed ignored ->
+                    case RealtyApi.SetTenantResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }

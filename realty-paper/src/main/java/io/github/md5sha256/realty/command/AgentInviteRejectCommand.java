@@ -4,7 +4,7 @@ import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.agent.invite.reject}.</p>
  */
 public record AgentInviteRejectCommand(@NotNull ExecutorState executorState,
-                                        @NotNull RealtyLogicImpl logic,
+                                        @NotNull RealtyApi logic,
                                         @NotNull NotificationService notificationService,
                                         @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
@@ -61,9 +61,9 @@ public record AgentInviteRejectCommand(@NotNull ExecutorState executorState,
         UUID inviteeId = player.getUniqueId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.RejectAgentInviteResult result = logic.rejectAgentInvite(regionId, worldId, inviteeId);
+                RealtyApi.RejectAgentInviteResult result = logic.rejectAgentInvite(regionId, worldId, inviteeId);
                 switch (result) {
-                    case RealtyLogicImpl.RejectAgentInviteResult.Success(UUID inviterId) -> {
+                    case RealtyApi.RejectAgentInviteResult.Success(UUID inviterId) -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_REJECT_SUCCESS,
                                 Placeholder.unparsed("region", regionId)));
                         notificationService.queueNotification(inviterId,
@@ -71,7 +71,7 @@ public record AgentInviteRejectCommand(@NotNull ExecutorState executorState,
                                         Placeholder.unparsed("player", player.getName()),
                                         Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.RejectAgentInviteResult.NotFound() ->
+                    case RealtyApi.RejectAgentInviteResult.NotFound() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_REJECT_NOT_FOUND,
                                     Placeholder.unparsed("region", regionId)));
                 }

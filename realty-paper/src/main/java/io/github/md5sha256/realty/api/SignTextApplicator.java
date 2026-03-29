@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.api;
 
 import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
@@ -25,13 +25,13 @@ import java.util.logging.Logger;
 public class SignTextApplicator {
 
     private final RegionProfileService regionProfileService;
-    private final RealtyLogicImpl logic;
+    private final RealtyApi logic;
     private final Database database;
     private final SignCache signCache;
     private final Logger logger;
 
     public SignTextApplicator(@NotNull RegionProfileService regionProfileService,
-                              @NotNull RealtyLogicImpl logic,
+                              @NotNull RealtyApi logic,
                               @NotNull Database database,
                               @NotNull SignCache signCache,
                               @NotNull Logger logger) {
@@ -173,7 +173,7 @@ public class SignTextApplicator {
                 signCache.put(signEntity.worldId(), signEntity.blockX(), signEntity.blockY(),
                         signEntity.blockZ(), signEntity.realtyRegionId(),
                         region.worldGuardRegionId(), region.worldId());
-                RealtyLogicImpl.RegionWithState rws = logic.getRegionWithState(
+                RealtyApi.RegionWithState rws = logic.getRegionWithState(
                         region.worldGuardRegionId(), region.worldId());
                 if (rws != null) {
                     resolved.add(new SignWithRegion(signEntity, region.worldGuardRegionId(),

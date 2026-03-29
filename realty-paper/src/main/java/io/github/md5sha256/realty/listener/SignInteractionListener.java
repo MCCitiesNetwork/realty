@@ -4,7 +4,7 @@ import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.SignCache;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -33,7 +33,7 @@ import java.util.UUID;
 public class SignInteractionListener implements Listener {
 
     private final Database database;
-    private final RealtyLogicImpl logic;
+    private final RealtyApi logic;
     private final RegionProfileService regionProfileService;
     private final ExecutorState executorState;
     private final SignCache signCache;
@@ -41,7 +41,7 @@ public class SignInteractionListener implements Listener {
     private final MessageContainer messages;
 
     public SignInteractionListener(@NotNull Database database,
-                                    @NotNull RealtyLogicImpl logic,
+                                    @NotNull RealtyApi logic,
                                     @NotNull RegionProfileService regionProfileService,
                                     @NotNull ExecutorState executorState,
                                     @NotNull SignCache signCache,
@@ -73,7 +73,7 @@ public class SignInteractionListener implements Listener {
         }
         Player player = event.getPlayer();
         executorState.dbExec().execute(() -> {
-            RealtyLogicImpl.RegionWithState rws = logic.getRegionWithState(
+            RealtyApi.RegionWithState rws = logic.getRegionWithState(
                     entry.worldGuardRegionId(), entry.regionWorldId());
             if (rws == null) {
                 return;

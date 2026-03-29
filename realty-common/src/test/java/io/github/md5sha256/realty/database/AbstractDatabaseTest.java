@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.DatabaseSettings;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.database.maria.MariaSchemaMigrator;
@@ -28,7 +29,7 @@ abstract class AbstractDatabaseTest {
     }
 
     protected static Database database;
-    protected static RealtyLogicImpl logic;
+    protected static RealtyApi logic;
 
     private static volatile boolean migrated;
 
@@ -47,7 +48,7 @@ abstract class AbstractDatabaseTest {
         String url = jdbcUrl.substring("jdbc:".length());
         DatabaseSettings settings = new DatabaseSettings(url, CONTAINER.getUsername(), CONTAINER.getPassword());
         database = new MariaDatabase(settings, Logger.getLogger("test"));
-        logic = new RealtyLogicImpl(database, UUID::toString, java.time.LocalDateTime::toString);
+        logic = new RealtyApiImpl(database, UUID::toString, java.time.LocalDateTime::toString);
     }
 
     private static String truncateUrl;

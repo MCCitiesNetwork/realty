@@ -14,8 +14,8 @@ import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
+import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyApi.CreateAuctionResult;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -59,7 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public record AuctionCommandGroup(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
         @NotNull RegionProfileService regionProfileService,
@@ -121,7 +121,7 @@ public record AuctionCommandGroup(
 
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.RegionInfo regionInfo = logic.getRegionInfo(regionId, worldId);
+                RealtyApi.RegionInfo regionInfo = logic.getRegionInfo(regionId, worldId);
                 FreeholdContractAuctionEntity auction = regionInfo.auction();
                 if (auction == null) {
                     sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_INFO_NO_AUCTION,
@@ -225,7 +225,7 @@ public record AuctionCommandGroup(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(regionId, region.world().getUID());
+                RealtyApi.CancelAuctionResult result = logic.cancelAuction(regionId, region.world().getUID());
                 if (result.deleted() == 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_NO_AUCTION));
                     return;
@@ -261,11 +261,11 @@ public record AuctionCommandGroup(
         String regionId = region.region().getId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.BidResult result = logic.performBid(
+                RealtyApi.BidResult result = logic.performBid(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(), bidAmount);
                 switch (result) {
-                    case RealtyLogicImpl.BidResult.Success success -> {
+                    case RealtyApi.BidResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_SUCCESS,
                                     Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
                                     Placeholder.unparsed("region", regionId)));
@@ -276,17 +276,17 @@ public record AuctionCommandGroup(
                                                 Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))));
                             }
                     }
-                    case RealtyLogicImpl.BidResult.NoAuction ignored ->
+                    case RealtyApi.BidResult.NoAuction ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_NO_AUCTION));
-                    case RealtyLogicImpl.BidResult.IsOwner ignored ->
+                    case RealtyApi.BidResult.IsOwner ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_IS_OWNER));
-                    case RealtyLogicImpl.BidResult.BidTooLowMinimum r ->
+                    case RealtyApi.BidResult.BidTooLowMinimum r ->
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_TOO_LOW_MINIMUM,
                                     Placeholder.unparsed("amount", CurrencyFormatter.format(r.minBid()))));
-                    case RealtyLogicImpl.BidResult.BidTooLowCurrent r ->
+                    case RealtyApi.BidResult.BidTooLowCurrent r ->
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_TOO_LOW_CURRENT,
                                     Placeholder.unparsed("amount", CurrencyFormatter.format(r.currentHighest()))));
-                    case RealtyLogicImpl.BidResult.AlreadyHighestBidder ignored ->
+                    case RealtyApi.BidResult.AlreadyHighestBidder ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_ALREADY_HIGHEST));
                 }
             } catch (Exception ex) {
@@ -327,11 +327,11 @@ public record AuctionCommandGroup(
         // DB logic on async thread
         CompletableFuture.supplyAsync(() -> {
             try {
-                RealtyLogicImpl.PayBidResult result = logic.payBid(
+                RealtyApi.PayBidResult result = logic.payBid(
                         regionId, region.world().getUID(),
                         sender.getUniqueId(), amount);
                 return switch (result) {
-                    case RealtyLogicImpl.PayBidResult.Success success -> {
+                    case RealtyApi.PayBidResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_SUCCESS,
                                 Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("region", regionId),
@@ -339,23 +339,23 @@ public record AuctionCommandGroup(
                                 Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining()))));
                         yield result;
                     }
-                    case RealtyLogicImpl.PayBidResult.FullyPaid fullyPaid -> {
+                    case RealtyApi.PayBidResult.FullyPaid fullyPaid -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_FULLY_PAID,
                                 Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }
-                    case RealtyLogicImpl.PayBidResult.NoPaymentRecord ignored -> {
+                    case RealtyApi.PayBidResult.NoPaymentRecord ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }
-                    case RealtyLogicImpl.PayBidResult.PaymentExpired ignored -> {
+                    case RealtyApi.PayBidResult.PaymentExpired ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", regionId)));
                         yield result;
                     }
-                    case RealtyLogicImpl.PayBidResult.ExceedsAmountOwed exceeds -> {
+                    case RealtyApi.PayBidResult.ExceedsAmountOwed exceeds -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_EXCEEDS_OWED,
                                 Placeholder.unparsed("amount", CurrencyFormatter.format(amount)),
                                 Placeholder.unparsed("owed", CurrencyFormatter.format(exceeds.amountOwed())),
@@ -370,13 +370,13 @@ public record AuctionCommandGroup(
             }
         }, executorState.dbExec()).thenAcceptAsync(result -> {
             switch (result) {
-                case RealtyLogicImpl.PayBidResult.Success success -> {
+                case RealtyApi.PayBidResult.Success success -> {
                     UUID recipientId = success.titleHolderId() != null
                             ? success.titleHolderId() : success.authorityId();
                     OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
                     economy.depositPlayer(recipient, amount);
                 }
-                case RealtyLogicImpl.PayBidResult.FullyPaid fullyPaid -> {
+                case RealtyApi.PayBidResult.FullyPaid fullyPaid -> {
                     UUID recipientId = fullyPaid.titleHolderId() != null
                             ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
                     OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
@@ -407,11 +407,11 @@ public record AuctionCommandGroup(
                                         Placeholder.unparsed("region", regionId)));
                     }
                 }
-                case RealtyLogicImpl.PayBidResult.NoPaymentRecord ignored ->
+                case RealtyApi.PayBidResult.NoPaymentRecord ignored ->
                         economy.depositPlayer(sender, amount);
-                case RealtyLogicImpl.PayBidResult.PaymentExpired ignored ->
+                case RealtyApi.PayBidResult.PaymentExpired ignored ->
                         economy.depositPlayer(sender, amount);
-                case RealtyLogicImpl.PayBidResult.ExceedsAmountOwed ignored ->
+                case RealtyApi.PayBidResult.ExceedsAmountOwed ignored ->
                         economy.depositPlayer(sender, amount);
                 case null -> economy.depositPlayer(sender, amount);
             }

@@ -9,7 +9,7 @@ import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -37,7 +37,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record UnrentCommand(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
         @NotNull RegionProfileService regionProfileService,
@@ -110,17 +110,17 @@ public record UnrentCommand(
             }
             // Step 3: DB mutation
             CompletableFuture.supplyAsync(() -> {
-                RealtyLogicImpl.UnrentResult result = logic.unrentRegion(
+                RealtyApi.UnrentResult result = logic.unrentRegion(
                         regionId, region.world().getUID(), sender.getUniqueId());
-                if (result instanceof RealtyLogicImpl.UnrentResult.Success) {
+                if (result instanceof RealtyApi.UnrentResult.Success) {
                     Map<String, String> placeholders = logic.getRegionPlaceholders(regionId, region.world().getUID());
                     return Map.entry(result, placeholders);
                 }
-                return Map.<RealtyLogicImpl.UnrentResult, Map<String, String>>entry(result, Map.of());
+                return Map.<RealtyApi.UnrentResult, Map<String, String>>entry(result, Map.of());
             }, executorState.dbExec()).thenAcceptAsync(entry -> {
                 // Step 4: finalize or revert economy
                 switch (entry.getKey()) {
-                    case RealtyLogicImpl.UnrentResult.Success ignored -> {
+                    case RealtyApi.UnrentResult.Success ignored -> {
                         ProtectedRegion protectedRegion = region.region();
                         protectedRegion.getOwners().clear();
                         protectedRegion.getMembers().clear();
@@ -135,12 +135,12 @@ public record UnrentCommand(
                                         Placeholder.unparsed("region", regionId),
                                         Placeholder.unparsed("refund", CurrencyFormatter.format(refund))));
                     }
-                    case RealtyLogicImpl.UnrentResult.NoLeaseholdContract ignored -> {
+                    case RealtyApi.UnrentResult.NoLeaseholdContract ignored -> {
                         revertEconomy(sender, lease, refund);
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.UnrentResult.UpdateFailed ignored -> {
+                    case RealtyApi.UnrentResult.UpdateFailed ignored -> {
                         revertEconomy(sender, lease, refund);
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));

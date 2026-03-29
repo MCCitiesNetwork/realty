@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.RegionState;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.entity.AgentHistoryEntity;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
@@ -43,7 +44,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 
-public class RealtyLogicImpl {
+public class RealtyApiImpl implements RealtyApi {
 
     private final Database database;
     private final Function<UUID, String> nameResolver;
@@ -51,7 +52,7 @@ public class RealtyLogicImpl {
     // TODO: load from configuration
     private long offerPaymentDurationSeconds = 86400;
 
-    public RealtyLogicImpl(@NotNull Database database,
+    public RealtyApiImpl(@NotNull Database database,
                            @NotNull Function<UUID, String> nameResolver,
                            @NotNull Function<LocalDateTime, String> dateFormatter) {
         this.database = database;
@@ -59,12 +60,14 @@ public class RealtyLogicImpl {
         this.dateFormatter = dateFormatter;
     }
 
+    @Override
     public void setOfferPaymentDurationSeconds(long offerPaymentDurationSeconds) {
         this.offerPaymentDurationSeconds = offerPaymentDurationSeconds;
     }
 
     // --- Sanctioned Auctioneers ---
 
+    @Override
     public int removeSanctionedAuctioneer(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
                                            @NotNull UUID auctioneerId,
@@ -84,16 +87,8 @@ public class RealtyLogicImpl {
 
     // --- Agent Invites ---
 
-    public sealed interface InviteAgentResult {
-        record Success() implements InviteAgentResult {}
-        record NoFreeholdContract() implements InviteAgentResult {}
-        record NotTitleHolder() implements InviteAgentResult {}
-        record IsTitleHolder() implements InviteAgentResult {}
-        record IsAuthority() implements InviteAgentResult {}
-        record AlreadyAgent() implements InviteAgentResult {}
-        record AlreadyInvited() implements InviteAgentResult {}
-    }
 
+    @Override
     public @NotNull InviteAgentResult inviteAgent(@NotNull String worldGuardRegionId,
                                                    @NotNull UUID worldId,
                                                    @NotNull UUID inviterId,
@@ -129,12 +124,8 @@ public class RealtyLogicImpl {
         }
     }
 
-    public sealed interface AcceptAgentInviteResult {
-        record Success(@NotNull UUID inviterId) implements AcceptAgentInviteResult {}
-        record NotFound() implements AcceptAgentInviteResult {}
-        record AlreadyAgent() implements AcceptAgentInviteResult {}
-    }
 
+    @Override
     public @NotNull AcceptAgentInviteResult acceptAgentInvite(@NotNull String worldGuardRegionId,
                                                                @NotNull UUID worldId,
                                                                @NotNull UUID inviteeId) {
@@ -163,11 +154,8 @@ public class RealtyLogicImpl {
         }
     }
 
-    public sealed interface WithdrawAgentInviteResult {
-        record Success() implements WithdrawAgentInviteResult {}
-        record NotFound() implements WithdrawAgentInviteResult {}
-    }
 
+    @Override
     public @NotNull WithdrawAgentInviteResult withdrawAgentInvite(@NotNull String worldGuardRegionId,
                                                                     @NotNull UUID worldId,
                                                                     @NotNull UUID inviteeId) {
@@ -182,11 +170,8 @@ public class RealtyLogicImpl {
         }
     }
 
-    public sealed interface RejectAgentInviteResult {
-        record Success(@NotNull UUID inviterId) implements RejectAgentInviteResult {}
-        record NotFound() implements RejectAgentInviteResult {}
-    }
 
+    @Override
     public @NotNull RejectAgentInviteResult rejectAgentInvite(@NotNull String worldGuardRegionId,
                                                                 @NotNull UUID worldId,
                                                                 @NotNull UUID inviteeId) {
@@ -206,12 +191,8 @@ public class RealtyLogicImpl {
 
     // --- Auction ---
 
-    public sealed interface CreateAuctionResult {
-        record Success() implements CreateAuctionResult {}
-        record NotSanctioned() implements CreateAuctionResult {}
-        record NoFreeholdContract() implements CreateAuctionResult {}
-    }
 
+    @Override
     public @NotNull CreateAuctionResult createAuction(@NotNull String worldGuardRegionId,
                               @NotNull UUID worldId,
                               @NotNull UUID auctioneerId,
@@ -239,8 +220,8 @@ public class RealtyLogicImpl {
         }
     }
 
-    public record CancelAuctionResult(int deleted, @NotNull List<UUID> bidderIds) {}
 
+    @Override
     public @NotNull CancelAuctionResult cancelAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             List<UUID> bidderIds = wrapper.freeholdContractBidMapper().selectDistinctBidders(worldGuardRegionId, worldId);
@@ -252,15 +233,8 @@ public class RealtyLogicImpl {
 
     // --- Bid ---
 
-    public sealed interface BidResult {
-        record Success(@Nullable UUID previousBidderId) implements BidResult {}
-        record NoAuction() implements BidResult {}
-        record IsOwner() implements BidResult {}
-        record BidTooLowMinimum(double minBid) implements BidResult {}
-        record BidTooLowCurrent(double currentHighest) implements BidResult {}
-        record AlreadyHighestBidder() implements BidResult {}
-    }
 
+    @Override
     public @NotNull BidResult performBid(@NotNull String worldGuardRegionId,
                                          @NotNull UUID worldId,
                                          @NotNull UUID bidderId,
@@ -314,15 +288,8 @@ public class RealtyLogicImpl {
 
     // --- Set Price ---
 
-    public sealed interface SetPriceResult {
-        record Success() implements SetPriceResult {}
-        record NoFreeholdContract() implements SetPriceResult {}
-        record AuctionExists() implements SetPriceResult {}
-        record OfferPaymentInProgress() implements SetPriceResult {}
-        record BidPaymentInProgress() implements SetPriceResult {}
-        record UpdateFailed() implements SetPriceResult {}
-    }
 
+    @Override
     public @NotNull SetPriceResult setPrice(@NotNull String worldGuardRegionId,
                                              @NotNull UUID worldId,
                                              double price) {
@@ -355,14 +322,8 @@ public class RealtyLogicImpl {
 
     // --- Unset Price ---
 
-    public sealed interface UnsetPriceResult {
-        record Success() implements UnsetPriceResult {}
-        record NoFreeholdContract() implements UnsetPriceResult {}
-        record OfferPaymentInProgress() implements UnsetPriceResult {}
-        record BidPaymentInProgress() implements UnsetPriceResult {}
-        record UpdateFailed() implements UnsetPriceResult {}
-    }
 
+    @Override
     public @NotNull UnsetPriceResult unsetPrice(@NotNull String worldGuardRegionId,
                                                   @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -392,12 +353,8 @@ public class RealtyLogicImpl {
 
     // --- Set Duration ---
 
-    public sealed interface SetDurationResult {
-        record Success() implements SetDurationResult {}
-        record NoLeaseholdContract() implements SetDurationResult {}
-        record UpdateFailed() implements SetDurationResult {}
-    }
 
+    @Override
     public @NotNull SetDurationResult setDuration(@NotNull String worldGuardRegionId,
                                                     @NotNull UUID worldId,
                                                     long durationSeconds) {
@@ -423,13 +380,8 @@ public class RealtyLogicImpl {
 
     // --- Set Max Renewals ---
 
-    public sealed interface SetMaxRenewalsResult {
-        record Success() implements SetMaxRenewalsResult {}
-        record NoLeaseholdContract() implements SetMaxRenewalsResult {}
-        record BelowCurrentExtensions(int currentExtensions) implements SetMaxRenewalsResult {}
-        record UpdateFailed() implements SetMaxRenewalsResult {}
-    }
 
+    @Override
     public @NotNull SetMaxRenewalsResult setMaxRenewals(@NotNull String worldGuardRegionId,
                                                           @NotNull UUID worldId,
                                                           int maxRenewals) {
@@ -461,12 +413,8 @@ public class RealtyLogicImpl {
 
     // --- Set Landlord ---
 
-    public sealed interface SetLandlordResult {
-        record Success(@NotNull UUID previousLandlord) implements SetLandlordResult {}
-        record NoLeaseholdContract() implements SetLandlordResult {}
-        record UpdateFailed() implements SetLandlordResult {}
-    }
 
+    @Override
     public @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
                                                     @NotNull UUID worldId,
                                                     @NotNull UUID landlordId) {
@@ -493,12 +441,8 @@ public class RealtyLogicImpl {
 
     // --- Set Title Holder ---
 
-    public sealed interface SetTitleHolderResult {
-        record Success(@Nullable UUID previousTitleHolder) implements SetTitleHolderResult {}
-        record NoFreeholdContract() implements SetTitleHolderResult {}
-        record UpdateFailed() implements SetTitleHolderResult {}
-    }
 
+    @Override
     public @NotNull SetTitleHolderResult setTitleHolder(@NotNull String worldGuardRegionId,
                                                          @NotNull UUID worldId,
                                                          @Nullable UUID titleHolderId) {
@@ -531,6 +475,7 @@ public class RealtyLogicImpl {
 
     // --- Update Subregion Landlords ---
 
+    @Override
     public void updateSubregionLandlords(@NotNull List<String> childRegionIds,
                                           @NotNull UUID worldId,
                                           @NotNull UUID newLandlord) {
@@ -548,12 +493,8 @@ public class RealtyLogicImpl {
 
     // --- Set Tenant ---
 
-    public sealed interface SetTenantResult {
-        record Success(@Nullable UUID previousTenant, @NotNull UUID landlordId) implements SetTenantResult {}
-        record NoLeaseholdContract() implements SetTenantResult {}
-        record UpdateFailed() implements SetTenantResult {}
-    }
 
+    @Override
     public @NotNull SetTenantResult setTenant(@NotNull String worldGuardRegionId,
                                                 @NotNull UUID worldId,
                                                 @Nullable UUID tenantId) {
@@ -587,14 +528,8 @@ public class RealtyLogicImpl {
 
     // --- Buy (fixed-price) ---
 
-    public sealed interface BuyValidation {
-        record Eligible(double price, @NotNull UUID authorityId) implements BuyValidation {}
-        record NoFreeholdContract() implements BuyValidation {}
-        record NotForFreehold() implements BuyValidation {}
-        record IsAuthority() implements BuyValidation {}
-        record IsTitleHolder() implements BuyValidation {}
-    }
 
+    @Override
     public @NotNull BuyValidation validateBuy(@NotNull String worldGuardRegionId,
                                                @NotNull UUID worldId,
                                                @NotNull UUID buyerId) {
@@ -617,12 +552,8 @@ public class RealtyLogicImpl {
         }
     }
 
-    public sealed interface BuyResult {
-        record Success(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements BuyResult {}
-        record NoFreeholdContract() implements BuyResult {}
-        record NotForFreehold() implements BuyResult {}
-    }
 
+    @Override
     public @NotNull BuyResult executeBuy(@NotNull String worldGuardRegionId,
                                           @NotNull UUID worldId,
                                           @NotNull UUID buyerId) {
@@ -650,6 +581,7 @@ public class RealtyLogicImpl {
 
     // --- Create Freehold ---
 
+    @Override
     public boolean createFreehold(@NotNull String worldGuardRegionId,
                               @NotNull UUID worldId,
                               @Nullable Double price,
@@ -671,6 +603,7 @@ public class RealtyLogicImpl {
 
     // --- Create Rental ---
 
+    @Override
     public boolean createLeasehold(@NotNull String worldGuardRegionId,
                                 @NotNull UUID worldId,
                                 double price,
@@ -693,13 +626,8 @@ public class RealtyLogicImpl {
 
     // --- Rent ---
 
-    public sealed interface RentResult {
-        record Success(double price, long durationSeconds, @NotNull UUID landlordId) implements RentResult {}
-        record NoLeaseholdContract() implements RentResult {}
-        record AlreadyOccupied() implements RentResult {}
-        record UpdateFailed() implements RentResult {}
-    }
 
+    @Override
     public @NotNull RentResult previewRent(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -715,6 +643,7 @@ public class RealtyLogicImpl {
         }
     }
 
+    @Override
     public @NotNull RentResult rentRegion(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
                                            @NotNull UUID tenantId) {
@@ -740,12 +669,8 @@ public class RealtyLogicImpl {
 
     // --- Unrent ---
 
-    public sealed interface UnrentResult {
-        record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId) implements UnrentResult {}
-        record NoLeaseholdContract() implements UnrentResult {}
-        record UpdateFailed() implements UnrentResult {}
-    }
 
+    @Override
     public @NotNull UnrentResult unrentRegion(@NotNull String worldGuardRegionId,
                                                @NotNull UUID worldId,
                                                @NotNull UUID tenantId) {
@@ -772,13 +697,8 @@ public class RealtyLogicImpl {
 
     // --- Renew Leasehold ---
 
-    public sealed interface RenewLeaseholdResult {
-        record Success(double price, @NotNull UUID landlordId) implements RenewLeaseholdResult {}
-        record NoLeaseholdContract() implements RenewLeaseholdResult {}
-        record NoExtensionsRemaining() implements RenewLeaseholdResult {}
-        record UpdateFailed() implements RenewLeaseholdResult {}
-    }
 
+    @Override
     public @NotNull RenewLeaseholdResult previewRenewLeasehold(@NotNull String worldGuardRegionId,
                                                               @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -794,6 +714,7 @@ public class RealtyLogicImpl {
         }
     }
 
+    @Override
     public @NotNull RenewLeaseholdResult renewLeasehold(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId,
                                                  @NotNull UUID tenantId) {
@@ -823,6 +744,7 @@ public class RealtyLogicImpl {
 
     // --- Delete ---
 
+    @Override
     public int deleteRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
@@ -834,14 +756,8 @@ public class RealtyLogicImpl {
 
     // --- Info ---
 
-    public record RegionInfo(
-            @Nullable FreeholdContractEntity freehold,
-            @Nullable LeaseholdContractEntity leasehold,
-            @Nullable FreeholdContractAuctionEntity auction,
-            @Nullable Double lastSoldPrice,
-            @Nullable FreeholdContractBid highestBid
-    ) {}
 
+    @Override
     public @Nullable FreeholdContractEntity getFreeholdContract(@NotNull String worldGuardRegionId,
                                                                   @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -849,6 +765,7 @@ public class RealtyLogicImpl {
         }
     }
 
+    @Override
     public @Nullable LeaseholdContractEntity getLeaseholdContract(@NotNull String worldGuardRegionId,
                                                                     @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -856,6 +773,7 @@ public class RealtyLogicImpl {
         }
     }
 
+    @Override
     public @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
@@ -871,6 +789,7 @@ public class RealtyLogicImpl {
         }
     }
 
+    @Override
     public @Nullable RegionState getRegionState(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
@@ -890,6 +809,7 @@ public class RealtyLogicImpl {
      * properties: region, title_holder, authority, price, last_sold_price,
      * landlord, tenant, duration, start_date, end_date, extensions, has_auction.
      */
+    @Override
     public @NotNull Map<String, String> getRegionPlaceholders(@NotNull String worldGuardRegionId,
                                                               @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -937,12 +857,8 @@ public class RealtyLogicImpl {
     }
 
 
-    public record RegionWithState(
-            @NotNull RealtyRegionEntity region,
-            @NotNull RegionState state,
-            @NotNull Map<String, String> placeholders
-    ) {}
 
+    @Override
     public @NotNull List<RegionWithState> getAllRegionsWithState() {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             List<RealtyRegionEntity> regions = wrapper.realtyRegionMapper().selectAll();
@@ -977,6 +893,7 @@ public class RealtyLogicImpl {
      * @param worldId            the world UUID
      * @return the region with its state and placeholders, or null if not found or has no contract
      */
+    @Override
     public @Nullable RegionWithState getRegionWithState(@NotNull String worldGuardRegionId,
                                                          @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -1006,6 +923,7 @@ public class RealtyLogicImpl {
 
     // --- Add/Remove permission check ---
 
+    @Override
     public boolean checkRegionAuthority(@NotNull String worldGuardRegionId,
                                         @NotNull UUID worldId,
                                         @NotNull UUID playerId) {
@@ -1025,19 +943,8 @@ public class RealtyLogicImpl {
 
     // --- List ---
 
-    public record ListResult(
-            int ownedCount,
-            int landlordCount,
-            int rentedCount,
-            @NotNull List<RealtyRegionEntity> owned,
-            @NotNull List<RealtyRegionEntity> landlord,
-            @NotNull List<RealtyRegionEntity> rented
-    ) {
-        public int totalCount() {
-            return ownedCount + landlordCount + rentedCount;
-        }
-    }
 
+    @Override
     public @NotNull ListResult listRegions(@NotNull UUID targetId, int limit, int offset) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
@@ -1066,11 +973,8 @@ public class RealtyLogicImpl {
         }
     }
 
-    public record SingleCategoryResult(
-            int totalCount,
-            @NotNull List<RealtyRegionEntity> regions
-    ) { }
 
+    @Override
     public @NotNull SingleCategoryResult listOwnedRegions(@NotNull UUID targetId, int limit, int offset) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
@@ -1080,6 +984,7 @@ public class RealtyLogicImpl {
         }
     }
 
+    @Override
     public @NotNull SingleCategoryResult listRentedRegions(@NotNull UUID targetId, int limit, int offset) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
@@ -1091,6 +996,7 @@ public class RealtyLogicImpl {
 
     // --- List Outbound Offers ---
 
+    @Override
     public @NotNull List<OutboundOfferView> listOutboundOffers(@NotNull UUID offererId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             return wrapper.freeholdContractOfferMapper().selectAllByOfferer(offererId);
@@ -1099,6 +1005,7 @@ public class RealtyLogicImpl {
 
     // --- List Inbound Offers ---
 
+    @Override
     public @NotNull List<InboundOfferView> listInboundOffers(@NotNull UUID titleHolderId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             return wrapper.freeholdContractOfferMapper().selectAllByTitleHolder(titleHolderId);
@@ -1107,12 +1014,8 @@ public class RealtyLogicImpl {
 
     // --- Withdraw Offer ---
 
-    public sealed interface WithdrawOfferResult {
-        record Success(@Nullable UUID titleHolderId) implements WithdrawOfferResult {}
-        record NoOffer() implements WithdrawOfferResult {}
-        record OfferAccepted() implements WithdrawOfferResult {}
-    }
 
+    @Override
     public @NotNull WithdrawOfferResult withdrawOffer(@NotNull String worldGuardRegionId,
                                                        @NotNull UUID worldId,
                                                        @NotNull UUID offererId) {
@@ -1132,13 +1035,8 @@ public class RealtyLogicImpl {
 
     // --- Reject Offer ---
 
-    public sealed interface RejectOfferResult {
-        record Success(@NotNull UUID offererId) implements RejectOfferResult {}
-        record NotSanctioned() implements RejectOfferResult {}
-        record NoOffer() implements RejectOfferResult {}
-        record OfferAccepted() implements RejectOfferResult {}
-    }
 
+    @Override
     public @NotNull RejectOfferResult rejectOffer(@NotNull String worldGuardRegionId,
                                                       @NotNull UUID worldId,
                                                       @NotNull UUID callerId,
@@ -1169,13 +1067,8 @@ public class RealtyLogicImpl {
 
     // --- Reject All Offers ---
 
-    public sealed interface RejectAllOffersResult {
-        record Success(@NotNull List<UUID> offererIds) implements RejectAllOffersResult {}
-        record NotSanctioned() implements RejectAllOffersResult {}
-        record NoFreeholdContract() implements RejectAllOffersResult {}
-        record OfferAccepted() implements RejectAllOffersResult {}
-    }
 
+    @Override
     public @NotNull RejectAllOffersResult rejectAllOffers(@NotNull String worldGuardRegionId,
                                                               @NotNull UUID worldId,
                                                               @NotNull UUID callerId) {
@@ -1207,16 +1100,8 @@ public class RealtyLogicImpl {
 
     // --- Place Offer ---
 
-    public sealed interface OfferResult {
-        record Success(@Nullable UUID titleHolderId) implements OfferResult {}
-        record NoFreeholdContract() implements OfferResult {}
-        record NotAcceptingOffers() implements OfferResult {}
-        record IsOwner() implements OfferResult {}
-        record AlreadyHasOffer() implements OfferResult {}
-        record AuctionExists() implements OfferResult {}
-        record InsertFailed() implements OfferResult {}
-    }
 
+    @Override
     public @NotNull OfferResult placeOffer(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
                                            @NotNull UUID offererId,
@@ -1253,13 +1138,8 @@ public class RealtyLogicImpl {
 
     // --- Toggle Offers ---
 
-    public sealed interface ToggleOffersResult {
-        record Success(boolean acceptingOffers) implements ToggleOffersResult {}
-        record NotSanctioned() implements ToggleOffersResult {}
-        record NoFreeholdContract() implements ToggleOffersResult {}
-        record UpdateFailed() implements ToggleOffersResult {}
-    }
 
+    @Override
     public @NotNull ToggleOffersResult toggleOffers(@NotNull String worldGuardRegionId,
                                                      @NotNull UUID worldId,
                                                      @NotNull UUID callerId,
@@ -1289,15 +1169,8 @@ public class RealtyLogicImpl {
 
     // --- Accept Offer ---
 
-    public sealed interface AcceptOfferResult {
-        record Success() implements AcceptOfferResult {}
-        record NotSanctioned() implements AcceptOfferResult {}
-        record NoOffer() implements AcceptOfferResult {}
-        record AuctionExists() implements AcceptOfferResult {}
-        record AlreadyAccepted() implements AcceptOfferResult {}
-        record InsertFailed() implements AcceptOfferResult {}
-    }
 
+    @Override
     public @NotNull AcceptOfferResult acceptOffer(@NotNull String worldGuardRegionId,
                                                    @NotNull UUID worldId,
                                                    @NotNull UUID callerId,
@@ -1339,14 +1212,8 @@ public class RealtyLogicImpl {
 
     // --- Pay Offer ---
 
-    public sealed interface PayOfferResult {
-        record Success(double newTotal, double remaining,
-                       @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
-        record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
-        record NoPaymentRecord() implements PayOfferResult {}
-        record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
-    }
 
+    @Override
     public @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
                                              @NotNull UUID worldId,
                                              @NotNull UUID offererId,
@@ -1387,15 +1254,8 @@ public class RealtyLogicImpl {
 
     // --- Pay Bid ---
 
-    public sealed interface PayBidResult {
-        record Success(double newTotal, double remaining,
-                       @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
-        record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
-        record NoPaymentRecord() implements PayBidResult {}
-        record PaymentExpired() implements PayBidResult {}
-        record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
-    }
 
+    @Override
     public @NotNull PayBidResult payBid(@NotNull String worldGuardRegionId,
                                          @NotNull UUID worldId,
                                          @NotNull UUID bidderId,
@@ -1437,13 +1297,8 @@ public class RealtyLogicImpl {
 
     // --- Expired Bidding Auctions ---
 
-    public record ExpiredBiddingAuction(
-            @NotNull String worldGuardRegionId,
-            @NotNull UUID worldId,
-            @Nullable UUID winnerId,
-            @NotNull UUID auctioneerId
-    ) {}
 
+    @Override
     public @NotNull List<ExpiredBiddingAuction> clearExpiredBiddingAuctions() {
         List<FreeholdContractAuctionEntity> expired;
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -1486,8 +1341,8 @@ public class RealtyLogicImpl {
 
     // --- Expired Bid Payments ---
 
-    public record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId) {}
 
+    @Override
     public @NotNull List<ExpiredBidPayment> clearExpiredBidPayments() {
         List<FreeholdContractBidPaymentEntity> expired;
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -1518,8 +1373,8 @@ public class RealtyLogicImpl {
 
     // --- Expired Offer Payments ---
 
-    public record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount, @NotNull String regionId) {}
 
+    @Override
     public @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments() {
         List<FreeholdContractOfferPaymentEntity> expired;
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -1540,13 +1395,8 @@ public class RealtyLogicImpl {
 
     // --- Expired Leaseholds ---
 
-    public record ExpiredLeasehold(
-            @NotNull UUID tenantId,
-            @NotNull UUID landlordId,
-            @NotNull String worldGuardRegionId,
-            @NotNull UUID worldId
-    ) {}
 
+    @Override
     public @NotNull List<ExpiredLeasehold> clearExpiredLeaseholds() {
         List<ExpiredLeaseholdView> expired;
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -1569,8 +1419,8 @@ public class RealtyLogicImpl {
 
     // --- History Search ---
 
-    public record HistoryResult(@NotNull List<HistoryEntry> entries, int totalCount) {}
 
+    @Override
     public @NotNull HistoryResult searchHistory(@NotNull String worldGuardRegionId,
                                                 @NotNull UUID worldId,
                                                 @Nullable String eventType,

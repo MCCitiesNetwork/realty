@@ -10,7 +10,7 @@ import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -46,7 +46,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record SetCommandGroup(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull RegionProfileService regionProfileService,
         @NotNull SignTextApplicator signTextApplicator,
         @NotNull MessageContainer messages
@@ -122,26 +122,26 @@ public record SetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.SetPriceResult result = logic.setPrice(
+                RealtyApi.SetPriceResult result = logic.setPrice(
                         regionId, worldId, price);
                 switch (result) {
-                    case RealtyLogicImpl.SetPriceResult.Success ignored ->
+                    case RealtyApi.SetPriceResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_SUCCESS,
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetPriceResult.NoFreeholdContract ignored ->
+                    case RealtyApi.SetPriceResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetPriceResult.AuctionExists ignored ->
+                    case RealtyApi.SetPriceResult.AuctionExists ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_AUCTION_EXISTS,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetPriceResult.OfferPaymentInProgress ignored ->
+                    case RealtyApi.SetPriceResult.OfferPaymentInProgress ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_OFFER_PAYMENT_IN_PROGRESS,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetPriceResult.BidPaymentInProgress ignored ->
+                    case RealtyApi.SetPriceResult.BidPaymentInProgress ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_BID_PAYMENT_IN_PROGRESS,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetPriceResult.UpdateFailed ignored ->
+                    case RealtyApi.SetPriceResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -172,17 +172,17 @@ public record SetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.SetDurationResult result = logic.setDuration(
+                RealtyApi.SetDurationResult result = logic.setDuration(
                         regionId, worldId, duration.toSeconds());
                 switch (result) {
-                    case RealtyLogicImpl.SetDurationResult.Success ignored ->
+                    case RealtyApi.SetDurationResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_SUCCESS,
                                     Placeholder.unparsed("duration", duration.toString()),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetDurationResult.NoLeaseholdContract ignored ->
+                    case RealtyApi.SetDurationResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetDurationResult.UpdateFailed ignored ->
+                    case RealtyApi.SetDurationResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -213,10 +213,10 @@ public record SetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.SetLandlordResult result = logic.setLandlord(
+                RealtyApi.SetLandlordResult result = logic.setLandlord(
                         regionId, worldId, landlordId);
                 switch (result) {
-                    case RealtyLogicImpl.SetLandlordResult.Success(UUID previousLandlord) -> {
+                    case RealtyApi.SetLandlordResult.Success(UUID previousLandlord) -> {
                         executorState.mainThreadExec().execute(() -> {
                             region.region().getMembers().clear();
                         });
@@ -224,10 +224,10 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("landlord", resolveName(landlordId)),
                                 Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetLandlordResult.NoLeaseholdContract ignored ->
+                    case RealtyApi.SetLandlordResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetLandlordResult.UpdateFailed ignored ->
+                    case RealtyApi.SetLandlordResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -258,10 +258,10 @@ public record SetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.SetTitleHolderResult result = logic.setTitleHolder(
+                RealtyApi.SetTitleHolderResult result = logic.setTitleHolder(
                         regionId, worldId, titleHolderId);
                 switch (result) {
-                    case RealtyLogicImpl.SetTitleHolderResult.Success(UUID previousTitleHolder) -> {
+                    case RealtyApi.SetTitleHolderResult.Success(UUID previousTitleHolder) -> {
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId,
                                 worldId);
                         executorState.mainThreadExec().execute(() -> {
@@ -286,10 +286,10 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
                                 Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetTitleHolderResult.NoFreeholdContract ignored ->
+                    case RealtyApi.SetTitleHolderResult.NoFreeholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetTitleHolderResult.UpdateFailed ignored ->
+                    case RealtyApi.SetTitleHolderResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -320,10 +320,10 @@ public record SetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.SetTenantResult result = logic.setTenant(
+                RealtyApi.SetTenantResult result = logic.setTenant(
                         regionId, worldId, tenantId);
                 switch (result) {
-                    case RealtyLogicImpl.SetTenantResult.Success(UUID previousTenant, UUID ignored2) -> {
+                    case RealtyApi.SetTenantResult.Success(UUID previousTenant, UUID ignored2) -> {
                         Map<String, String> placeholders = logic.getRegionPlaceholders(regionId,
                                 worldId);
                         executorState.mainThreadExec().execute(() -> {
@@ -344,10 +344,10 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("tenant", resolveName(tenantId)),
                                 Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.SetTenantResult.NoLeaseholdContract ignored ->
+                    case RealtyApi.SetTenantResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetTenantResult.UpdateFailed ignored ->
+                    case RealtyApi.SetTenantResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }
@@ -378,22 +378,22 @@ public record SetCommandGroup(
         }
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.SetMaxRenewalsResult result = logic.setMaxRenewals(
+                RealtyApi.SetMaxRenewalsResult result = logic.setMaxRenewals(
                         regionId, worldId, maxExtensions);
                 switch (result) {
-                    case RealtyLogicImpl.SetMaxRenewalsResult.Success ignored ->
+                    case RealtyApi.SetMaxRenewalsResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_SUCCESS,
                                     Placeholder.unparsed("maxextensions",
                                             maxExtensions < 0 ? "unlimited" : String.valueOf(maxExtensions)),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetMaxRenewalsResult.NoLeaseholdContract ignored ->
+                    case RealtyApi.SetMaxRenewalsResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_NO_LEASEHOLD_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetMaxRenewalsResult.BelowCurrentExtensions(int current) ->
+                    case RealtyApi.SetMaxRenewalsResult.BelowCurrentExtensions(int current) ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_BELOW_CURRENT,
                                     Placeholder.unparsed("current", String.valueOf(current)),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.SetMaxRenewalsResult.UpdateFailed ignored ->
+                    case RealtyApi.SetMaxRenewalsResult.UpdateFailed ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_UPDATE_FAILED,
                                     Placeholder.unparsed("region", regionId)));
                 }

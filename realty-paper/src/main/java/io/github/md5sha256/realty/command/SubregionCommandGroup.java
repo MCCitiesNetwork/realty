@@ -21,7 +21,7 @@ import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public record SubregionCommandGroup(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull AtomicReference<Settings> settings,
         @NotNull RegionProfileService regionProfileService,
         @NotNull MessageContainer messages

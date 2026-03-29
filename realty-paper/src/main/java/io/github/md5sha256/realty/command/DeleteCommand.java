@@ -7,7 +7,7 @@ import com.sk89q.worldguard.protection.managers.storage.StorageException;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
  * {@code realty.command.delete.includeworldguard}.</p>
  */
 public record DeleteCommand(@NotNull ExecutorState executorState,
-                            @NotNull RealtyLogicImpl logic,
+                            @NotNull RealtyApi logic,
                             @NotNull RegionProfileService regionProfileService,
                             @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 

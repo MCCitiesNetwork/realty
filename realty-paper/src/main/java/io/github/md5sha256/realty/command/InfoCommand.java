@@ -4,7 +4,7 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * <p>Permission: {@code realty.command.info}.</p>
  */
 public record InfoCommand(@NotNull ExecutorState executorState,
-                          @NotNull RealtyLogicImpl logic,
+                          @NotNull RealtyApi logic,
                           @NotNull AtomicReference<Settings> settings,
                           @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
@@ -95,7 +95,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
         executorState.dbExec().execute(() -> {
             try {
-                RealtyLogicImpl.RegionInfo info = logic.getRegionInfo(regionId, worldId);
+                RealtyApi.RegionInfo info = logic.getRegionInfo(regionId, worldId);
 
                 TextComponent.Builder builder = Component.text();
                 builder.append(messages.messageFor(MessageKeys.INFO_HEADER,

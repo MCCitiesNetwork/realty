@@ -5,17 +5,7 @@ plugins {
 }
 
 dependencies {
-    api(project(":realty-api"))
     compileOnly("org.jetbrains:annotations:26.0.2-1")
-    api("org.spongepowered:configurate-yaml:4.2.0")
-    api("org.mybatis:mybatis:3.5.19")
-    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.6")
-
-    testImplementation(platform("org.junit:junit-bom:5.11.4"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation("org.testcontainers:testcontainers-mariadb:2.0.1")
-    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.2")
 }
 
 publishing {
@@ -23,8 +13,8 @@ publishing {
         create<MavenPublication>("maven") {
             from(components["java"])
             pom {
-                name.set("Realty Common")
-                description.set("Core database and domain logic for Realty")
+                name.set("Realty API")
+                description.set("API interfaces and domain types for Realty")
                 url.set("https://github.com/MCCitiesNetwork/realty")
                 developers {
                     developer {

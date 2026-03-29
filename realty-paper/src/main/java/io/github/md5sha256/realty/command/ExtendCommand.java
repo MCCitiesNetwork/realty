@@ -5,7 +5,7 @@ import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -31,7 +31,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record ExtendCommand(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull Economy economy,
         @NotNull SignTextApplicator signTextApplicator,
         @NotNull MessageContainer messages
@@ -72,16 +72,16 @@ public record ExtendCommand(
                 return;
             }
             switch (preview) {
-                case RealtyLogicImpl.RenewLeaseholdResult.NoLeaseholdContract ignored ->
+                case RealtyApi.RenewLeaseholdResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.RenewLeaseholdResult.NoExtensionsRemaining ignored ->
+                case RealtyApi.RenewLeaseholdResult.NoExtensionsRemaining ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_EXTENSIONS,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.RenewLeaseholdResult.UpdateFailed ignored ->
+                case RealtyApi.RenewLeaseholdResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.RenewLeaseholdResult.Success success -> {
+                case RealtyApi.RenewLeaseholdResult.Success success -> {
                     double price = success.price();
                     double balance = economy.getBalance(sender);
                     if (balance < price) {
@@ -102,9 +102,9 @@ public record ExtendCommand(
                     }
                     CompletableFuture.supplyAsync(() -> {
                         try {
-                            RealtyLogicImpl.RenewLeaseholdResult result = logic.renewLeasehold(
+                            RealtyApi.RenewLeaseholdResult result = logic.renewLeasehold(
                                     regionId, region.world().getUID(), sender.getUniqueId());
-                            if (result instanceof RealtyLogicImpl.RenewLeaseholdResult.Success) {
+                            if (result instanceof RealtyApi.RenewLeaseholdResult.Success) {
                                 return logic.getRegionPlaceholders(regionId, region.world().getUID());
                             }
                             return null;

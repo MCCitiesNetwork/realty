@@ -42,7 +42,8 @@ import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.database.RealtyApiImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -66,6 +67,7 @@ import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
+import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.incendo.cloud.Command;
@@ -105,7 +107,7 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private ExecutorState executorState;
-    private RealtyLogicImpl logic;
+    private RealtyApi logic;
     private ProfileApplicator profileApplicator;
     private DatabaseSettings databaseSettings;
     private NotificationService notificationService;
@@ -118,7 +120,7 @@ public final class Realty extends JavaPlugin {
         return Objects.requireNonNull(this.database, "Database not initialized!");
     }
 
-    public RealtyLogicImpl logic() {
+    public RealtyApi logic() {
         return this.logic;
     }
 
@@ -182,7 +184,7 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        this.logic = new RealtyLogicImpl(mariaDatabase, uuid -> {
+        this.logic = new RealtyApiImpl(mariaDatabase, uuid -> {
             OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
             return player.getName() != null ? player.getName() : uuid.toString();
         }, dateTime -> DateFormatter.format(this.settings.get(), dateTime));
@@ -220,6 +222,7 @@ public final class Realty extends JavaPlugin {
                 economyProvider.getProvider(),
                 this.notificationService,
                 safeLocationFinder);
+        getServer().getServicesManager().register(RealtyApi.class, this.logic, this, ServicePriority.Normal);
         getLogger().info("Plugin enabled successfully");
     }
 
@@ -257,7 +260,7 @@ public final class Realty extends JavaPlugin {
             if (this.logic == null) {
                 return;
             }
-            for (RealtyLogicImpl.ExpiredBiddingAuction auction : this.logic.clearExpiredBiddingAuctions()) {
+            for (RealtyApi.ExpiredBiddingAuction auction : this.logic.clearExpiredBiddingAuctions()) {
                 if (auction.winnerId() != null) {
                     this.notificationService.queueNotification(auction.winnerId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
@@ -268,29 +271,29 @@ public final class Realty extends JavaPlugin {
                                     Placeholder.unparsed("region", auction.worldGuardRegionId())));
                 }
             }
-            for (RealtyLogicImpl.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
+            for (RealtyApi.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
                 this.notificationService.queueNotification(payment.bidderId(),
                         this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount",
                                         CurrencyFormatter.format(payment.refundAmount()))));
             }
-            for (RealtyLogicImpl.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
+            for (RealtyApi.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 this.notificationService.queueNotification(payment.offererId(),
                         this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount",
                                         CurrencyFormatter.format(payment.refundAmount()))));
             }
-            List<RealtyLogicImpl.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
+            List<RealtyApi.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
             if (!expiredLeaseholds.isEmpty()) {
                 Map<String, Map<String, String>> leaseholdPlaceholders = new HashMap<>();
-                for (RealtyLogicImpl.ExpiredLeasehold expired : expiredLeaseholds) {
+                for (RealtyApi.ExpiredLeasehold expired : expiredLeaseholds) {
                     leaseholdPlaceholders.put(expired.worldGuardRegionId(),
                             this.logic.getRegionPlaceholders(expired.worldGuardRegionId(), expired.worldId()));
                 }
                 scheduler.runTask(this, () -> {
-                    for (RealtyLogicImpl.ExpiredLeasehold expired : expiredLeaseholds) {
+                    for (RealtyApi.ExpiredLeasehold expired : expiredLeaseholds) {
                         World world = getServer().getWorld(expired.worldId());
                         if (world != null) {
                             RegionManager regionManager = WorldGuard.getInstance()
@@ -399,7 +402,7 @@ public final class Realty extends JavaPlugin {
 
     private void registerCommands(
             @NotNull ExecutorState executorState,
-            @NotNull RealtyLogicImpl logic,
+            @NotNull RealtyApi logic,
             @NotNull MessageContainer messageContainer,
             @NotNull Economy economy,
             @NotNull NotificationService notificationService,

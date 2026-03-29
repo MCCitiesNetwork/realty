@@ -9,7 +9,7 @@ import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -36,7 +36,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public record RentCommand(
         @NotNull ExecutorState executorState,
-        @NotNull RealtyLogicImpl logic,
+        @NotNull RealtyApi logic,
         @NotNull Economy economy,
         @NotNull NotificationService notificationService,
         @NotNull RegionProfileService regionProfileService,
@@ -80,16 +80,16 @@ public record RentCommand(
                 return;
             }
             switch (preview) {
-                case RealtyLogicImpl.RentResult.NoLeaseholdContract ignored ->
+                case RealtyApi.RentResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.RentResult.AlreadyOccupied ignored ->
+                case RealtyApi.RentResult.AlreadyOccupied ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_ALREADY_OCCUPIED,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.RentResult.UpdateFailed ignored ->
+                case RealtyApi.RentResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyLogicImpl.RentResult.Success success -> {
+                case RealtyApi.RentResult.Success success -> {
                     // Step 2: balance check + payment (main thread)
                     double price = success.price();
                     double balance = economy.getBalance(sender);
@@ -112,9 +112,9 @@ public record RentCommand(
                     // Step 3: execute DB mutation
                     CompletableFuture.supplyAsync(() -> {
                         try {
-                            RealtyLogicImpl.RentResult result = logic.rentRegion(
+                            RealtyApi.RentResult result = logic.rentRegion(
                                     regionId, region.world().getUID(), sender.getUniqueId());
-                            if (result instanceof RealtyLogicImpl.RentResult.Success) {
+                            if (result instanceof RealtyApi.RentResult.Success) {
                                 return logic.getRegionPlaceholders(regionId, region.world().getUID());
                             }
                             return null;

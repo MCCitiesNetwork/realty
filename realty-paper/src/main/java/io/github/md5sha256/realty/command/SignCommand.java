@@ -6,7 +6,7 @@ import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
@@ -37,7 +37,7 @@ import java.util.UUID;
  */
 public record SignCommand(@NotNull ExecutorState executorState,
                            @NotNull Database database,
-                           @NotNull RealtyLogicImpl logic,
+                           @NotNull RealtyApi logic,
                            @NotNull RegionProfileService regionProfileService,
                            @NotNull SignCache signCache,
                            @NotNull SignTextApplicator signTextApplicator,
@@ -105,7 +105,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
                                 regionEntity.realtyRegionId(), regionId, worldId);
                     }
                 }
-                RealtyLogicImpl.RegionWithState rws = logic.getRegionWithState(regionId, worldId);
+                RealtyApi.RegionWithState rws = logic.getRegionWithState(regionId, worldId);
                 if (rws != null) {
                     executorState.mainThreadExec().execute(() -> {
                         Block block = player.getWorld().getBlockAt(blockX, blockY, blockZ);

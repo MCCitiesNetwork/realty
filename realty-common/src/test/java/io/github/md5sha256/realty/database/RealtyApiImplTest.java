@@ -1,15 +1,16 @@
 package io.github.md5sha256.realty.database;
 
-import io.github.md5sha256.realty.database.RealtyLogicImpl.CreateAuctionResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.AcceptOfferResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.BidResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.ExpiredBidPayment;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.ExpiredOfferPayment;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.ListResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.OfferResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.PayBidResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.PayOfferResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.RegionInfo;
+import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyApi.CreateAuctionResult;
+import io.github.md5sha256.realty.api.RealtyApi.AcceptOfferResult;
+import io.github.md5sha256.realty.api.RealtyApi.BidResult;
+import io.github.md5sha256.realty.api.RealtyApi.ExpiredBidPayment;
+import io.github.md5sha256.realty.api.RealtyApi.ExpiredOfferPayment;
+import io.github.md5sha256.realty.api.RealtyApi.ListResult;
+import io.github.md5sha256.realty.api.RealtyApi.OfferResult;
+import io.github.md5sha256.realty.api.RealtyApi.PayBidResult;
+import io.github.md5sha256.realty.api.RealtyApi.PayOfferResult;
+import io.github.md5sha256.realty.api.RealtyApi.RegionInfo;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
 import org.apache.ibatis.session.SqlSession;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-class RealtyLogicImplTest extends AbstractDatabaseTest {
+class RealtyApiImplTest extends AbstractDatabaseTest {
 
     private static final UUID WORLD_ID = UUID.randomUUID();
     private static final UUID AUTHORITY = UUID.randomUUID();
@@ -382,7 +383,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             createAuctionOnRegion(regionId, WORLD_ID);
 
-            RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(regionId, WORLD_ID);
+            RealtyApi.CancelAuctionResult result = logic.cancelAuction(regionId, WORLD_ID);
             Assertions.assertEquals(1, result.deleted());
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
@@ -395,7 +396,7 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
-            RealtyLogicImpl.CancelAuctionResult result = logic.cancelAuction(regionId, WORLD_ID);
+            RealtyApi.CancelAuctionResult result = logic.cancelAuction(regionId, WORLD_ID);
             Assertions.assertEquals(0, result.deleted());
         }
 
@@ -577,8 +578,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
-            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.Success.class, result);
+            RealtyApi.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyApi.WithdrawOfferResult.Success.class, result);
         }
 
         @Test
@@ -587,8 +588,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
-            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
-            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, result);
+            RealtyApi.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyApi.WithdrawOfferResult.NoOffer.class, result);
         }
 
         @Test
@@ -598,8 +599,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
-            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.OfferAccepted.class, result);
+            RealtyApi.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyApi.WithdrawOfferResult.OfferAccepted.class, result);
         }
 
         @Test
@@ -611,8 +612,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             logic.placeOffer(regionId, WORLD_ID, playerC, 600.0);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, playerC);
-            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, result);
+            RealtyApi.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, playerC);
+            Assertions.assertInstanceOf(RealtyApi.WithdrawOfferResult.NoOffer.class, result);
         }
     }
 
@@ -633,8 +634,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
             logic.acceptOffer(regionId, WORLD_ID, PLAYER_A, PLAYER_B);
 
-            RealtyLogicImpl.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, playerC);
-            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, result);
+            RealtyApi.WithdrawOfferResult result = logic.withdrawOffer(regionId, WORLD_ID, playerC);
+            Assertions.assertInstanceOf(RealtyApi.WithdrawOfferResult.NoOffer.class, result);
         }
 
         @Test
@@ -807,8 +808,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            RealtyLogicImpl.WithdrawOfferResult withdrawn = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
-            Assertions.assertInstanceOf(RealtyLogicImpl.WithdrawOfferResult.NoOffer.class, withdrawn);
+            RealtyApi.WithdrawOfferResult withdrawn = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyApi.WithdrawOfferResult.NoOffer.class, withdrawn);
         }
     }
 
@@ -1069,9 +1070,9 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
-            RealtyLogicImpl.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, PLAYER_A, false, false);
-            Assertions.assertInstanceOf(RealtyLogicImpl.ToggleOffersResult.Success.class, result);
-            Assertions.assertFalse(((RealtyLogicImpl.ToggleOffersResult.Success) result).acceptingOffers());
+            RealtyApi.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, PLAYER_A, false, false);
+            Assertions.assertInstanceOf(RealtyApi.ToggleOffersResult.Success.class, result);
+            Assertions.assertFalse(((RealtyApi.ToggleOffersResult.Success) result).acceptingOffers());
         }
 
         @Test
@@ -1086,8 +1087,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
                 session.commit();
             }
 
-            RealtyLogicImpl.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, sanctioned, false, false);
-            Assertions.assertInstanceOf(RealtyLogicImpl.ToggleOffersResult.Success.class, result);
+            RealtyApi.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, sanctioned, false, false);
+            Assertions.assertInstanceOf(RealtyApi.ToggleOffersResult.Success.class, result);
         }
 
         @Test
@@ -1097,8 +1098,8 @@ class RealtyLogicImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             UUID stranger = UUID.randomUUID();
-            RealtyLogicImpl.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, stranger, false, false);
-            Assertions.assertInstanceOf(RealtyLogicImpl.ToggleOffersResult.NotSanctioned.class, result);
+            RealtyApi.ToggleOffersResult result = logic.toggleOffers(regionId, WORLD_ID, stranger, false, false);
+            Assertions.assertInstanceOf(RealtyApi.ToggleOffersResult.NotSanctioned.class, result);
         }
 
         @Test

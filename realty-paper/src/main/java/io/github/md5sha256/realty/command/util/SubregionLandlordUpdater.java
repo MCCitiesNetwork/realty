@@ -4,7 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.util.ExecutorState;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
@@ -27,7 +27,7 @@ public final class SubregionLandlordUpdater {
     public static void updateChildLandlords(@NotNull String parentRegionId,
                                              @NotNull World world,
                                              @NotNull UUID newLandlord,
-                                             @NotNull RealtyLogicImpl logic,
+                                             @NotNull RealtyApi logic,
                                              @NotNull ExecutorState executorState) {
         RegionManager regionManager = WorldGuard.getInstance()
                 .getPlatform()

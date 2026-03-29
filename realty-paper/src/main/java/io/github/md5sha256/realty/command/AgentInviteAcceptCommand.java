@@ -4,7 +4,7 @@ import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.agent.invite.accept}.</p>
  */
 public record AgentInviteAcceptCommand(@NotNull ExecutorState executorState,
-                                        @NotNull RealtyLogicImpl logic,
+                                        @NotNull RealtyApi logic,
                                         @NotNull NotificationService notificationService,
                                         @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
@@ -61,9 +61,9 @@ public record AgentInviteAcceptCommand(@NotNull ExecutorState executorState,
         UUID inviteeId = player.getUniqueId();
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, worldId, inviteeId);
+                RealtyApi.AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, worldId, inviteeId);
                 switch (result) {
-                    case RealtyLogicImpl.AcceptAgentInviteResult.Success(UUID inviterId) -> {
+                    case RealtyApi.AcceptAgentInviteResult.Success(UUID inviterId) -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_SUCCESS,
                                 Placeholder.unparsed("region", regionId)));
                         notificationService.queueNotification(inviterId,
@@ -71,10 +71,10 @@ public record AgentInviteAcceptCommand(@NotNull ExecutorState executorState,
                                         Placeholder.unparsed("player", player.getName()),
                                         Placeholder.unparsed("region", regionId)));
                     }
-                    case RealtyLogicImpl.AcceptAgentInviteResult.NotFound() ->
+                    case RealtyApi.AcceptAgentInviteResult.NotFound() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_NOT_FOUND,
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyLogicImpl.AcceptAgentInviteResult.AlreadyAgent() ->
+                    case RealtyApi.AcceptAgentInviteResult.AlreadyAgent() ->
                             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_ALREADY_AGENT,
                                     Placeholder.unparsed("region", regionId)));
                 }

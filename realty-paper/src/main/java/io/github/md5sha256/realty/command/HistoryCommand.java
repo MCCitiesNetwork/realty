@@ -7,7 +7,7 @@ import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>Permission: {@code realty.command.history}.</p>
  */
 public record HistoryCommand(@NotNull ExecutorState executorState,
-                              @NotNull RealtyLogicImpl logic,
+                              @NotNull RealtyApi logic,
                               @NotNull AtomicReference<Settings> settings,
                               @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
@@ -127,7 +127,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
 
         CompletableFuture.runAsync(() -> {
             try {
-                RealtyLogicImpl.HistoryResult result = logic.searchHistory(
+                RealtyApi.HistoryResult result = logic.searchHistory(
                         regionId, worldId, eventTypeStr, since, playerId, PAGE_SIZE, offset);
 
                 int totalCount = result.totalCount();

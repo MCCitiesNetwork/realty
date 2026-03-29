@@ -6,7 +6,7 @@ import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.RealtyLogicImpl;
+import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>Permissions: {@code realty.command.register.leasehold} / {@code realty.command.register.freehold}.</p>
  */
 public record RegisterCommand(@NotNull ExecutorState executorState,
-                              @NotNull RealtyLogicImpl logic,
+                              @NotNull RealtyApi logic,
                               @NotNull AtomicReference<Settings> settings,
                               @NotNull RegionProfileService regionProfileService,
                               @NotNull MessageContainer messages) implements CustomCommandBean {

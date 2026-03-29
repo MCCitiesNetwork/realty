@@ -1,9 +1,9 @@
 package io.github.md5sha256.realty.database;
 
-import io.github.md5sha256.realty.database.RealtyLogicImpl.AcceptAgentInviteResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.InviteAgentResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.RejectAgentInviteResult;
-import io.github.md5sha256.realty.database.RealtyLogicImpl.WithdrawAgentInviteResult;
+import io.github.md5sha256.realty.api.RealtyApi.AcceptAgentInviteResult;
+import io.github.md5sha256.realty.api.RealtyApi.InviteAgentResult;
+import io.github.md5sha256.realty.api.RealtyApi.RejectAgentInviteResult;
+import io.github.md5sha256.realty.api.RealtyApi.WithdrawAgentInviteResult;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
