@@ -1,0 +1,38 @@
+name: Deploy API
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Publish realty-api
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :realty-api:publishMavenPublicationToDeployRepository
+        env:
+          ORG_GRADLE_PROJECT_deployUrl: ${{ secrets.MAVEN_REPOSITORY_URL }}
+          ORG_GRADLE_PROJECT_deployUsername: ${{ secrets.MAVEN_REPOSITORY_USERNAME }}
+          ORG_GRADLE_PROJECT_deployPassword: ${{ secrets.MAVEN_REPOSITORY_PASSWORD }}

@@ -9,6 +9,16 @@ dependencies {
 }
 
 publishing {
+    repositories {
+        maven {
+            name = "deploy"
+            url = uri(providers.gradleProperty("deployUrl").getOrElse("https://example.com"))
+            credentials {
+                username = providers.gradleProperty("deployUsername").orNull
+                password = providers.gradleProperty("deployPassword").orNull
+            }
+        }
+    }
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
