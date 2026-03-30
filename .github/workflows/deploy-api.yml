@@ -28,11 +28,21 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Determine repository path
+        id: repo-path
+        run: |
+          VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' buildSrc/src/main/kotlin/realty-conventions.gradle.kts)
+          if [[ "$VERSION" == *-SNAPSHOT ]]; then
+            echo "suffix=/snapshots" >> "$GITHUB_OUTPUT"
+          else
+            echo "suffix=/releases" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish realty-api
         run: |
           chmod +x ./gradlew
           ./gradlew :realty-api:publishMavenPublicationToDeployRepository
         env:
-          ORG_GRADLE_PROJECT_deployUrl: ${{ secrets.MAVEN_REPOSITORY_URL }}
+          ORG_GRADLE_PROJECT_deployUrl: ${{ secrets.MAVEN_REPOSITORY_URL }}${{ steps.repo-path.outputs.suffix }}
           ORG_GRADLE_PROJECT_deployUsername: ${{ secrets.MAVEN_REPOSITORY_USERNAME }}
           ORG_GRADLE_PROJECT_deployPassword: ${{ secrets.MAVEN_REPOSITORY_PASSWORD }}
