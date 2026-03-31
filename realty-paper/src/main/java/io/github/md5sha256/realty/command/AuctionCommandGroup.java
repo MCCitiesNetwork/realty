@@ -69,7 +69,7 @@ public record AuctionCommandGroup(
 ) implements CustomCommandBean {
 
     @Override
-    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
+    public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder.literal("auction");
         return List.of(
                 base.literal("info")

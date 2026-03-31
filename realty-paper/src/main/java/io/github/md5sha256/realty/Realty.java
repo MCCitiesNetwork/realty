@@ -481,13 +481,13 @@ public final class Realty extends JavaPlugin {
         manager.brigadierManager().setNativeNumberSuggestions(true);
         Command.Builder<Source> rootBuilder = manager.commandBuilder("realty", "rl");
         // Register help commands and proxy the root literal to the base help command
-        List<Command<Source>> helpCommands = helpCommand.commands(rootBuilder);
-        for (Command<Source> cmd : helpCommands) {
+        List<Command<? extends Source>> helpCommands = helpCommand.commands(rootBuilder);
+        for (Command<? extends Source> cmd : helpCommands) {
             manager.command(cmd);
         }
         manager.command(rootBuilder.proxies(helpCommands.getFirst()));
         for (CustomCommandBean bean : commands) {
-            for (Command<Source> cmd : bean.commands(rootBuilder)) {
+            for (Command<? extends Source> cmd : bean.commands(rootBuilder)) {
                 manager.command(cmd);
             }
         }

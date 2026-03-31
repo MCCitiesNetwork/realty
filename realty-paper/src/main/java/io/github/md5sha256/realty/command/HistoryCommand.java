@@ -31,7 +31,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -91,7 +90,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
                     .build();
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("history")
                 .permission("realty.command.history")

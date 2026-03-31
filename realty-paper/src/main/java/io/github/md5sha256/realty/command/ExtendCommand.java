@@ -21,7 +21,6 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -38,7 +37,7 @@ public record ExtendCommand(
 ) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("extend")
                 .permission("realty.command.extend")

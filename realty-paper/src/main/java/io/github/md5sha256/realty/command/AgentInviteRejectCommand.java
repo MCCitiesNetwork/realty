@@ -2,7 +2,6 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -33,7 +32,7 @@ public record AgentInviteRejectCommand(@NotNull ExecutorState executorState,
                                         @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("agent")
                 .literal("invite")

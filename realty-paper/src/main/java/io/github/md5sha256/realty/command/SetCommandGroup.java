@@ -8,7 +8,6 @@ import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -59,7 +58,7 @@ public record SetCommandGroup(
     }
 
     @Override
-    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
+    public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("set");
         return List.of(

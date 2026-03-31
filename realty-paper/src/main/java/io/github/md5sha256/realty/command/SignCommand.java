@@ -44,7 +44,7 @@ public record SignCommand(@NotNull ExecutorState executorState,
                            @NotNull MessageContainer messages) implements CustomCommandBean {
 
     @Override
-    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
+    public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         Command<Source> place = builder
                 .literal("sign")
                 .literal("place")

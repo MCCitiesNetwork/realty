@@ -42,7 +42,7 @@ public record TeleportCommand(@NotNull ExecutorState executorState,
     private static final int REGION_MAX_TRIES = 50000;
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("tp")
                 .permission("realty.command.tp")

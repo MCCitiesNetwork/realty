@@ -29,7 +29,7 @@ public record HelpCommand(
     private static final Set<String> ALL_CATEGORIES = Set.of("basics", "management", "offers", "auctions", "admin");
 
     @Override
-    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
+    public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("help")
                 .permission("realty.command.help");

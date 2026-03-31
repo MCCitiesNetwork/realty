@@ -61,7 +61,7 @@ public record SubregionCommandGroup(
     private static final CloudKey<Duration> DURATION = CloudKey.of("duration", Duration.class);
 
     @Override
-    public @NotNull List<Command<Source>> commands(
+    public @NotNull List<Command<? extends Source>> commands(
             @NotNull Command.Builder<Source> builder) {
         var base = builder.literal("subregion");
         return List.of(

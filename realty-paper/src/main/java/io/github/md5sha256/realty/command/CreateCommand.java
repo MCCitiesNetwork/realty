@@ -4,7 +4,6 @@ import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Polygonal2DRegion;
 import com.sk89q.worldedit.regions.Region;
@@ -86,7 +85,7 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                     .build();
 
     @Override
-    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
+    public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("create");
         return List.of(

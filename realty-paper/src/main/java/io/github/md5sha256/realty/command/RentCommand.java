@@ -26,7 +26,6 @@ import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -45,7 +44,7 @@ public record RentCommand(
 ) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("rent")
                 .permission("realty.command.rent")

@@ -2,7 +2,6 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -10,7 +9,6 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -33,7 +31,7 @@ public record AgentInviteAcceptCommand(@NotNull ExecutorState executorState,
                                         @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("agent")
                 .literal("invite")

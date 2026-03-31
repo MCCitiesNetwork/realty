@@ -35,7 +35,7 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                             @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("delete")
                 .permission("realty.command.delete")

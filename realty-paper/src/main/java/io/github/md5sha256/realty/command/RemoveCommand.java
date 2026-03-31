@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
 public record RemoveCommand(@NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("remove")
                 .permission("realty.command.remove")

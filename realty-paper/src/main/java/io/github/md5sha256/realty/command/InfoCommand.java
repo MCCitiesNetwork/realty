@@ -71,7 +71,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
 
     @Override
-    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
+    public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("info")
                 .permission("realty.command.info")

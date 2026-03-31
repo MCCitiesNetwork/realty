@@ -41,7 +41,7 @@ public record UnsetCommandGroup(
 ) implements CustomCommandBean {
 
     @Override
-    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
+    public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("unset");
         return List.of(
