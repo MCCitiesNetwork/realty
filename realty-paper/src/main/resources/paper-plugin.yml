@@ -194,7 +194,7 @@ permissions:
     default: op
   realty.command.tp:
     description: Allows using /realty tp
-    default: true
+    default: op
   realty.command.sign.place:
     description: Allows using /realty sign place
     default: op
