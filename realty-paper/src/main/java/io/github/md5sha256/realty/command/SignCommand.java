@@ -13,7 +13,7 @@ import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -44,21 +44,21 @@ public record SignCommand(@NotNull ExecutorState executorState,
                            @NotNull MessageContainer messages) implements CustomCommandBean {
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
-        Command<CommandSourceStack> place = builder
+    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
+        Command<Source> place = builder
                 .literal("sign")
                 .literal("place")
                 .required("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .permission("realty.command.sign.place")
                 .handler(this::executePlace)
                 .build();
-        Command<CommandSourceStack> remove = builder
+        Command<Source> remove = builder
                 .literal("sign")
                 .literal("remove")
                 .permission("realty.command.sign.remove")
                 .handler(this::executeRemove)
                 .build();
-        Command<CommandSourceStack> list = builder
+        Command<Source> list = builder
                 .literal("sign")
                 .literal("list")
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
@@ -68,8 +68,8 @@ public record SignCommand(@NotNull ExecutorState executorState,
         return List.of(place, remove, list);
     }
 
-    private void executePlace(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executePlace(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
@@ -126,8 +126,8 @@ public record SignCommand(@NotNull ExecutorState executorState,
         });
     }
 
-    private void executeRemove(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeRemove(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
@@ -161,8 +161,8 @@ public record SignCommand(@NotNull ExecutorState executorState,
         });
     }
 
-    private void executeList(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeList(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;

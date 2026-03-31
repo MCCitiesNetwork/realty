@@ -11,8 +11,8 @@ import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.incendo.cloud.paper.util.sender.Source;
 
 import org.bukkit.command.CommandSender;
 import org.incendo.cloud.Command;
@@ -35,7 +35,7 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                             @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("delete")
                 .permission("realty.command.delete")
@@ -45,11 +45,11 @@ public record DeleteCommand(@NotNull ExecutorState executorState,
                 .build();
     }
 
-    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
+    private void execute(@NotNull CommandContext<Source> ctx) {
         WorldGuardRegion region = ctx.get("region");
         boolean includeWorldGuard = ctx.getOrDefault("includeworldguard", false);
 
-        CommandSender sender = ctx.sender().getSender();
+        CommandSender sender = ctx.sender().source();
 
         if (includeWorldGuard && !sender.hasPermission("realty.command.delete.includeworldguard")) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_NO_PERMISSION));

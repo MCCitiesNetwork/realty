@@ -4,7 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.bukkit.World;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.context.CommandInput;
@@ -18,20 +18,20 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-public class WorldGuardRegionParser implements ArgumentParser<CommandSourceStack, WorldGuardRegion> {
+public class WorldGuardRegionParser implements ArgumentParser<Source, WorldGuardRegion> {
 
-    public static @NotNull ParserDescriptor<CommandSourceStack, WorldGuardRegion> worldGuardRegion() {
+    public static @NotNull ParserDescriptor<Source, WorldGuardRegion> worldGuardRegion() {
         return ParserDescriptor.of(new WorldGuardRegionParser(), WorldGuardRegion.class);
     }
 
     @Override
     public @NotNull ArgumentParseResult<WorldGuardRegion> parse(
-            @NotNull CommandContext<CommandSourceStack> ctx,
+            @NotNull CommandContext<Source> ctx,
             @NotNull CommandInput input
     ) {
         String regionName = input.readString();
-        CommandSourceStack source = ctx.sender();
-        World world = source.getLocation().getWorld();
+        Source source = ctx.sender();
+        World world = source.stack().getLocation().getWorld();
         RegionManager regionManager = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
@@ -52,10 +52,10 @@ public class WorldGuardRegionParser implements ArgumentParser<CommandSourceStack
     }
 
     @Override
-    public @NotNull SuggestionProvider<CommandSourceStack> suggestionProvider() {
+    public @NotNull SuggestionProvider<Source> suggestionProvider() {
         return (ctx, input) -> {
-            CommandSourceStack source = ctx.sender();
-            World world = source.getLocation().getWorld();
+            Source source = ctx.sender();
+            World world = source.stack().getLocation().getWorld();
             RegionManager regionManager = WorldGuard.getInstance()
                     .getPlatform()
                     .getRegionContainer()

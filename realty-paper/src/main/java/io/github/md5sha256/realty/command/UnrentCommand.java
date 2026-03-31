@@ -13,7 +13,7 @@ import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
@@ -46,7 +46,7 @@ public record UnrentCommand(
 ) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("unrent")
                 .permission("realty.command.unrent")
@@ -55,9 +55,9 @@ public record UnrentCommand(
                 .build();
     }
 
-    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void execute(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")

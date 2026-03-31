@@ -5,7 +5,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
 import org.bukkit.Bukkit;
@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
 public record RemoveCommand(@NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("remove")
                 .permission("realty.command.remove")
@@ -40,7 +40,7 @@ public record RemoveCommand(@NotNull MessageContainer messages) implements Custo
                 .build();
     }
 
-    private static @NotNull SuggestionProvider<CommandSourceStack> playerSuggestions() {
+    private static @NotNull SuggestionProvider<Source> playerSuggestions() {
         return (ctx, input) -> CompletableFuture.completedFuture(
                 Bukkit.getOnlinePlayers().stream()
                         .map(Player::getName)
@@ -49,8 +49,8 @@ public record RemoveCommand(@NotNull MessageContainer messages) implements Custo
         );
     }
 
-    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void execute(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         String playerOrGroup = ctx.get("player");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player

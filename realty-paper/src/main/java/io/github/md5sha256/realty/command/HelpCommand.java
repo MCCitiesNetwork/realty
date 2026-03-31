@@ -2,8 +2,8 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.command.CommandSender;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.standard.StringParser;
@@ -29,7 +29,7 @@ public record HelpCommand(
     private static final Set<String> ALL_CATEGORIES = Set.of("basics", "management", "offers", "auctions", "admin");
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("help")
                 .permission("realty.command.help");
@@ -41,7 +41,7 @@ public record HelpCommand(
         );
     }
 
-    private static @NotNull SuggestionProvider<CommandSourceStack> categorySuggestions() {
+    private static @NotNull SuggestionProvider<Source> categorySuggestions() {
         return (ctx, input) -> CompletableFuture.completedFuture(
                 VISIBLE_CATEGORIES.stream()
                         .sorted()
@@ -50,13 +50,13 @@ public record HelpCommand(
         );
     }
 
-    private void executeMain(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeMain(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         sender.sendMessage(messages.messageFor(MessageKeys.HELP_MAIN));
     }
 
-    private void executeCategory(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeCategory(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         String category = ctx.<String>get("category").toLowerCase();
         if (!ALL_CATEGORIES.contains(category)) {
             sender.sendMessage(messages.messageFor(MessageKeys.HELP_UNKNOWN_CATEGORY));

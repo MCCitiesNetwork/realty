@@ -18,8 +18,8 @@ import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
+import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
@@ -69,7 +69,7 @@ public record OfferCommandGroup(
 
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder.literal("offer");
         return List.of(
                 base.literal("send")
@@ -123,7 +123,7 @@ public record OfferCommandGroup(
         );
     }
 
-    private static @NotNull SuggestionProvider<CommandSourceStack> playerSuggestions() {
+    private static @NotNull SuggestionProvider<Source> playerSuggestions() {
         return (ctx, input) -> CompletableFuture.completedFuture(
                 Bukkit.getOnlinePlayers().stream()
                         .map(Player::getName)
@@ -134,9 +134,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer send <price> <region> ──
 
-    private void executeSend(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeSend(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         double price = ctx.get("price");
@@ -192,9 +192,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer outbox ──
 
-    private void executeOutbox(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeOutbox(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         CompletableFuture.runAsync(() -> {
@@ -236,9 +236,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer inbox ──
 
-    private void executeInbox(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeInbox(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         CompletableFuture.runAsync(() -> {
@@ -284,9 +284,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer accept <player> <region> ──
 
-    private void executeAccept(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeAccept(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         String playerName = ctx.get("player");
@@ -344,9 +344,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer pay <amount> <region> ──
 
-    private void executePay(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executePay(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         double amount = ctx.get("amount");
@@ -459,9 +459,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer withdraw [region] ──
 
-    private void executeWithdraw(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeWithdraw(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
@@ -501,9 +501,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer reject <player> [region] ──
 
-    private void executeReject(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeReject(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         String playerName = ctx.get("player");
@@ -556,9 +556,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer rejectall [region] ──
 
-    private void executeRejectAll(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeRejectAll(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
@@ -603,9 +603,9 @@ public record OfferCommandGroup(
 
     // ── /realty offer toggle <yes/no> [region] ──
 
-    private void executeToggle(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeToggle(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         boolean accepting = ctx.get("enabled");

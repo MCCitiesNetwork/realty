@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.command;
 
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
@@ -16,14 +16,14 @@ public record VersionCommand(
 ) implements CustomCommandBean.Single {
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
         return builder.literal("version")
                 .handler(this::execute)
                 .build();
     }
 
-    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
-        ctx.sender().getSender().sendMessage(Component.text("Running Realty version " + version));
+    private void execute(@NotNull CommandContext<Source> ctx) {
+        ctx.sender().source().sendMessage(Component.text("Running Realty version " + version));
     }
 
 }

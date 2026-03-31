@@ -12,8 +12,8 @@ import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
+import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -71,7 +71,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
 
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("info")
                 .permission("realty.command.info")
@@ -80,8 +80,8 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                 .build();
     }
 
-    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void execute(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);

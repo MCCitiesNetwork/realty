@@ -8,7 +8,6 @@ import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -20,6 +19,7 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.bukkit.parser.PlayerParser;
 import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.IntegerParser;
 import org.incendo.cloud.parser.standard.StringParser;
@@ -44,17 +44,17 @@ public record ListCommand(
     private static final int PAGE_SIZE = 10;
 
     private static final CommandFlag<NamedAuthority> PLAYER_FLAG =
-            CommandFlag.<CommandSourceStack>builder("player")
+            CommandFlag.<Source>builder("player")
                     .withComponent(NamedAuthorityParser.namedAuthority())
                     .build();
 
     private static final CommandFlag<Integer> PAGE_FLAG =
-            CommandFlag.<CommandSourceStack>builder("page")
+            CommandFlag.<Source>builder("page")
                     .withComponent(IntegerParser.integerParser(1))
                     .build();
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("list")
                 .permission("realty.command.list")
@@ -72,9 +72,9 @@ public record ListCommand(
         );
     }
 
-    private void execute(@NotNull CommandContext<CommandSourceStack> ctx,
+    private void execute(@NotNull CommandContext<Source> ctx,
                          @Nullable String category) {
-        CommandSender sender = ctx.sender().getSender();
+        CommandSender sender = ctx.sender().source();
         int page = ctx.flags().getValue(PAGE_FLAG, 1);
         NamedAuthority authority = ctx.flags().getValue(PLAYER_FLAG, null);
         if (authority != null) {

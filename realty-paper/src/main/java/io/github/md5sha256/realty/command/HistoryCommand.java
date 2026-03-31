@@ -14,7 +14,7 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -71,27 +71,27 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
     );
 
     private static final CommandFlag<HistoryEventType> EVENT_FLAG =
-            CommandFlag.<CommandSourceStack>builder("event")
+            CommandFlag.<Source>builder("event")
                     .withComponent(EnumParser.enumParser(HistoryEventType.class))
                     .build();
 
     private static final CommandFlag<Duration> TIME_FLAG =
-            CommandFlag.<CommandSourceStack>builder("time")
+            CommandFlag.<Source>builder("time")
                     .withComponent(DurationParser.duration())
                     .build();
 
     private static final CommandFlag<UUID> PLAYER_FLAG =
-            CommandFlag.<CommandSourceStack>builder("player")
+            CommandFlag.<Source>builder("player")
                     .withComponent(AuthorityParser.authority())
                     .build();
 
     private static final CommandFlag<Integer> PAGE_FLAG =
-            CommandFlag.<CommandSourceStack>builder("page")
+            CommandFlag.<Source>builder("page")
                     .withComponent(IntegerParser.integerParser(1))
                     .build();
 
     @Override
-    public @NotNull Command<CommandSourceStack> command(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull Command<Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
                 .literal("history")
                 .permission("realty.command.history")
@@ -104,8 +104,8 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
                 .build();
     }
 
-    private void execute(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void execute(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);

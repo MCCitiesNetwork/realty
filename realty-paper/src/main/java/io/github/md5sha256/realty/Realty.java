@@ -59,7 +59,8 @@ import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
 import io.github.md5sha256.realty.util.ExecutorState;
 import io.github.md5sha256.realty.util.SimpleDateFormatSerializer;
 import io.github.md5sha256.realty.util.TransientNotificationService;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.PaperSimpleSenderMapper;
+import org.incendo.cloud.paper.util.sender.Source;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -474,19 +475,19 @@ public final class Realty extends JavaPlugin {
                 new SubregionCommandGroup(executorState, logic, this.settings, this.regionProfileService, messageContainer)
         );
 
-        var manager = PaperCommandManager.builder()
+        var manager = PaperCommandManager.builder(PaperSimpleSenderMapper.simpleSenderMapper())
                 .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
                 .buildOnEnable(this);
         manager.brigadierManager().setNativeNumberSuggestions(true);
-        Command.Builder<CommandSourceStack> rootBuilder = manager.commandBuilder("realty", "rl");
+        Command.Builder<Source> rootBuilder = manager.commandBuilder("realty", "rl");
         // Register help commands and proxy the root literal to the base help command
-        List<Command<CommandSourceStack>> helpCommands = helpCommand.commands(rootBuilder);
-        for (Command<CommandSourceStack> cmd : helpCommands) {
+        List<Command<Source>> helpCommands = helpCommand.commands(rootBuilder);
+        for (Command<Source> cmd : helpCommands) {
             manager.command(cmd);
         }
         manager.command(rootBuilder.proxies(helpCommands.getFirst()));
         for (CustomCommandBean bean : commands) {
-            for (Command<CommandSourceStack> cmd : bean.commands(rootBuilder)) {
+            for (Command<Source> cmd : bean.commands(rootBuilder)) {
                 manager.command(cmd);
             }
         }

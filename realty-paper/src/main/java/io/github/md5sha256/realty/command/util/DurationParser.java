@@ -1,6 +1,6 @@
 package io.github.md5sha256.realty.command.util;
 
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.context.CommandInput;
 import org.incendo.cloud.parser.ArgumentParseResult;
@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 
-public class DurationParser implements ArgumentParser<CommandSourceStack, Duration> {
+public class DurationParser implements ArgumentParser<Source, Duration> {
 
     private static final Duration MIN_DURATION = Duration.ZERO;
     private static final Duration MAX_DURATION = Duration.ofSeconds(Long.MAX_VALUE);
@@ -28,22 +28,22 @@ public class DurationParser implements ArgumentParser<CommandSourceStack, Durati
         this.maximum = maximum;
     }
 
-    public static @NotNull ParserDescriptor<CommandSourceStack, Duration> duration() {
+    public static @NotNull ParserDescriptor<Source, Duration> duration() {
         return ParserDescriptor.of(new DurationParser(MIN_DURATION, MAX_DURATION), Duration.class);
     }
 
-    public static @NotNull ParserDescriptor<CommandSourceStack, Duration> duration(@NotNull Duration min) {
+    public static @NotNull ParserDescriptor<Source, Duration> duration(@NotNull Duration min) {
         return ParserDescriptor.of(new DurationParser(min, MAX_DURATION), Duration.class);
     }
 
-    public static @NotNull ParserDescriptor<CommandSourceStack, Duration> duration(@NotNull Duration min,
+    public static @NotNull ParserDescriptor<Source, Duration> duration(@NotNull Duration min,
                                                                                    @NotNull Duration max) {
         return ParserDescriptor.of(new DurationParser(min, max), Duration.class);
     }
 
     @Override
     public @NotNull ArgumentParseResult<Duration> parse(
-            @NotNull CommandContext<CommandSourceStack> ctx,
+            @NotNull CommandContext<Source> ctx,
             @NotNull CommandInput input
     ) {
         String raw = input.readString();

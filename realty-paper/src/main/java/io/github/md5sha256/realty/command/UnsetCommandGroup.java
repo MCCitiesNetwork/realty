@@ -9,8 +9,8 @@ import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.incendo.cloud.paper.util.sender.Source;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -41,7 +41,7 @@ public record UnsetCommandGroup(
 ) implements CustomCommandBean {
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("unset");
         return List.of(
@@ -63,8 +63,8 @@ public record UnsetCommandGroup(
         );
     }
 
-    private void executeUnsetPrice(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeUnsetPrice(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
@@ -108,8 +108,8 @@ public record UnsetCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeUnsetTitleHolder(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeUnsetTitleHolder(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
@@ -155,8 +155,8 @@ public record UnsetCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeUnsetTenant(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeUnsetTenant(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);

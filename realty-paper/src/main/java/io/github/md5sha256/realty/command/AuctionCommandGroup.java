@@ -23,8 +23,8 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
+import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
@@ -69,7 +69,7 @@ public record AuctionCommandGroup(
 ) implements CustomCommandBean {
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder.literal("auction");
         return List.of(
                 base.literal("info")
@@ -107,8 +107,8 @@ public record AuctionCommandGroup(
 
     // ── /realty auction info [region] ──
 
-    private void executeInfo(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeInfo(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
@@ -165,8 +165,8 @@ public record AuctionCommandGroup(
 
     // ── /realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region> ──
 
-    private void executeCreate(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeCreate(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         if (!(sender instanceof Player player)) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
@@ -213,8 +213,8 @@ public record AuctionCommandGroup(
 
     // ── /realty auction cancel [region] ──
 
-    private void executeCancel(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeCancel(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
@@ -246,9 +246,9 @@ public record AuctionCommandGroup(
 
     // ── /realty auction bid <amount> <region> ──
 
-    private void executeBid(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeBid(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         double bidAmount = ctx.<Double>get("bid");
@@ -298,9 +298,9 @@ public record AuctionCommandGroup(
 
     // ── /realty auction paybid <amount> <region> ──
 
-    private void executePayBid(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player sender)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executePayBid(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         double amount = ctx.get("amount");

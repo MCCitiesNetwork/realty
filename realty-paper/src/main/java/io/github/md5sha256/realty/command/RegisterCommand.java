@@ -11,8 +11,8 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.incendo.cloud.paper.util.sender.Source;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -49,28 +49,28 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
     private static final CloudKey<Integer> MAX_EXTENSIONS = CloudKey.of("maxrenewals", Integer.class);
     private static final CommandFlag<UUID> AUTHORITY_FLAG =
-            CommandFlag.<CommandSourceStack>builder("authority")
+            CommandFlag.<Source>builder("authority")
                     .withComponent(AuthorityParser.authority())
                     .build();
 
     private static final CommandFlag<UUID> TITLEHOLDER_FLAG =
-            CommandFlag.<CommandSourceStack>builder("titleholder")
+            CommandFlag.<Source>builder("titleholder")
                     .withComponent(AuthorityParser.authority())
                     .build();
 
     private static final CommandFlag<Double> PRICE_FLAG =
-            CommandFlag.<CommandSourceStack>builder("price")
+            CommandFlag.<Source>builder("price")
                     .withComponent(DoubleParser.doubleParser(0))
                     .build();
 
     private static final CommandFlag<UUID> LANDLORD_FLAG =
-            CommandFlag.<CommandSourceStack>builder("landlord")
+            CommandFlag.<Source>builder("landlord")
                     .withComponent(AuthorityParser.authority())
                     .build();
 
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("register");
         return List.of(
@@ -94,8 +94,8 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
         );
     }
 
-    private void executeLeasehold(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeLeasehold(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
@@ -136,8 +136,8 @@ public record RegisterCommand(@NotNull ExecutorState executorState,
         });
     }
 
-    private void executeFreehold(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeFreehold(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         Double price = ctx.flags().getValue(PRICE_FLAG, null);
         UUID authority = ctx.flags()
                 .getValue(AUTHORITY_FLAG, settings.get().defaultFreeholdAuthority());

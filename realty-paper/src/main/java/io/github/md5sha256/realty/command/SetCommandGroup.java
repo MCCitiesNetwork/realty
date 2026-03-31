@@ -14,8 +14,8 @@ import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
@@ -59,7 +59,7 @@ public record SetCommandGroup(
     }
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(@NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull List<Command<Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("set");
         return List.of(
@@ -102,8 +102,8 @@ public record SetCommandGroup(
         );
     }
 
-    private void executeSetPrice(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeSetPrice(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         double price = ctx.get("price");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
@@ -152,8 +152,8 @@ public record SetCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeSetDuration(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeSetDuration(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         Duration duration = ctx.get("duration");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
@@ -193,8 +193,8 @@ public record SetCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeSetLandlord(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeSetLandlord(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         UUID landlordId = ctx.get("landlord");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
@@ -238,8 +238,8 @@ public record SetCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeSetTitleHolder(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeSetTitleHolder(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         UUID titleHolderId = ctx.get("titleholder");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
@@ -300,8 +300,8 @@ public record SetCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeSetTenant(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeSetTenant(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         UUID tenantId = ctx.get("tenant");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
@@ -358,8 +358,8 @@ public record SetCommandGroup(
         }, executorState.dbExec());
     }
 
-    private void executeSetMaxExtensions(@NotNull CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.sender().getSender();
+    private void executeSetMaxExtensions(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
         int maxExtensions = ctx.get("maxextensions");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player

@@ -1,6 +1,6 @@
 package io.github.md5sha256.realty.command.util;
 
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -16,15 +16,15 @@ import org.jetbrains.annotations.NotNull;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-public class AuthorityParser implements ArgumentParser<CommandSourceStack, UUID> {
+public class AuthorityParser implements ArgumentParser<Source, UUID> {
 
-    public static @NotNull ParserDescriptor<CommandSourceStack, UUID> authority() {
+    public static @NotNull ParserDescriptor<Source, UUID> authority() {
         return ParserDescriptor.of(new AuthorityParser(), UUID.class);
     }
 
     @Override
     public @NotNull ArgumentParseResult<UUID> parse(
-            @NotNull CommandContext<CommandSourceStack> ctx,
+            @NotNull CommandContext<Source> ctx,
             @NotNull CommandInput input
     ) {
         String name = input.readString();
@@ -41,7 +41,7 @@ public class AuthorityParser implements ArgumentParser<CommandSourceStack, UUID>
     }
 
     @Override
-    public @NotNull SuggestionProvider<CommandSourceStack> suggestionProvider() {
+    public @NotNull SuggestionProvider<Source> suggestionProvider() {
         return (ctx, input) -> CompletableFuture.completedFuture(
                 Bukkit.getOnlinePlayers().stream()
                         .map(Player::getName)

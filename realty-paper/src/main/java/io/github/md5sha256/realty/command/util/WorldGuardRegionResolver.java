@@ -6,7 +6,7 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.incendo.cloud.context.CommandContext;
@@ -30,20 +30,20 @@ import java.util.concurrent.CompletableFuture;
  * <p>Use this as an <strong>optional</strong> argument so that the location fallback
  * triggers when the player omits the region name.</p>
  */
-public class WorldGuardRegionResolver implements ArgumentParser<CommandSourceStack, WorldGuardRegion> {
+public class WorldGuardRegionResolver implements ArgumentParser<Source, WorldGuardRegion> {
 
-    public static @NotNull ParserDescriptor<CommandSourceStack, WorldGuardRegion> worldGuardRegionResolver() {
+    public static @NotNull ParserDescriptor<Source, WorldGuardRegion> worldGuardRegionResolver() {
         return ParserDescriptor.of(new WorldGuardRegionResolver(), WorldGuardRegion.class);
     }
 
     @Override
     public @NotNull ArgumentParseResult<WorldGuardRegion> parse(
-            @NotNull CommandContext<CommandSourceStack> ctx,
+            @NotNull CommandContext<Source> ctx,
             @NotNull CommandInput input
     ) {
         String regionName = input.readString();
-        CommandSourceStack source = ctx.sender();
-        World world = source.getLocation().getWorld();
+        Source source = ctx.sender();
+        World world = source.stack().getLocation().getWorld();
         RegionManager regionManager = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
@@ -88,10 +88,10 @@ public class WorldGuardRegionResolver implements ArgumentParser<CommandSourceSta
     }
 
     @Override
-    public @NotNull SuggestionProvider<CommandSourceStack> suggestionProvider() {
+    public @NotNull SuggestionProvider<Source> suggestionProvider() {
         return (ctx, input) -> {
-            CommandSourceStack source = ctx.sender();
-            World world = source.getLocation().getWorld();
+            Source source = ctx.sender();
+            World world = source.stack().getLocation().getWorld();
             RegionManager regionManager = WorldGuard.getInstance()
                     .getPlatform()
                     .getRegionContainer()

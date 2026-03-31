@@ -27,7 +27,7 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ExecutorState;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
+import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -61,8 +61,8 @@ public record SubregionCommandGroup(
     private static final CloudKey<Duration> DURATION = CloudKey.of("duration", Duration.class);
 
     @Override
-    public @NotNull List<Command<CommandSourceStack>> commands(
-            @NotNull Command.Builder<CommandSourceStack> builder) {
+    public @NotNull List<Command<Source>> commands(
+            @NotNull Command.Builder<Source> builder) {
         var base = builder.literal("subregion");
         return List.of(
                 base.literal("quickcreate")
@@ -88,9 +88,9 @@ public record SubregionCommandGroup(
 
     private static final String BYPASS_PERMISSION = "realty.command.subregion.quickcreate.bypass";
 
-    private void executeQuickCreate(@NotNull CommandContext<CommandSourceStack> ctx) {
-        if (!(ctx.sender().getSender() instanceof Player player)) {
-            ctx.sender().getSender().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+    private void executeQuickCreate(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player player)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
         WorldGuardRegion parentRegion = ctx.get(PARENT_REGION);
