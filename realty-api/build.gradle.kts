@@ -8,6 +8,10 @@ dependencies {
     compileOnly("org.jetbrains:annotations:26.0.2-1")
 }
 
+java {
+    withSourcesJar()
+}
+
 publishing {
     repositories {
         maven {
