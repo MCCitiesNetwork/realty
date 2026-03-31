@@ -61,6 +61,16 @@ public record SetCommandGroup(
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
                 .literal("set");
+        var titleholderCommand = base.literal("titleholder")
+                .permission("realty.command.set.titleholder")
+                .required("titleholder", AuthorityParser.authority())
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                .handler(this::executeSetTitleHolder)
+                .build();
+        var transferCommand = base.literal("transfer")
+                .permission("realty.command.set.titleholder")
+                .proxies(titleholderCommand)
+                .build();
         return List.of(
                 base.literal("price")
                         .permission("realty.command.set.price")
@@ -80,12 +90,8 @@ public record SetCommandGroup(
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetLandlord)
                         .build(),
-                base.literal("titleholder")
-                        .permission("realty.command.set.titleholder")
-                        .required("titleholder", AuthorityParser.authority())
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
-                        .handler(this::executeSetTitleHolder)
-                        .build(),
+                titleholderCommand,
+                transferCommand,
                 base.literal("tenant")
                         .permission("realty.command.set.tenant")
                         .required("tenant", AuthorityParser.authority())
