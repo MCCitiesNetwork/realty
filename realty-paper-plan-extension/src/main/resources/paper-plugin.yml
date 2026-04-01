@@ -1,4 +1,4 @@
-name: Realty Plan Extension
+name: RealtyPlanExtension
 version: "${version}"
 main: io.github.md5sha256.realty.plan.RealtyPaperPlanExtensionPlugin
 api-version: "1.21.8"
