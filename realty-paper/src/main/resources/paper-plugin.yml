@@ -6,12 +6,15 @@ authors: [ md5sha256 ]
 dependencies:
   server:
     Vault:
+      load: BEFORE
       join-classpath: true
       required: true
     WorldGuard:
+      load: BEFORE
       join-classpath: true
       required: true
     Essentials:
+      load: BEFORE
       join-classpath: true
       required: false
 permissions:

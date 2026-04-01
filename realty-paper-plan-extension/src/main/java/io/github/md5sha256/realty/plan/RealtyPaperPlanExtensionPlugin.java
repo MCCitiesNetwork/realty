@@ -1,13 +1,11 @@
 package io.github.md5sha256.realty.plan;
 
-import com.djrapitops.plan.extension.DataExtension;
-import com.djrapitops.plan.extension.ExtensionService;
 import io.github.md5sha256.realty.api.RealtyApi;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class RealtyPaperPlanExtensionPlugin extends JavaPlugin {
 
-    private DataExtension dataExtension;
+    private PlanRegistration registration;
 
     @Override
     public void onEnable() {
@@ -17,13 +15,14 @@ public final class RealtyPaperPlanExtensionPlugin extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        var api = provider.getProvider();
-        this.dataExtension = new RealtyDataExtension(api);
-        ExtensionService.getInstance().register(dataExtension);
+        this.registration = new PlanRegistration(provider.getProvider());
+        this.registration.register();
     }
 
     @Override
     public void onDisable() {
-        ExtensionService.getInstance().unregister(dataExtension);
+        if (registration != null) {
+            registration.unregister();
+        }
     }
 }
