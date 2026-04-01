@@ -128,34 +128,35 @@ public record RealtyDataExtension(@NotNull RealtyApi realtyApi) implements DataE
 
     @NumberProvider(
             text = "Owned Regions",
-            description = "Number of regions where this player is the authority",
+            description = "Number of regions where this player is a landlord or title holder",
             iconName = "key",
             iconFamily = Family.SOLID,
             iconColor = Color.BLUE
     )
     public long playerTotalOwnedRegions(UUID playerUUID) {
-        return realtyApi.countRegionsByAuthority(playerUUID);
+        return realtyApi.countRegionsByTitleHolder(playerUUID)
+                + realtyApi.countRegionsByLandlord(playerUUID);
     }
 
     @NumberProvider(
-            text = "Freehold Title Holdings",
+            text = "Titleholder Regions",
             description = "Number of freehold contracts where this player is the title holder",
             iconName = "house-user",
             iconFamily = Family.SOLID,
             iconColor = Color.BLUE
     )
-    public long playerTotalOwnedFreeholdContracts(UUID playerUUID) {
+    public long playerTotalTitleholderRegions(UUID playerUUID) {
         return realtyApi.countRegionsByTitleHolder(playerUUID);
     }
 
     @NumberProvider(
-            text = "Leasehold Landlord Count",
+            text = "Landlord Regions",
             description = "Number of leasehold contracts where this player is the landlord",
             iconName = "building",
             iconFamily = Family.SOLID,
             iconColor = Color.AMBER
     )
-    public long playerTotalOwnedLeaseholdContracts(UUID playerUUID) {
+    public long playerTotalLandlordRegions(UUID playerUUID) {
         return realtyApi.countRegionsByLandlord(playerUUID);
     }
 

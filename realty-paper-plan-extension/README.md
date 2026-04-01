@@ -27,9 +27,9 @@ A [Plan](https://github.com/plan-player-analytics/Plan) DataExtension plugin tha
 
 | Provider | Type | Description |
 |---|---|---|
-| Owned Regions | Number | Regions where this player is the authority |
-| Freehold Title Holdings | Number | Freehold contracts where this player is the title holder |
-| Leasehold Landlord Count | Number | Leasehold contracts where this player is the landlord |
+| Owned Regions | Number | Regions where this player is a landlord or title holder |
+| Titleholder Regions | Number | Freehold contracts where this player is the title holder |
+| Landlord Regions | Number | Leasehold contracts where this player is the landlord |
 | Leasehold Tenancies | Number | Leasehold contracts where this player is the tenant |
 | Leasehold Occupancy | Percentage | Percentage of this player's leasehold contracts that have a tenant |
 
