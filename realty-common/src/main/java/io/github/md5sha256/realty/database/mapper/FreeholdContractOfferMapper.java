@@ -35,4 +35,6 @@ public interface FreeholdContractOfferMapper {
 
     @NotNull List<InboundOfferView> selectAllByTitleHolder(@NotNull UUID titleHolderId);
 
+    int countAll();
+
 }

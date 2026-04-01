@@ -122,4 +122,8 @@ public interface FreeholdContractMapper {
                                       @NotNull UUID worldId,
                                       boolean acceptingOffers);
 
+    int countAll();
+
+    int countOccupied();
+
 }

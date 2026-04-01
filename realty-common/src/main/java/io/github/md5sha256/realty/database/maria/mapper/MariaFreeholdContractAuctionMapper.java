@@ -183,4 +183,12 @@ public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuct
     boolean existsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                            @Param("worldId") @NotNull UUID worldId);
 
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM FreeholdContractAuction
+            WHERE ended = FALSE
+            """)
+    int countActive();
+
 }

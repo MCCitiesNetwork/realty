@@ -502,6 +502,34 @@ public interface RealtyApi {
 
     @NotNull List<ExpiredLeasehold> clearExpiredLeaseholds();
 
+    // --- Aggregate Statistics ---
+
+    int countAllRegions();
+
+    int countAllFreeholdContracts();
+
+    int countAllLeaseholdContracts();
+
+    int countOccupiedFreeholdContracts();
+
+    int countOccupiedLeaseholdContracts();
+
+    int countActiveOffers();
+
+    int countActiveAuctions();
+
+    int countRegionsByAuthority(@NotNull UUID playerId);
+
+    int countRegionsByTitleHolder(@NotNull UUID playerId);
+
+    int countRegionsByLandlord(@NotNull UUID playerId);
+
+    int countRegionsByTenant(@NotNull UUID playerId);
+
+    int countOccupiedLeaseholdsByLandlord(@NotNull UUID landlordId);
+
+    long averageLeaseholdDurationSeconds();
+
     // --- History Search ---
 
     record HistoryResult(@NotNull List<HistoryEntry> entries, int totalCount) {}

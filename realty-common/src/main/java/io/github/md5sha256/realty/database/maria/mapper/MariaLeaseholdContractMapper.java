@@ -202,4 +202,45 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
     int updateMaxRenewalsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                   @Param("worldId") @NotNull UUID worldId,
                                   @Param("maxRenewals") int maxRenewals);
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM LeaseholdContract
+            """)
+    int countAll();
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM LeaseholdContract
+            WHERE tenantId IS NOT NULL
+            """)
+    int countOccupied();
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM LeaseholdContract
+            WHERE landlordId = #{landlordId}
+            """)
+    int countByLandlord(@Param("landlordId") @NotNull UUID landlordId);
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM LeaseholdContract
+            WHERE landlordId = #{landlordId}
+            AND tenantId IS NOT NULL
+            """)
+    int countOccupiedByLandlord(@Param("landlordId") @NotNull UUID landlordId);
+
+    @Override
+    @Select("""
+            SELECT COALESCE(AVG(TIMESTAMPDIFF(SECOND, startDate, endDate)), 0)
+            FROM LeaseholdContract
+            WHERE tenantId IS NOT NULL
+            AND startDate IS NOT NULL
+            """)
+    long averageLeaseholdDurationSeconds();
 }

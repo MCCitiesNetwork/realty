@@ -39,4 +39,8 @@ public interface RealtyRegionMapper {
 
     int countRegionsByTenant(@NotNull UUID playerId);
 
+    int countRegionsByLandlord(@NotNull UUID playerId);
+
+    int countAll();
+
 }

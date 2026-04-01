@@ -50,4 +50,14 @@ public interface LeaseholdContractMapper {
     int updateMaxRenewalsByRegion(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,
                                   int maxRenewals);
+
+    int countAll();
+
+    int countOccupied();
+
+    int countByLandlord(@NotNull UUID landlordId);
+
+    int countOccupiedByLandlord(@NotNull UUID landlordId);
+
+    long averageLeaseholdDurationSeconds();
 }

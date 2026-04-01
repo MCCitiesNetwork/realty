@@ -1414,6 +1414,99 @@ public class RealtyApiImpl implements RealtyApi {
         return results;
     }
 
+    // --- Aggregate Statistics ---
+
+    @Override
+    public int countAllRegions() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper().countAll();
+        }
+    }
+
+    @Override
+    public int countAllFreeholdContracts() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.freeholdContractMapper().countAll();
+        }
+    }
+
+    @Override
+    public int countAllLeaseholdContracts() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdContractMapper().countAll();
+        }
+    }
+
+    @Override
+    public int countOccupiedFreeholdContracts() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.freeholdContractMapper().countOccupied();
+        }
+    }
+
+    @Override
+    public int countOccupiedLeaseholdContracts() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdContractMapper().countOccupied();
+        }
+    }
+
+    @Override
+    public int countActiveOffers() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.freeholdContractOfferMapper().countAll();
+        }
+    }
+
+    @Override
+    public int countActiveAuctions() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.freeholdContractAuctionMapper().countActive();
+        }
+    }
+
+    @Override
+    public int countRegionsByAuthority(@NotNull UUID playerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper().countRegionsByAuthority(playerId);
+        }
+    }
+
+    @Override
+    public int countRegionsByTitleHolder(@NotNull UUID playerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper().countRegionsByTitleHolder(playerId);
+        }
+    }
+
+    @Override
+    public int countRegionsByLandlord(@NotNull UUID playerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper().countRegionsByLandlord(playerId);
+        }
+    }
+
+    @Override
+    public int countRegionsByTenant(@NotNull UUID playerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper().countRegionsByTenant(playerId);
+        }
+    }
+
+    @Override
+    public int countOccupiedLeaseholdsByLandlord(@NotNull UUID landlordId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdContractMapper().countOccupiedByLandlord(landlordId);
+        }
+    }
+
+    @Override
+    public long averageLeaseholdDurationSeconds() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdContractMapper().averageLeaseholdDurationSeconds();
+        }
+    }
+
     // --- History Search ---
 
 

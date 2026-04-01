@@ -38,4 +38,6 @@ public interface FreeholdContractAuctionMapper {
     int deleteActiveAuctionByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     boolean existsByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    int countActive();
 }

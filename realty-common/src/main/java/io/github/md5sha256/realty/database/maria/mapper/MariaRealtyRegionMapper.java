@@ -169,4 +169,21 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             """)
     int countRegionsByTenant(@Param("playerId") @NotNull UUID playerId);
 
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
+            INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
+            WHERE lc.landlordId = #{playerId}
+            """)
+    int countRegionsByLandlord(@Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM RealtyRegion
+            """)
+    int countAll();
+
 }

@@ -152,4 +152,19 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
                                       @Param("worldId") @NotNull UUID worldId,
                                       @Param("acceptingOffers") boolean acceptingOffers);
 
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM FreeholdContract
+            """)
+    int countAll();
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM FreeholdContract
+            WHERE titleHolderId IS NOT NULL
+            """)
+    int countOccupied();
+
 }

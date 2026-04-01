@@ -168,4 +168,11 @@ public interface MariaFreeholdContractOfferMapper extends FreeholdContractOfferM
     })
     @NotNull List<InboundOfferView> selectAllByTitleHolder(@Param("titleHolderId") @NotNull UUID titleHolderId);
 
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM FreeholdContractOffer
+            """)
+    int countAll();
+
 }
