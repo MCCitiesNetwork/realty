@@ -1,0 +1,13 @@
+name: Realty-Plan-Extension
+version: "${version}"
+main: io.github.md5sha256.realty.plan.RealtyPaperPlanExtensionPlugin
+api-version: "1.21.8"
+authors: [ md5sha256 ]
+dependencies:
+  server:
+    Realty:
+      join-classpath: true
+      required: true
+    Plan:
+      join-classpath: true
+      required: true
