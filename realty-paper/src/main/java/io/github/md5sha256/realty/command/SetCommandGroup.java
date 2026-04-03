@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
@@ -184,7 +185,7 @@ public record SetCommandGroup(
                 switch (result) {
                     case RealtyApi.SetDurationResult.Success ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_SUCCESS,
-                                    Placeholder.unparsed("duration", duration.toString()),
+                                    Placeholder.unparsed("duration", DurationFormatter.format(duration)),
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyApi.SetDurationResult.NoLeaseholdContract ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_NO_LEASEHOLD_CONTRACT,
