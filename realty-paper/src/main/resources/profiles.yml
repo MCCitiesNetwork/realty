@@ -62,7 +62,7 @@
 #         - "<dark_red><bold>[Leased]"
 #         - "<region>"
 #         - "<tenant>"
-#         - "<end_date>"
+#         - "<time_left>"
 #       left-click-commands:
 #         - "realty info <region>"
 # grouped:

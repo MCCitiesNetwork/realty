@@ -182,6 +182,7 @@ public record InfoCommand(@NotNull ExecutorState executorState,
                         Placeholder.unparsed("end_date", leasehold.endDate() != null
                                 ? DateFormatter.format(settings.get(), leasehold.endDate())
                                 : "N/A"),
+                        Placeholder.unparsed("time_left", DurationFormatter.formatTimeLeft(leasehold.endDate())),
                         Placeholder.unparsed("extensions", extensions)));
     }
 

@@ -181,6 +181,7 @@ public final class MessageKeys {
     public static final String LIST_HEADER = "list.header";
     public static final String LIST_CATEGORY = "list.category";
     public static final String LIST_ENTRY = "list.entry";
+    public static final String LIST_RENTED_ENTRY = "list.rented-entry";
     public static final String LIST_FOOTER = "list.footer";
     public static final String LIST_PREVIOUS = "list.previous";
     public static final String LIST_NEXT = "list.next";
