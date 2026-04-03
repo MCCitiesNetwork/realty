@@ -154,7 +154,8 @@ public final class MessageKeys {
     public static final String HISTORY_EVENT_UNRENT = "history.event.unrent";
     public static final String HISTORY_EVENT_RENEW = "history.event.renew";
     public static final String HISTORY_EVENT_LEASEHOLD_EXPIRY = "history.event.leasehold-expiry";
-    public static final String HISTORY_EVENT_SET_PRICE = "history.event.set-price";
+    public static final String HISTORY_EVENT_SET_PRICE_FREEHOLD = "history.event.set-price-freehold";
+    public static final String HISTORY_EVENT_SET_PRICE_LEASEHOLD = "history.event.set-price-leasehold";
     public static final String HISTORY_EVENT_UNSET_PRICE = "history.event.unset-price";
     public static final String HISTORY_EVENT_SET_TITLEHOLDER = "history.event.set-titleholder";
     public static final String HISTORY_EVENT_UNSET_TITLEHOLDER = "history.event.unset-titleholder";
@@ -308,7 +309,7 @@ public final class MessageKeys {
 
     // set-price
     public static final String SET_PRICE_SUCCESS = "set-price.success";
-    public static final String SET_PRICE_NO_FREEHOLD_CONTRACT = "set-price.no-freehold-contract";
+    public static final String SET_PRICE_NO_CONTRACT = "set-price.no-contract";
     public static final String SET_PRICE_AUCTION_EXISTS = "set-price.auction-exists";
     public static final String SET_PRICE_OFFER_PAYMENT_IN_PROGRESS = "set-price.offer-payment-in-progress";
     public static final String SET_PRICE_BID_PAYMENT_IN_PROGRESS = "set-price.bid-payment-in-progress";

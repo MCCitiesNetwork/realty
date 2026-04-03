@@ -134,7 +134,8 @@ history:
     rent: "<gray><time></gray> <yellow>Rented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
     unrent: "<gray><time></gray> <yellow>Unrented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
     leasehold-expiry: "<gray><time></gray> <yellow>Lease Expired</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-    set-price: "<gray><time></gray> <yellow>Price Set</yellow> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
+    set-price-freehold: "<gray><time></gray> <yellow>Price Set</yellow> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
+    set-price-leasehold: "<gray><time></gray> <yellow>Lease Price Set</yellow> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
     unset-price: "<gray><time></gray> <yellow>Price Unset</yellow> | Authority: <dark_green><authority></dark_green>"
     set-titleholder: "<gray><time></gray> <yellow>Titleholder Set</yellow> | New Titleholder: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green>"
     unset-titleholder: "<gray><time></gray> <yellow>Titleholder Unset</yellow> | Previous: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green>"
@@ -242,7 +243,7 @@ help:
   management:
     - "<gold>--- Realty > Management ---</gold>"
     - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
-    - "<yellow>/realty set price <price> <region></yellow> <gray>- Set region freehold price</gray>"
+    - "<yellow>/realty set price <price> <region></yellow> <gray>- Set freehold or leasehold price</gray>"
     - "<yellow>/realty unset price <region></yellow> <gray>- Remove region freehold price</gray>"
     - "<yellow>/realty set duration <duration> <region></yellow> <gray>- Set lease duration</gray>"
     - "<yellow>/realty set landlord <player> <region></yellow> <gray>- Set lease landlord</gray>"
@@ -323,7 +324,7 @@ set:
 
 set-price:
   success: "Price for region <region> set to <price>."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
+  no-contract: "Region <region> has no freehold or leasehold contract."
   auction-exists: "Region <region> has an active auction. Price cannot be changed."
   offer-payment-in-progress: "Region <region> has an offer payment in progress. Price cannot be changed."
   bid-payment-in-progress: "Region <region> has a bid payment in progress. Price cannot be changed."

@@ -564,6 +564,25 @@ class MapperTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("updatePriceByRegion updates price")
+        void updatePrice() {
+            String regionId = uniqueRegionId();
+            createLeaseholdRegion(regionId, AUTHORITY);
+
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                int updated = wrapper.leaseholdContractMapper()
+                        .updatePriceByRegion(regionId, WORLD_ID, 350.0);
+                session.commit();
+                Assertions.assertEquals(1, updated);
+
+                LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
+                        .selectByRegion(regionId, WORLD_ID);
+                Assertions.assertEquals(350.0, entity.price());
+            }
+        }
+
+        @Test
         @DisplayName("updateDurationByRegion returns 0 for nonexistent")
         void updateDurationNonexistent() {
             try (SqlSessionWrapper wrapper = database.openSession();

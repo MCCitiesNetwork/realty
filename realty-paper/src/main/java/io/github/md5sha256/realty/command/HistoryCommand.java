@@ -58,7 +58,7 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
             Map.entry("UNRENT", MessageKeys.HISTORY_EVENT_UNRENT),
             Map.entry("RENEW", MessageKeys.HISTORY_EVENT_RENEW),
             Map.entry("LEASEHOLD_EXPIRY", MessageKeys.HISTORY_EVENT_LEASEHOLD_EXPIRY),
-            Map.entry("SET_PRICE", MessageKeys.HISTORY_EVENT_SET_PRICE),
+            Map.entry("SET_PRICE", MessageKeys.HISTORY_EVENT_SET_PRICE_FREEHOLD),
             Map.entry("UNSET_PRICE", MessageKeys.HISTORY_EVENT_UNSET_PRICE),
             Map.entry("SET_TITLEHOLDER", MessageKeys.HISTORY_EVENT_SET_TITLEHOLDER),
             Map.entry("UNSET_TITLEHOLDER", MessageKeys.HISTORY_EVENT_UNSET_TITLEHOLDER),
@@ -67,6 +67,11 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
             Map.entry("SET_TENANT", MessageKeys.HISTORY_EVENT_SET_TENANT),
             Map.entry("UNSET_TENANT", MessageKeys.HISTORY_EVENT_UNSET_TENANT),
             Map.entry("SET_MAX_EXTENSIONS", MessageKeys.HISTORY_EVENT_SET_MAX_EXTENSIONS)
+    );
+
+    /** Event types where leasehold history uses a different message key than freehold for the same name. */
+    private static final Map<String, String> LEASEHOLD_EVENT_MESSAGE_KEYS = Map.of(
+            "SET_PRICE", MessageKeys.HISTORY_EVENT_SET_PRICE_LEASEHOLD
     );
 
     private static final CommandFlag<HistoryEventType> EVENT_FLAG =
@@ -150,26 +155,34 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
 
                 for (HistoryEntry entry : result.entries()) {
                     builder.appendNewline();
-                    String messageKey = resolveEventMessageKey(entry.eventType());
                     switch (entry) {
-                        case HistoryEntry.Freehold freehold -> builder.append(
-                                messages.messageFor(messageKey,
-                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(), freehold.eventTime())),
-                                        Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
-                                        Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
-                                        Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
-                        case HistoryEntry.Agent agent -> builder.append(
-                                messages.messageFor(messageKey,
-                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
-                                        Placeholder.unparsed("agent", resolveName(agent.agentId())),
-                                        Placeholder.unparsed("actor", resolveName(agent.actorId()))));
-                        case HistoryEntry.Leasehold lease -> builder.append(
-                                messages.messageFor(messageKey,
-                                        Placeholder.unparsed("time", DateFormatter.format(settings.get(), lease.eventTime())),
-                                        Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
-                                        Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
-                                        Placeholder.unparsed("price",
-                                                lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A")));
+                        case HistoryEntry.Freehold freehold -> {
+                            String messageKey = resolveEventMessageKey(freehold.eventType());
+                            builder.append(
+                                    messages.messageFor(messageKey,
+                                            Placeholder.unparsed("time", DateFormatter.format(settings.get(), freehold.eventTime())),
+                                            Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
+                                            Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
+                                            Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
+                        }
+                        case HistoryEntry.Agent agent -> {
+                            String messageKey = resolveEventMessageKey(agent.eventType());
+                            builder.append(
+                                    messages.messageFor(messageKey,
+                                            Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
+                                            Placeholder.unparsed("agent", resolveName(agent.agentId())),
+                                            Placeholder.unparsed("actor", resolveName(agent.actorId()))));
+                        }
+                        case HistoryEntry.Leasehold lease -> {
+                            String messageKey = resolveLeaseholdEventMessageKey(lease.eventType());
+                            builder.append(
+                                    messages.messageFor(messageKey,
+                                            Placeholder.unparsed("time", DateFormatter.format(settings.get(), lease.eventTime())),
+                                            Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
+                                            Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
+                                            Placeholder.unparsed("price",
+                                                    lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A")));
+                        }
                     }
                 }
 
@@ -224,6 +237,10 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
     private static @NotNull String resolveEventMessageKey(@NotNull String eventType) {
         String key = EVENT_TYPE_MESSAGE_KEYS.get(eventType);
         return key != null ? key : eventType;
+    }
+
+    private static @NotNull String resolveLeaseholdEventMessageKey(@NotNull String eventType) {
+        return LEASEHOLD_EVENT_MESSAGE_KEYS.getOrDefault(eventType, resolveEventMessageKey(eventType));
     }
 
     private static @NotNull String resolveName(@NotNull UUID uuid) {

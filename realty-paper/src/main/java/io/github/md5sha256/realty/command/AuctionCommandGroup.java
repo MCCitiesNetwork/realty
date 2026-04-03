@@ -11,6 +11,7 @@ import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -80,8 +81,10 @@ public record AuctionCommandGroup(
                 base.permission("realty.command.auction")
                         .required("bidDuration", DurationParser.duration())
                         .required("paymentDuration", DurationParser.duration())
-                        .required("minBid", DoubleParser.doubleParser(0))
-                        .required("minBidStep", DoubleParser.doubleParser(0))
+                        .required("minBid", DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
+                                Double.MAX_VALUE))
+                        .required("minBidStep", DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
+                                Double.MAX_VALUE))
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeCreate)
                         .build(),
@@ -92,7 +95,8 @@ public record AuctionCommandGroup(
                         .build(),
                 base.literal("bid")
                         .permission("realty.command.auction.bid")
-                        .required("bid", DoubleParser.doubleParser(0))
+                        .required("bid", DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
+                                Double.MAX_VALUE))
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeBid)
                         .build(),

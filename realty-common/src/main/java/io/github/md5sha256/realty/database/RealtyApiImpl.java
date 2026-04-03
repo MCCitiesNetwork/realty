@@ -293,25 +293,40 @@ public class RealtyApiImpl implements RealtyApi {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
-            if (freehold == null) {
-                return new SetPriceResult.NoFreeholdContract();
+            if (freehold != null) {
+                if (wrapper.freeholdContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                    return new SetPriceResult.AuctionExists();
+                }
+                if (wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                    return new SetPriceResult.OfferPaymentInProgress();
+                }
+                if (wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                    return new SetPriceResult.BidPaymentInProgress();
+                }
+                int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price);
+                if (updated == 0) {
+                    return new SetPriceResult.UpdateFailed();
+                }
+                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.SET_PRICE.name(),
+                        freehold.authorityId(), freehold.authorityId(), price);
+                wrapper.session().commit();
+                return new SetPriceResult.Success();
             }
-            if (wrapper.freeholdContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)) {
-                return new SetPriceResult.AuctionExists();
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new SetPriceResult.NoContract();
             }
-            if (wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
-                return new SetPriceResult.OfferPaymentInProgress();
-            }
-            if (wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
-                return new SetPriceResult.BidPaymentInProgress();
-            }
-            int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price);
+            int updated = leaseholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price);
             if (updated == 0) {
                 return new SetPriceResult.UpdateFailed();
             }
-            wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
+            UUID tenantForHistory = lease.tenantId() != null ? lease.tenantId() : lease.landlordId();
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.SET_PRICE.name(),
-                    freehold.authorityId(), freehold.authorityId(), price);
+                    tenantForHistory, lease.landlordId(),
+                    price, lease.durationSeconds(), null);
             wrapper.session().commit();
             return new SetPriceResult.Success();
         }
