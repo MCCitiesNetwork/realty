@@ -18,6 +18,7 @@ import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -76,7 +77,8 @@ public record CreateCommand(@NotNull ExecutorState executorState,
 
     private static final CommandFlag<Double> PRICE_FLAG =
             CommandFlag.<Source>builder("price")
-                    .withComponent(DoubleParser.doubleParser(0))
+                    .withComponent(DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
+                            Double.MAX_VALUE))
                     .build();
 
     private static final CommandFlag<UUID> LANDLORD_FLAG =
@@ -92,7 +94,8 @@ public record CreateCommand(@NotNull ExecutorState executorState,
                 base.literal("leasehold")
                         .permission("realty.command.create.leasehold")
                         .required(NAME, StringParser.stringParser())
-                        .required(PRICE, DoubleParser.doubleParser(0))
+                        .required(PRICE, DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
+                                Double.MAX_VALUE))
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_EXTENSIONS, IntegerParser.integerParser(-1))
                         .flag(LANDLORD_FLAG)

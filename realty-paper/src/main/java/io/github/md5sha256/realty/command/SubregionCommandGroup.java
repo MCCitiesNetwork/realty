@@ -19,6 +19,7 @@ import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.api.RealtyApi;
@@ -69,7 +70,8 @@ public record SubregionCommandGroup(
                         .permission("realty.command.subregion.quickcreate")
                         .required(PARENT_REGION, WorldGuardRegionParser.worldGuardRegion())
                         .required(NAME, StringParser.stringParser())
-                        .required(PRICE, DoubleParser.doubleParser(0))
+                        .required(PRICE, DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
+                                Double.MAX_VALUE))
                         .required(DURATION, DurationParser.duration())
                         .handler(this::executeQuickCreate)
                         .build()

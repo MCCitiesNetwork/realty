@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -35,7 +36,7 @@ import java.util.concurrent.CompletableFuture;
  * Groups all set-related subcommands under {@code /realty set}.
  *
  * <ul>
- *   <li>{@code /realty set price <price> <region>} — set freehold price</li>
+ *   <li>{@code /realty set price <price> <region>} — set freehold or leasehold price</li>
  *   <li>{@code /realty set duration <duration> <region>} — set leasehold duration</li>
  *   <li>{@code /realty set landlord <player> <region>} — set leasehold landlord</li>
  *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
@@ -74,7 +75,8 @@ public record SetCommandGroup(
         return List.of(
                 base.literal("price")
                         .permission("realty.command.set.price")
-                        .required("price", DoubleParser.doubleParser(0, Double.MAX_VALUE))
+                        .required("price", DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
+                                Double.MAX_VALUE))
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetPrice)
                         .build(),
@@ -134,8 +136,8 @@ public record SetCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_SUCCESS,
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
-                    case RealtyApi.SetPriceResult.NoFreeholdContract ignored ->
-                            sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_NO_FREEHOLD_CONTRACT,
+                    case RealtyApi.SetPriceResult.NoContract ignored ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_NO_CONTRACT,
                                     Placeholder.unparsed("region", regionId)));
                     case RealtyApi.SetPriceResult.AuctionExists ignored ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_AUCTION_EXISTS,

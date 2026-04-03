@@ -9,6 +9,7 @@ import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignTextApplicator;
+import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.SubregionLandlordUpdater;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -73,7 +74,8 @@ public record OfferCommandGroup(
         return List.of(
                 base.literal("send")
                         .permission("realty.command.offer.send")
-                        .required("price", DoubleParser.doubleParser(0, Double.MAX_VALUE))
+                        .required("price", DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
+                                Double.MAX_VALUE))
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSend)
                         .build(),

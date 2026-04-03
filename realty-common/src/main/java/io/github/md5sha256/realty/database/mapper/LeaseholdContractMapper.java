@@ -39,6 +39,10 @@ public interface LeaseholdContractMapper {
                                @NotNull UUID worldId,
                                long durationSeconds);
 
+    int updatePriceByRegion(@NotNull String worldGuardRegionId,
+                            @NotNull UUID worldId,
+                            double price);
+
     int updateLandlordByRegion(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
                                @NotNull UUID landlordId);

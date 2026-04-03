@@ -110,7 +110,7 @@ public interface RealtyApi {
 
     sealed interface SetPriceResult {
         record Success() implements SetPriceResult {}
-        record NoFreeholdContract() implements SetPriceResult {}
+        record NoContract() implements SetPriceResult {}
         record AuctionExists() implements SetPriceResult {}
         record OfferPaymentInProgress() implements SetPriceResult {}
         record BidPaymentInProgress() implements SetPriceResult {}
