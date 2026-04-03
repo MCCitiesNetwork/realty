@@ -19,8 +19,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerSignOpenEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,6 +29,12 @@ import java.util.UUID;
 
 /**
  * Handles sign click interactions, sign break cleanup, and chunk-based sign caching.
+ *
+ * <p>Interact uses {@link org.bukkit.event.EventPriority#LOWEST} so Realty-linked signs are handled
+ * before other plugins; the event is cancelled for those signs so handlers that respect
+ * cancellation defer. {@link io.papermc.paper.event.player.PlayerOpenSignEvent} uses
+ * {@link org.bukkit.event.EventPriority#HIGHEST} so Realty can suppress the sign editor for linked
+ * signs after other listeners.</p>
  */
 public class SignInteractionListener implements Listener {
 
@@ -56,7 +62,7 @@ public class SignInteractionListener implements Listener {
         this.messages = messages;
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onPlayerInteract(@NotNull PlayerInteractEvent event) {
         Block block = event.getClickedBlock();
         if (block == null || !(block.getState(false) instanceof Sign)) {
@@ -66,11 +72,15 @@ public class SignInteractionListener implements Listener {
         if (action != Action.RIGHT_CLICK_BLOCK && action != Action.LEFT_CLICK_BLOCK) {
             return;
         }
+        if (event.getHand() == EquipmentSlot.OFF_HAND) {
+            return;
+        }
         SignCache.SignCacheEntry entry = signCache.get(
                 block.getWorld().getUID(), block.getX(), block.getY(), block.getZ());
         if (entry == null) {
             return;
         }
+        event.setCancelled(true);
         Player player = event.getPlayer();
         executorState.dbExec().execute(() -> {
             RealtyApi.RegionWithState rws = logic.getRegionWithState(
@@ -100,7 +110,7 @@ public class SignInteractionListener implements Listener {
         });
     }
 
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onSignOpen(@NotNull PlayerOpenSignEvent event) {
         Sign sign = event.getSign();
         Block block = sign.getBlock();
