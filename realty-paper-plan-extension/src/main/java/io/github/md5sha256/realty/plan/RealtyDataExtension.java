@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.plan;
 
 import com.djrapitops.plan.extension.CallEvents;
 import com.djrapitops.plan.extension.DataExtension;
+import com.djrapitops.plan.extension.annotation.DoubleProvider;
 import com.djrapitops.plan.extension.annotation.NumberProvider;
 import com.djrapitops.plan.extension.annotation.PercentageProvider;
 import com.djrapitops.plan.extension.annotation.PluginInfo;
@@ -102,6 +103,28 @@ public record RealtyDataExtension(@NotNull RealtyApi realtyApi) implements DataE
     )
     public long serverMeanLeaseholdDuration() {
         return realtyApi.averageLeaseholdDurationSeconds() * 1000L;
+    }
+
+    @DoubleProvider(
+            text = "Mean Freehold Price",
+            description = "Average listing price across all freehold contracts with a set price",
+            iconName = "dollar-sign",
+            iconFamily = Family.SOLID,
+            iconColor = Color.BLUE
+    )
+    public double serverMeanFreeholdPrice() {
+        return realtyApi.averageFreeholdPrice();
+    }
+
+    @DoubleProvider(
+            text = "Mean Leasehold Price",
+            description = "Average rental price across all leasehold contracts",
+            iconName = "dollar-sign",
+            iconFamily = Family.SOLID,
+            iconColor = Color.GREEN
+    )
+    public double serverMeanLeaseholdPrice() {
+        return realtyApi.averageLeaseholdPrice();
     }
 
     @NumberProvider(

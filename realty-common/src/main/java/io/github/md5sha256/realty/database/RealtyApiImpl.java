@@ -1523,6 +1523,20 @@ public class RealtyApiImpl implements RealtyApi {
         }
     }
 
+    @Override
+    public double averageFreeholdPrice() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.freeholdContractMapper().averagePrice();
+        }
+    }
+
+    @Override
+    public double averageLeaseholdPrice() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdContractMapper().averagePrice();
+        }
+    }
+
     // --- History Search ---
 
 

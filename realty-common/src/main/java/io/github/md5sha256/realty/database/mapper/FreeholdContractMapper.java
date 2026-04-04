@@ -126,4 +126,6 @@ public interface FreeholdContractMapper {
 
     int countOccupied();
 
+    double averagePrice();
+
 }

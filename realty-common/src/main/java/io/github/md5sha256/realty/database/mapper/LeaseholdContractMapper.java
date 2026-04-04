@@ -64,4 +64,6 @@ public interface LeaseholdContractMapper {
     int countOccupiedByLandlord(@NotNull UUID landlordId);
 
     long averageLeaseholdDurationSeconds();
+
+    double averagePrice();
 }

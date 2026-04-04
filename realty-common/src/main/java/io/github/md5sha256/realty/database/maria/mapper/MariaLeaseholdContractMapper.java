@@ -256,4 +256,11 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             AND startDate IS NOT NULL
             """)
     long averageLeaseholdDurationSeconds();
+
+    @Override
+    @Select("""
+            SELECT COALESCE(AVG(price), 0)
+            FROM LeaseholdContract
+            """)
+    double averagePrice();
 }

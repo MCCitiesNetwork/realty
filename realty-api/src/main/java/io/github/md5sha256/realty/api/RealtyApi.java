@@ -530,6 +530,10 @@ public interface RealtyApi {
 
     long averageLeaseholdDurationSeconds();
 
+    double averageFreeholdPrice();
+
+    double averageLeaseholdPrice();
+
     // --- History Search ---
 
     record HistoryResult(@NotNull List<HistoryEntry> entries, int totalCount) {}

@@ -167,4 +167,12 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             """)
     int countOccupied();
 
+    @Override
+    @Select("""
+            SELECT COALESCE(AVG(price), 0)
+            FROM FreeholdContract
+            WHERE price IS NOT NULL
+            """)
+    double averagePrice();
+
 }
