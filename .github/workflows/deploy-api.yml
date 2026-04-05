@@ -1,4 +1,4 @@
-name: Deploy API
+name: Deploy Maven
 
 on:
   release:
@@ -38,7 +38,7 @@ jobs:
             echo "suffix=/releases" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish realty-api
+      - name: Publish to Maven
         run: |
           chmod +x ./gradlew
           ./gradlew publishMavenPublicationToDeployRepository

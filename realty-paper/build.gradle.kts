@@ -1,7 +1,6 @@
 plugins {
-    `java-library`
     `realty-conventions`
-    `maven-publish`
+    `realty-publish`
     id("xyz.jpenilla.run-paper") version "2.3.1"
     id("com.gradleup.shadow") version "9.3.1"
 }
@@ -69,10 +68,6 @@ tasks {
     }
 }
 
-java {
-    withSourcesJar()
-}
-
 publishing {
     publications {
         create<MavenPublication>("maven") {
@@ -80,19 +75,6 @@ publishing {
             pom {
                 name.set("Realty Plugin")
                 description.set("PaperMC plugin for real estate economy on WorldGuard regions")
-                url.set("https://github.com/MCCitiesNetwork/realty")
-                developers {
-                    developer {
-                        id.set("md5sha256")
-                        name.set("Andrew Wong")
-                        email.set("42793301+md5sha256@users.noreply.github.com")
-                    }
-                }
-                scm {
-                    connection.set("scm:git:git://github.com/MCCitiesNetwork/realty.git")
-                    developerConnection.set("scm:git:ssh://github.com/MCCitiesNetwork/realty.git")
-                    url.set("https://github.com/MCCitiesNetwork/realty")
-                }
             }
         }
     }
