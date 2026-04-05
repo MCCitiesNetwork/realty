@@ -1,7 +1,7 @@
 rootProject.name = "realty"
 
 include("realty-backend-api")
-include("realty-common")
+include("realty-backend")
 include("realty-paper")
 include("realty-areashop-importer")
 include("realty-paper-plan-extension")
