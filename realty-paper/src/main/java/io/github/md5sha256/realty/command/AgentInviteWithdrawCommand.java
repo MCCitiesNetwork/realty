@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.NotificationService;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
@@ -67,7 +67,7 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
         }
         api.withdrawAgentInvite(regionId, worldId, inviteeId).thenAccept(result -> {
             switch (result) {
-                case RealtyApi.WithdrawAgentInviteResult.Success() -> {
+                case RealtyBackend.WithdrawAgentInviteResult.Success() -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_SUCCESS,
                             Placeholder.unparsed("player", inviteeName),
                             Placeholder.unparsed("region", regionId)));
@@ -76,7 +76,7 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                                     Placeholder.unparsed("player", resolveName(player.getUniqueId())),
                                     Placeholder.unparsed("region", regionId)));
                 }
-                case RealtyApi.WithdrawAgentInviteResult.NotFound() ->
+                case RealtyBackend.WithdrawAgentInviteResult.NotFound() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_NOT_FOUND,
                                 Placeholder.unparsed("player", inviteeName),
                                 Placeholder.unparsed("region", regionId)));

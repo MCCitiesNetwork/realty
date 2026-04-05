@@ -3,7 +3,7 @@ package io.github.md5sha256.realty.command;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
@@ -175,13 +175,13 @@ public record AuctionCommandGroup(
                 minBidStep
         ).thenAccept(result -> {
             switch (result) {
-                case RealtyApi.CreateAuctionResult.Success ignored ->
+                case RealtyBackend.CreateAuctionResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_SUCCESS,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.CreateAuctionResult.NotSanctioned ignored ->
+                case RealtyBackend.CreateAuctionResult.NotSanctioned ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NOT_SANCTIONED,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.CreateAuctionResult.NoFreeholdContract ignored ->
+                case RealtyBackend.CreateAuctionResult.NoFreeholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
             }
@@ -241,7 +241,7 @@ public record AuctionCommandGroup(
         api.performBid(regionId, region.world().getUID(), sender.getUniqueId(), bidAmount)
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyApi.BidResult.Success success -> {
+                        case RealtyBackend.BidResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.BID_SUCCESS,
                                     Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
                                     Placeholder.unparsed("region", regionId)));
@@ -252,17 +252,17 @@ public record AuctionCommandGroup(
                                                 Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))));
                             }
                         }
-                        case RealtyApi.BidResult.NoAuction ignored ->
+                        case RealtyBackend.BidResult.NoAuction ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.BID_NO_AUCTION));
-                        case RealtyApi.BidResult.IsOwner ignored ->
+                        case RealtyBackend.BidResult.IsOwner ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.BID_IS_OWNER));
-                        case RealtyApi.BidResult.BidTooLowMinimum r ->
+                        case RealtyBackend.BidResult.BidTooLowMinimum r ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.BID_TOO_LOW_MINIMUM,
                                         Placeholder.unparsed("amount", CurrencyFormatter.format(r.minBid()))));
-                        case RealtyApi.BidResult.BidTooLowCurrent r ->
+                        case RealtyBackend.BidResult.BidTooLowCurrent r ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.BID_TOO_LOW_CURRENT,
                                         Placeholder.unparsed("amount", CurrencyFormatter.format(r.currentHighest()))));
-                        case RealtyApi.BidResult.AlreadyHighestBidder ignored ->
+                        case RealtyBackend.BidResult.AlreadyHighestBidder ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.BID_ALREADY_HIGHEST));
                     }
                 }).exceptionally(ex -> {

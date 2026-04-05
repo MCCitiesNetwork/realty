@@ -27,7 +27,7 @@ publishing {
         create<MavenPublication>("maven") {
             from(components["java"])
             pom {
-                name.set("Realty API")
+                name.set("Realty Backend API")
                 description.set("API interfaces and domain types for Realty")
                 url.set("https://github.com/MCCitiesNetwork/realty")
                 developers {

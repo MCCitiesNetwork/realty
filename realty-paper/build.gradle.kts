@@ -74,7 +74,7 @@ publishing {
         create<MavenPublication>("maven") {
             artifact(tasks.jar)
             pom {
-                name.set("Realty")
+                name.set("Realty Plugin")
                 description.set("PaperMC plugin for real estate economy on WorldGuard regions")
                 url.set("https://github.com/MCCitiesNetwork/realty")
                 developers {

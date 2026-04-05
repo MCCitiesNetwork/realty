@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
@@ -134,7 +134,7 @@ public record OfferCommandGroup(
         api.placeOffer(regionId, region.world().getUID(), sender.getUniqueId(), price)
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyApi.OfferResult.Success success -> {
+                        case RealtyBackend.OfferResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.OFFER_SUCCESS,
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
@@ -146,21 +146,21 @@ public record OfferCommandGroup(
                                                 Placeholder.unparsed("region", regionId)));
                             }
                         }
-                        case RealtyApi.OfferResult.NoFreeholdContract ignored ->
+                        case RealtyBackend.OfferResult.NoFreeholdContract ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NO_FREEHOLD_CONTRACT,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.OfferResult.NotAcceptingOffers ignored ->
+                        case RealtyBackend.OfferResult.NotAcceptingOffers ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NOT_ACCEPTING,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.OfferResult.IsOwner ignored ->
+                        case RealtyBackend.OfferResult.IsOwner ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.OFFER_IS_OWNER));
-                        case RealtyApi.OfferResult.AlreadyHasOffer ignored ->
+                        case RealtyBackend.OfferResult.AlreadyHasOffer ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.OFFER_ALREADY_HAS_OFFER,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.OfferResult.AuctionExists ignored ->
+                        case RealtyBackend.OfferResult.AuctionExists ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.OFFER_AUCTION_EXISTS,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.OfferResult.InsertFailed ignored ->
+                        case RealtyBackend.OfferResult.InsertFailed ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.OFFER_INSERT_FAILED,
                                         Placeholder.unparsed("region", regionId)));
                     }
@@ -283,7 +283,7 @@ public record OfferCommandGroup(
         api.acceptOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyApi.AcceptOfferResult.Success ignored -> {
+                        case RealtyBackend.AcceptOfferResult.Success ignored -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
@@ -291,20 +291,20 @@ public record OfferCommandGroup(
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
                                             Placeholder.unparsed("region", regionId)));
                         }
-                        case RealtyApi.AcceptOfferResult.NotSanctioned ignored ->
+                        case RealtyBackend.AcceptOfferResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NOT_SANCTIONED,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.AcceptOfferResult.NoOffer ignored ->
+                        case RealtyBackend.AcceptOfferResult.NoOffer ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NO_OFFER,
                                         Placeholder.unparsed("player", playerName),
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.AcceptOfferResult.AuctionExists ignored ->
+                        case RealtyBackend.AcceptOfferResult.AuctionExists ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_AUCTION_EXISTS,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.AcceptOfferResult.AlreadyAccepted ignored ->
+                        case RealtyBackend.AcceptOfferResult.AlreadyAccepted ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_ALREADY_ACCEPTED,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.AcceptOfferResult.InsertFailed ignored ->
+                        case RealtyBackend.AcceptOfferResult.InsertFailed ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_INSERT_FAILED,
                                         Placeholder.unparsed("region", regionId)));
                     }
@@ -388,7 +388,7 @@ public record OfferCommandGroup(
         api.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyApi.WithdrawOfferResult.Success(var titleHolderId) -> {
+                        case RealtyBackend.WithdrawOfferResult.Success(var titleHolderId) -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                             if (titleHolderId != null) {
@@ -398,10 +398,10 @@ public record OfferCommandGroup(
                                                 Placeholder.unparsed("region", regionId)));
                             }
                         }
-                        case RealtyApi.WithdrawOfferResult.NoOffer() ->
+                        case RealtyBackend.WithdrawOfferResult.NoOffer() ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_NO_OFFER,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.WithdrawOfferResult.OfferAccepted() ->
+                        case RealtyBackend.WithdrawOfferResult.OfferAccepted() ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_ACCEPTED,
                                         Placeholder.unparsed("region", regionId)));
                     }
@@ -437,7 +437,7 @@ public record OfferCommandGroup(
         api.rejectOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyApi.RejectOfferResult.Success ignored -> {
+                        case RealtyBackend.RejectOfferResult.Success ignored -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
@@ -445,14 +445,14 @@ public record OfferCommandGroup(
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                             Placeholder.unparsed("region", regionId)));
                         }
-                        case RealtyApi.RejectOfferResult.NotSanctioned ignored ->
+                        case RealtyBackend.RejectOfferResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.RejectOfferResult.NoOffer ignored ->
+                        case RealtyBackend.RejectOfferResult.NoOffer ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NO_OFFER,
                                         Placeholder.unparsed("player", playerName),
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.RejectOfferResult.OfferAccepted ignored ->
+                        case RealtyBackend.RejectOfferResult.OfferAccepted ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ACCEPTED,
                                         Placeholder.unparsed("region", regionId)));
                     }
@@ -480,7 +480,7 @@ public record OfferCommandGroup(
         api.rejectAllOffers(regionId, region.world().getUID(), sender.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyApi.RejectAllOffersResult.Success success -> {
+                        case RealtyBackend.RejectAllOffersResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ALL_SUCCESS,
                                     Placeholder.unparsed("count", String.valueOf(success.offererIds().size())),
                                     Placeholder.unparsed("region", regionId)));
@@ -490,13 +490,13 @@ public record OfferCommandGroup(
                                 notificationService.queueNotification(offererId, notification);
                             }
                         }
-                        case RealtyApi.RejectAllOffersResult.NotSanctioned ignored ->
+                        case RealtyBackend.RejectAllOffersResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.RejectAllOffersResult.NoFreeholdContract ignored ->
+                        case RealtyBackend.RejectAllOffersResult.NoFreeholdContract ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NO_FREEHOLD_CONTRACT,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.RejectAllOffersResult.OfferAccepted ignored ->
+                        case RealtyBackend.RejectAllOffersResult.OfferAccepted ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ACCEPTED,
                                         Placeholder.unparsed("region", regionId)));
                     }
@@ -526,17 +526,17 @@ public record OfferCommandGroup(
         api.toggleOffers(regionId, region.world().getUID(), sender.getUniqueId(), accepting, bypass)
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyApi.ToggleOffersResult.Success success ->
+                        case RealtyBackend.ToggleOffersResult.Success success ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_SUCCESS,
                                         Placeholder.unparsed("region", regionId),
                                         Placeholder.unparsed("state", success.acceptingOffers() ? "yes" : "no")));
-                        case RealtyApi.ToggleOffersResult.NotSanctioned ignored ->
+                        case RealtyBackend.ToggleOffersResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_NOT_SANCTIONED,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.ToggleOffersResult.NoFreeholdContract ignored ->
+                        case RealtyBackend.ToggleOffersResult.NoFreeholdContract ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_NO_FREEHOLD_CONTRACT,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyApi.ToggleOffersResult.UpdateFailed ignored ->
+                        case RealtyBackend.ToggleOffersResult.UpdateFailed ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.TOGGLE_OFFERS_UPDATE_FAILED,
                                         Placeholder.unparsed("region", regionId)));
                     }

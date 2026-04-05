@@ -1,6 +1,6 @@
 package io.github.md5sha256.realty.plan;
 
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class RealtyPaperPlanExtensionPlugin extends JavaPlugin {
@@ -9,7 +9,7 @@ public final class RealtyPaperPlanExtensionPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        var provider = getServer().getServicesManager().getRegistration(RealtyApi.class);
+        var provider = getServer().getServicesManager().getRegistration(RealtyBackend.class);
         if (provider == null) {
             getLogger().severe("Missing realty api");
             getServer().getPluginManager().disablePlugin(this);

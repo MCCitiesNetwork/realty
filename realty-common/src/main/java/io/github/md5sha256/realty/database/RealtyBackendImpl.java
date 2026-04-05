@@ -4,7 +4,7 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.RegionState;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.entity.AgentHistoryEntity;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
@@ -30,7 +30,6 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractBidPaymentMapp
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferPaymentMapper;
-import io.github.md5sha256.realty.database.mapper.FreeholdContractSanctionedAuctioneerMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,17 +44,17 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-public class RealtyApiImpl implements RealtyApi {
+public class RealtyBackendImpl implements RealtyBackend {
 
     private final Database database;
     private final Function<UUID, String> nameResolver;
     private final Function<LocalDateTime, String> dateFormatter;
     private final LongSupplier offerPaymentDurationSeconds;
 
-    public RealtyApiImpl(@NotNull Database database,
-                           @NotNull Function<UUID, String> nameResolver,
-                           @NotNull Function<LocalDateTime, String> dateFormatter,
-                           @NotNull LongSupplier offerPaymentDurationSeconds) {
+    public RealtyBackendImpl(@NotNull Database database,
+                             @NotNull Function<UUID, String> nameResolver,
+                             @NotNull Function<LocalDateTime, String> dateFormatter,
+                             @NotNull LongSupplier offerPaymentDurationSeconds) {
         this.database = database;
         this.nameResolver = nameResolver;
         this.dateFormatter = dateFormatter;

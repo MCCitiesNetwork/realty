@@ -42,10 +42,10 @@ import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
-import io.github.md5sha256.realty.database.RealtyApiImpl;
+import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -110,7 +110,7 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private ExecutorState executorState;
-    private RealtyApi logic;
+    private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
     private DatabaseSettings databaseSettings;
     private NotificationService notificationService;
@@ -124,7 +124,7 @@ public final class Realty extends JavaPlugin {
         return Objects.requireNonNull(this.database, "Database not initialized!");
     }
 
-    public RealtyApi logic() {
+    public RealtyBackend logic() {
         return this.logic;
     }
 
@@ -188,7 +188,7 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        this.logic = new RealtyApiImpl(mariaDatabase, uuid -> {
+        this.logic = new RealtyBackendImpl(mariaDatabase, uuid -> {
             OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
             return player.getName() != null ? player.getName() : uuid.toString();
         }, dateTime -> DateFormatter.format(this.settings.get(), dateTime),
@@ -229,7 +229,7 @@ public final class Realty extends JavaPlugin {
                 this.messageContainer,
                 this.notificationService,
                 safeLocationFinder);
-        getServer().getServicesManager().register(RealtyApi.class, this.logic, this, ServicePriority.Normal);
+        getServer().getServicesManager().register(RealtyBackend.class, this.logic, this, ServicePriority.Normal);
         getServer().getServicesManager().register(RealtyPaperApi.class, this.paperApi, this, ServicePriority.Normal);
         getLogger().info("Plugin enabled successfully");
     }
@@ -268,7 +268,7 @@ public final class Realty extends JavaPlugin {
             if (this.logic == null) {
                 return;
             }
-            for (RealtyApi.ExpiredBiddingAuction auction : this.logic.clearExpiredBiddingAuctions()) {
+            for (RealtyBackend.ExpiredBiddingAuction auction : this.logic.clearExpiredBiddingAuctions()) {
                 if (auction.winnerId() != null) {
                     this.notificationService.queueNotification(auction.winnerId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
@@ -279,29 +279,29 @@ public final class Realty extends JavaPlugin {
                                     Placeholder.unparsed("region", auction.worldGuardRegionId())));
                 }
             }
-            for (RealtyApi.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
+            for (RealtyBackend.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
                 this.notificationService.queueNotification(payment.bidderId(),
                         this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount",
                                         CurrencyFormatter.format(payment.refundAmount()))));
             }
-            for (RealtyApi.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
+            for (RealtyBackend.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 this.notificationService.queueNotification(payment.offererId(),
                         this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
                                 Placeholder.unparsed("region", payment.regionId()),
                                 Placeholder.unparsed("amount",
                                         CurrencyFormatter.format(payment.refundAmount()))));
             }
-            List<RealtyApi.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
+            List<RealtyBackend.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
             if (!expiredLeaseholds.isEmpty()) {
                 Map<String, Map<String, String>> leaseholdPlaceholders = new HashMap<>();
-                for (RealtyApi.ExpiredLeasehold expired : expiredLeaseholds) {
+                for (RealtyBackend.ExpiredLeasehold expired : expiredLeaseholds) {
                     leaseholdPlaceholders.put(expired.worldGuardRegionId(),
                             this.logic.getRegionPlaceholders(expired.worldGuardRegionId(), expired.worldId()));
                 }
                 scheduler.runTask(this, () -> {
-                    for (RealtyApi.ExpiredLeasehold expired : expiredLeaseholds) {
+                    for (RealtyBackend.ExpiredLeasehold expired : expiredLeaseholds) {
                         World world = getServer().getWorld(expired.worldId());
                         if (world != null) {
                             RegionManager regionManager = WorldGuard.getInstance()

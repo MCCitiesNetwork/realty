@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.NotificationService;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
@@ -66,7 +66,7 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
         }
         api.inviteAgent(regionId, worldId, player.getUniqueId(), inviteeId).thenAccept(result -> {
             switch (result) {
-                case RealtyApi.InviteAgentResult.Success() -> {
+                case RealtyBackend.InviteAgentResult.Success() -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_SUCCESS,
                             Placeholder.unparsed("player", inviteeName),
                             Placeholder.unparsed("region", regionId)));
@@ -75,26 +75,26 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
                                     Placeholder.unparsed("player", player.getName()),
                                     Placeholder.unparsed("region", regionId)));
                 }
-                case RealtyApi.InviteAgentResult.NoFreeholdContract() ->
+                case RealtyBackend.InviteAgentResult.NoFreeholdContract() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NO_FREEHOLD,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.InviteAgentResult.IsTitleHolder() ->
+                case RealtyBackend.InviteAgentResult.IsTitleHolder() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_IS_TITLEHOLDER,
                                 Placeholder.unparsed("player", inviteeName),
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.InviteAgentResult.IsAuthority() ->
+                case RealtyBackend.InviteAgentResult.IsAuthority() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_IS_AUTHORITY,
                                 Placeholder.unparsed("player", inviteeName),
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.InviteAgentResult.AlreadyAgent() ->
+                case RealtyBackend.InviteAgentResult.AlreadyAgent() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ALREADY_AGENT,
                                 Placeholder.unparsed("player", inviteeName),
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.InviteAgentResult.AlreadyInvited() ->
+                case RealtyBackend.InviteAgentResult.AlreadyInvited() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ALREADY_INVITED,
                                 Placeholder.unparsed("player", inviteeName),
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.InviteAgentResult.NotTitleHolder() ->
+                case RealtyBackend.InviteAgentResult.NotTitleHolder() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
                                 Placeholder.unparsed("region", regionId)));
             }

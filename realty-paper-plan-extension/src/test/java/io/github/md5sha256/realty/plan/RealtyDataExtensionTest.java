@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.plan;
 
 import com.djrapitops.plan.extension.DataExtension;
 import com.djrapitops.plan.extension.extractor.ExtensionExtractor;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
@@ -13,9 +13,9 @@ class RealtyDataExtensionTest {
 
     @Test
     void noImplementationErrors() {
-        RealtyApi stubApi = (RealtyApi) Proxy.newProxyInstance(
-                RealtyApi.class.getClassLoader(),
-                new Class<?>[]{RealtyApi.class},
+        RealtyBackend stubApi = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
                 (proxy, method, args) -> null
         );
         DataExtension extension = new RealtyDataExtension(stubApi);

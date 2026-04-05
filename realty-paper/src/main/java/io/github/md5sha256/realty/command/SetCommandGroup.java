@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
@@ -121,23 +121,23 @@ public record SetCommandGroup(
         }
         api.setPrice(regionId, worldId, price).thenAccept(result -> {
             switch (result) {
-                case RealtyApi.SetPriceResult.Success ignored ->
+                case RealtyBackend.SetPriceResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_SUCCESS,
                                 Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetPriceResult.NoContract ignored ->
+                case RealtyBackend.SetPriceResult.NoContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_NO_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetPriceResult.AuctionExists ignored ->
+                case RealtyBackend.SetPriceResult.AuctionExists ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_AUCTION_EXISTS,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetPriceResult.OfferPaymentInProgress ignored ->
+                case RealtyBackend.SetPriceResult.OfferPaymentInProgress ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_OFFER_PAYMENT_IN_PROGRESS,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetPriceResult.BidPaymentInProgress ignored ->
+                case RealtyBackend.SetPriceResult.BidPaymentInProgress ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_BID_PAYMENT_IN_PROGRESS,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetPriceResult.UpdateFailed ignored ->
+                case RealtyBackend.SetPriceResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
             }
@@ -164,14 +164,14 @@ public record SetCommandGroup(
         }
         api.setDuration(regionId, worldId, duration.toSeconds()).thenAccept(result -> {
             switch (result) {
-                case RealtyApi.SetDurationResult.Success ignored ->
+                case RealtyBackend.SetDurationResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_SUCCESS,
                                 Placeholder.unparsed("duration", DurationFormatter.format(duration)),
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetDurationResult.NoLeaseholdContract ignored ->
+                case RealtyBackend.SetDurationResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetDurationResult.UpdateFailed ignored ->
+                case RealtyBackend.SetDurationResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
             }
@@ -307,19 +307,19 @@ public record SetCommandGroup(
         }
         api.setMaxRenewals(regionId, worldId, maxExtensions).thenAccept(result -> {
             switch (result) {
-                case RealtyApi.SetMaxRenewalsResult.Success ignored ->
+                case RealtyBackend.SetMaxRenewalsResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_SUCCESS,
                                 Placeholder.unparsed("maxextensions",
                                         maxExtensions < 0 ? "unlimited" : String.valueOf(maxExtensions)),
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetMaxRenewalsResult.NoLeaseholdContract ignored ->
+                case RealtyBackend.SetMaxRenewalsResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetMaxRenewalsResult.BelowCurrentExtensions(int current) ->
+                case RealtyBackend.SetMaxRenewalsResult.BelowCurrentExtensions(int current) ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_BELOW_CURRENT,
                                 Placeholder.unparsed("current", String.valueOf(current)),
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.SetMaxRenewalsResult.UpdateFailed ignored ->
+                case RealtyBackend.SetMaxRenewalsResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
             }

@@ -1,6 +1,6 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -73,19 +73,19 @@ public record UnsetCommandGroup(
         }
         api.unsetPrice(regionId, worldId).thenAccept(result -> {
             switch (result) {
-                case RealtyApi.UnsetPriceResult.Success ignored ->
+                case RealtyBackend.UnsetPriceResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_SUCCESS,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.UnsetPriceResult.NoFreeholdContract ignored ->
+                case RealtyBackend.UnsetPriceResult.NoFreeholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.UnsetPriceResult.OfferPaymentInProgress ignored ->
+                case RealtyBackend.UnsetPriceResult.OfferPaymentInProgress ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_OFFER_PAYMENT_IN_PROGRESS,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.UnsetPriceResult.BidPaymentInProgress ignored ->
+                case RealtyBackend.UnsetPriceResult.BidPaymentInProgress ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_BID_PAYMENT_IN_PROGRESS,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyApi.UnsetPriceResult.UpdateFailed ignored ->
+                case RealtyBackend.UnsetPriceResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
             }

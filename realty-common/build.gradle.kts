@@ -5,7 +5,7 @@ plugins {
 }
 
 dependencies {
-    api(project(":realty-api"))
+    api(project(":realty-backend-api"))
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     api("org.spongepowered:configurate-yaml:4.2.0")
     api("org.mybatis:mybatis:3.5.19")

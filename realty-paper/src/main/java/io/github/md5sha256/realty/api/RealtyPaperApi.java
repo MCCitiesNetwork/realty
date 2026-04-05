@@ -2,13 +2,10 @@ package io.github.md5sha256.realty.api;
 
 import com.sk89q.worldedit.regions.Region;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
-import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
-import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -269,17 +266,17 @@ public interface RealtyPaperApi {
 
     // --- Agent ---
 
-    @NotNull CompletableFuture<RealtyApi.InviteAgentResult> inviteAgent(
+    @NotNull CompletableFuture<RealtyBackend.InviteAgentResult> inviteAgent(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID inviterId, @NotNull UUID inviteeId);
 
-    @NotNull CompletableFuture<RealtyApi.AcceptAgentInviteResult> acceptAgentInvite(
+    @NotNull CompletableFuture<RealtyBackend.AcceptAgentInviteResult> acceptAgentInvite(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID inviteeId);
 
-    @NotNull CompletableFuture<RealtyApi.WithdrawAgentInviteResult> withdrawAgentInvite(
+    @NotNull CompletableFuture<RealtyBackend.WithdrawAgentInviteResult> withdrawAgentInvite(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID inviteeId);
 
-    @NotNull CompletableFuture<RealtyApi.RejectAgentInviteResult> rejectAgentInvite(
+    @NotNull CompletableFuture<RealtyBackend.RejectAgentInviteResult> rejectAgentInvite(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID inviteeId);
 
     @NotNull CompletableFuture<Integer> removeSanctionedAuctioneer(
@@ -288,41 +285,41 @@ public interface RealtyPaperApi {
 
     // --- Auction ---
 
-    @NotNull CompletableFuture<RealtyApi.CreateAuctionResult> createAuction(
+    @NotNull CompletableFuture<RealtyBackend.CreateAuctionResult> createAuction(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID auctioneerId, long biddingDurationSeconds,
             long paymentDurationSeconds, double minBid, double minBidStep);
 
-    @NotNull CompletableFuture<RealtyApi.CancelAuctionResult> cancelAuction(
+    @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
             @NotNull String regionId, @NotNull UUID worldId);
 
-    @NotNull CompletableFuture<RealtyApi.BidResult> performBid(
+    @NotNull CompletableFuture<RealtyBackend.BidResult> performBid(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID bidderId, double bidAmount);
 
     // --- Offer ---
 
-    @NotNull CompletableFuture<RealtyApi.OfferResult> placeOffer(
+    @NotNull CompletableFuture<RealtyBackend.OfferResult> placeOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID offererId, double price);
 
-    @NotNull CompletableFuture<RealtyApi.AcceptOfferResult> acceptOffer(
+    @NotNull CompletableFuture<RealtyBackend.AcceptOfferResult> acceptOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID callerId, @NotNull UUID offererId);
 
-    @NotNull CompletableFuture<RealtyApi.WithdrawOfferResult> withdrawOffer(
+    @NotNull CompletableFuture<RealtyBackend.WithdrawOfferResult> withdrawOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID offererId);
 
-    @NotNull CompletableFuture<RealtyApi.RejectOfferResult> rejectOffer(
+    @NotNull CompletableFuture<RealtyBackend.RejectOfferResult> rejectOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID callerId, @NotNull UUID offererId);
 
-    @NotNull CompletableFuture<RealtyApi.RejectAllOffersResult> rejectAllOffers(
+    @NotNull CompletableFuture<RealtyBackend.RejectAllOffersResult> rejectAllOffers(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID callerId);
 
-    @NotNull CompletableFuture<RealtyApi.ToggleOffersResult> toggleOffers(
+    @NotNull CompletableFuture<RealtyBackend.ToggleOffersResult> toggleOffers(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID callerId, boolean accepting, boolean bypassAuth);
 
@@ -332,21 +329,21 @@ public interface RealtyPaperApi {
 
     // --- Property Config ---
 
-    @NotNull CompletableFuture<RealtyApi.SetPriceResult> setPrice(
+    @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
             @NotNull String regionId, @NotNull UUID worldId, double price);
 
-    @NotNull CompletableFuture<RealtyApi.UnsetPriceResult> unsetPrice(
+    @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
             @NotNull String regionId, @NotNull UUID worldId);
 
-    @NotNull CompletableFuture<RealtyApi.SetDurationResult> setDuration(
+    @NotNull CompletableFuture<RealtyBackend.SetDurationResult> setDuration(
             @NotNull String regionId, @NotNull UUID worldId, long durationSeconds);
 
-    @NotNull CompletableFuture<RealtyApi.SetMaxRenewalsResult> setMaxRenewals(
+    @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
             @NotNull String regionId, @NotNull UUID worldId, int maxRenewals);
 
     // --- Query ---
 
-    @NotNull CompletableFuture<RealtyApi.RegionInfo> getRegionInfo(
+    @NotNull CompletableFuture<RealtyBackend.RegionInfo> getRegionInfo(
             @NotNull String regionId, @NotNull UUID worldId);
 
     @NotNull CompletableFuture<@Nullable FreeholdContractEntity> getFreeholdContract(
@@ -355,21 +352,21 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<@Nullable LeaseholdContractEntity> getLeaseholdContract(
             @NotNull String regionId, @NotNull UUID worldId);
 
-    @NotNull CompletableFuture<RealtyApi.ListResult> listRegions(
+    @NotNull CompletableFuture<RealtyBackend.ListResult> listRegions(
             @NotNull UUID targetId, int limit, int offset);
 
-    @NotNull CompletableFuture<RealtyApi.SingleCategoryResult> listOwnedRegions(
+    @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listOwnedRegions(
             @NotNull UUID targetId, int limit, int offset);
 
-    @NotNull CompletableFuture<RealtyApi.SingleCategoryResult> listRentedRegions(
+    @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
             @NotNull UUID targetId, int limit, int offset);
 
-    @NotNull CompletableFuture<RealtyApi.HistoryResult> searchHistory(
+    @NotNull CompletableFuture<RealtyBackend.HistoryResult> searchHistory(
             @NotNull String regionId, @NotNull UUID worldId,
             @Nullable String eventType, @Nullable LocalDateTime since,
             @Nullable UUID playerId, int limit, int offset);
 
-    @NotNull CompletableFuture<RealtyApi.RegionWithState> getRegionWithState(
+    @NotNull CompletableFuture<RealtyBackend.RegionWithState> getRegionWithState(
             @NotNull String regionId, @NotNull UUID worldId);
 
     @NotNull CompletableFuture<@NotNull Map<String, String>> getRegionPlaceholders(

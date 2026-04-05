@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.NotificationService;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -58,7 +58,7 @@ public record AgentInviteRejectCommand(@NotNull RealtyPaperApi api,
         UUID inviteeId = player.getUniqueId();
         api.rejectAgentInvite(regionId, worldId, inviteeId).thenAccept(result -> {
             switch (result) {
-                case RealtyApi.RejectAgentInviteResult.Success(UUID inviterId) -> {
+                case RealtyBackend.RejectAgentInviteResult.Success(UUID inviterId) -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_REJECT_SUCCESS,
                             Placeholder.unparsed("region", regionId)));
                     notificationService.queueNotification(inviterId,
@@ -66,7 +66,7 @@ public record AgentInviteRejectCommand(@NotNull RealtyPaperApi api,
                                     Placeholder.unparsed("player", player.getName()),
                                     Placeholder.unparsed("region", regionId)));
                 }
-                case RealtyApi.RejectAgentInviteResult.NotFound() ->
+                case RealtyBackend.RejectAgentInviteResult.NotFound() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_REJECT_NOT_FOUND,
                                 Placeholder.unparsed("region", regionId)));
             }

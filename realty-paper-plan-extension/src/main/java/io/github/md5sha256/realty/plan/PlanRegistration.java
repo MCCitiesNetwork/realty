@@ -2,13 +2,13 @@ package io.github.md5sha256.realty.plan;
 
 import com.djrapitops.plan.capability.CapabilityService;
 import com.djrapitops.plan.extension.ExtensionService;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 
 final class PlanRegistration {
 
     private final RealtyDataExtension extension;
 
-    PlanRegistration(RealtyApi realtyApi) {
+    PlanRegistration(RealtyBackend realtyApi) {
         this.extension = new RealtyDataExtension(realtyApi);
     }
 

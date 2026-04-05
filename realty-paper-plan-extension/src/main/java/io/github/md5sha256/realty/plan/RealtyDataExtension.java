@@ -9,7 +9,7 @@ import com.djrapitops.plan.extension.annotation.PluginInfo;
 import com.djrapitops.plan.extension.FormatType;
 import com.djrapitops.plan.extension.icon.Color;
 import com.djrapitops.plan.extension.icon.Family;
-import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
@@ -20,7 +20,7 @@ import java.util.UUID;
         iconFamily = Family.SOLID,
         color = Color.BLUE
 )
-public record RealtyDataExtension(@NotNull RealtyApi realtyApi) implements DataExtension {
+public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements DataExtension {
 
     @Override
     public CallEvents[] callExtensionMethodsOn() {
