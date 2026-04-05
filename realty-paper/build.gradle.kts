@@ -69,6 +69,10 @@ tasks {
     }
 }
 
+java {
+    withSourcesJar()
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {
