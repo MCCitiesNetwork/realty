@@ -2,18 +2,17 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.api.RealtyApi;
-import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
-import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
-import io.github.md5sha256.realty.util.ExecutorState;
+import io.github.md5sha256.realty.util.DateFormatter;
 import net.kyori.adventure.text.Component;
-import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -21,6 +20,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -38,8 +38,7 @@ import java.util.stream.Collectors;
  *
  * <p>Permission: {@code realty.command.info}.</p>
  */
-public record InfoCommand(@NotNull ExecutorState executorState,
-                          @NotNull RealtyApi logic,
+public record InfoCommand(@NotNull RealtyPaperApi api,
                           @NotNull AtomicReference<Settings> settings,
                           @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
@@ -91,45 +90,42 @@ public record InfoCommand(@NotNull ExecutorState executorState,
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
+        // resolveMembers reads WG data and must run on the main thread
         String membersStr = resolveMembers(region);
 
-        executorState.dbExec().execute(() -> {
-            try {
-                RealtyApi.RegionInfo info = logic.getRegionInfo(regionId, worldId);
+        api.getRegionInfo(regionId, worldId).thenAccept(info -> {
+            TextComponent.Builder builder = Component.text();
+            builder.append(messages.messageFor(MessageKeys.INFO_HEADER,
+                    Placeholder.unparsed("region", regionId)));
 
-                TextComponent.Builder builder = Component.text();
-                builder.append(messages.messageFor(MessageKeys.INFO_HEADER,
-                        Placeholder.unparsed("region", regionId)));
+            FreeholdContractEntity freehold = info.freehold();
+            LeaseholdContractEntity leasehold = info.leasehold();
+            boolean hasAuction = info.auction() != null;
 
-                FreeholdContractEntity freehold = info.freehold();
-                LeaseholdContractEntity leasehold = info.leasehold();
-                boolean hasAuction = info.auction() != null;
-
-                if (freehold == null && leasehold == null && !hasAuction) {
-                    builder.appendNewline()
-                            .append(messages.messageFor(MessageKeys.INFO_NO_CONTRACTS));
-                    sender.sendMessage(builder.build());
-                    return;
-                }
-
-                if (freehold != null) {
-                    appendFreeholdInfo(builder, freehold, info.lastSoldPrice(), membersStr);
-                    builder.appendNewline()
-                            .append(messages.messageFor(MessageKeys.INFO_AUCTION_ACTIVE,
-                                    Placeholder.unparsed("has_auction", hasAuction ? "Yes" : "No")));
-                }
-
-                if (leasehold != null) {
-                    appendLeaseholdInfo(builder, leasehold, membersStr);
-                }
-
-
+            if (freehold == null && leasehold == null && !hasAuction) {
+                builder.appendNewline()
+                        .append(messages.messageFor(MessageKeys.INFO_NO_CONTRACTS));
                 sender.sendMessage(builder.build());
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                sender.sendMessage(messages.messageFor(MessageKeys.INFO_ERROR,
-                        Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
+                return;
             }
+
+            if (freehold != null) {
+                appendFreeholdInfo(builder, freehold, info.lastSoldPrice(), membersStr);
+                builder.appendNewline()
+                        .append(messages.messageFor(MessageKeys.INFO_AUCTION_ACTIVE,
+                                Placeholder.unparsed("has_auction", hasAuction ? "Yes" : "No")));
+            }
+
+            if (leasehold != null) {
+                appendLeaseholdInfo(builder, leasehold, membersStr);
+            }
+
+            sender.sendMessage(builder.build());
+        }).exceptionally(ex -> {
+            ex.printStackTrace();
+            sender.sendMessage(messages.messageFor(MessageKeys.INFO_ERROR,
+                    Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
+            return null;
         });
     }
 

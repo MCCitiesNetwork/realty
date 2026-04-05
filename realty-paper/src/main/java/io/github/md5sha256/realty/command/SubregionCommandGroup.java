@@ -12,46 +12,35 @@ import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.session.SessionManager;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
-import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
-import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
-import io.github.md5sha256.realty.api.RegionProfileService;
-import io.github.md5sha256.realty.api.RegionState;
+import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
-import io.github.md5sha256.realty.api.RealtyApi;
-import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
-import io.github.md5sha256.realty.util.ExecutorState;
-import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.key.CloudKey;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 public record SubregionCommandGroup(
-        @NotNull ExecutorState executorState,
-        @NotNull RealtyApi logic,
+        @NotNull RealtyPaperApi api,
         @NotNull AtomicReference<Settings> settings,
-        @NotNull RegionProfileService regionProfileService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -140,75 +129,43 @@ public record SubregionCommandGroup(
             case SelectionResult.Success success -> {
                 UUID playerId = player.getUniqueId();
                 String parentId = parentRegion.region().getId();
-                UUID worldId = parentRegion.world().getUID();
                 if (!canBypass && !parentRegion.region().getOwners().contains(playerId)) {
                     player.sendMessage(messages.messageFor(
                             MessageKeys.SUBREGION_NOT_TITLEHOLDER,
                             Placeholder.unparsed("region", parentId)));
                     return;
                 }
-                CompletableFuture.supplyAsync(() -> {
-                    try {
-                        FreeholdContractEntity freehold = logic.getFreeholdContract(parentId, worldId);
-                        if (freehold == null) {
-                            return new QuickCreateResult.NoFreeholdContract();
-                        }
-                        boolean created = logic.createLeasehold(
-                                name, worldId,
-                                price, duration.toSeconds(), -1, playerId);
-                        if (!created) {
-                            return new QuickCreateResult.RegionExists();
-                        }
-                        Map<String, String> placeholders = logic.getRegionPlaceholders(name, worldId);
-                        return new QuickCreateResult.Created(placeholders);
-                    } catch (Exception ex) {
-                        throw new CompletionException(ex);
-                    }
-                }, executorState.dbExec()).thenAcceptAsync(dbResult -> {
-                    switch (dbResult) {
-                        case QuickCreateResult.NoFreeholdContract ignored ->
-                                player.sendMessage(messages.messageFor(
-                                        MessageKeys.SUBREGION_NO_FREEHOLD,
-                                        Placeholder.unparsed("region", parentId)));
-                        case QuickCreateResult.RegionExists ignored ->
-                                player.sendMessage(messages.messageFor(
-                                        MessageKeys.SUBREGION_REGION_EXISTS,
-                                        Placeholder.unparsed("region", name)));
-                        case QuickCreateResult.Created created -> {
-                            ProtectedRegion childRegion = createProtectedRegion(name, success.selection());
-                            try {
-                                childRegion.setParent(parentRegion.region());
-                            } catch (ProtectedRegion.CircularInheritanceException ex) {
-                                player.sendMessage(messages.messageFor(MessageKeys.COMMON_ERROR,
-                                        Placeholder.unparsed("error", "Circular region inheritance")));
-                                return;
+                api.quickCreateSubregion(parentRegion, name, success.selection(),
+                                price, duration.toSeconds(), playerId)
+                        .thenAccept(qcResult -> {
+                            switch (qcResult) {
+                                case RealtyPaperApi.QuickCreateSubregionResult.Success s ->
+                                        player.sendMessage(messages.messageFor(
+                                                MessageKeys.SUBREGION_CREATE_SUCCESS,
+                                                Placeholder.unparsed("region", s.regionId()),
+                                                Placeholder.unparsed("parent", s.parentId())));
+                                case RealtyPaperApi.QuickCreateSubregionResult.NoFreeholdContract nfc ->
+                                        player.sendMessage(messages.messageFor(
+                                                MessageKeys.SUBREGION_NO_FREEHOLD,
+                                                Placeholder.unparsed("region", nfc.parentId())));
+                                case RealtyPaperApi.QuickCreateSubregionResult.RegionExists re ->
+                                        player.sendMessage(messages.messageFor(
+                                                MessageKeys.SUBREGION_REGION_EXISTS,
+                                                Placeholder.unparsed("region", re.regionId())));
+                                case RealtyPaperApi.QuickCreateSubregionResult.Error error ->
+                                        player.sendMessage(messages.messageFor(
+                                                MessageKeys.SUBREGION_CREATE_ERROR,
+                                                Placeholder.unparsed("error", error.message())));
                             }
-                            regionManager.addRegion(childRegion);
-                            childRegion.getOwners().addPlayer(playerId);
-                            WorldGuardRegion childWgRegion = new WorldGuardRegion(
-                                    childRegion, parentRegion.world());
-                            regionProfileService.applyFlags(
-                                    childWgRegion, RegionState.FOR_LEASE, created.placeholders());
-                            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_CREATE_SUCCESS,
-                                    Placeholder.unparsed("region", name),
-                                    Placeholder.unparsed("parent", parentId)));
-                        }
-                    }
-                }, executorState.mainThreadExec()).exceptionally(ex -> {
-                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                    cause.printStackTrace();
-                    player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_CREATE_ERROR,
-                            Placeholder.unparsed("error", cause.getMessage())));
-                    return null;
-                });
+                        }).exceptionally(ex -> {
+                            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                            cause.printStackTrace();
+                            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_CREATE_ERROR,
+                                    Placeholder.unparsed("error", cause.getMessage())));
+                            return null;
+                        });
             }
         }
-    }
-
-    private sealed interface QuickCreateResult {
-        record NoFreeholdContract() implements QuickCreateResult {}
-        record RegionExists() implements QuickCreateResult {}
-        record Created(@NotNull Map<String, String> placeholders) implements QuickCreateResult {}
     }
 
     private static @NotNull SelectionResult validateSelection(@NotNull Player player,
@@ -246,19 +203,6 @@ public record SubregionCommandGroup(
             }
         }
         return new SelectionResult.Success(selection);
-    }
-
-    private static @NotNull ProtectedRegion createProtectedRegion(@NotNull String name,
-                                                                    @NotNull Region selection) {
-        if (selection instanceof CuboidRegion cuboid) {
-            return new ProtectedCuboidRegion(name,
-                    cuboid.getMinimumPoint(), cuboid.getMaximumPoint());
-        } else if (selection instanceof Polygonal2DRegion polygon) {
-            return new ProtectedPolygonalRegion(name,
-                    polygon.getPoints(), polygon.getMinimumY(), polygon.getMaximumY());
-        }
-        return new ProtectedCuboidRegion(name,
-                selection.getMinimumPoint(), selection.getMaximumPoint());
     }
 
     private static boolean regionIsFullyContainedByParent(@NotNull Region region,

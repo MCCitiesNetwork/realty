@@ -43,6 +43,8 @@ import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyPaperApi;
+import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
 import io.github.md5sha256.realty.database.RealtyApiImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
@@ -115,6 +117,7 @@ public final class Realty extends JavaPlugin {
     private Database database;
     private final SignCache signCache = new SignCache();
     private SignTextApplicator signTextApplicator;
+    private RealtyPaperApi paperApi;
 
     @NotNull
     public Database database() {
@@ -217,14 +220,17 @@ public final class Realty extends JavaPlugin {
                 new SignInteractionListener(this.database, this.logic,
                         this.regionProfileService, this.executorState, this.signCache,
                         this.signTextApplicator, this.messageContainer), this);
+        this.paperApi = new RealtyPaperApiImpl(
+                this.logic, economyProvider.getProvider(), this.executorState, this.database,
+                this.regionProfileService, this.signTextApplicator, this.signCache);
         scheduleTasks();
-        registerCommands(this.executorState,
-                this.logic,
+        registerCommands(this.paperApi,
+                this.executorState,
                 this.messageContainer,
-                economyProvider.getProvider(),
                 this.notificationService,
                 safeLocationFinder);
         getServer().getServicesManager().register(RealtyApi.class, this.logic, this, ServicePriority.Normal);
+        getServer().getServicesManager().register(RealtyPaperApi.class, this.paperApi, this, ServicePriority.Normal);
         getLogger().info("Plugin enabled successfully");
     }
 
@@ -403,10 +409,9 @@ public final class Realty extends JavaPlugin {
     }
 
     private void registerCommands(
+            @NotNull RealtyPaperApi paperApi,
             @NotNull ExecutorState executorState,
-            @NotNull RealtyApi logic,
             @NotNull MessageContainer messageContainer,
-            @NotNull Economy economy,
             @NotNull NotificationService notificationService,
             @NotNull SafeLocationFinder safeLocationFinder
     ) {
@@ -415,64 +420,38 @@ public final class Realty extends JavaPlugin {
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
-                new AgentInviteCommand(executorState, logic, notificationService, messageContainer),
-                new AgentInviteAcceptCommand(executorState, logic, notificationService, messageContainer),
-                new AgentInviteRejectCommand(executorState, logic, notificationService, messageContainer),
-                new AgentInviteWithdrawCommand(executorState, logic, notificationService, messageContainer),
-                new AgentRemoveCommand(executorState, logic, notificationService, messageContainer),
-                new AuctionCommandGroup(executorState,
-                        logic,
-                        economy,
+                new AgentInviteCommand(paperApi, notificationService, messageContainer),
+                new AgentInviteAcceptCommand(paperApi, notificationService, messageContainer),
+                new AgentInviteRejectCommand(paperApi, notificationService, messageContainer),
+                new AgentInviteWithdrawCommand(paperApi, notificationService, messageContainer),
+                new AgentRemoveCommand(paperApi, notificationService, messageContainer),
+                new AuctionCommandGroup(paperApi,
                         notificationService,
-                        this.regionProfileService,
-                        this.signTextApplicator,
                         this.settings,
                         messageContainer),
-                new BuyCommand(executorState,
-                        logic,
-                        economy,
+                new BuyCommand(paperApi, notificationService, messageContainer),
+                new CreateCommand(paperApi, this.settings, messageContainer),
+                new RegisterCommand(paperApi, this.settings, messageContainer),
+                new DeleteCommand(paperApi, messageContainer),
+                new HistoryCommand(paperApi, this.settings, messageContainer),
+                new InfoCommand(paperApi, this.settings, messageContainer),
+                new ListCommand(paperApi, messageContainer),
+                new OfferCommandGroup(paperApi,
                         notificationService,
-                        this.regionProfileService,
-                        this.signTextApplicator,
                         messageContainer),
-                new CreateCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
-                new RegisterCommand(executorState, logic, this.settings, this.regionProfileService, messageContainer),
-                new DeleteCommand(executorState, logic, this.regionProfileService, messageContainer),
-                new HistoryCommand(executorState, logic, this.settings, messageContainer),
-                new InfoCommand(executorState, logic, this.settings, messageContainer),
-                new ListCommand(executorState, logic, messageContainer),
-                new OfferCommandGroup(executorState,
-                        logic,
-                        economy,
-                        notificationService,
-                        this.regionProfileService,
-                        this.signTextApplicator,
-                        messageContainer),
-                new ExtendCommand(executorState, logic, economy, this.signTextApplicator, messageContainer),
-                new RentCommand(executorState,
-                        logic,
-                        economy,
-                        notificationService,
-                        this.regionProfileService,
-                        this.signTextApplicator,
-                        messageContainer),
-                new UnrentCommand(executorState,
-                        logic,
-                        economy,
-                        notificationService,
-                        this.regionProfileService,
-                        this.signTextApplicator,
-                        messageContainer),
-                new SetCommandGroup(executorState, logic, this.regionProfileService, this.signTextApplicator, messageContainer),
-                new UnsetCommandGroup(this.regionProfileService, this.signTextApplicator, executorState, logic, messageContainer),
+                new ExtendCommand(paperApi, messageContainer),
+                new RentCommand(paperApi, notificationService, messageContainer),
+                new UnrentCommand(paperApi, notificationService, messageContainer),
+                new SetCommandGroup(paperApi, messageContainer),
+                new UnsetCommandGroup(paperApi, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();
                     return null;
                 }, messageContainer),
                 new RemoveCommand(messageContainer),
-                new SignCommand(executorState, this.database, logic, this.regionProfileService, this.signCache, this.signTextApplicator, messageContainer),
-                new TeleportCommand(executorState, this.database, messageContainer, safeLocationFinder),
-                new SubregionCommandGroup(executorState, logic, this.settings, this.regionProfileService, messageContainer)
+                new SignCommand(paperApi, executorState, messageContainer),
+                new TeleportCommand(paperApi, messageContainer, safeLocationFinder),
+                new SubregionCommandGroup(paperApi, this.settings, messageContainer)
         );
 
         var manager = PaperCommandManager.builder(PaperSimpleSenderMapper.simpleSenderMapper())

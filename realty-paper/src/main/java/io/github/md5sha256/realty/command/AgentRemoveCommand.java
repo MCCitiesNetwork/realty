@@ -1,13 +1,12 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.NotificationService;
+import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.util.ExecutorState;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -18,7 +17,6 @@ import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles {@code /realty agent remove <player> <region>}.
@@ -27,8 +25,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Permission: {@code realty.command.agent.remove}.</p>
  */
-public record AgentRemoveCommand(@NotNull ExecutorState executorState,
-                                  @NotNull RealtyApi logic,
+public record AgentRemoveCommand(@NotNull RealtyPaperApi api,
                                   @NotNull NotificationService notificationService,
                                   @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
@@ -67,27 +64,25 @@ public record AgentRemoveCommand(@NotNull ExecutorState executorState,
             return;
         }
         UUID actorId = player.getUniqueId();
-        CompletableFuture.runAsync(() -> {
-            try {
-                int rows = logic.removeSanctionedAuctioneer(regionId, worldId, targetId, actorId);
-                if (rows > 0) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_SUCCESS,
-                            Placeholder.unparsed("player", targetName),
-                            Placeholder.unparsed("region", regionId)));
-                    notificationService.queueNotification(targetId,
-                            messages.messageFor(MessageKeys.NOTIFICATION_AGENT_REMOVED,
-                                    Placeholder.unparsed("player", player.getName()),
-                                    Placeholder.unparsed("region", regionId)));
-                } else {
-                    sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_NOT_FOUND,
-                            Placeholder.unparsed("player", targetName),
-                            Placeholder.unparsed("region", regionId)));
-                }
-            } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_ERROR,
-                        Placeholder.unparsed("error", ex.getMessage())));
+        api.removeSanctionedAuctioneer(regionId, worldId, targetId, actorId).thenAccept(rows -> {
+            if (rows > 0) {
+                sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_SUCCESS,
+                        Placeholder.unparsed("player", targetName),
+                        Placeholder.unparsed("region", regionId)));
+                notificationService.queueNotification(targetId,
+                        messages.messageFor(MessageKeys.NOTIFICATION_AGENT_REMOVED,
+                                Placeholder.unparsed("player", player.getName()),
+                                Placeholder.unparsed("region", regionId)));
+            } else {
+                sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_NOT_FOUND,
+                        Placeholder.unparsed("player", targetName),
+                        Placeholder.unparsed("region", regionId)));
             }
-        }, executorState.dbExec());
+        }).exceptionally(ex -> {
+            sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_ERROR,
+                    Placeholder.unparsed("error", ex.getMessage())));
+            return null;
+        });
     }
 
     private static @NotNull String resolveName(@NotNull UUID uuid) {

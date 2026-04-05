@@ -3,18 +3,16 @@ package io.github.md5sha256.realty.command;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.DateFormatter;
-import io.github.md5sha256.realty.util.ExecutorState;
-import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -23,6 +21,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.EnumParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
@@ -33,7 +32,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -41,8 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>Permission: {@code realty.command.history}.</p>
  */
-public record HistoryCommand(@NotNull ExecutorState executorState,
-                              @NotNull RealtyApi logic,
+public record HistoryCommand(@NotNull RealtyPaperApi api,
                               @NotNull AtomicReference<Settings> settings,
                               @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
@@ -129,71 +126,68 @@ public record HistoryCommand(@NotNull ExecutorState executorState,
         LocalDateTime since = timeDuration != null ? LocalDateTime.now().minus(timeDuration) : null;
         int offset = (page - 1) * PAGE_SIZE;
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                RealtyApi.HistoryResult result = logic.searchHistory(
-                        regionId, worldId, eventTypeStr, since, playerId, PAGE_SIZE, offset);
+        api.searchHistory(regionId, worldId, eventTypeStr, since, playerId, PAGE_SIZE, offset)
+                .thenAccept(result -> {
+                    int totalCount = result.totalCount();
+                    if (totalCount == 0) {
+                        sender.sendMessage(messages.messageFor(MessageKeys.HISTORY_NO_RESULTS,
+                                Placeholder.unparsed("region", regionId)));
+                        return;
+                    }
 
-                int totalCount = result.totalCount();
-                if (totalCount == 0) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.HISTORY_NO_RESULTS,
+                    int totalPages = (totalCount + PAGE_SIZE - 1) / PAGE_SIZE;
+                    if (page > totalPages) {
+                        sender.sendMessage(messages.messageFor(MessageKeys.HISTORY_INVALID_PAGE,
+                                Placeholder.unparsed("page", String.valueOf(page)),
+                                Placeholder.unparsed("total", String.valueOf(totalPages))));
+                        return;
+                    }
+
+                    TextComponent.Builder builder = Component.text();
+                    builder.append(messages.messageFor(MessageKeys.HISTORY_HEADER,
                             Placeholder.unparsed("region", regionId)));
-                    return;
-                }
 
-                int totalPages = (totalCount + PAGE_SIZE - 1) / PAGE_SIZE;
-                if (page > totalPages) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.HISTORY_INVALID_PAGE,
-                            Placeholder.unparsed("page", String.valueOf(page)),
-                            Placeholder.unparsed("total", String.valueOf(totalPages))));
-                    return;
-                }
-
-                TextComponent.Builder builder = Component.text();
-                builder.append(messages.messageFor(MessageKeys.HISTORY_HEADER,
-                        Placeholder.unparsed("region", regionId)));
-
-                for (HistoryEntry entry : result.entries()) {
-                    builder.appendNewline();
-                    switch (entry) {
-                        case HistoryEntry.Freehold freehold -> {
-                            String messageKey = resolveEventMessageKey(freehold.eventType());
-                            builder.append(
-                                    messages.messageFor(messageKey,
-                                            Placeholder.unparsed("time", DateFormatter.format(settings.get(), freehold.eventTime())),
-                                            Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
-                                            Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
-                                            Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
-                        }
-                        case HistoryEntry.Agent agent -> {
-                            String messageKey = resolveEventMessageKey(agent.eventType());
-                            builder.append(
-                                    messages.messageFor(messageKey,
-                                            Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
-                                            Placeholder.unparsed("agent", resolveName(agent.agentId())),
-                                            Placeholder.unparsed("actor", resolveName(agent.actorId()))));
-                        }
-                        case HistoryEntry.Leasehold lease -> {
-                            String messageKey = resolveLeaseholdEventMessageKey(lease.eventType());
-                            builder.append(
-                                    messages.messageFor(messageKey,
-                                            Placeholder.unparsed("time", DateFormatter.format(settings.get(), lease.eventTime())),
-                                            Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
-                                            Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
-                                            Placeholder.unparsed("price",
-                                                    lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A")));
+                    for (HistoryEntry entry : result.entries()) {
+                        builder.appendNewline();
+                        switch (entry) {
+                            case HistoryEntry.Freehold freehold -> {
+                                String messageKey = resolveEventMessageKey(freehold.eventType());
+                                builder.append(
+                                        messages.messageFor(messageKey,
+                                                Placeholder.unparsed("time", DateFormatter.format(settings.get(), freehold.eventTime())),
+                                                Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
+                                                Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
+                                                Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
+                            }
+                            case HistoryEntry.Agent agent -> {
+                                String messageKey = resolveEventMessageKey(agent.eventType());
+                                builder.append(
+                                        messages.messageFor(messageKey,
+                                                Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
+                                                Placeholder.unparsed("agent", resolveName(agent.agentId())),
+                                                Placeholder.unparsed("actor", resolveName(agent.actorId()))));
+                            }
+                            case HistoryEntry.Leasehold lease -> {
+                                String messageKey = resolveLeaseholdEventMessageKey(lease.eventType());
+                                builder.append(
+                                        messages.messageFor(messageKey,
+                                                Placeholder.unparsed("time", DateFormatter.format(settings.get(), lease.eventTime())),
+                                                Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
+                                                Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
+                                                Placeholder.unparsed("price",
+                                                        lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A")));
+                            }
                         }
                     }
-                }
 
-                appendFooter(builder, regionId, eventType, timeDuration, playerId, page, totalPages);
-                sender.sendMessage(builder.build());
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                sender.sendMessage(messages.messageFor(MessageKeys.HISTORY_ERROR,
-                        Placeholder.unparsed("error", ex.getMessage())));
-            }
-        }, executorState.dbExec());
+                    appendFooter(builder, regionId, eventType, timeDuration, playerId, page, totalPages);
+                    sender.sendMessage(builder.build());
+                }).exceptionally(ex -> {
+                    ex.printStackTrace();
+                    sender.sendMessage(messages.messageFor(MessageKeys.HISTORY_ERROR,
+                            Placeholder.unparsed("error", ex.getMessage())));
+                    return null;
+                });
     }
 
     private void appendFooter(@NotNull TextComponent.Builder builder, @NotNull String regionId,

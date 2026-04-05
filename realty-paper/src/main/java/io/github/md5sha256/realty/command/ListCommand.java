@@ -2,13 +2,13 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyApi;
+import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.NamedAuthority;
 import io.github.md5sha256.realty.command.util.NamedAuthorityParser;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.util.ExecutorState;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -25,7 +25,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles {@code /realty list [owned|rented] [--page <n>] [--player <name>]}.
@@ -33,8 +32,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permission: {@code realty.command.list}.</p>
  */
 public record ListCommand(
-        @NotNull ExecutorState executorState,
-        @NotNull RealtyApi logic,
+        @NotNull RealtyPaperApi api,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -105,79 +103,82 @@ public record ListCommand(
 
     private void listRegions(@NotNull CommandSender sender, @NotNull UUID targetId,
                              @NotNull String targetName, @Nullable String category, int page) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                if (category == null) {
-                    listAll(sender, targetId, targetName, page);
-                } else {
-                    listCategory(sender, targetId, targetName, category, page);
-                }
-            } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor(MessageKeys.LIST_ERROR,
-                        Placeholder.unparsed("error", ex.getMessage())));
-            }
-        }, executorState.dbExec());
+        if (category == null) {
+            listAll(sender, targetId, targetName, page);
+        } else {
+            listCategory(sender, targetId, targetName, category, page);
+        }
     }
 
     private void listAll(@NotNull CommandSender sender, @NotNull UUID targetId,
                          @NotNull String targetName, int page) {
         int globalOffset = (page - 1) * PAGE_SIZE;
-        RealtyApi.ListResult result = logic.listRegions(targetId, PAGE_SIZE, globalOffset);
+        api.listRegions(targetId, PAGE_SIZE, globalOffset).thenAccept(result -> {
+            int totalCount = result.totalCount();
+            if (totalCount == 0) {
+                sender.sendMessage(messages.messageFor(MessageKeys.LIST_NO_REGIONS,
+                        Placeholder.unparsed("player", targetName)));
+                return;
+            }
 
-        int totalCount = result.totalCount();
-        if (totalCount == 0) {
-            sender.sendMessage(messages.messageFor(MessageKeys.LIST_NO_REGIONS,
-                    Placeholder.unparsed("player", targetName)));
-            return;
-        }
+            int totalPages = (totalCount + PAGE_SIZE - 1) / PAGE_SIZE;
+            if (page > totalPages) {
+                sender.sendMessage(messages.messageFor(MessageKeys.LIST_INVALID_PAGE,
+                        Placeholder.unparsed("page", String.valueOf(page)),
+                        Placeholder.unparsed("total", String.valueOf(totalPages))));
+                return;
+            }
 
-        int totalPages = (totalCount + PAGE_SIZE - 1) / PAGE_SIZE;
-        if (page > totalPages) {
-            sender.sendMessage(messages.messageFor(MessageKeys.LIST_INVALID_PAGE,
-                    Placeholder.unparsed("page", String.valueOf(page)),
-                    Placeholder.unparsed("total", String.valueOf(totalPages))));
-            return;
-        }
-
-        TextComponent.Builder builder = Component.text();
-        builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", targetName));
-        appendCategory(builder, "Owned", result.owned());
-        appendCategory(builder, "Landlord", result.landlord());
-        appendRentedCategory(builder, "Rented", result.rented());
-        appendFooter(builder, targetName, null, page, totalPages);
-        sender.sendMessage(builder.build());
+            TextComponent.Builder builder = Component.text();
+            builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", targetName));
+            appendCategory(builder, "Owned", result.owned());
+            appendCategory(builder, "Landlord", result.landlord());
+            appendRentedCategory(builder, "Rented", result.rented());
+            appendFooter(builder, targetName, null, page, totalPages);
+            sender.sendMessage(builder.build());
+        }).exceptionally(ex -> {
+            sender.sendMessage(messages.messageFor(MessageKeys.LIST_ERROR,
+                    Placeholder.unparsed("error", ex.getMessage())));
+            return null;
+        });
     }
 
     private void listCategory(@NotNull CommandSender sender, @NotNull UUID targetId,
                               @NotNull String targetName, @NotNull String category, int page) {
-        RealtyApi.SingleCategoryResult result = "owned".equals(category)
-                ? logic.listOwnedRegions(targetId, PAGE_SIZE, (page - 1) * PAGE_SIZE)
-                : logic.listRentedRegions(targetId, PAGE_SIZE, (page - 1) * PAGE_SIZE);
+        var future = "owned".equals(category)
+                ? api.listOwnedRegions(targetId, PAGE_SIZE, (page - 1) * PAGE_SIZE)
+                : api.listRentedRegions(targetId, PAGE_SIZE, (page - 1) * PAGE_SIZE);
 
-        if (result.totalCount() == 0) {
-            sender.sendMessage(messages.messageFor(MessageKeys.LIST_NO_REGIONS,
-                    Placeholder.unparsed("player", targetName)));
-            return;
-        }
+        future.thenAccept(result -> {
+            if (result.totalCount() == 0) {
+                sender.sendMessage(messages.messageFor(MessageKeys.LIST_NO_REGIONS,
+                        Placeholder.unparsed("player", targetName)));
+                return;
+            }
 
-        int totalPages = (result.totalCount() + PAGE_SIZE - 1) / PAGE_SIZE;
-        if (page > totalPages) {
-            sender.sendMessage(messages.messageFor(MessageKeys.LIST_INVALID_PAGE,
-                    Placeholder.unparsed("page", String.valueOf(page)),
-                    Placeholder.unparsed("total", String.valueOf(totalPages))));
-            return;
-        }
+            int totalPages = (result.totalCount() + PAGE_SIZE - 1) / PAGE_SIZE;
+            if (page > totalPages) {
+                sender.sendMessage(messages.messageFor(MessageKeys.LIST_INVALID_PAGE,
+                        Placeholder.unparsed("page", String.valueOf(page)),
+                        Placeholder.unparsed("total", String.valueOf(totalPages))));
+                return;
+            }
 
-        String label = "owned".equals(category) ? "Owned" : "Rented";
-        TextComponent.Builder builder = Component.text();
-        builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", targetName));
-        if ("owned".equals(category)) {
-            appendCategory(builder, label, result.regions());
-        } else {
-            appendRentedCategory(builder, label, result.regions());
-        }
-        appendFooter(builder, targetName, category, page, totalPages);
-        sender.sendMessage(builder.build());
+            String label = "owned".equals(category) ? "Owned" : "Rented";
+            TextComponent.Builder builder = Component.text();
+            builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", targetName));
+            if ("owned".equals(category)) {
+                appendCategory(builder, label, result.regions());
+            } else {
+                appendRentedCategory(builder, label, result.regions());
+            }
+            appendFooter(builder, targetName, category, page, totalPages);
+            sender.sendMessage(builder.build());
+        }).exceptionally(ex -> {
+            sender.sendMessage(messages.messageFor(MessageKeys.LIST_ERROR,
+                    Placeholder.unparsed("error", ex.getMessage())));
+            return null;
+        });
     }
 
     private void appendCategory(@NotNull TextComponent.Builder builder, @NotNull String label,
@@ -195,6 +196,11 @@ public record ListCommand(
         }
     }
 
+    /**
+     * Appends rented regions with time-left info. Calls
+     * {@link RealtyPaperApi#getLeaseholdContract} via {@code .join()} for each region.
+     * This is safe because the callback runs on the db executor thread.
+     */
     private void appendRentedCategory(@NotNull TextComponent.Builder builder, @NotNull String label,
                                       @NotNull List<RealtyRegionEntity> regions) {
         if (regions.isEmpty()) {
@@ -203,7 +209,8 @@ public record ListCommand(
         builder.appendNewline()
                 .append(parseMiniMessage(MessageKeys.LIST_CATEGORY, "<label>", label));
         for (RealtyRegionEntity region : regions) {
-            LeaseholdContractEntity leasehold = logic.getLeaseholdContract(region.worldGuardRegionId(), region.worldId());
+            LeaseholdContractEntity leasehold = api.getLeaseholdContract(
+                    region.worldGuardRegionId(), region.worldId()).join();
             String timeLeft = DurationFormatter.formatTimeLeft(leasehold != null ? leasehold.endDate() : null);
             builder.appendNewline()
                     .append(parseMiniMessage(

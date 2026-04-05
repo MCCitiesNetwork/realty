@@ -1,15 +1,13 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import com.sk89q.worldedit.math.BlockVector3;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.util.ExecutorState;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -33,8 +31,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Permission: {@code realty.command.tp}.</p>
  */
-public record TeleportCommand(@NotNull ExecutorState executorState,
-                               @NotNull Database database,
+public record TeleportCommand(@NotNull RealtyPaperApi api,
                                @NotNull MessageContainer messages,
                                @NotNull SafeLocationFinder safeLocationFinder) implements CustomCommandBean.Single {
 
@@ -61,63 +58,51 @@ public record TeleportCommand(@NotNull ExecutorState executorState,
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
 
-        executorState.dbExec().execute(() -> {
-            try {
-                List<RealtySignEntity> signs;
-                try (SqlSessionWrapper session = database.openSession(true)) {
-                    signs = session.realtySignMapper().selectByRegion(regionId, worldId);
+        api.listSigns(regionId, worldId).thenCompose(signs -> {
+            // Build an async search chain: try each sign inside the region, then fall back
+            CompletableFuture<Location> search = CompletableFuture.completedFuture(null);
+            for (RealtySignEntity sign : signs) {
+                if (!region.region().contains(BlockVector3.at(
+                        sign.blockX(), sign.blockY(), sign.blockZ()))) {
+                    continue;
                 }
-
-                // Build an async search chain: try each sign inside the region, then fall back
-                CompletableFuture<Location> search = CompletableFuture.completedFuture(null);
-                for (RealtySignEntity sign : signs) {
-                    if (!region.region().contains(BlockVector3.at(
-                            sign.blockX(), sign.blockY(), sign.blockZ()))) {
-                        continue;
-                    }
-                    search = search.thenCompose(loc -> {
-                        if (loc != null) {
-                            return CompletableFuture.completedFuture(loc);
-                        }
-                        World signWorld = Bukkit.getWorld(sign.worldId());
-                        if (signWorld == null) {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                        return safeLocationFinder.findSafeNearSign(
-                                signWorld, sign.blockX(), sign.blockY(), sign.blockZ(),
-                                SIGN_SEARCH_RADIUS);
-                    });
-                }
-
-                search.thenCompose(loc -> {
+                search = search.thenCompose(loc -> {
                     if (loc != null) {
                         return CompletableFuture.completedFuture(loc);
                     }
-                    return safeLocationFinder.findSafeInRegion(
-                            region.region(), region.world(), REGION_MAX_TRIES);
-                }).whenComplete((loc, ex) -> {
-                    if (!player.isOnline()) {
-                        return;
+                    World signWorld = Bukkit.getWorld(sign.worldId());
+                    if (signWorld == null) {
+                        return CompletableFuture.completedFuture(null);
                     }
-                    if (ex != null) {
-                        ex.printStackTrace();
-                        player.sendMessage(messages.messageFor(MessageKeys.TP_ERROR,
-                                Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
-                        return;
-                    }
-                    if (loc != null) {
-                        player.teleportAsync(loc);
-                        player.sendMessage(messages.messageFor(MessageKeys.TP_SUCCESS,
-                                Placeholder.unparsed("region", regionId)));
-                    } else {
-                        player.sendMessage(messages.messageFor(MessageKeys.TP_NO_SAFE_LOCATION,
-                                Placeholder.unparsed("region", regionId)));
-                    }
+                    return safeLocationFinder.findSafeNearSign(
+                            signWorld, sign.blockX(), sign.blockY(), sign.blockZ(),
+                            SIGN_SEARCH_RADIUS);
                 });
-            } catch (Exception ex) {
+            }
+            return search;
+        }).thenCompose(loc -> {
+            if (loc != null) {
+                return CompletableFuture.completedFuture(loc);
+            }
+            return safeLocationFinder.findSafeInRegion(
+                    region.region(), region.world(), REGION_MAX_TRIES);
+        }).whenComplete((loc, ex) -> {
+            if (!player.isOnline()) {
+                return;
+            }
+            if (ex != null) {
                 ex.printStackTrace();
                 player.sendMessage(messages.messageFor(MessageKeys.TP_ERROR,
                         Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
+                return;
+            }
+            if (loc != null) {
+                player.teleportAsync(loc);
+                player.sendMessage(messages.messageFor(MessageKeys.TP_SUCCESS,
+                        Placeholder.unparsed("region", regionId)));
+            } else {
+                player.sendMessage(messages.messageFor(MessageKeys.TP_NO_SAFE_LOCATION,
+                        Placeholder.unparsed("region", regionId)));
             }
         });
     }

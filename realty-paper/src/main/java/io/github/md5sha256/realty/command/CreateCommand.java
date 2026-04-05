@@ -14,24 +14,21 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
-import io.github.md5sha256.realty.api.RegionProfileService;
-import io.github.md5sha256.realty.api.RegionState;
+import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.api.RealtyApi;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
-import io.github.md5sha256.realty.util.ExecutorState;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.incendo.cloud.paper.util.sender.Source;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.key.CloudKey;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
@@ -40,11 +37,8 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -55,10 +49,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>Permissions: {@code realty.command.create.leasehold} / {@code realty.command.create.freehold}.</p>
  */
-public record CreateCommand(@NotNull ExecutorState executorState,
-                             @NotNull RealtyApi logic,
+public record CreateCommand(@NotNull RealtyPaperApi api,
                              @NotNull AtomicReference<Settings> settings,
-                             @NotNull RegionProfileService regionProfileService,
                              @NotNull MessageContainer messages) implements CustomCommandBean {
 
     private static final CloudKey<String> NAME = CloudKey.of("name", String.class);
@@ -146,35 +138,28 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         World world = player.getWorld();
         WorldGuardRegion region = new WorldGuardRegion(wgRegion, world);
 
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                boolean created = logic.createLeasehold(
-                        name, world.getUID(),
-                        price, period.toSeconds(), maxExtensions, landlord);
-                Map<String, String> placeholders = created
-                        ? logic.getRegionPlaceholders(name, world.getUID())
-                        : Map.<String, String>of();
-                return Map.entry(created, placeholders);
-            } catch (Exception ex) {
-                throw new CompletionException(ex);
-            }
-        }, executorState.dbExec()).thenAcceptAsync(entry -> {
-            if (entry.getKey()) {
-                regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
-                player.sendMessage(messages.messageFor(MessageKeys.CREATE_LEASEHOLD_SUCCESS,
-                        Placeholder.unparsed("region", name)));
-            } else {
-                regionManager.removeRegion(name);
-                player.sendMessage(messages.messageFor(MessageKeys.CREATE_ALREADY_REGISTERED,
-                        Placeholder.unparsed("region", name)));
-            }
-        }, executorState.mainThreadExec()).exceptionally(ex -> {
-            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-            cause.printStackTrace();
-            player.sendMessage(messages.messageFor(MessageKeys.CREATE_ERROR,
-                    Placeholder.unparsed("error", cause.getMessage())));
-            return null;
-        });
+        api.createLeasehold(region, price, period.toSeconds(), maxExtensions, landlord)
+                .thenAccept(result -> {
+                    switch (result) {
+                        case RealtyPaperApi.CreateLeaseholdResult.Success ignored ->
+                                player.sendMessage(messages.messageFor(MessageKeys.CREATE_LEASEHOLD_SUCCESS,
+                                        Placeholder.unparsed("region", name)));
+                        case RealtyPaperApi.CreateLeaseholdResult.AlreadyRegistered ignored -> {
+                            regionManager.removeRegion(name);
+                            player.sendMessage(messages.messageFor(MessageKeys.CREATE_ALREADY_REGISTERED,
+                                    Placeholder.unparsed("region", name)));
+                        }
+                        case RealtyPaperApi.CreateLeaseholdResult.Error error ->
+                                player.sendMessage(messages.messageFor(MessageKeys.CREATE_ERROR,
+                                        Placeholder.unparsed("error", error.message())));
+                    }
+                }).exceptionally(ex -> {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    cause.printStackTrace();
+                    player.sendMessage(messages.messageFor(MessageKeys.CREATE_ERROR,
+                            Placeholder.unparsed("error", cause.getMessage())));
+                    return null;
+                });
     }
 
     private void executeFreehold(@NotNull CommandContext<Source> ctx) {
@@ -211,37 +196,28 @@ public record CreateCommand(@NotNull ExecutorState executorState,
         World world = player.getWorld();
         WorldGuardRegion region = new WorldGuardRegion(wgRegion, world);
 
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                boolean created = logic.createFreehold(
-                        name, world.getUID(),
-                        price, authority, titleholder);
-                Map<String, String> placeholders = created
-                        ? logic.getRegionPlaceholders(name, world.getUID())
-                        : Map.<String, String>of();
-                return Map.entry(created, placeholders);
-            } catch (Exception ex) {
-                throw new CompletionException(ex);
-            }
-        }, executorState.dbExec()).thenAcceptAsync(entry -> {
-            if (entry.getKey()) {
-                wgRegion.getMembers().addPlayer(authority);
-                regionProfileService.applyFlags(region,
-                        titleholder != null ? RegionState.SOLD : RegionState.FOR_SALE, entry.getValue());
-                player.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_SUCCESS,
-                        Placeholder.unparsed("region", name)));
-            } else {
-                regionManager.removeRegion(name);
-                player.sendMessage(messages.messageFor(MessageKeys.CREATE_ALREADY_REGISTERED,
-                        Placeholder.unparsed("region", name)));
-            }
-        }, executorState.mainThreadExec()).exceptionally(ex -> {
-            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-            cause.printStackTrace();
-            player.sendMessage(messages.messageFor(MessageKeys.CREATE_ERROR,
-                    Placeholder.unparsed("error", cause.getMessage())));
-            return null;
-        });
+        api.createFreehold(region, price, authority, titleholder)
+                .thenAccept(result -> {
+                    switch (result) {
+                        case RealtyPaperApi.CreateFreeholdResult.Success ignored ->
+                                player.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_SUCCESS,
+                                        Placeholder.unparsed("region", name)));
+                        case RealtyPaperApi.CreateFreeholdResult.AlreadyRegistered ignored -> {
+                            regionManager.removeRegion(name);
+                            player.sendMessage(messages.messageFor(MessageKeys.CREATE_ALREADY_REGISTERED,
+                                    Placeholder.unparsed("region", name)));
+                        }
+                        case RealtyPaperApi.CreateFreeholdResult.Error error ->
+                                player.sendMessage(messages.messageFor(MessageKeys.CREATE_ERROR,
+                                        Placeholder.unparsed("error", error.message())));
+                    }
+                }).exceptionally(ex -> {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    cause.printStackTrace();
+                    player.sendMessage(messages.messageFor(MessageKeys.CREATE_ERROR,
+                            Placeholder.unparsed("error", cause.getMessage())));
+                    return null;
+                });
     }
 
     private static RegionManager getRegionManager(@NotNull World world) {
