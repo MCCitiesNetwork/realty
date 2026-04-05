@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.util.ExecutorState;
+import io.github.md5sha256.realty.api.ExecutorState;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.bukkit.command.CommandSender;

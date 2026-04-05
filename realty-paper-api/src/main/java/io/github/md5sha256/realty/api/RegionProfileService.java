@@ -8,8 +8,6 @@ import com.sk89q.worldguard.protection.flags.RegionGroup;
 import com.sk89q.worldguard.protection.flags.RegionGroupFlag;
 import com.sk89q.worldguard.protection.flags.registry.FlagRegistry;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import io.github.md5sha256.realty.command.util.WorldGuardRegion;
-import io.github.md5sha256.realty.settings.SignProfile;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.jetbrains.annotations.NotNull;

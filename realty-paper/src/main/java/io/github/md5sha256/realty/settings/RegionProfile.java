@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.settings;
 
+import io.github.md5sha256.realty.api.SignProfile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.configurate.objectmapping.ConfigSerializable;

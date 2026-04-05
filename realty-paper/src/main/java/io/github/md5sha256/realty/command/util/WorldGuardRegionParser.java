@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command.util;
 
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;

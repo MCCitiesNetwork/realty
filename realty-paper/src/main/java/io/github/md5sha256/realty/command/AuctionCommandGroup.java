@@ -7,7 +7,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
-import io.github.md5sha256.realty.command.util.WorldGuardRegion;
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;

@@ -6,7 +6,7 @@ import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
-import io.github.md5sha256.realty.command.util.WorldGuardRegion;
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.localisation.MessageContainer;

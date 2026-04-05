@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
-import io.github.md5sha256.realty.command.util.WorldGuardRegion;
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import com.sk89q.worldedit.math.BlockVector3;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;

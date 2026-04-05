@@ -2,12 +2,12 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.SignTextApplicator;
-import io.github.md5sha256.realty.command.util.WorldGuardRegion;
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.util.ExecutorState;
+import io.github.md5sha256.realty.api.ExecutorState;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.World;

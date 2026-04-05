@@ -10,6 +10,7 @@ import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignCache;
+import io.github.md5sha256.realty.api.SignProfile;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
@@ -40,7 +41,7 @@ import io.github.md5sha256.realty.command.TeleportCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
-import io.github.md5sha256.realty.command.util.WorldGuardRegion;
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -58,7 +59,7 @@ import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
-import io.github.md5sha256.realty.util.ExecutorState;
+import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.util.SimpleDateFormatSerializer;
 import io.github.md5sha256.realty.util.TransientNotificationService;
 import org.incendo.cloud.paper.util.sender.PaperSimpleSenderMapper;
@@ -383,7 +384,7 @@ public final class Realty extends JavaPlugin {
         if (grouped != null) {
             for (GroupedRegionProfile group : grouped) {
                 Map<RegionState, RegionProfileService.FlagProfile> stateProfiles = new HashMap<>();
-                Map<RegionState, io.github.md5sha256.realty.settings.SignProfile> signProfiles = new HashMap<>();
+                Map<RegionState, SignProfile> signProfiles = new HashMap<>();
                 for (Map.Entry<RegionState, RegionProfile> entry : group.states().entrySet()) {
                     stateProfiles.put(entry.getKey(),
                             new RegionProfileService.FlagProfile(

@@ -5,7 +5,7 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.RealtyBackend;
-import io.github.md5sha256.realty.util.ExecutorState;
+import io.github.md5sha256.realty.api.ExecutorState;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
 

@@ -1,7 +1,6 @@
 package io.github.md5sha256.realty.api;
 
 import com.sk89q.worldedit.regions.Region;
-import io.github.md5sha256.realty.command.util.WorldGuardRegion;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;

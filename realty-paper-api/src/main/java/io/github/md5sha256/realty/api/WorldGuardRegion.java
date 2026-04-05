@@ -1,4 +1,4 @@
-package io.github.md5sha256.realty.command.util;
+package io.github.md5sha256.realty.api;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import org.bukkit.World;

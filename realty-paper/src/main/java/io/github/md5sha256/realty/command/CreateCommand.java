@@ -18,7 +18,7 @@ import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
-import io.github.md5sha256.realty.command.util.WorldGuardRegion;
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;

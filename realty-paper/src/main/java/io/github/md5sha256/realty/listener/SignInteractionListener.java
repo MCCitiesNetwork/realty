@@ -8,7 +8,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.util.ExecutorState;
+import io.github.md5sha256.realty.api.ExecutorState;
 import io.papermc.paper.event.player.PlayerOpenSignEvent;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;

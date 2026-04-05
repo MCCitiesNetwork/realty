@@ -1,4 +1,4 @@
-package io.github.md5sha256.realty.settings;
+package io.github.md5sha256.realty.api;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
