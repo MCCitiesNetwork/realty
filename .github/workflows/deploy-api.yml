@@ -41,7 +41,7 @@ jobs:
       - name: Publish realty-api
         run: |
           chmod +x ./gradlew
-          ./gradlew :realty-api:publishMavenPublicationToDeployRepository
+          ./gradlew :realty publishMavenPublicationToDeployRepository
         env:
           ORG_GRADLE_PROJECT_deployUrl: ${{ secrets.MAVEN_REPOSITORY_URL }}${{ steps.repo-path.outputs.suffix }}
           ORG_GRADLE_PROJECT_deployUsername: ${{ secrets.MAVEN_REPOSITORY_USERNAME }}
