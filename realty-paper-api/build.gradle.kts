@@ -5,11 +5,11 @@ plugins {
 
 dependencies {
     api(project(":realty-backend"))
-    compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
-    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
+    compileOnlyApi("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    compileOnlyApi("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    compileOnly("org.jetbrains:annotations:26.0.2-1")
+    compileOnlyApi("org.jetbrains:annotations:26.0.2-1")
     api("org.spongepowered:configurate-yaml:4.2.0")
 }
 
