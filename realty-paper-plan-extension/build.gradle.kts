@@ -11,10 +11,7 @@ dependencies {
     compileOnly("org.jetbrains:annotations:26.0.2-1")
 
     testImplementation(project(":realty-backend"))
-    testImplementation(platform("org.junit:junit-bom:5.11.4"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("com.github.plan-player-analytics:Plan:5.7.3306")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks {
