@@ -35,6 +35,13 @@ dependencies {
 
 tasks {
 
+    test {
+        val byteBuddyAgent = configurations.testRuntimeClasspath.get().files.find { it.name.contains("byte-buddy-agent") }
+        if (byteBuddyAgent != null) {
+            jvmArgs("-javaagent:$byteBuddyAgent")
+        }
+    }
+
     shadowJar {
         val base = "io.github.md5sha256.realty.libraries"
         relocate("org.mariadb", "${base}.org.mariadb")
