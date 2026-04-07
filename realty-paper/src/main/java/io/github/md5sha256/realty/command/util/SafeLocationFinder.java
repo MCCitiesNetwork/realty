@@ -297,7 +297,7 @@ public final class SafeLocationFinder {
     /**
      * Delegates to the configured safety predicate for the given feet-level position.
      */
-    private boolean isSafe(@NotNull World world, int x, int y, int z) {
+    public boolean isSafe(@NotNull World world, int x, int y, int z) {
         Block feetBlock = world.getBlockAt(x, y, z);
         return safetyPredicate.test(feetBlock);
     }
