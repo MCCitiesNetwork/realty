@@ -137,12 +137,18 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                                         @NotNull UUID tenantId) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.previewRent(regionId, worldId),
-                executorState.dbExec()
-        ).thenComposeAsync(preview -> switch (preview) {
+        // DB-first: atomically reserve the region before processing payment.
+        // rentRegion uses WHERE tenantId IS NULL, preventing races.
+        return CompletableFuture.supplyAsync(() -> {
+            RealtyBackend.RentResult result = realtyApi.rentRegion(regionId, worldId, tenantId);
+            if (result instanceof RealtyBackend.RentResult.Success) {
+                Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
+                return Map.entry(result, placeholders);
+            }
+            return Map.<RealtyBackend.RentResult, Map<String, String>>entry(result, Map.of());
+        }, executorState.dbExec()).thenComposeAsync(entry -> switch (entry.getKey()) {
             case RealtyBackend.RentResult.Success success ->
-                    handleRentPayment(region, regionId, worldId, tenantId, success);
+                    handleRentPayment(region, regionId, worldId, tenantId, success, entry.getValue());
             case RealtyBackend.RentResult.NoLeaseholdContract ignored ->
                     CompletableFuture.completedFuture(new RentResult.NoLeaseholdContract(regionId));
             case RealtyBackend.RentResult.AlreadyOccupied ignored ->
@@ -158,46 +164,42 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private @NotNull CompletableFuture<RentResult> handleRentPayment(
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID tenantId,
-            @NotNull RealtyBackend.RentResult.Success preview) {
-        double price = preview.price();
+            @NotNull RealtyBackend.RentResult.Success reserved,
+            @NotNull Map<String, String> placeholders) {
+        double price = reserved.price();
         OfflinePlayer tenant = Bukkit.getOfflinePlayer(tenantId);
-        double balance = economy.getBalance(tenant);
-        if (balance < price) {
-            return CompletableFuture.completedFuture(
-                    new RentResult.InsufficientFunds(price, balance));
-        }
+        // Region is already reserved in DB. Process payment, rollback DB on failure.
         if (price > 0) {
+            double balance = economy.getBalance(tenant);
+            if (balance < price) {
+                return rollbackRentAsync(regionId, worldId)
+                        .thenApply(ignored -> new RentResult.InsufficientFunds(price, balance));
+            }
             EconomyResponse response = economy.withdrawPlayer(tenant, price);
             if (!response.transactionSuccess()) {
-                return CompletableFuture.completedFuture(
-                        new RentResult.PaymentFailed(response.errorMessage));
+                return rollbackRentAsync(regionId, worldId)
+                        .thenApply(ignored -> new RentResult.PaymentFailed(response.errorMessage));
             }
-            OfflinePlayer landlord = Bukkit.getOfflinePlayer(preview.landlordId());
+            OfflinePlayer landlord = Bukkit.getOfflinePlayer(reserved.landlordId());
             economy.depositPlayer(landlord, price);
         }
-        return CompletableFuture.supplyAsync(() -> {
-            RealtyBackend.RentResult result = realtyApi.rentRegion(regionId, worldId, tenantId);
-            if (result instanceof RealtyBackend.RentResult.Success) {
-                return realtyApi.getRegionPlaceholders(regionId, worldId);
-            }
-            return null;
-        }, executorState.dbExec()).thenApplyAsync(placeholders -> {
-            if (placeholders == null) {
-                if (price > 0) {
-                    economy.depositPlayer(tenant, price);
-                }
-                return (RentResult) new RentResult.UpdateFailed(regionId);
-            }
-            ProtectedRegion protectedRegion = region.region();
-            protectedRegion.getOwners().clear();
-            protectedRegion.getMembers().clear();
-            protectedRegion.getOwners().addPlayer(tenantId);
-            regionProfileService.applyFlags(region, RegionState.LEASED, placeholders);
-            signTextApplicator.updateLoadedSigns(region.world(), regionId,
-                    RegionState.LEASED, placeholders);
-            return (RentResult) new RentResult.Success(price, preview.durationSeconds(),
-                    regionId, preview.landlordId());
-        }, executorState.mainThreadExec());
+        ProtectedRegion protectedRegion = region.region();
+        protectedRegion.getOwners().clear();
+        protectedRegion.getMembers().clear();
+        protectedRegion.getOwners().addPlayer(tenantId);
+        regionProfileService.applyFlags(region, RegionState.LEASED, placeholders);
+        signTextApplicator.updateLoadedSigns(region.world(), regionId,
+                RegionState.LEASED, placeholders);
+        return CompletableFuture.completedFuture(
+                new RentResult.Success(price, reserved.durationSeconds(),
+                        regionId, reserved.landlordId()));
+    }
+
+    private @NotNull CompletableFuture<Void> rollbackRentAsync(@NotNull String regionId,
+                                                                @NotNull UUID worldId) {
+        return CompletableFuture.runAsync(
+                () -> realtyApi.rollbackRent(regionId, worldId),
+                executorState.dbExec());
     }
 
     @Override
@@ -205,72 +207,68 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                                             @NotNull UUID tenantId) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.getLeaseholdContract(regionId, worldId),
-                executorState.dbExec()
-        ).thenComposeAsync(lease -> {
-            if (lease == null) {
-                return CompletableFuture.completedFuture(
-                        (UnrentResult) new UnrentResult.NoLeaseholdContract(regionId));
+        // DB-first: atomically clear the tenant with WHERE tenantId = #{tenantId}
+        // guard, then process the refund. Rollback DB if refund fails.
+        return CompletableFuture.supplyAsync(() -> {
+            RealtyBackend.UnrentResult result = realtyApi.unrentRegion(regionId, worldId, tenantId);
+            if (result instanceof RealtyBackend.UnrentResult.Success success) {
+                Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
+                return Map.entry(success, placeholders);
             }
-            long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = lease.endDate() == null ? 0
-                    : Math.max(0, Duration.between(LocalDateTime.now(), lease.endDate()).getSeconds());
-            double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
-            if (refund > 0) {
-                OfflinePlayer landlord = Bukkit.getOfflinePlayer(lease.landlordId());
-                EconomyResponse withdrawResponse = economy.withdrawPlayer(landlord, refund);
-                if (!withdrawResponse.transactionSuccess()) {
-                    return CompletableFuture.completedFuture(
-                            (UnrentResult) new UnrentResult.RefundFailed(withdrawResponse.errorMessage));
-                }
-                OfflinePlayer tenantPlayer = Bukkit.getOfflinePlayer(tenantId);
-                EconomyResponse depositResponse = economy.depositPlayer(tenantPlayer, refund);
-                if (!depositResponse.transactionSuccess()) {
-                    economy.depositPlayer(landlord, refund);
-                    return CompletableFuture.completedFuture(
-                            (UnrentResult) new UnrentResult.RefundFailed(depositResponse.errorMessage));
-                }
-            }
-            return CompletableFuture.supplyAsync(() -> {
-                RealtyBackend.UnrentResult result = realtyApi.unrentRegion(regionId, worldId, tenantId);
-                if (result instanceof RealtyBackend.UnrentResult.Success) {
-                    Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
-                    return Map.entry(result, placeholders);
-                }
-                return Map.<RealtyBackend.UnrentResult, Map<String, String>>entry(result, Map.of());
-            }, executorState.dbExec()).thenApplyAsync(entry -> {
-                switch (entry.getKey()) {
-                    case RealtyBackend.UnrentResult.Success ignored -> {
-                        ProtectedRegion protectedRegion = region.region();
-                        protectedRegion.getOwners().clear();
-                        protectedRegion.getMembers().clear();
-                        regionProfileService.applyFlags(region, RegionState.FOR_LEASE, entry.getValue());
-                        signTextApplicator.updateLoadedSigns(region.world(), regionId,
-                                RegionState.FOR_LEASE, entry.getValue());
-                        return (UnrentResult) new UnrentResult.Success(refund, regionId, lease.landlordId());
-                    }
-                    default -> {
-                        revertUnrentEconomy(tenantId, lease, refund);
-                        return (UnrentResult) new UnrentResult.UpdateFailed(regionId);
-                    }
-                }
-            }, executorState.mainThreadExec());
+            return Map.<RealtyBackend.UnrentResult, Map<String, String>>entry(result, Map.of());
+        }, executorState.dbExec()).thenComposeAsync(entry -> switch (entry.getKey()) {
+            case RealtyBackend.UnrentResult.Success success ->
+                    handleUnrentRefund(region, regionId, worldId, tenantId, success, entry.getValue());
+            case RealtyBackend.UnrentResult.NoLeaseholdContract ignored ->
+                    CompletableFuture.completedFuture(
+                            (UnrentResult) new UnrentResult.NoLeaseholdContract(regionId));
+            case RealtyBackend.UnrentResult.UpdateFailed ignored ->
+                    CompletableFuture.completedFuture(
+                            (UnrentResult) new UnrentResult.UpdateFailed(regionId));
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new UnrentResult.Error(String.valueOf(cause.getMessage()));
         });
     }
 
-    private void revertUnrentEconomy(@NotNull UUID tenantId,
-                                     @NotNull LeaseholdContractEntity lease,
-                                     double refund) {
+    private @NotNull CompletableFuture<UnrentResult> handleUnrentRefund(
+            @NotNull WorldGuardRegion region, @NotNull String regionId,
+            @NotNull UUID worldId, @NotNull UUID tenantId,
+            @NotNull RealtyBackend.UnrentResult.Success success,
+            @NotNull Map<String, String> placeholders) {
+        double refund = success.refund();
+        // Tenant is already cleared in DB. Process refund, rollback DB on failure.
         if (refund > 0) {
+            OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
+            EconomyResponse withdrawResponse = economy.withdrawPlayer(landlord, refund);
+            if (!withdrawResponse.transactionSuccess()) {
+                return rollbackUnrentAsync(regionId, worldId, tenantId)
+                        .thenApply(ignored -> new UnrentResult.RefundFailed(withdrawResponse.errorMessage));
+            }
             OfflinePlayer tenantPlayer = Bukkit.getOfflinePlayer(tenantId);
-            economy.withdrawPlayer(tenantPlayer, refund);
-            OfflinePlayer landlord = Bukkit.getOfflinePlayer(lease.landlordId());
-            economy.depositPlayer(landlord, refund);
+            EconomyResponse depositResponse = economy.depositPlayer(tenantPlayer, refund);
+            if (!depositResponse.transactionSuccess()) {
+                economy.depositPlayer(landlord, refund);
+                return rollbackUnrentAsync(regionId, worldId, tenantId)
+                        .thenApply(ignored -> new UnrentResult.RefundFailed(depositResponse.errorMessage));
+            }
         }
+        ProtectedRegion protectedRegion = region.region();
+        protectedRegion.getOwners().clear();
+        protectedRegion.getMembers().clear();
+        regionProfileService.applyFlags(region, RegionState.FOR_LEASE, placeholders);
+        signTextApplicator.updateLoadedSigns(region.world(), regionId,
+                RegionState.FOR_LEASE, placeholders);
+        return CompletableFuture.completedFuture(
+                new UnrentResult.Success(refund, regionId, success.landlordId()));
+    }
+
+    private @NotNull CompletableFuture<Void> rollbackUnrentAsync(@NotNull String regionId,
+                                                                  @NotNull UUID worldId,
+                                                                  @NotNull UUID tenantId) {
+        return CompletableFuture.runAsync(
+                () -> realtyApi.rentRegion(regionId, worldId, tenantId),
+                executorState.dbExec());
     }
 
     @Override

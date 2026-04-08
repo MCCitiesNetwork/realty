@@ -8,7 +8,6 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
@@ -25,7 +24,6 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -309,7 +307,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns NoLeaseholdContract when no contract exists")
         void noLeaseholdContract() {
-            when(realtyApi.previewRent(REGION_ID, WORLD_ID))
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(new RealtyBackend.RentResult.NoLeaseholdContract());
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
@@ -320,7 +318,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns AlreadyOccupied when region is occupied")
         void alreadyOccupied() {
-            when(realtyApi.previewRent(REGION_ID, WORLD_ID))
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(new RealtyBackend.RentResult.AlreadyOccupied());
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
@@ -329,31 +327,32 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("returns InsufficientFunds when balance is too low")
+        @DisplayName("returns InsufficientFunds and rolls back DB when balance is too low")
         void insufficientFunds() {
-            when(realtyApi.previewRent(REGION_ID, WORLD_ID))
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID));
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
+                    .thenReturn(Map.of());
             when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(100.0);
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.RentResult.InsufficientFunds.class, result);
+            verify(realtyApi).rollbackRent(REGION_ID, WORLD_ID);
         }
 
         @Test
         @DisplayName("success sets tenant as owner and applies LEASED flags")
         void success() {
-            when(realtyApi.previewRent(REGION_ID, WORLD_ID))
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID));
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
+                    .thenReturn(Map.of());
             when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(1000.0);
             when(economy.withdrawPlayer(any(OfflinePlayer.class), eq(500.0)))
                     .thenReturn(successResponse(500.0));
             when(economy.depositPlayer(any(OfflinePlayer.class), eq(500.0)))
                     .thenReturn(successResponse(500.0));
-            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID));
-            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
-                    .thenReturn(Map.of());
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
 
@@ -365,9 +364,6 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("skips payment when price is zero")
         void zeroPriceSkipsPayment() {
-            when(realtyApi.previewRent(REGION_ID, WORLD_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(0.0, 3600, LANDLORD_ID));
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(0.0);
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(new RealtyBackend.RentResult.Success(0.0, 3600, LANDLORD_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
@@ -383,13 +379,6 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns UpdateFailed when backend fails")
         void updateFailedOnBackendFailure() {
-            when(realtyApi.previewRent(REGION_ID, WORLD_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID));
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(1000.0);
-            when(economy.withdrawPlayer(any(OfflinePlayer.class), eq(500.0)))
-                    .thenReturn(successResponse(500.0));
-            when(economy.depositPlayer(any(OfflinePlayer.class), eq(500.0)))
-                    .thenReturn(successResponse(500.0));
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(new RealtyBackend.RentResult.UpdateFailed());
 
@@ -410,8 +399,8 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns NoLeaseholdContract when no contract exists")
         void noLeaseholdContract() {
-            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
-                    .thenReturn(null);
+            when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID))
+                    .thenReturn(new RealtyBackend.UnrentResult.NoLeaseholdContract());
 
             RealtyPaperApi.UnrentResult result = api.unrent(wgRegion, TENANT_ID).join();
 
@@ -421,19 +410,14 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success clears owners and applies FOR_LEASE flags")
         void success() {
-            LeaseholdContractEntity lease = new LeaseholdContractEntity(
-                    1, LANDLORD_ID, TENANT_ID, 500.0, 3600,
-                    LocalDateTime.now(), LocalDateTime.now().plusHours(1), 0, 3);
-            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
-                    .thenReturn(lease);
-            when(economy.withdrawPlayer(any(OfflinePlayer.class), anyDouble()))
-                    .thenReturn(successResponse(100.0));
-            when(economy.depositPlayer(any(OfflinePlayer.class), anyDouble()))
-                    .thenReturn(successResponse(100.0));
             when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, LANDLORD_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
+            when(economy.withdrawPlayer(any(OfflinePlayer.class), anyDouble()))
+                    .thenReturn(successResponse(100.0));
+            when(economy.depositPlayer(any(OfflinePlayer.class), anyDouble()))
+                    .thenReturn(successResponse(100.0));
 
             protectedRegion.getOwners().addPlayer(TENANT_ID);
 
@@ -446,19 +430,21 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("returns RefundFailed when landlord withdraw fails")
+        @DisplayName("returns RefundFailed and rolls back DB when landlord withdraw fails")
         void refundFailedOnLandlordWithdraw() {
-            LeaseholdContractEntity lease = new LeaseholdContractEntity(
-                    1, LANDLORD_ID, TENANT_ID, 500.0, 3600,
-                    LocalDateTime.now(), LocalDateTime.now().plusHours(1), 0, 3);
-            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
-                    .thenReturn(lease);
+            when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID))
+                    .thenReturn(new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, LANDLORD_ID));
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
+                    .thenReturn(Map.of());
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
+                    .thenReturn(new RealtyBackend.RentResult.Success(100.0, 3600, LANDLORD_ID));
             when(economy.withdrawPlayer(any(OfflinePlayer.class), anyDouble()))
                     .thenReturn(failureResponse("Insufficient funds"));
 
             RealtyPaperApi.UnrentResult result = api.unrent(wgRegion, TENANT_ID).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.UnrentResult.RefundFailed.class, result);
+            verify(realtyApi).rentRegion(REGION_ID, WORLD_ID, TENANT_ID);
         }
     }
 
