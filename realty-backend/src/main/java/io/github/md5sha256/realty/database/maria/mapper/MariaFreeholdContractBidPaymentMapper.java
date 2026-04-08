@@ -111,6 +111,22 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
                       @Param("payment") double payment);
 
     @Override
+    @Update("""
+            UPDATE FreeholdContractBidPayment scbp
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scbp.realtyRegionId
+            SET scbp.currentPayment = #{newPayment}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND scbp.bidderId = #{bidderId}
+            AND scbp.currentPayment = #{expectedCurrent}
+            """)
+    int atomicUpdatePayment(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                            @Param("worldId") @NotNull UUID worldId,
+                            @Param("bidderId") @NotNull UUID bidderId,
+                            @Param("expectedCurrent") double expectedCurrent,
+                            @Param("newPayment") double newPayment);
+
+    @Override
     @Delete("""
             DELETE FROM FreeholdContractBidPayment
             WHERE bidId = #{bidId}

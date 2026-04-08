@@ -115,6 +115,24 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
                        @Param("tenantId") @NotNull UUID tenantId);
 
     @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.endDate = lc.endDate - INTERVAL lc.durationSeconds SECOND,
+                lc.currentMaxExtensions = CASE
+                    WHEN lc.currentMaxExtensions IS NULL THEN NULL
+                    ELSE GREATEST(0, lc.currentMaxExtensions - 1)
+                END
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND lc.tenantId = #{tenantId}
+            """)
+    int rollbackRenewLeasehold(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                               @Param("worldId") @NotNull UUID worldId,
+                               @Param("tenantId") @NotNull UUID tenantId);
+
+    @Override
     @Select("""
             SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId,
                    rr.worldGuardRegionId, rr.worldId

@@ -203,27 +203,23 @@ public interface RealtyBackend {
 
     // --- Buy (fixed-price) ---
 
-    sealed interface BuyValidation {
-        record Eligible(double price, @NotNull UUID authorityId) implements BuyValidation {}
-        record NoFreeholdContract() implements BuyValidation {}
-        record NotForFreehold() implements BuyValidation {}
-        record IsAuthority() implements BuyValidation {}
-        record IsTitleHolder() implements BuyValidation {}
-    }
-
-    @NotNull BuyValidation validateBuy(@NotNull String worldGuardRegionId,
-                                       @NotNull UUID worldId,
-                                       @NotNull UUID buyerId);
-
     sealed interface BuyResult {
-        record Success(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements BuyResult {}
+        record Success(double price, @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements BuyResult {}
         record NoFreeholdContract() implements BuyResult {}
         record NotForFreehold() implements BuyResult {}
+        record IsAuthority() implements BuyResult {}
+        record IsTitleHolder() implements BuyResult {}
+        record UpdateFailed() implements BuyResult {}
     }
 
     @NotNull BuyResult executeBuy(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,
                                   @NotNull UUID buyerId);
+
+    void rollbackBuy(@NotNull String worldGuardRegionId,
+                     @NotNull UUID worldId,
+                     @Nullable UUID previousTitleHolderId,
+                     double previousPrice);
 
     // --- Create Freehold ---
 
@@ -279,12 +275,13 @@ public interface RealtyBackend {
         record UpdateFailed() implements RenewLeaseholdResult {}
     }
 
-    @NotNull RenewLeaseholdResult previewRenewLeasehold(@NotNull String worldGuardRegionId,
-                                                        @NotNull UUID worldId);
-
     @NotNull RenewLeaseholdResult renewLeasehold(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId,
                                                  @NotNull UUID tenantId);
+
+    void rollbackRenewLeasehold(@NotNull String worldGuardRegionId,
+                                @NotNull UUID worldId,
+                                @NotNull UUID tenantId);
 
     // --- Delete ---
 
@@ -452,6 +449,11 @@ public interface RealtyBackend {
                                      @NotNull UUID offererId,
                                      double amount);
 
+    void rollbackPayOffer(@NotNull String worldGuardRegionId,
+                          @NotNull UUID worldId,
+                          @NotNull UUID offererId,
+                          double amount);
+
     // --- Pay Bid ---
 
     sealed interface PayBidResult {
@@ -467,6 +469,11 @@ public interface RealtyBackend {
                                  @NotNull UUID worldId,
                                  @NotNull UUID bidderId,
                                  double amount);
+
+    void rollbackPayBid(@NotNull String worldGuardRegionId,
+                        @NotNull UUID worldId,
+                        @NotNull UUID bidderId,
+                        double amount);
 
     // --- Expired Bidding Auctions ---
 

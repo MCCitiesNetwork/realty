@@ -541,30 +541,6 @@ public class RealtyBackendImpl implements RealtyBackend {
 
 
     @Override
-    public @NotNull BuyValidation validateBuy(@NotNull String worldGuardRegionId,
-                                               @NotNull UUID worldId,
-                                               @NotNull UUID buyerId) {
-        try (SqlSessionWrapper wrapper = database.openSession()) {
-            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
-            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
-            if (freehold == null) {
-                return new BuyValidation.NoFreeholdContract();
-            }
-            if (freehold.price() == null) {
-                return new BuyValidation.NotForFreehold();
-            }
-            if (freehold.authorityId().equals(buyerId)) {
-                return new BuyValidation.IsAuthority();
-            }
-            if (buyerId.equals(freehold.titleHolderId())) {
-                return new BuyValidation.IsTitleHolder();
-            }
-            return new BuyValidation.Eligible(freehold.price(), freehold.authorityId());
-        }
-    }
-
-
-    @Override
     public @NotNull BuyResult executeBuy(@NotNull String worldGuardRegionId,
                                           @NotNull UUID worldId,
                                           @NotNull UUID buyerId) {
@@ -577,16 +553,37 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (freehold.price() == null) {
                 return new BuyResult.NotForFreehold();
             }
+            if (freehold.authorityId().equals(buyerId)) {
+                return new BuyResult.IsAuthority();
+            }
+            if (buyerId.equals(freehold.titleHolderId())) {
+                return new BuyResult.IsTitleHolder();
+            }
             UUID authorityId = freehold.authorityId();
             UUID titleHolderId = freehold.titleHolderId();
-            freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, freehold.price(), buyerId);
-            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            // Atomic: WHERE price IS NOT NULL prevents concurrent buys
+            int updated = freeholdMapper.atomicBuy(worldGuardRegionId, worldId, buyerId);
+            if (updated == 0) {
+                return new BuyResult.UpdateFailed();
+            }
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.BUY.name(),
                     buyerId, authorityId, freehold.price());
             wrapper.session().commit();
-            return new BuyResult.Success(authorityId, titleHolderId);
+            return new BuyResult.Success(freehold.price(), authorityId, titleHolderId);
+        }
+    }
+
+    @Override
+    public void rollbackBuy(@NotNull String worldGuardRegionId,
+                             @NotNull UUID worldId,
+                             @Nullable UUID previousTitleHolderId,
+                             double previousPrice) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
+            freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, previousPrice, previousTitleHolderId);
+            wrapper.session().commit();
         }
     }
 
@@ -703,22 +700,6 @@ public class RealtyBackendImpl implements RealtyBackend {
 
 
     @Override
-    public @NotNull RenewLeaseholdResult previewRenewLeasehold(@NotNull String worldGuardRegionId,
-                                                              @NotNull UUID worldId) {
-        try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
-            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
-            if (lease == null) {
-                return new RenewLeaseholdResult.NoLeaseholdContract();
-            }
-            if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
-                return new RenewLeaseholdResult.NoExtensionsRemaining();
-            }
-            return new RenewLeaseholdResult.Success(lease.price(), lease.landlordId());
-        }
-    }
-
-    @Override
     public @NotNull RenewLeaseholdResult renewLeasehold(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId,
                                                  @NotNull UUID tenantId) {
@@ -743,6 +724,16 @@ public class RealtyBackendImpl implements RealtyBackend {
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
             wrapper.session().commit();
             return new RenewLeaseholdResult.Success(lease.price(), lease.landlordId());
+        }
+    }
+
+    @Override
+    public void rollbackRenewLeasehold(@NotNull String worldGuardRegionId,
+                                        @NotNull UUID worldId,
+                                        @NotNull UUID tenantId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            wrapper.leaseholdContractMapper().rollbackRenewLeasehold(worldGuardRegionId, worldId, tenantId);
+            wrapper.session().commit();
         }
     }
 
@@ -1234,6 +1225,12 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);
             }
             double newTotal = payment.currentPayment() + amount;
+            // Optimistic lock: WHERE currentPayment = expected prevents concurrent updates
+            int updated = paymentMapper.atomicUpdatePayment(worldGuardRegionId, worldId, offererId,
+                    payment.currentPayment(), newTotal);
+            if (updated == 0) {
+                return new PayOfferResult.NoPaymentRecord();
+            }
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             UUID authorityId = freehold.authorityId();
@@ -1247,13 +1244,28 @@ public class RealtyBackendImpl implements RealtyBackend {
                 wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.OFFER_BUY.name(),
                         offererId, authorityId, payment.offerPrice());
-                wrapper.session().commit();
-                return new PayOfferResult.FullyPaid(authorityId, titleHolderId);
-            } else {
-                paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, newTotal);
             }
             wrapper.session().commit();
+            if (newTotal == payment.offerPrice()) {
+                return new PayOfferResult.FullyPaid(authorityId, titleHolderId);
+            }
             return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal, authorityId, titleHolderId);
+        }
+    }
+
+    @Override
+    public void rollbackPayOffer(@NotNull String worldGuardRegionId,
+                                  @NotNull UUID worldId,
+                                  @NotNull UUID offererId,
+                                  double amount) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
+            FreeholdContractOfferPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (payment != null && payment.offererId().equals(offererId)) {
+                double rolledBack = Math.max(0, payment.currentPayment() - amount);
+                paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, rolledBack);
+                wrapper.session().commit();
+            }
         }
     }
 
@@ -1279,6 +1291,12 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new PayBidResult.ExceedsAmountOwed(amountOwed);
             }
             double newTotal = payment.currentPayment() + amount;
+            // Optimistic lock: WHERE currentPayment = expected prevents concurrent updates
+            int updated = paymentMapper.atomicUpdatePayment(worldGuardRegionId, worldId, bidderId,
+                    payment.currentPayment(), newTotal);
+            if (updated == 0) {
+                return new PayBidResult.NoPaymentRecord();
+            }
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             UUID authorityId = freehold.authorityId();
@@ -1291,12 +1309,28 @@ public class RealtyBackendImpl implements RealtyBackend {
                 wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),
                         bidderId, authorityId, payment.bidPrice());
-                wrapper.session().commit();
+            }
+            wrapper.session().commit();
+            if (newTotal == payment.bidPrice()) {
                 return new PayBidResult.FullyPaid(authorityId, titleHolderId);
             }
-            paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, newTotal);
-            wrapper.session().commit();
             return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal, authorityId, titleHolderId);
+        }
+    }
+
+    @Override
+    public void rollbackPayBid(@NotNull String worldGuardRegionId,
+                                @NotNull UUID worldId,
+                                @NotNull UUID bidderId,
+                                double amount) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
+            FreeholdContractBidPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (payment != null && payment.bidderId().equals(bidderId)) {
+                double rolledBack = Math.max(0, payment.currentPayment() - amount);
+                paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, rolledBack);
+                wrapper.session().commit();
+            }
         }
     }
 

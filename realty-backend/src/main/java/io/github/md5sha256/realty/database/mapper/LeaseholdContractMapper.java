@@ -39,6 +39,10 @@ public interface LeaseholdContractMapper {
                      @NotNull UUID worldId,
                      @NotNull UUID tenantId);
 
+    int rollbackRenewLeasehold(@NotNull String worldGuardRegionId,
+                               @NotNull UUID worldId,
+                               @NotNull UUID tenantId);
+
     int updateDurationByRegion(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
                                long durationSeconds);

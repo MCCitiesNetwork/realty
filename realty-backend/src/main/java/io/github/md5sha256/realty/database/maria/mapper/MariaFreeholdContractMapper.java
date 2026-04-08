@@ -144,6 +144,20 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             UPDATE FreeholdContract fc
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET fc.titleHolderId = #{buyerId}, fc.price = NULL
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND fc.price IS NOT NULL
+            """)
+    int atomicBuy(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                  @Param("worldId") @NotNull UUID worldId,
+                  @Param("buyerId") @NotNull UUID buyerId);
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContract fc
+            INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET fc.acceptingOffers = #{acceptingOffers}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
