@@ -32,8 +32,9 @@ tasks {
     }
 
     processResources {
+        val projectVersion = version
         filesMatching("paper-plugin.yml") {
-            expand("version" to project.version)
+            expand("version" to projectVersion)
         }
     }
 }
