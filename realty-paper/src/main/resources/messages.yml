@@ -293,6 +293,7 @@ help:
     - "<gold>--- Realty > Admin ---</gold>"
     - "<yellow>/realty create freehold <price> [--titleholder <name>] [--authority <name>] <region></yellow> <gray>- Create a freehold</gray>"
     - "<yellow>/realty create leasehold <price> <period> <maxextensions> [--landlord <name>] <region></yellow> <gray>- Create a lease</gray>"
+    - "<yellow>/realty set authority <player> <region></yellow> <gray>- Set freehold authority</gray>"
     - "<yellow>/realty remove <player> <region></yellow> <gray>- Remove a player from a region</gray>"
     - "<yellow>/realty delete <region> [includeworldguard]</yellow> <gray>- Delete a region</gray>"
     - "<yellow>/realty reload</yellow> <gray>- Reload configuration</gray>"
