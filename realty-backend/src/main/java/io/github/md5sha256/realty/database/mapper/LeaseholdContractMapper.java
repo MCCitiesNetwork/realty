@@ -35,6 +35,10 @@ public interface LeaseholdContractMapper {
 
     int clearTenant(int leaseholdContractId);
 
+    int unrentRegion(@NotNull String worldGuardRegionId,
+                     @NotNull UUID worldId,
+                     @NotNull UUID tenantId);
+
     int updateDurationByRegion(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
                                long durationSeconds);

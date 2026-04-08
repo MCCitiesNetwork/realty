@@ -251,12 +251,12 @@ public interface RealtyBackend {
         record UpdateFailed() implements RentResult {}
     }
 
-    @NotNull RentResult previewRent(@NotNull String worldGuardRegionId,
-                                    @NotNull UUID worldId);
-
     @NotNull RentResult rentRegion(@NotNull String worldGuardRegionId,
                                    @NotNull UUID worldId,
                                    @NotNull UUID tenantId);
+
+    void rollbackRent(@NotNull String worldGuardRegionId,
+                      @NotNull UUID worldId);
 
     // --- Unrent ---
 

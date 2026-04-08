@@ -639,22 +639,6 @@ public class RealtyBackendImpl implements RealtyBackend {
 
 
     @Override
-    public @NotNull RentResult previewRent(@NotNull String worldGuardRegionId,
-                                           @NotNull UUID worldId) {
-        try (SqlSessionWrapper wrapper = database.openSession()) {
-            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
-            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
-            if (lease == null) {
-                return new RentResult.NoLeaseholdContract();
-            }
-            if (lease.tenantId() != null) {
-                return new RentResult.AlreadyOccupied();
-            }
-            return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId());
-        }
-    }
-
-    @Override
     public @NotNull RentResult rentRegion(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
                                            @NotNull UUID tenantId) {
@@ -678,6 +662,15 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+    @Override
+    public void rollbackRent(@NotNull String worldGuardRegionId,
+                             @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            wrapper.leaseholdContractMapper().updateTenantByRegion(worldGuardRegionId, worldId, null);
+            wrapper.session().commit();
+        }
+    }
+
     // --- Unrent ---
 
 
@@ -695,7 +688,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             long remainingSeconds = lease.endDate() == null ? 0
                     : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
             double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
-            int updated = leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, null);
+            int updated = leaseholdMapper.unrentRegion(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new UnrentResult.UpdateFailed();
             }

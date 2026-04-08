@@ -149,6 +149,23 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             UPDATE LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.tenantId = NULL,
+                lc.startDate = NULL,
+                lc.endDate = NULL,
+                lc.currentMaxExtensions = CASE WHEN lc.maxExtensions IS NOT NULL THEN 0 ELSE NULL END
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND lc.tenantId = #{tenantId}
+            """)
+    int unrentRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                     @Param("worldId") @NotNull UUID worldId,
+                     @Param("tenantId") @NotNull UUID tenantId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.durationSeconds = #{durationSeconds}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
