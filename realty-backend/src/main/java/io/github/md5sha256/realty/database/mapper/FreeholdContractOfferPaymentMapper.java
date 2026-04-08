@@ -24,6 +24,9 @@ public interface FreeholdContractOfferPaymentMapper {
 
     int updatePayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double payment);
 
+    int atomicUpdatePayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
+                            @NotNull UUID offererId, double expectedCurrent, double newPayment);
+
     int deleteByOfferId(int offerId);
 
     int deleteByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);

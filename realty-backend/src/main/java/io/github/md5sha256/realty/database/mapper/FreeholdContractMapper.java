@@ -122,6 +122,10 @@ public interface FreeholdContractMapper {
                                       @NotNull UUID worldId,
                                       boolean acceptingOffers);
 
+    int atomicBuy(@NotNull String worldGuardRegionId,
+                  @NotNull UUID worldId,
+                  @NotNull UUID buyerId);
+
     int countAll();
 
     int countOccupied();

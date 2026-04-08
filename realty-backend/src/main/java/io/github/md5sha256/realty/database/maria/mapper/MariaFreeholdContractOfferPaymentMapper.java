@@ -91,6 +91,22 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
                       @Param("payment") double payment);
 
     @Override
+    @Update("""
+            UPDATE FreeholdContractOfferPayment scop
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scop.realtyRegionId
+            SET scop.currentPayment = #{newPayment}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND scop.offererId = #{offererId}
+            AND scop.currentPayment = #{expectedCurrent}
+            """)
+    int atomicUpdatePayment(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                            @Param("worldId") @NotNull UUID worldId,
+                            @Param("offererId") @NotNull UUID offererId,
+                            @Param("expectedCurrent") double expectedCurrent,
+                            @Param("newPayment") double newPayment);
+
+    @Override
     @Delete("""
             DELETE FROM FreeholdContractOfferPayment
             WHERE offerId = #{offerId}
