@@ -37,6 +37,7 @@ import java.util.UUID;
  *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
  *   <li>{@code /realty set tenant <player> <region>} — set leasehold tenant</li>
  *   <li>{@code /realty set maxextensions <count> <region>} — set leasehold max extensions (-1 for unlimited)</li>
+ *   <li>{@code /realty set authority <player> <region>} — set freehold authority</li>
  * </ul>
  */
 public record SetCommandGroup(
@@ -97,6 +98,12 @@ public record SetCommandGroup(
                         .required("maxextensions", IntegerParser.integerParser(-1))
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetMaxExtensions)
+                        .build(),
+                base.literal("authority")
+                        .permission("realty.command.set.authority")
+                        .required("authority", AuthorityParser.authority())
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                        .handler(this::executeSetAuthority)
                         .build()
         );
     }
@@ -321,6 +328,40 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.SetMaxRenewalsResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_UPDATE_FAILED,
+                                Placeholder.unparsed("region", regionId)));
+            }
+        });
+    }
+
+    private void executeSetAuthority(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
+        UUID authorityId = ctx.get("authority");
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        if (sender instanceof Player player
+                && !sender.hasPermission("realty.command.set.authority.others")
+                && !region.region().getOwners().contains(player.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+            return;
+        }
+        api.setAuthority(regionId, worldId, authorityId).thenAccept(result -> {
+            switch (result) {
+                case RealtyBackend.SetAuthorityResult.Success ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_SUCCESS,
+                                Placeholder.unparsed("authority", resolveName(authorityId)),
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.SetAuthorityResult.NoFreeholdContract ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_NO_FREEHOLD_CONTRACT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.SetAuthorityResult.UpdateFailed ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
             }
         });

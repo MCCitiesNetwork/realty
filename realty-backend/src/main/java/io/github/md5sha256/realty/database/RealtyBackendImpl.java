@@ -450,8 +450,29 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
-    // --- Set Title Holder ---
+    // --- Set Authority ---
 
+    @Override
+    public @NotNull SetAuthorityResult setAuthority(@NotNull String worldGuardRegionId,
+                                                     @NotNull UUID worldId,
+                                                     @NotNull UUID authorityId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new SetAuthorityResult.NoFreeholdContract();
+            }
+            UUID previousAuthority = freehold.authorityId();
+            int updated = freeholdMapper.updateAuthorityByRegion(worldGuardRegionId, worldId, authorityId);
+            if (updated == 0) {
+                return new SetAuthorityResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new SetAuthorityResult.Success(previousAuthority);
+        }
+    }
+
+    // --- Set Title Holder ---
 
     @Override
     public @NotNull SetTitleHolderResult setTitleHolder(@NotNull String worldGuardRegionId,

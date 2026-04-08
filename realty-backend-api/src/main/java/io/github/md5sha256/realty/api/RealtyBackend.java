@@ -171,6 +171,18 @@ public interface RealtyBackend {
                                            @NotNull UUID worldId,
                                            @NotNull UUID landlordId);
 
+    // --- Set Authority ---
+
+    sealed interface SetAuthorityResult {
+        record Success(@NotNull UUID previousAuthority) implements SetAuthorityResult {}
+        record NoFreeholdContract() implements SetAuthorityResult {}
+        record UpdateFailed() implements SetAuthorityResult {}
+    }
+
+    @NotNull SetAuthorityResult setAuthority(@NotNull String worldGuardRegionId,
+                                              @NotNull UUID worldId,
+                                              @NotNull UUID authorityId);
+
     // --- Set Title Holder ---
 
     sealed interface SetTitleHolderResult {

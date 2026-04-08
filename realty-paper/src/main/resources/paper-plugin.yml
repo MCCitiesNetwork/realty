@@ -147,6 +147,12 @@ permissions:
   realty.command.set.landlord.others:
     description: Allows using /realty set landlord on regions you don't own
     default: op
+  realty.command.set.authority:
+    description: Allows using /realty set authority on own regions
+    default: op
+  realty.command.set.authority.others:
+    description: Allows using /realty set authority on regions you don't own
+    default: op
   realty.command.set.titleholder:
     description: Allows using /realty set titleholder on own regions
     default: op
