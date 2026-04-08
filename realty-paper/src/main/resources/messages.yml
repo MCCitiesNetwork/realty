@@ -5,6 +5,8 @@ error:
 
 common:
   player-not-found: "Player <player> has never played on this server."
+  players-only: "Only players can use this command."
+  no-permission: "You do not have permission to run this command."
   error: "An error occurred: <error>"
 
 accept-offer:
@@ -57,6 +59,17 @@ auction:
   not-sanctioned: "You are not authorized to start an auction on region <region>."
   no-freehold-contract: "Region <region> does not have a freehold contract."
   error: "Failed to create auction: <error>"
+
+buy:
+  success: "You bought region <region> for <price>."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
+  not-for-sale: "Region <region> is not for sale."
+  is-authority: "You cannot buy this region because you are its authority."
+  is-title-holder: "You cannot buy a region you already own."
+  insufficient-funds: "You do not have enough funds. Your balance: <balance>. Price: <price>."
+  payment-failed: "Payment failed: <error>"
+  transfer-failed: "Failed to transfer region <region>."
+  error: "Failed to buy region: <error>"
 
 bid:
   no-auction: "That region does not have an active auction!"
@@ -133,6 +146,7 @@ history:
     agent-add: "<gray><time></gray> <yellow>Agent Added</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
     agent-remove: "<gray><time></gray> <yellow>Agent Removed</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
     rent: "<gray><time></gray> <yellow>Rented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
+    renew: "<gray><time></gray> <yellow>Lease Renewed</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
     unrent: "<gray><time></gray> <yellow>Unrented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
     leasehold-expiry: "<gray><time></gray> <yellow>Lease Expired</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
     set-price-freehold: "<gray><time></gray> <yellow>Price Set</yellow> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
@@ -430,6 +444,8 @@ notification:
   agent-invite-withdrawn: "<prefix> <player> withdrew your agent invite for region <region>."
   agent-removed: "<prefix> <player> removed you as an agent for region <region>."
   region-unrented: "<prefix> <player> unrented region <region>. Refund: <refund>."
+  leasehold-expired: "<prefix> Your lease on region <region> has expired."
+  leasehold-expired-landlord: "<prefix> The lease on region <region> has expired; the tenant has been removed."
 
 subregion:
   create-success: "Subregion <region> created as a child of <parent>."
