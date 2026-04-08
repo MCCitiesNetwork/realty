@@ -378,6 +378,11 @@ set-landlord:
   update-failed: "Failed to update landlord for region <region>."
   error: "Failed to set landlord: <error>"
 
+set-authority:
+  success: "Authority for region <region> set to <authority>."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
+  update-failed: "Failed to update authority for region <region>."
+
 set-titleholder:
   success: "Title holder for region <region> set to <titleholder>."
   no-freehold-contract: "Region <region> does not have a freehold contract."

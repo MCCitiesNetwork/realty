@@ -1022,6 +1022,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID authorityId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.setAuthority(regionId, worldId, authorityId),
+                executorState.dbExec());
+    }
+
+    @Override
     public @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
             @NotNull String regionId, @NotNull UUID worldId, double price) {
         return CompletableFuture.supplyAsync(

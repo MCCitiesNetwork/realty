@@ -323,6 +323,11 @@ public final class MessageKeys {
     public static final String SET_TENANT_UPDATE_FAILED = "set-tenant.update-failed";
     public static final String SET_TENANT_ERROR = "set-tenant.error";
 
+    // set-authority
+    public static final String SET_AUTHORITY_SUCCESS = "set-authority.success";
+    public static final String SET_AUTHORITY_NO_FREEHOLD_CONTRACT = "set-authority.no-freehold-contract";
+    public static final String SET_AUTHORITY_UPDATE_FAILED = "set-authority.update-failed";
+
     // set-titleholder
     public static final String SET_TITLEHOLDER_SUCCESS = "set-titleholder.success";
     public static final String SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT = "set-titleholder.no-freehold-contract";

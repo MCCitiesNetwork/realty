@@ -328,6 +328,9 @@ public interface RealtyPaperApi {
 
     // --- Property Config ---
 
+    @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID authorityId);
+
     @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
             @NotNull String regionId, @NotNull UUID worldId, double price);
 
