@@ -619,8 +619,12 @@ public class RealtyBackendImpl implements RealtyBackend {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
-            if (regionMapper.selectByWorldGuardRegion(worldGuardRegionId, worldId) != null) {
-                return false;
+            RealtyRegionEntity existing = regionMapper.selectByWorldGuardRegion(worldGuardRegionId, worldId);
+            if (existing != null) {
+                if (!wrapper.contractMapper().selectByRealtyRegionId(existing.realtyRegionId()).isEmpty()) {
+                    return false;
+                }
+                regionMapper.deleteByRealtyRegionId(existing.realtyRegionId());
             }
             int regionId = regionMapper.registerWorldGuardRegion(worldGuardRegionId, worldId);
             int freeholdContractId = wrapper.freeholdContractMapper().insertFreehold(regionId, price, authority, titleHolder);
@@ -642,8 +646,12 @@ public class RealtyBackendImpl implements RealtyBackend {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
-            if (regionMapper.selectByWorldGuardRegion(worldGuardRegionId, worldId) != null) {
-                return false;
+            RealtyRegionEntity existing = regionMapper.selectByWorldGuardRegion(worldGuardRegionId, worldId);
+            if (existing != null) {
+                if (!wrapper.contractMapper().selectByRealtyRegionId(existing.realtyRegionId()).isEmpty()) {
+                    return false;
+                }
+                regionMapper.deleteByRealtyRegionId(existing.realtyRegionId());
             }
             int regionId = regionMapper.registerWorldGuardRegion(worldGuardRegionId, worldId);
             int leaseholdContractId = wrapper.leaseholdContractMapper().insertLeasehold(regionId, price, durationSeconds, maxRenewals, landlordId, null);
