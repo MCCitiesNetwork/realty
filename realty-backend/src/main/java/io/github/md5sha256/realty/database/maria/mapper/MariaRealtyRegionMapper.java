@@ -171,6 +171,36 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
 
     @Override
     @Select("""
+            SELECT rr.worldGuardRegionId
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
+            INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
+            WHERE fc.titleHolderId = #{playerId}
+            """)
+    @NotNull List<String> selectRegionNamesByTitleHolder(@Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
+            SELECT rr.worldGuardRegionId
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
+            INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
+            WHERE lc.tenantId = #{playerId}
+            """)
+    @NotNull List<String> selectRegionNamesByTenant(@Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
+            SELECT rr.worldGuardRegionId
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
+            INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
+            WHERE lc.landlordId = #{playerId}
+            """)
+    @NotNull List<String> selectRegionNamesByLandlord(@Param("playerId") @NotNull UUID playerId);
+
+    @Override
+    @Select("""
             SELECT COUNT(*)
             FROM RealtyRegion rr
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'

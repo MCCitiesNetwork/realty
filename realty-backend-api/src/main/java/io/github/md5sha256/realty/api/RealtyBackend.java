@@ -539,6 +539,12 @@ public interface RealtyBackend {
 
     int countRegionsByAuthority(@NotNull UUID playerId);
 
+    @NotNull List<String> listRegionNamesByTitleHolder(@NotNull UUID playerId);
+
+    @NotNull List<String> listRegionNamesByTenant(@NotNull UUID playerId);
+
+    @NotNull List<String> listRegionNamesByLandlord(@NotNull UUID playerId);
+
     int countRegionsByTitleHolder(@NotNull UUID playerId);
 
     int countRegionsByLandlord(@NotNull UUID playerId);
