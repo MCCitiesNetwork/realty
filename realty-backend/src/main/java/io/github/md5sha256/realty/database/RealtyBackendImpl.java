@@ -1544,6 +1544,27 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
+    public @NotNull List<String> listRegionNamesByTitleHolder(@NotNull UUID playerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper().selectRegionNamesByTitleHolder(playerId);
+        }
+    }
+
+    @Override
+    public @NotNull List<String> listRegionNamesByTenant(@NotNull UUID playerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper().selectRegionNamesByTenant(playerId);
+        }
+    }
+
+    @Override
+    public @NotNull List<String> listRegionNamesByLandlord(@NotNull UUID playerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper().selectRegionNamesByLandlord(playerId);
+        }
+    }
+
+    @Override
     public int countRegionsByTitleHolder(@NotNull UUID playerId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             return wrapper.realtyRegionMapper().countRegionsByTitleHolder(playerId);

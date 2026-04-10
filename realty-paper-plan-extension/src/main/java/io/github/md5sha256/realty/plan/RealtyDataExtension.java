@@ -6,6 +6,7 @@ import com.djrapitops.plan.extension.annotation.DoubleProvider;
 import com.djrapitops.plan.extension.annotation.NumberProvider;
 import com.djrapitops.plan.extension.annotation.PercentageProvider;
 import com.djrapitops.plan.extension.annotation.PluginInfo;
+import com.djrapitops.plan.extension.annotation.StringProvider;
 import com.djrapitops.plan.extension.FormatType;
 import com.djrapitops.plan.extension.icon.Color;
 import com.djrapitops.plan.extension.icon.Family;
@@ -207,5 +208,41 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
             return 0;
         }
         return (double) realtyApi.countOccupiedLeaseholdsByLandlord(playerUUID) / total;
+    }
+
+    @StringProvider(
+            text = "Freehold Regions",
+            description = "Regions where this player is the title holder of a freehold",
+            priority = 3,
+            iconName = "house-user",
+            iconFamily = Family.SOLID,
+            iconColor = Color.BLUE
+    )
+    public String playerFreeholdRegions(UUID playerUUID) {
+        return String.join(", ", realtyApi.listRegionNamesByTitleHolder(playerUUID));
+    }
+
+    @StringProvider(
+            text = "Leasehold Tenancies",
+            description = "Regions where this player is a tenant of a leasehold",
+            priority = 2,
+            iconName = "file-signature",
+            iconFamily = Family.SOLID,
+            iconColor = Color.GREEN
+    )
+    public String playerTenantRegions(UUID playerUUID) {
+        return String.join(", ", realtyApi.listRegionNamesByTenant(playerUUID));
+    }
+
+    @StringProvider(
+            text = "Landlord Regions",
+            description = "Regions where this player is the landlord of a leasehold",
+            priority = 1,
+            iconName = "building",
+            iconFamily = Family.SOLID,
+            iconColor = Color.AMBER
+    )
+    public String playerLandlordRegions(UUID playerUUID) {
+        return String.join(", ", realtyApi.listRegionNamesByLandlord(playerUUID));
     }
 }
