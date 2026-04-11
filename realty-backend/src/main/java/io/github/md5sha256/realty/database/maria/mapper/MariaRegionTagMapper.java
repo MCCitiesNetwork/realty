@@ -13,6 +13,16 @@ import java.util.List;
 public interface MariaRegionTagMapper extends RegionTagMapper {
 
     @Override
+    @Select("""
+            SELECT COUNT(*) > 0
+            FROM RegionTag
+            WHERE tagId = #{tagId}
+            AND worldGuardRegionId = #{worldGuardRegionId}
+            """)
+    boolean exists(@Param("tagId") @NotNull String tagId,
+                   @Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+
+    @Override
     @Insert("""
             INSERT INTO RegionTag (tagId, worldGuardRegionId)
             VALUES (#{tagId}, #{worldGuardRegionId})
@@ -35,6 +45,13 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
             WHERE worldGuardRegionId = #{worldGuardRegionId}
             """)
     @NotNull List<String> selectTagIdsByRegionId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+
+    @Override
+    @Delete("""
+            DELETE FROM RegionTag
+            WHERE worldGuardRegionId = #{worldGuardRegionId}
+            """)
+    int deleteByRegionId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
 
     @Override
     @Delete("""

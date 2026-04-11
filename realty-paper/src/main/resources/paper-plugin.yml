@@ -204,6 +204,9 @@ permissions:
   realty.command.tag.list:
     description: Allows using /realty tag list
     default: true
+  realty.command.tag.clear:
+    description: Allows using /realty tag clear
+    default: op
   realty.command.subregion.quickcreate:
     description: Allows using /realty subregion quickcreate
     default: op

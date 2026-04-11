@@ -52,13 +52,20 @@ public record TagCommandGroup(
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::executeRemove)
                 .build();
+        Command<? extends Source> clearTags = builder
+                .literal("tag")
+                .literal("clear")
+                .permission("realty.command.tag.clear")
+                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                .handler(this::executeClear)
+                .build();
         Command<? extends Source> listTags = builder
                 .literal("tag")
                 .literal("list")
                 .permission("realty.command.tag.list")
                 .handler(this::executeList)
                 .build();
-        return List.of(addTag, removeTag, listTags);
+        return List.of(addTag, removeTag, clearTags, listTags);
     }
 
     private @NotNull SuggestionProvider<Source> tagSuggestions() {
@@ -93,6 +100,12 @@ public record TagCommandGroup(
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RegionTagMapper mapper = session.regionTagMapper();
+                if (mapper.exists(tagId, regionId)) {
+                    sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_ALREADY_TAGGED,
+                            Placeholder.unparsed("tag", tagId),
+                            Placeholder.unparsed("region", regionId)));
+                    return;
+                }
                 int inserted = mapper.insert(tagId, regionId);
                 if (inserted > 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_SUCCESS,
@@ -142,6 +155,34 @@ public record TagCommandGroup(
                 } else {
                     sender.sendMessage(messages.messageFor(MessageKeys.TAG_REMOVE_NOT_FOUND,
                             Placeholder.unparsed("tag", tagId),
+                            Placeholder.unparsed("region", regionId)));
+                }
+            } catch (Exception ex) {
+                sender.sendMessage(messages.messageFor(MessageKeys.TAG_ERROR,
+                        Placeholder.unparsed("error", ex.getMessage())));
+            }
+        }, executorState.dbExec());
+    }
+
+    private void executeClear(@NotNull CommandContext<Source> ctx) {
+        CommandSender sender = ctx.sender().source();
+        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        if (region == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
+        String regionId = region.region().getId();
+        CompletableFuture.runAsync(() -> {
+            try (SqlSessionWrapper session = database.openSession(true)) {
+                int deleted = session.regionTagMapper().deleteByRegionId(regionId);
+                if (deleted > 0) {
+                    sender.sendMessage(messages.messageFor(MessageKeys.TAG_CLEAR_SUCCESS,
+                            Placeholder.unparsed("count", String.valueOf(deleted)),
+                            Placeholder.unparsed("region", regionId)));
+                } else {
+                    sender.sendMessage(messages.messageFor(MessageKeys.TAG_CLEAR_NONE,
                             Placeholder.unparsed("region", regionId)));
                 }
             } catch (Exception ex) {
