@@ -257,6 +257,7 @@ help:
     - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
     - "<yellow>/realty extend <region></yellow> <gray>- Extend a lease</gray>"
     - "<yellow>/realty unrent <region></yellow> <gray>- Unrent a region (prorated refund)</gray>"
+    - "<yellow>/realty search [--type <freehold|leasehold>] [--tags <tags>] [--min-price <n>] [--max-price <n>]</yellow> <gray>- Search regions</gray>"
   management:
     - "<gold>--- Realty > Management ---</gold>"
     - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
@@ -485,6 +486,17 @@ tp:
   success: "Teleported to region <region>."
   no-safe-location: "Could not find a safe teleport location for region <region>."
   error: "Failed to teleport: <error>"
+
+search:
+  header: "<gold>--- Search Results (<count> found) ---</gold>"
+  entry: "  <click:run_command:/realty info <region>><yellow><region></yellow></click> <gray>|</gray> <dark_green><type></dark_green> <gray>|</gray> <green>$<price></green>"
+  footer: "Page <page> of <total> <previous><next>"
+  previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
+  next: " <click:run_command:<command>><yellow>Next ></yellow></click>"
+  no-results: "No regions match your search criteria."
+  invalid-page: "Page <page> does not exist. There are <total> page(s)."
+  invalid-type: "Invalid type: <type>. Use 'freehold' or 'leasehold'."
+  error: "Failed to search: <error>"
 
 cleanup-tags:
   success: "Pruned <count> orphaned tag(s) from the database."

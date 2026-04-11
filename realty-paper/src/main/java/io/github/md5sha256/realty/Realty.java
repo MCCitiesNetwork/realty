@@ -34,6 +34,8 @@ import io.github.md5sha256.realty.command.HelpCommand;
 import io.github.md5sha256.realty.command.HistoryCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
+import io.github.md5sha256.realty.command.SearchCommand;
+import io.github.md5sha256.realty.command.SearchDialog;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
 import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ReloadCommand;
@@ -546,6 +548,10 @@ public final class Realty extends JavaPlugin {
                 new TagCommandGroup(this.database,
                         executorState,
                         this.realtyTags,
+                        messageContainer),
+                new SearchCommand(
+                        new SearchDialog(this.database, executorState,
+                                this.realtyTags, messageContainer),
                         messageContainer)
         );
 

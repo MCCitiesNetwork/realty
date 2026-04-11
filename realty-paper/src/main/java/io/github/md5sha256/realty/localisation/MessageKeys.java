@@ -415,6 +415,17 @@ public final class MessageKeys {
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD = "notification.leasehold-expired-landlord";
     public static final String NOTIFICATION_REGION_UNRENTED = "notification.region-unrented";
 
+    // search
+    public static final String SEARCH_HEADER = "search.header";
+    public static final String SEARCH_ENTRY = "search.entry";
+    public static final String SEARCH_FOOTER = "search.footer";
+    public static final String SEARCH_PREVIOUS = "search.previous";
+    public static final String SEARCH_NEXT = "search.next";
+    public static final String SEARCH_NO_RESULTS = "search.no-results";
+    public static final String SEARCH_INVALID_PAGE = "search.invalid-page";
+    public static final String SEARCH_INVALID_TYPE = "search.invalid-type";
+    public static final String SEARCH_ERROR = "search.error";
+
     // cleanup-tags
     public static final String CLEANUP_TAGS_SUCCESS = "cleanup-tags.success";
     public static final String CLEANUP_TAGS_NONE = "cleanup-tags.none";
