@@ -373,4 +373,12 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<@NotNull Map<String, String>> getRegionPlaceholders(
             @NotNull String regionId, @NotNull UUID worldId);
+
+    // --- Region Tags ---
+
+    @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(@NotNull String worldGuardRegionId);
+
+    @NotNull CompletableFuture<@NotNull List<String>> getRegionIdsByTag(@NotNull String tagId);
+
+    @NotNull CompletableFuture<Integer> countRegionsByTag(@NotNull String tagId);
 }

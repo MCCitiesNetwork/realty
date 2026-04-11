@@ -7,12 +7,16 @@ import com.djrapitops.plan.extension.annotation.NumberProvider;
 import com.djrapitops.plan.extension.annotation.PercentageProvider;
 import com.djrapitops.plan.extension.annotation.PluginInfo;
 import com.djrapitops.plan.extension.annotation.StringProvider;
+import com.djrapitops.plan.extension.annotation.TableProvider;
 import com.djrapitops.plan.extension.FormatType;
 import com.djrapitops.plan.extension.icon.Color;
 import com.djrapitops.plan.extension.icon.Family;
+import com.djrapitops.plan.extension.icon.Icon;
+import com.djrapitops.plan.extension.table.Table;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.UUID;
 
 @PluginInfo(
@@ -244,5 +248,18 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
     )
     public String playerLandlordRegions(UUID playerUUID) {
         return String.join(", ", realtyApi.listRegionNamesByLandlord(playerUUID));
+    }
+
+    @TableProvider(tableColor = Color.CYAN)
+    public Table serverTagRegionCounts() {
+        List<String> tagIds = realtyApi.getAllTagIds();
+        Table.Factory table = Table.builder()
+                .columnOne("Tag Name", Icon.called("tag").of(Family.SOLID).of(Color.CYAN).build())
+                .columnTwo("Num Tagged Regions", Icon.called("hashtag").of(Family.SOLID).of(Color.BLUE).build());
+        for (String tagId : tagIds) {
+            int count = realtyApi.countRegionsByTag(tagId);
+            table.addRow(tagId, count);
+        }
+        return table.build();
     }
 }

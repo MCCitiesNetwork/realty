@@ -21,4 +21,6 @@ public interface RegionTagMapper {
 
     int deleteAll();
 
+    int countByTagId(@NotNull String tagId);
+
 }

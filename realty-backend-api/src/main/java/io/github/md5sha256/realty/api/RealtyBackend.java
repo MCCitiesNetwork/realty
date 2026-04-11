@@ -559,6 +559,16 @@ public interface RealtyBackend {
 
     double averageLeaseholdPrice();
 
+    // --- Region Tags ---
+
+    @NotNull List<String> getAllTagIds();
+
+    @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId);
+
+    @NotNull List<String> getRegionIdsByTag(@NotNull String tagId);
+
+    int countRegionsByTag(@NotNull String tagId);
+
     // --- History Search ---
 
     record HistoryResult(@NotNull List<HistoryEntry> entries, int totalCount) {}

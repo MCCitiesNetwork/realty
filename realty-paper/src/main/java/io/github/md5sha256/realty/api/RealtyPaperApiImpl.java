@@ -1135,6 +1135,31 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 executorState.dbExec());
     }
 
+    // --- Region Tags ---
+
+    @Override
+    public @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(
+            @NotNull String worldGuardRegionId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.getTagIdsByRegion(worldGuardRegionId),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<@NotNull List<String>> getRegionIdsByTag(
+            @NotNull String tagId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.getRegionIdsByTag(tagId),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<Integer> countRegionsByTag(@NotNull String tagId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.countRegionsByTag(tagId),
+                executorState.dbExec());
+    }
+
     // ═══════════════════════════════════════
     // PRIVATE HELPERS
     // ═══════════════════════════════════════
