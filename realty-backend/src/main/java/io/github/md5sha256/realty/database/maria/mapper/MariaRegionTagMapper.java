@@ -49,6 +49,7 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
     @Select("""
             SELECT DISTINCT tagId
             FROM RegionTag
+            ORDER BY tagId ASC
             """)
     @NotNull List<String> selectDistinctTagIds();
 
@@ -69,5 +70,13 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
             DELETE FROM RegionTag
             """)
     int deleteAll();
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM RegionTag
+            WHERE tagId = #{tagId}
+            """)
+    int countByTagId(@Param("tagId") @NotNull String tagId);
 
 }

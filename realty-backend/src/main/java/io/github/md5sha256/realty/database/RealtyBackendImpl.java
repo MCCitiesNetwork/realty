@@ -1658,4 +1658,32 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+    @Override
+    public @NotNull List<String> getAllTagIds() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.regionTagMapper().selectDistinctTagIds();
+        }
+    }
+
+    @Override
+    public @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.regionTagMapper().selectTagIdsByRegionId(worldGuardRegionId);
+        }
+    }
+
+    @Override
+    public @NotNull List<String> getRegionIdsByTag(@NotNull String tagId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.regionTagMapper().selectRegionIdsByTagId(tagId);
+        }
+    }
+
+    @Override
+    public int countRegionsByTag(@NotNull String tagId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.regionTagMapper().countByTagId(tagId);
+        }
+    }
+
 }
