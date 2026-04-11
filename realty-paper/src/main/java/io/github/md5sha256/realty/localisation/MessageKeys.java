@@ -413,4 +413,9 @@ public final class MessageKeys {
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED = "notification.leasehold-expired";
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD = "notification.leasehold-expired-landlord";
     public static final String NOTIFICATION_REGION_UNRENTED = "notification.region-unrented";
+
+    // cleanup-tags
+    public static final String CLEANUP_TAGS_SUCCESS = "cleanup-tags.success";
+    public static final String CLEANUP_TAGS_NONE = "cleanup-tags.none";
+    public static final String CLEANUP_TAGS_ERROR = "cleanup-tags.error";
 }

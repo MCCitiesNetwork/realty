@@ -484,3 +484,8 @@ tp:
   success: "Teleported to region <region>."
   no-safe-location: "Could not find a safe teleport location for region <region>."
   error: "Failed to teleport: <error>"
+
+cleanup-tags:
+  success: "Pruned <count> orphaned tag(s) from the database."
+  none: "No orphaned tags found. Nothing to clean up."
+  error: "Failed to clean up tags: <error>"

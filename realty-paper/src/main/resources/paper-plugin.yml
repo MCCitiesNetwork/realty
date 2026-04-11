@@ -192,6 +192,9 @@ permissions:
   realty.command.reload:
     description: Allows using /realty reload
     default: op
+  realty.command.cleanup.tags:
+    description: Allows using /realty cleanup tags
+    default: op
   realty.command.subregion.quickcreate:
     description: Allows using /realty subregion quickcreate
     default: op

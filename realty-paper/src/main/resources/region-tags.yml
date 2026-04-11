@@ -1,0 +1,7 @@
+tags:
+  - tag-id: "residential"
+    tag-display-name: "<green>Residential"
+  - tag-id: "commercial"
+    tag-display-name: "<gold>Commercial"
+  - tag-id: "industrial"
+    tag-display-name: "<gray>Industrial"

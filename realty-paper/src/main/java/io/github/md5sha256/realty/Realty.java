@@ -20,6 +20,7 @@ import io.github.md5sha256.realty.command.AgentInviteWithdrawCommand;
 import io.github.md5sha256.realty.command.AgentRemoveCommand;
 import io.github.md5sha256.realty.command.AuctionCommandGroup;
 import io.github.md5sha256.realty.command.BuyCommand;
+import io.github.md5sha256.realty.command.CleanupCommandGroup;
 import io.github.md5sha256.realty.command.CreateCommand;
 import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
@@ -54,6 +55,7 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfileSettings;
+import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.DateFormatter;
@@ -109,6 +111,7 @@ public final class Realty extends JavaPlugin {
     private final MessageContainer messageContainer = new MessageContainer();
     private final AtomicReference<Settings> settings = new AtomicReference<>();
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
+    private final AtomicReference<RegionTagSettings> regionTagSettings = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private ExecutorState executorState;
     private RealtyBackend logic;
@@ -137,6 +140,10 @@ public final class Realty extends JavaPlugin {
         return this.regionFlagSettings.get();
     }
 
+    public RegionTagSettings regionTagSettings() {
+        return this.regionTagSettings.get();
+    }
+
     private boolean failedLoad = false;
 
     @Override
@@ -150,6 +157,7 @@ public final class Realty extends JavaPlugin {
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());
             this.regionFlagSettings.set(loadRegionFlagSettings());
+            this.regionTagSettings.set(loadRegionTagSettings());
             configureRegionFlagService(this.regionFlagSettings.get());
 
             if (this.databaseSettings.url().isEmpty()) {
@@ -361,6 +369,11 @@ public final class Realty extends JavaPlugin {
         return settingsRoot.get(RegionProfileSettings.class);
     }
 
+    private RegionTagSettings loadRegionTagSettings() throws IOException {
+        ConfigurationNode settingsRoot = copyDefaultsYaml("region-tags");
+        return settingsRoot.get(RegionTagSettings.class);
+    }
+
     private void reloadMessages() throws IOException {
         ConfigurationNode node = copyDefaultsYaml("messages");
         this.messageContainer.load(node);
@@ -404,6 +417,7 @@ public final class Realty extends JavaPlugin {
     private void performReload() throws IOException {
         this.settings.set(loadSettings());
         this.regionFlagSettings.set(loadRegionFlagSettings());
+        this.regionTagSettings.set(loadRegionTagSettings());
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         reloadMessages();
@@ -452,7 +466,8 @@ public final class Realty extends JavaPlugin {
                 new RemoveCommand(messageContainer),
                 new SignCommand(paperApi, executorState, messageContainer),
                 new TeleportCommand(getLogger(), paperApi, messageContainer, safeLocationFinder),
-                new SubregionCommandGroup(paperApi, this.settings, messageContainer)
+                new SubregionCommandGroup(paperApi, this.settings, messageContainer),
+                new CleanupCommandGroup(this.database, executorState, this.regionTagSettings, messageContainer)
         );
 
         var manager = PaperCommandManager.builder(PaperSimpleSenderMapper.simpleSenderMapper())
