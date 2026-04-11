@@ -15,6 +15,8 @@ public interface RegionTagMapper {
 
     int deleteByTagAndRegion(@NotNull String tagId, @NotNull String worldGuardRegionId);
 
+    @NotNull List<String> selectDistinctTagIds();
+
     int deleteByTagIdNotIn(@NotNull Collection<String> tagIds);
 
     int deleteAll();

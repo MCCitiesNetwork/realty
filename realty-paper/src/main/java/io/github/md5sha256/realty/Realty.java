@@ -50,6 +50,7 @@ import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
+import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -104,6 +105,7 @@ import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -259,6 +261,7 @@ public final class Realty extends JavaPlugin {
                 .register(RealtyBackend.class, this.logic, this, ServicePriority.Normal);
         getServer().getServicesManager()
                 .register(RealtyPaperApi.class, this.paperApi, this, ServicePriority.Normal);
+        warnOrphanedTags();
         getLogger().info("Plugin enabled successfully");
     }
 
@@ -421,6 +424,25 @@ public final class Realty extends JavaPlugin {
         }
     }
 
+    private void warnOrphanedTags() {
+        executorState.dbExec().execute(() -> {
+            try (SqlSessionWrapper session = database.openSession(true)) {
+                List<String> dbTagIds = session.regionTagMapper().selectDistinctTagIds();
+                Set<String> configTagIds = realtyTags.get().tagIds();
+                List<String> orphaned = dbTagIds.stream()
+                        .filter(tagId -> !configTagIds.contains(tagId))
+                        .toList();
+                if (!orphaned.isEmpty()) {
+                    getLogger().warning("Found orphaned tags in the database that are not in region-tags.yml: "
+                            + String.join(", ", orphaned)
+                            + ". Run /realty cleanup tags to remove them.");
+                }
+            } catch (Exception ex) {
+                getLogger().warning("Failed to check for orphaned tags: " + ex.getMessage());
+            }
+        });
+    }
+
     private void reloadMessages() throws IOException {
         ConfigurationNode node = copyDefaultsYaml("messages");
         this.messageContainer.load(node);
@@ -470,6 +492,7 @@ public final class Realty extends JavaPlugin {
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         reloadMessages();
+        warnOrphanedTags();
     }
 
     private void registerCommands(

@@ -46,6 +46,13 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
                              @Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
 
     @Override
+    @Select("""
+            SELECT DISTINCT tagId
+            FROM RegionTag
+            """)
+    @NotNull List<String> selectDistinctTagIds();
+
+    @Override
     @Delete("""
             <script>
             DELETE FROM RegionTag
