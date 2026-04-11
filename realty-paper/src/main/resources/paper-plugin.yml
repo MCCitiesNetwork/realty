@@ -195,6 +195,9 @@ permissions:
   realty.command.cleanup.tags:
     description: Allows using /realty cleanup tags
     default: op
+  realty.command.search:
+    description: Allows using /realty search
+    default: true
   realty.command.tag.add:
     description: Allows using /realty tag add
     default: true
