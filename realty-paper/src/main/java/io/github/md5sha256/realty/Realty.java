@@ -42,6 +42,7 @@ import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.SetCommandGroup;
 import io.github.md5sha256.realty.command.SignCommand;
 import io.github.md5sha256.realty.command.SubregionCommandGroup;
+import io.github.md5sha256.realty.command.TagCommandGroup;
 import io.github.md5sha256.realty.command.TeleportCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
@@ -73,6 +74,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.permissions.Permission;
+import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -126,6 +128,17 @@ public final class Realty extends JavaPlugin {
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApi paperApi;
     private boolean failedLoad = false;
+
+    private static @NotNull PermissionDefault toBukkitPermission(@NotNull ConfigRegionTag tag) {
+        if (tag.permission() == null) {
+            throw new IllegalArgumentException("tag has a null permission");
+        }
+        return switch (tag.permission().permissionDefault()) {
+            case OP -> PermissionDefault.OP;
+            case TRUE -> PermissionDefault.TRUE;
+            case FALSE -> PermissionDefault.FALSE;
+        };
+    }
 
     @NotNull
     public Database database() {
@@ -384,22 +397,25 @@ public final class Realty extends JavaPlugin {
     private void unregisterTagPermissions(@NotNull RegionTagSettings settings) {
         PluginManager pluginManager = getServer().getPluginManager();
         for (ConfigRegionTag tag : settings.tags()) {
-            pluginManager.removePermission(tag.permission());
+            if (tag.permission() != null) {
+                pluginManager.removePermission(tag.permission().node());
+            }
         }
     }
 
     private void registerTagPermissions(@NotNull RegionTagSettings settings) {
         PluginManager pluginManager = getServer().getPluginManager();
         for (ConfigRegionTag tag : settings.tags()) {
-            org.bukkit.permissions.PermissionDefault bukkitDefault = switch (tag.permissionDefault()) {
-                case OP -> org.bukkit.permissions.PermissionDefault.OP;
-                case TRUE -> org.bukkit.permissions.PermissionDefault.TRUE;
-                case FALSE -> org.bukkit.permissions.PermissionDefault.FALSE;
-            };
+            if (tag.permission() == null) {
+                continue;
+            }
+            PermissionDefault bukkitPermission = toBukkitPermission(tag);
             try {
-                pluginManager.addPermission(new Permission(tag.permission(), bukkitDefault));
+                pluginManager.addPermission(new Permission(tag.permission().node(),
+                        bukkitPermission));
             } catch (IllegalArgumentException ex) {
-                getLogger().warning("Failed to register tag permission because it already exists: " + tag.permission());
+                getLogger().warning("Failed to register tag permission because it already exists: " + tag.permission()
+                        .node());
             }
         }
     }
@@ -500,6 +516,10 @@ public final class Realty extends JavaPlugin {
                 new TeleportCommand(getLogger(), paperApi, messageContainer, safeLocationFinder),
                 new SubregionCommandGroup(paperApi, this.settings, messageContainer),
                 new CleanupCommandGroup(this.database,
+                        executorState,
+                        this.regionTagSettings,
+                        messageContainer),
+                new TagCommandGroup(this.database,
                         executorState,
                         this.regionTagSettings,
                         messageContainer)

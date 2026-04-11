@@ -195,6 +195,15 @@ permissions:
   realty.command.cleanup.tags:
     description: Allows using /realty cleanup tags
     default: op
+  realty.command.tag.add:
+    description: Allows using /realty tag add
+    default: true
+  realty.command.tag.remove:
+    description: Allows using /realty tag remove
+    default: true
+  realty.command.tag.list:
+    description: Allows using /realty tag list
+    default: true
   realty.command.subregion.quickcreate:
     description: Allows using /realty subregion quickcreate
     default: op

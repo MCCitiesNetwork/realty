@@ -489,3 +489,14 @@ cleanup-tags:
   success: "Pruned <count> orphaned tag(s) from the database."
   none: "No orphaned tags found. Nothing to clean up."
   error: "Failed to clean up tags: <error>"
+
+tag:
+  unknown: "<red>Unknown tag: <tag>"
+  add-success: "<green>Added tag <gold><tag></gold> to region <gold><region></gold>."
+  add-failed: "<red>Failed to add tag <tag> to region <region>. It may already be applied."
+  remove-success: "<green>Removed tag <gold><tag></gold> from region <gold><region></gold>."
+  remove-not-found: "<red>Tag <tag> is not applied to region <region>."
+  list-header: "<gold>Available tags:"
+  list-entry: " <gray>- <gold><tag></gold>: <display>"
+  list-none: "<red>No tags available."
+  error: "<red>Tag operation failed: <error>"

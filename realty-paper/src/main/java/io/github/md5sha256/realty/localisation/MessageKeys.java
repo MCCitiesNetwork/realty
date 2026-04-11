@@ -418,4 +418,15 @@ public final class MessageKeys {
     public static final String CLEANUP_TAGS_SUCCESS = "cleanup-tags.success";
     public static final String CLEANUP_TAGS_NONE = "cleanup-tags.none";
     public static final String CLEANUP_TAGS_ERROR = "cleanup-tags.error";
+
+    // tag
+    public static final String TAG_UNKNOWN = "tag.unknown";
+    public static final String TAG_ADD_SUCCESS = "tag.add-success";
+    public static final String TAG_ADD_FAILED = "tag.add-failed";
+    public static final String TAG_REMOVE_SUCCESS = "tag.remove-success";
+    public static final String TAG_REMOVE_NOT_FOUND = "tag.remove-not-found";
+    public static final String TAG_LIST_HEADER = "tag.list-header";
+    public static final String TAG_LIST_ENTRY = "tag.list-entry";
+    public static final String TAG_LIST_NONE = "tag.list-none";
+    public static final String TAG_ERROR = "tag.error";
 }

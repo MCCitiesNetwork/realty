@@ -1,13 +1,16 @@
 tags:
   - tag-id: "residential"
     tag-display-name: "<green>Residential"
-    permission: "realty.tag.residential"
-    permission-default: OP
+    permission:
+      node: "realty.tag.residential"
+      default: OP
   - tag-id: "commercial"
     tag-display-name: "<gold>Commercial"
-    permission: "realty.tag.commercial"
-    permission-default: OP
+    permission:
+      node: "realty.tag.commercial"
+      default: OP
   - tag-id: "industrial"
     tag-display-name: "<gray>Industrial"
-    permission: "realty.tag.industrial"
-    permission-default: OP
+    permission:
+      node: "realty.tag.industrial"
+      default: OP
