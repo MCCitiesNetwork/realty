@@ -9,7 +9,7 @@ import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
-import io.github.md5sha256.realty.settings.RegionTagSettings;
+import io.github.md5sha256.realty.settings.RealtyTags;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -22,7 +22,6 @@ import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -31,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public record TagCommandGroup(
         @NotNull Database database,
         @NotNull ExecutorState executorState,
-        @NotNull AtomicReference<RegionTagSettings> regionTagSettings,
+        @NotNull AtomicReference<RealtyTags> realtyTags,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -64,20 +63,10 @@ public record TagCommandGroup(
 
     private @NotNull SuggestionProvider<Source> tagSuggestions() {
         return (ctx, input) -> CompletableFuture.completedFuture(
-                regionTagSettings.get().tags().stream()
-                        .map(ConfigRegionTag::tagId)
+                realtyTags.get().tagIds().stream()
                         .map(Suggestion::suggestion)
                         .toList()
         );
-    }
-
-    private @Nullable ConfigRegionTag findConfigTag(@NotNull String tagId) {
-        for (ConfigRegionTag tag : regionTagSettings.get().tags()) {
-            if (tag.tagId().equals(tagId)) {
-                return tag;
-            }
-        }
-        return null;
     }
 
     private void executeAdd(@NotNull CommandContext<Source> ctx) {
@@ -90,7 +79,7 @@ public record TagCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        ConfigRegionTag configTag = findConfigTag(tagId);
+        ConfigRegionTag configTag = realtyTags.get().get(tagId);
         if (configTag == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.TAG_UNKNOWN,
                     Placeholder.unparsed("tag", tagId)));
@@ -131,7 +120,7 @@ public record TagCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        ConfigRegionTag configTag = findConfigTag(tagId);
+        ConfigRegionTag configTag = realtyTags.get().get(tagId);
         if (configTag == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.TAG_UNKNOWN,
                     Placeholder.unparsed("tag", tagId)));
@@ -164,7 +153,7 @@ public record TagCommandGroup(
 
     private void executeList(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
-        List<ConfigRegionTag> permitted = regionTagSettings.get().tags().stream()
+        List<ConfigRegionTag> permitted = realtyTags.get().values().stream()
                 .filter(tag -> tag.permission() == null || sender.hasPermission(tag.permission().node()))
                 .toList();
         if (permitted.isEmpty()) {
