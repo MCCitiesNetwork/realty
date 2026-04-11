@@ -7,6 +7,8 @@ import java.util.List;
 
 public interface RegionTagMapper {
 
+    boolean exists(@NotNull String tagId, @NotNull String worldGuardRegionId);
+
     int insert(@NotNull String tagId, @NotNull String worldGuardRegionId);
 
     @NotNull List<String> selectRegionIdsByTagId(@NotNull String tagId);
@@ -14,6 +16,8 @@ public interface RegionTagMapper {
     @NotNull List<String> selectTagIdsByRegionId(@NotNull String worldGuardRegionId);
 
     int deleteByTagAndRegion(@NotNull String tagId, @NotNull String worldGuardRegionId);
+
+    int deleteByRegionId(@NotNull String worldGuardRegionId);
 
     @NotNull List<String> selectDistinctTagIds();
 
