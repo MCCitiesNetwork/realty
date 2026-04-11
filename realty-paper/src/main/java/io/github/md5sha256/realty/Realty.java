@@ -5,13 +5,18 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.ProfileApplicator;
+import io.github.md5sha256.realty.api.RealtyBackend;
+import io.github.md5sha256.realty.api.RealtyPaperApi;
+import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.SignCache;
 import io.github.md5sha256.realty.api.SignProfile;
 import io.github.md5sha256.realty.api.SignTextApplicator;
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
 import io.github.md5sha256.realty.command.AgentInviteCommand;
@@ -22,36 +27,33 @@ import io.github.md5sha256.realty.command.AuctionCommandGroup;
 import io.github.md5sha256.realty.command.BuyCommand;
 import io.github.md5sha256.realty.command.CleanupCommandGroup;
 import io.github.md5sha256.realty.command.CreateCommand;
-import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
+import io.github.md5sha256.realty.command.ExtendCommand;
 import io.github.md5sha256.realty.command.HelpCommand;
 import io.github.md5sha256.realty.command.HistoryCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
+import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
-import io.github.md5sha256.realty.command.ExtendCommand;
 import io.github.md5sha256.realty.command.RentCommand;
-import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.SetCommandGroup;
 import io.github.md5sha256.realty.command.SignCommand;
 import io.github.md5sha256.realty.command.SubregionCommandGroup;
 import io.github.md5sha256.realty.command.TeleportCommand;
+import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
-import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
-import io.github.md5sha256.realty.api.RealtyBackend;
-import io.github.md5sha256.realty.api.RealtyPaperApi;
-import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.settings.ConfigRegionTag;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfileSettings;
@@ -61,11 +63,8 @@ import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
-import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.util.SimpleDateFormatSerializer;
 import io.github.md5sha256.realty.util.TransientNotificationService;
-import org.incendo.cloud.paper.util.sender.PaperSimpleSenderMapper;
-import org.incendo.cloud.paper.util.sender.Source;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -73,12 +72,16 @@ import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
+import org.bukkit.permissions.Permission;
+import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
+import org.incendo.cloud.paper.util.sender.PaperSimpleSenderMapper;
+import org.incendo.cloud.paper.util.sender.Source;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.configurate.ConfigurationNode;
 import org.spongepowered.configurate.yaml.NodeStyle;
@@ -113,15 +116,16 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final AtomicReference<RegionTagSettings> regionTagSettings = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
+    private final SignCache signCache = new SignCache();
     private ExecutorState executorState;
     private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
     private DatabaseSettings databaseSettings;
     private NotificationService notificationService;
     private Database database;
-    private final SignCache signCache = new SignCache();
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApi paperApi;
+    private boolean failedLoad = false;
 
     @NotNull
     public Database database() {
@@ -144,8 +148,6 @@ public final class Realty extends JavaPlugin {
         return this.regionTagSettings.get();
     }
 
-    private boolean failedLoad = false;
-
     @Override
     public void onLoad() {
         try {
@@ -158,6 +160,7 @@ public final class Realty extends JavaPlugin {
             this.settings.set(loadSettings());
             this.regionFlagSettings.set(loadRegionFlagSettings());
             this.regionTagSettings.set(loadRegionTagSettings());
+            registerTagPermissions(this.regionTagSettings.get());
             configureRegionFlagService(this.regionFlagSettings.get());
 
             if (this.databaseSettings.url().isEmpty()) {
@@ -238,8 +241,10 @@ public final class Realty extends JavaPlugin {
                 this.messageContainer,
                 this.notificationService,
                 safeLocationFinder);
-        getServer().getServicesManager().register(RealtyBackend.class, this.logic, this, ServicePriority.Normal);
-        getServer().getServicesManager().register(RealtyPaperApi.class, this.paperApi, this, ServicePriority.Normal);
+        getServer().getServicesManager()
+                .register(RealtyBackend.class, this.logic, this, ServicePriority.Normal);
+        getServer().getServicesManager()
+                .register(RealtyPaperApi.class, this.paperApi, this, ServicePriority.Normal);
         getLogger().info("Plugin enabled successfully");
     }
 
@@ -307,7 +312,8 @@ public final class Realty extends JavaPlugin {
                 Map<String, Map<String, String>> leaseholdPlaceholders = new HashMap<>();
                 for (RealtyBackend.ExpiredLeasehold expired : expiredLeaseholds) {
                     leaseholdPlaceholders.put(expired.worldGuardRegionId(),
-                            this.logic.getRegionPlaceholders(expired.worldGuardRegionId(), expired.worldId()));
+                            this.logic.getRegionPlaceholders(expired.worldGuardRegionId(),
+                                    expired.worldId()));
                 }
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.ExpiredLeasehold expired : expiredLeaseholds) {
@@ -324,7 +330,8 @@ public final class Realty extends JavaPlugin {
                                     regionProfileService.applyFlags(
                                             new WorldGuardRegion(protectedRegion, world),
                                             RegionState.FOR_LEASE,
-                                            leaseholdPlaceholders.getOrDefault(expired.worldGuardRegionId(), Map.of()));
+                                            leaseholdPlaceholders.getOrDefault(expired.worldGuardRegionId(),
+                                                    Map.of()));
                                 }
                             }
                         }
@@ -374,6 +381,29 @@ public final class Realty extends JavaPlugin {
         return settingsRoot.get(RegionTagSettings.class);
     }
 
+    private void unregisterTagPermissions(@NotNull RegionTagSettings settings) {
+        PluginManager pluginManager = getServer().getPluginManager();
+        for (ConfigRegionTag tag : settings.tags()) {
+            pluginManager.removePermission(tag.permission());
+        }
+    }
+
+    private void registerTagPermissions(@NotNull RegionTagSettings settings) {
+        PluginManager pluginManager = getServer().getPluginManager();
+        for (ConfigRegionTag tag : settings.tags()) {
+            org.bukkit.permissions.PermissionDefault bukkitDefault = switch (tag.permissionDefault()) {
+                case OP -> org.bukkit.permissions.PermissionDefault.OP;
+                case TRUE -> org.bukkit.permissions.PermissionDefault.TRUE;
+                case FALSE -> org.bukkit.permissions.PermissionDefault.FALSE;
+            };
+            try {
+                pluginManager.addPermission(new Permission(tag.permission(), bukkitDefault));
+            } catch (IllegalArgumentException ex) {
+                getLogger().warning("Failed to register tag permission because it already exists: " + tag.permission());
+            }
+        }
+    }
+
     private void reloadMessages() throws IOException {
         ConfigurationNode node = copyDefaultsYaml("messages");
         this.messageContainer.load(node);
@@ -417,7 +447,9 @@ public final class Realty extends JavaPlugin {
     private void performReload() throws IOException {
         this.settings.set(loadSettings());
         this.regionFlagSettings.set(loadRegionFlagSettings());
+        unregisterTagPermissions(this.regionTagSettings.get());
         this.regionTagSettings.set(loadRegionTagSettings());
+        registerTagPermissions(this.regionTagSettings.get());
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         reloadMessages();
@@ -467,7 +499,10 @@ public final class Realty extends JavaPlugin {
                 new SignCommand(paperApi, executorState, messageContainer),
                 new TeleportCommand(getLogger(), paperApi, messageContainer, safeLocationFinder),
                 new SubregionCommandGroup(paperApi, this.settings, messageContainer),
-                new CleanupCommandGroup(this.database, executorState, this.regionTagSettings, messageContainer)
+                new CleanupCommandGroup(this.database,
+                        executorState,
+                        this.regionTagSettings,
+                        messageContainer)
         );
 
         var manager = PaperCommandManager.builder(PaperSimpleSenderMapper.simpleSenderMapper())

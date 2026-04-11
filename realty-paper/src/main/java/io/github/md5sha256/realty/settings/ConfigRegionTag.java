@@ -9,6 +9,15 @@ import org.spongepowered.configurate.objectmapping.meta.Setting;
 @ConfigSerializable
 public record ConfigRegionTag(
         @Setting("tag-id") @Required @NotNull String tagId,
-        @Setting("tag-display-name") @Required @NotNull Component tagDisplayName
+        @Setting("tag-display-name") @Required @NotNull Component tagDisplayName,
+        @Setting("permission") @Required @NotNull String permission,
+        @Setting("permission-default") @Required @NotNull PermissionDefault permissionDefault
 ) {
+
+    public enum PermissionDefault {
+        OP,
+        TRUE,
+        FALSE
+    }
+
 }
