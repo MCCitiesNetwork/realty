@@ -172,6 +172,7 @@ public final class MessageKeys {
     public static final String INFO_FOR_SALE = "info.for-sale";
     public static final String INFO_LEASEHOLD = "info.leasehold";
     public static final String INFO_AUCTION_ACTIVE = "info.auction-active";
+    public static final String INFO_TAGS = "info.tags";
     public static final String INFO_ERROR = "info.error";
 
     // list

@@ -58,6 +58,7 @@ import io.github.md5sha256.realty.settings.ConfigRegionTag;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfileSettings;
+import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
@@ -116,7 +117,7 @@ public final class Realty extends JavaPlugin {
     private final MessageContainer messageContainer = new MessageContainer();
     private final AtomicReference<Settings> settings = new AtomicReference<>();
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
-    private final AtomicReference<RegionTagSettings> regionTagSettings = new AtomicReference<>();
+    private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
     private ExecutorState executorState;
@@ -157,8 +158,8 @@ public final class Realty extends JavaPlugin {
         return this.regionFlagSettings.get();
     }
 
-    public RegionTagSettings regionTagSettings() {
-        return this.regionTagSettings.get();
+    public RealtyTags realtyTags() {
+        return this.realtyTags.get();
     }
 
     @Override
@@ -172,8 +173,8 @@ public final class Realty extends JavaPlugin {
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());
             this.regionFlagSettings.set(loadRegionFlagSettings());
-            this.regionTagSettings.set(loadRegionTagSettings());
-            registerTagPermissions(this.regionTagSettings.get());
+            this.realtyTags.set(new RealtyTags(loadRegionTagSettings()));
+            registerTagPermissions(this.realtyTags.get());
             configureRegionFlagService(this.regionFlagSettings.get());
 
             if (this.databaseSettings.url().isEmpty()) {
@@ -394,18 +395,18 @@ public final class Realty extends JavaPlugin {
         return settingsRoot.get(RegionTagSettings.class);
     }
 
-    private void unregisterTagPermissions(@NotNull RegionTagSettings settings) {
+    private void unregisterTagPermissions(@NotNull RealtyTags realtyTags) {
         PluginManager pluginManager = getServer().getPluginManager();
-        for (ConfigRegionTag tag : settings.tags()) {
+        for (ConfigRegionTag tag : realtyTags.values()) {
             if (tag.permission() != null) {
                 pluginManager.removePermission(tag.permission().node());
             }
         }
     }
 
-    private void registerTagPermissions(@NotNull RegionTagSettings settings) {
+    private void registerTagPermissions(@NotNull RealtyTags realtyTags) {
         PluginManager pluginManager = getServer().getPluginManager();
-        for (ConfigRegionTag tag : settings.tags()) {
+        for (ConfigRegionTag tag : realtyTags.values()) {
             if (tag.permission() == null) {
                 continue;
             }
@@ -463,9 +464,9 @@ public final class Realty extends JavaPlugin {
     private void performReload() throws IOException {
         this.settings.set(loadSettings());
         this.regionFlagSettings.set(loadRegionFlagSettings());
-        unregisterTagPermissions(this.regionTagSettings.get());
-        this.regionTagSettings.set(loadRegionTagSettings());
-        registerTagPermissions(this.regionTagSettings.get());
+        unregisterTagPermissions(this.realtyTags.get());
+        this.realtyTags.set(new RealtyTags(loadRegionTagSettings()));
+        registerTagPermissions(this.realtyTags.get());
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         reloadMessages();
@@ -497,7 +498,7 @@ public final class Realty extends JavaPlugin {
                 new RegisterCommand(paperApi, this.settings, messageContainer),
                 new DeleteCommand(paperApi, messageContainer),
                 new HistoryCommand(paperApi, this.settings, messageContainer),
-                new InfoCommand(paperApi, this.settings, messageContainer),
+                new InfoCommand(paperApi, this.settings, this.database, this.realtyTags, messageContainer),
                 new ListCommand(paperApi, messageContainer),
                 new OfferCommandGroup(paperApi,
                         notificationService,
@@ -517,11 +518,11 @@ public final class Realty extends JavaPlugin {
                 new SubregionCommandGroup(paperApi, this.settings, messageContainer),
                 new CleanupCommandGroup(this.database,
                         executorState,
-                        this.regionTagSettings,
+                        this.realtyTags,
                         messageContainer),
                 new TagCommandGroup(this.database,
                         executorState,
-                        this.regionTagSettings,
+                        this.realtyTags,
                         messageContainer)
         );
 

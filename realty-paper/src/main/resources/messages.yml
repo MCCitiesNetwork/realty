@@ -134,6 +134,7 @@ info:
     - "Time Left: <time_left>"
     - "Extensions: <extensions>"
   auction-active: "<#00aaff>►</#00aaff> Active Auction: <yellow><has_auction></yellow>"
+  tags: "<#00aaff>►</#00aaff> Tags: <yellow><tags></yellow>"
   error: "Failed to retrieve region info: <error>"
 
 history:

@@ -5,10 +5,14 @@ import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.database.Database;
+import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.settings.ConfigRegionTag;
+import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.DateFormatter;
 import net.kyori.adventure.text.Component;
@@ -24,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,6 +44,8 @@ import java.util.stream.Collectors;
  */
 public record InfoCommand(@NotNull RealtyPaperApi api,
                           @NotNull AtomicReference<Settings> settings,
+                          @NotNull Database database,
+                          @NotNull AtomicReference<RealtyTags> realtyTags,
                           @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     private static @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
@@ -119,6 +126,14 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                 appendLeaseholdInfo(builder, leasehold, membersStr);
             }
 
+            try (SqlSessionWrapper session = database.openSession(true)) {
+                List<String> tags = session.regionTagMapper().selectTagIdsByRegionId(regionId);
+                Component tagsComponent = buildTagsComponent(tags);
+                builder.appendNewline()
+                        .append(messages.messageFor(MessageKeys.INFO_TAGS,
+                                Placeholder.component("tags", tagsComponent)));
+            }
+
             sender.sendMessage(builder.build());
         }).exceptionally(ex -> {
             ex.printStackTrace();
@@ -150,6 +165,23 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                             Placeholder.unparsed("authority", authority),
                             Placeholder.unparsed("last_sold_price", lastSold)));
         }
+    }
+
+    private @NotNull Component buildTagsComponent(@NotNull List<String> tagIds) {
+        if (tagIds.isEmpty()) {
+            return Component.text("None");
+        }
+        RealtyTags tags = realtyTags.get();
+        TextComponent.Builder tagsBuilder = Component.text();
+        for (int i = 0; i < tagIds.size(); i++) {
+            if (i > 0) {
+                tagsBuilder.append(Component.text(", "));
+            }
+            String tagId = tagIds.get(i);
+            ConfigRegionTag configTag = tags.get(tagId);
+            tagsBuilder.append(configTag != null ? configTag.tagDisplayName() : Component.text(tagId));
+        }
+        return tagsBuilder.build();
     }
 
     private void appendLeaseholdInfo(@NotNull TextComponent.Builder builder,

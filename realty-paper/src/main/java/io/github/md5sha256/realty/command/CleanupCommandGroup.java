@@ -6,8 +6,7 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.settings.ConfigRegionTag;
-import io.github.md5sha256.realty.settings.RegionTagSettings;
+import io.github.md5sha256.realty.settings.RealtyTags;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.incendo.cloud.Command;
@@ -19,14 +18,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-
-
 
 public record CleanupCommandGroup(
         @NotNull Database database,
         @NotNull ExecutorState executorState,
-        @NotNull AtomicReference<RegionTagSettings> regionTagSettings,
+        @NotNull AtomicReference<RealtyTags> realtyTags,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -43,9 +39,7 @@ public record CleanupCommandGroup(
 
     private void executeCleanupTags(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
-        Set<String> configTagIds = regionTagSettings.get().tags().stream()
-                .map(ConfigRegionTag::tagId)
-                .collect(Collectors.toSet());
+        Set<String> configTagIds = realtyTags.get().tagIds();
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RegionTagMapper mapper = session.regionTagMapper();
