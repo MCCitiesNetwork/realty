@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -17,7 +18,7 @@ public final class RealtyTags {
         for (ConfigRegionTag tag : settings.tags()) {
             map.put(tag.tagId(), tag);
         }
-        this.tags = Map.copyOf(map);
+        this.tags = Collections.unmodifiableMap(map);
     }
 
     public @NotNull Map<String, ConfigRegionTag> tags() {
