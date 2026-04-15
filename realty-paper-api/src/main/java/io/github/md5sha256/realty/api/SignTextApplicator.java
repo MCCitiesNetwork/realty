@@ -106,10 +106,12 @@ public class SignTextApplicator {
                                  @NotNull String regionId,
                                  @NotNull RegionState state,
                                  @NotNull java.util.Map<String, String> placeholders) {
-        Block block = world.getBlockAt(blockX, blockY, blockZ);
-        if (!block.getChunk().isLoaded()) {
+        int chunkX = blockX >> 4;
+        int chunkZ = blockZ >> 4;
+        if (!world.isChunkLoaded(chunkX, chunkZ)) {
             return ApplyResult.BLOCK_NOT_LOADED;
         }
+        Block block = world.getBlockAt(blockX, blockY, blockZ);
         if (!(block.getState(false) instanceof Sign sign)) {
             return ApplyResult.FAILED;
         }
