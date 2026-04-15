@@ -10,3 +10,6 @@ profile-reapply-per-tick: 10
 subregion-min-volume: 20
 # Duration (in seconds) for an accepted offer payment deadline. Default: 86400 (24 hours).
 offer-payment-duration-seconds: 86400
+# Tag IDs that prevent a parent region from being subregioned.
+# If a region has any of these tags, it cannot be used as a parent for subregion creation.
+subregion-tag-blacklist: []

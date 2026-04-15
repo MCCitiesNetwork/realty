@@ -8,6 +8,7 @@ import org.spongepowered.configurate.objectmapping.meta.Required;
 import org.spongepowered.configurate.objectmapping.meta.Setting;
 
 import java.text.SimpleDateFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -19,7 +20,8 @@ public record Settings(
         @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat,
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
         @Setting("subregion-min-volume") int subregionMinVolume,
-        @Setting("offer-payment-duration-seconds") long offerPaymentDurationSeconds
+        @Setting("offer-payment-duration-seconds") long offerPaymentDurationSeconds,
+        @Setting("subregion-tag-blacklist") @NotNull List<String> subregionTagBlacklist
 ) {
 
     public Settings {
@@ -31,6 +33,9 @@ public record Settings(
         }
         if (offerPaymentDurationSeconds <= 0) {
             offerPaymentDurationSeconds = 86400;
+        }
+        if (subregionTagBlacklist == null) {
+            subregionTagBlacklist = List.of();
         }
     }
 }

@@ -466,6 +466,7 @@ subregion:
   exceeds-bounds: "Your selection exceeds the bounds of region <region>."
   overlaps-sibling: "Your selection overlaps with existing subregion <sibling>."
   too-small: "Your selection is too small (<volume> blocks). Minimum volume is <min-volume> blocks."
+  tag-blacklisted: "Region <region> has tag <tag> which prevents subregioning."
 
 sign:
   place-success: "Sign registered for region <region>."

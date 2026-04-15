@@ -376,6 +376,7 @@ public final class MessageKeys {
     public static final String SUBREGION_EXCEEDS_BOUNDS = "subregion.exceeds-bounds";
     public static final String SUBREGION_OVERLAPS_SIBLING = "subregion.overlaps-sibling";
     public static final String SUBREGION_TOO_SMALL = "subregion.too-small";
+    public static final String SUBREGION_TAG_BLACKLISTED = "subregion.tag-blacklisted";
 
     // teleport
     public static final String TP_SUCCESS = "tp.success";

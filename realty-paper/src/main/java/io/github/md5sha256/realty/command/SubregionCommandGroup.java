@@ -33,6 +33,7 @@ import org.incendo.cloud.parser.standard.StringParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -106,6 +107,42 @@ public record SubregionCommandGroup(
             return;
         }
 
+        Collection<String> blacklist = settings.get().subregionTagBlacklist();
+        if (!blacklist.isEmpty()) {
+            String parentId = parentRegion.region().getId();
+            api.getTagIdsByRegion(parentId).thenAccept(tags -> {
+                for (String tag : tags) {
+                    if (blacklist.contains(tag)) {
+                        player.sendMessage(messages.messageFor(
+                                MessageKeys.SUBREGION_TAG_BLACKLISTED,
+                                Placeholder.unparsed("region", parentId),
+                                Placeholder.unparsed("tag", tag)));
+                        return;
+                    }
+                }
+                continueQuickCreate(player, parentRegion, name, price, duration,
+                        canBypass, regionManager);
+            }).exceptionally(ex -> {
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                cause.printStackTrace();
+                player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_CREATE_ERROR,
+                        Placeholder.unparsed("error", cause.getMessage())));
+                return null;
+            });
+            return;
+        }
+
+        continueQuickCreate(player, parentRegion, name, price, duration,
+                canBypass, regionManager);
+    }
+
+    private void continueQuickCreate(@NotNull Player player,
+                                      @NotNull WorldGuardRegion parentRegion,
+                                      @NotNull String name,
+                                      double price,
+                                      @NotNull Duration duration,
+                                      boolean canBypass,
+                                      @NotNull RegionManager regionManager) {
         SelectionResult result = validateSelection(player, parentRegion, regionManager,
                 settings.get().subregionMinVolume());
         switch (result) {
