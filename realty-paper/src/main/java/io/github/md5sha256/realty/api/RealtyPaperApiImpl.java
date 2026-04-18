@@ -20,10 +20,9 @@ import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.api.ExecutorState;
-import net.milkbowl.vault.economy.Economy;
-import net.milkbowl.vault.economy.EconomyResponse;
+import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.PaymentResult;
 import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -39,7 +38,7 @@ import java.util.concurrent.CompletableFuture;
 public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     private final RealtyBackend realtyApi;
-    private final Economy economy;
+    private final EconomyProvider economyProvider;
     private final ExecutorState executorState;
     private final Database database;
     private final RegionProfileService regionProfileService;
@@ -47,14 +46,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final SignCache signCache;
 
     public RealtyPaperApiImpl(@NotNull RealtyBackend realtyApi,
-                              @NotNull Economy economy,
+                              @NotNull EconomyProvider economyProvider,
                               @NotNull ExecutorState executorState,
                               @NotNull Database database,
                               @NotNull RegionProfileService regionProfileService,
                               @NotNull SignTextApplicator signTextApplicator,
                               @NotNull SignCache signCache) {
         this.realtyApi = realtyApi;
-        this.economy = economy;
+        this.economyProvider = economyProvider;
         this.executorState = executorState;
         this.database = database;
         this.regionProfileService = regionProfileService;
@@ -105,23 +104,21 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull RealtyBackend.BuyResult.Success reserved,
             @NotNull Map<String, String> placeholders) {
         double price = reserved.price();
-        OfflinePlayer buyer = Bukkit.getOfflinePlayer(buyerId);
         // Region is already reserved in DB. Process payment, rollback DB on failure.
         if (price > 0) {
-            double balance = economy.getBalance(buyer);
+            double balance = economyProvider.getBalance(buyerId);
             if (balance < price) {
                 return rollbackBuyAsync(regionId, worldId, reserved.titleHolderId(), price)
                         .thenApply(ignored -> new BuyResult.InsufficientFunds(price, balance));
             }
-            EconomyResponse response = economy.withdrawPlayer(buyer, price);
-            if (!response.transactionSuccess()) {
-                return rollbackBuyAsync(regionId, worldId, reserved.titleHolderId(), price)
-                        .thenApply(ignored -> new BuyResult.PaymentFailed(response.errorMessage));
-            }
             UUID recipientId = reserved.titleHolderId() != null
                     ? reserved.titleHolderId() : reserved.authorityId();
-            OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
-            economy.depositPlayer(recipient, price);
+            PaymentResult result = economyProvider.transfer(
+                    buyerId, recipientId, price, "Plot Purchase: " + regionId);
+            if (result instanceof PaymentResult.Failure failure) {
+                return rollbackBuyAsync(regionId, worldId, reserved.titleHolderId(), price)
+                        .thenApply(ignored -> new BuyResult.PaymentFailed(failure.errorMessage()));
+            }
         }
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.getOwners().clear();
@@ -179,21 +176,19 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull RealtyBackend.RentResult.Success reserved,
             @NotNull Map<String, String> placeholders) {
         double price = reserved.price();
-        OfflinePlayer tenant = Bukkit.getOfflinePlayer(tenantId);
         // Region is already reserved in DB. Process payment, rollback DB on failure.
         if (price > 0) {
-            double balance = economy.getBalance(tenant);
+            double balance = economyProvider.getBalance(tenantId);
             if (balance < price) {
                 return rollbackRentAsync(regionId, worldId)
                         .thenApply(ignored -> new RentResult.InsufficientFunds(price, balance));
             }
-            EconomyResponse response = economy.withdrawPlayer(tenant, price);
-            if (!response.transactionSuccess()) {
+            PaymentResult result = economyProvider.transfer(
+                    tenantId, reserved.landlordId(), price, "Rental Payment: " + regionId);
+            if (result instanceof PaymentResult.Failure failure) {
                 return rollbackRentAsync(regionId, worldId)
-                        .thenApply(ignored -> new RentResult.PaymentFailed(response.errorMessage));
+                        .thenApply(ignored -> new RentResult.PaymentFailed(failure.errorMessage()));
             }
-            OfflinePlayer landlord = Bukkit.getOfflinePlayer(reserved.landlordId());
-            economy.depositPlayer(landlord, price);
         }
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.getOwners().clear();
@@ -251,18 +246,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         double refund = success.refund();
         // Tenant is already cleared in DB. Process refund, rollback DB on failure.
         if (refund > 0) {
-            OfflinePlayer landlord = Bukkit.getOfflinePlayer(success.landlordId());
-            EconomyResponse withdrawResponse = economy.withdrawPlayer(landlord, refund);
-            if (!withdrawResponse.transactionSuccess()) {
+            PaymentResult result = economyProvider.transfer(
+                    success.landlordId(), tenantId, refund,
+                    "Early Lease Termination Refund: " + regionId);
+            if (result instanceof PaymentResult.Failure failure) {
                 return rollbackUnrentAsync(regionId, worldId, tenantId)
-                        .thenApply(ignored -> new UnrentResult.RefundFailed(withdrawResponse.errorMessage));
-            }
-            OfflinePlayer tenantPlayer = Bukkit.getOfflinePlayer(tenantId);
-            EconomyResponse depositResponse = economy.depositPlayer(tenantPlayer, refund);
-            if (!depositResponse.transactionSuccess()) {
-                economy.depositPlayer(landlord, refund);
-                return rollbackUnrentAsync(regionId, worldId, tenantId)
-                        .thenApply(ignored -> new UnrentResult.RefundFailed(depositResponse.errorMessage));
+                        .thenApply(ignored -> new UnrentResult.RefundFailed(failure.errorMessage()));
             }
         }
         ProtectedRegion protectedRegion = region.region();
@@ -318,21 +307,19 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull RealtyBackend.RenewLeaseholdResult.Success reserved,
             @NotNull Map<String, String> placeholders) {
         double price = reserved.price();
-        OfflinePlayer tenant = Bukkit.getOfflinePlayer(tenantId);
         // Lease is already extended in DB. Process payment, rollback DB on failure.
         if (price > 0) {
-            double balance = economy.getBalance(tenant);
+            double balance = economyProvider.getBalance(tenantId);
             if (balance < price) {
                 return rollbackExtendAsync(regionId, worldId, tenantId)
                         .thenApply(ignored -> new ExtendResult.InsufficientFunds(price, balance));
             }
-            EconomyResponse response = economy.withdrawPlayer(tenant, price);
-            if (!response.transactionSuccess()) {
+            PaymentResult result = economyProvider.transfer(
+                    tenantId, reserved.landlordId(), price, "Lease Extension Payment: " + regionId);
+            if (result instanceof PaymentResult.Failure failure) {
                 return rollbackExtendAsync(regionId, worldId, tenantId)
-                        .thenApply(ignored -> new ExtendResult.PaymentFailed(response.errorMessage));
+                        .thenApply(ignored -> new ExtendResult.PaymentFailed(failure.errorMessage()));
             }
-            OfflinePlayer landlord = Bukkit.getOfflinePlayer(reserved.landlordId());
-            economy.depositPlayer(landlord, price);
         }
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.LEASED, placeholders);
@@ -384,21 +371,20 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID bidderId, double amount,
             @NotNull RealtyBackend.PayBidResult.Success success) {
-        OfflinePlayer bidder = Bukkit.getOfflinePlayer(bidderId);
-        double balance = economy.getBalance(bidder);
+        double balance = economyProvider.getBalance(bidderId);
         if (balance < amount) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
-        EconomyResponse response = economy.withdrawPlayer(bidder, amount);
-        if (!response.transactionSuccess()) {
-            return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
-                    .thenApply(ignored -> new PayBidResult.PaymentFailed(response.errorMessage));
-        }
         UUID recipientId = success.titleHolderId() != null
                 ? success.titleHolderId() : success.authorityId();
-        OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
-        economy.depositPlayer(recipient, amount);
+        PaymentResult result = economyProvider.transfer(
+                bidderId, recipientId, amount,
+                "Auction Bid Payment (partial): " + regionId);
+        if (result instanceof PaymentResult.Failure failure) {
+            return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
+                    .thenApply(ignored -> new PayBidResult.PaymentFailed(failure.errorMessage()));
+        }
         return CompletableFuture.completedFuture(
                 new PayBidResult.Success(amount, success.newTotal(), success.remaining(), regionId));
     }
@@ -407,21 +393,20 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID bidderId, double amount,
             @NotNull RealtyBackend.PayBidResult.FullyPaid fullyPaid) {
-        OfflinePlayer bidder = Bukkit.getOfflinePlayer(bidderId);
-        double balance = economy.getBalance(bidder);
+        double balance = economyProvider.getBalance(bidderId);
         if (balance < amount) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
-        EconomyResponse response = economy.withdrawPlayer(bidder, amount);
-        if (!response.transactionSuccess()) {
-            return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
-                    .thenApply(ignored -> new PayBidResult.PaymentFailed(response.errorMessage));
-        }
         UUID recipientId = fullyPaid.titleHolderId() != null
                 ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
-        OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
-        economy.depositPlayer(recipient, amount);
+        PaymentResult result = economyProvider.transfer(
+                bidderId, recipientId, amount,
+                "Auction Bid Payment (final): " + regionId);
+        if (result instanceof PaymentResult.Failure failure) {
+            return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
+                    .thenApply(ignored -> new PayBidResult.PaymentFailed(failure.errorMessage()));
+        }
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.getOwners().clear();
         protectedRegion.getOwners().addPlayer(bidderId);
@@ -477,21 +462,20 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID offererId, double amount,
             @NotNull RealtyBackend.PayOfferResult.Success success) {
-        OfflinePlayer offerer = Bukkit.getOfflinePlayer(offererId);
-        double balance = economy.getBalance(offerer);
+        double balance = economyProvider.getBalance(offererId);
         if (balance < amount) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
-        EconomyResponse response = economy.withdrawPlayer(offerer, amount);
-        if (!response.transactionSuccess()) {
-            return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
-                    .thenApply(ignored -> new PayOfferResult.PaymentFailed(response.errorMessage));
-        }
         UUID recipientId = success.titleHolderId() != null
                 ? success.titleHolderId() : success.authorityId();
-        OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
-        economy.depositPlayer(recipient, amount);
+        PaymentResult result = economyProvider.transfer(
+                offererId, recipientId, amount,
+                "Purchase Offer Payment (partial): " + regionId);
+        if (result instanceof PaymentResult.Failure failure) {
+            return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
+                    .thenApply(ignored -> new PayOfferResult.PaymentFailed(failure.errorMessage()));
+        }
         return CompletableFuture.completedFuture(
                 new PayOfferResult.Success(amount, success.newTotal(), success.remaining(), regionId));
     }
@@ -500,21 +484,20 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID offererId, double amount,
             @NotNull RealtyBackend.PayOfferResult.FullyPaid fullyPaid) {
-        OfflinePlayer offerer = Bukkit.getOfflinePlayer(offererId);
-        double balance = economy.getBalance(offerer);
+        double balance = economyProvider.getBalance(offererId);
         if (balance < amount) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
-        EconomyResponse response = economy.withdrawPlayer(offerer, amount);
-        if (!response.transactionSuccess()) {
-            return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
-                    .thenApply(ignored -> new PayOfferResult.PaymentFailed(response.errorMessage));
-        }
         UUID recipientId = fullyPaid.titleHolderId() != null
                 ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
-        OfflinePlayer recipient = Bukkit.getOfflinePlayer(recipientId);
-        economy.depositPlayer(recipient, amount);
+        PaymentResult result = economyProvider.transfer(
+                offererId, recipientId, amount,
+                "Purchase Offer Payment (final): " + regionId);
+        if (result instanceof PaymentResult.Failure failure) {
+            return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
+                    .thenApply(ignored -> new PayOfferResult.PaymentFailed(failure.errorMessage()));
+        }
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.getOwners().clear();
         protectedRegion.getOwners().addPlayer(offererId);

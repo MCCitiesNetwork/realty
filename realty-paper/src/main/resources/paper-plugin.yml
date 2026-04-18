@@ -17,6 +17,10 @@ dependencies:
       load: BEFORE
       join-classpath: true
       required: false
+    Treasury:
+      load: BEFORE
+      join-classpath: true
+      required: false
 permissions:
   realty.command.agent.invite:
     description: Allows using /realty agent invite
