@@ -18,6 +18,7 @@ dependencies {
         exclude(group = "org.bukkit", module = "bukkit")
         exclude(group = "org.spigotmc", module = "spigot-api")
     }
+    compileOnly("net.democracycraft:treasury-api:2.0.0-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.0-beta.10")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
