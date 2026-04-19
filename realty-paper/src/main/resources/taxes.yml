@@ -4,6 +4,11 @@
 # Players with 3 or fewer plots are exempt from taxation.
 enabled: true
 
+# Name of the Treasury GOVERNMENT account that receives property tax proceeds.
+# Must match the display name of an existing GOVERNMENT account in Treasury.
+# Defaults to DCGovernment if left blank or omitted.
+government-account: "DCGovernment"
+
 # UUIDs exempt from property tax collection.
 # Useful for authority, government, or server-owned accounts.
 exempt-uuids: []

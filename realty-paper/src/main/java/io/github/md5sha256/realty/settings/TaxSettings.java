@@ -10,10 +10,14 @@ import java.util.UUID;
 @ConfigSerializable
 public record TaxSettings(
         @Setting("enabled") boolean enabled,
+        @Setting("government-account") @NotNull String governmentAccount,
         @Setting("exempt-uuids") @NotNull List<UUID> exemptUuids
 ) {
 
     public TaxSettings {
+        if (governmentAccount == null || governmentAccount.isBlank()) {
+            governmentAccount = "DCGovernment";
+        }
         if (exemptUuids == null) {
             exemptUuids = List.of();
         }
