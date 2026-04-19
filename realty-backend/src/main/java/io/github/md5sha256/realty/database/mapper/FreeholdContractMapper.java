@@ -1,9 +1,11 @@
 package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -143,5 +145,11 @@ public interface FreeholdContractMapper {
     int countOccupied();
 
     double averagePrice();
+
+    /**
+     * Returns the number of freehold plots owned (as title holder) by each player.
+     * Only players with at least one plot are included.
+     */
+    @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolder();
 
 }
