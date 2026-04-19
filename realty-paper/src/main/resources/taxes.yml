@@ -1,0 +1,9 @@
+# Enable or disable daily property tax collection.
+# Requires the Treasury plugin to be installed and its DAILY cycle to be enabled.
+# Tax formula: tax = 2.5 * (plots^2) - 6 * plots
+# Players with 3 or fewer plots are exempt from taxation.
+enabled: true
+
+# UUIDs exempt from property tax collection.
+# Useful for authority, government, or server-owned accounts.
+exempt-uuids: []

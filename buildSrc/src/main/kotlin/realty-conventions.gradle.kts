@@ -10,6 +10,7 @@ val targetJavaVersion = 21
 java.toolchain.languageVersion.set(JavaLanguageVersion.of(targetJavaVersion))
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven {
         name = "papermc-repo"
