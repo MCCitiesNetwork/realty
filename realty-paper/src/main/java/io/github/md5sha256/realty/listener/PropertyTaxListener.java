@@ -11,13 +11,13 @@ import net.democracycraft.treasury.model.economy.AccountType;
 import net.democracycraft.treasury.model.tax.TaxCollection;
 import net.democracycraft.treasury.model.tax.TaxCycleType;
 import net.democracycraft.treasury.model.tax.TaxResult;
+import net.democracycraft.treasury.utils.Idempotency;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.jetbrains.annotations.NotNull;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -71,6 +71,9 @@ public final class PropertyTaxListener implements Listener {
         Set<UUID> exempt = new HashSet<>(settings.exemptUuids());
         Instant periodStart = event.getPeriodStart();
 
+        // Resolve the configured destination account once for the whole batch.
+        Integer destinationAccountId = resolveDestinationAccountId(settings.governmentAccount());
+
         List<TaxCollection> collections = new ArrayList<>();
         for (PlotOwnerCount entry : plotCounts) {
             UUID owner = entry.titleHolderId();
@@ -90,18 +93,15 @@ public final class PropertyTaxListener implements Listener {
             }
 
             BigDecimal taxAmount = computePropertyTax(plots);
-            byte[] dedupKey = ("realty:property_tax:" + owner + ":" + periodStart.toEpochMilli())
-                    .getBytes(StandardCharsets.UTF_8);
+            byte[] dedupKey = Idempotency.sha256("realty:property_tax:" + owner + ":" + periodStart.toEpochMilli());
 
-            collections.add(TaxCollection.toDefaultAccount(
-                    accountId,
-                    taxAmount,
-                    TAX_TYPE,
-                    "Daily property tax (" + plots + " plots)",
-                    SYSTEM_UUID,
-                    PLUGIN_SYSTEM,
-                    dedupKey
-            ));
+            TaxCollection collection = destinationAccountId != null
+                    ? TaxCollection.toAccount(accountId, destinationAccountId, taxAmount, TAX_TYPE,
+                            "Daily property tax (" + plots + " plots)", SYSTEM_UUID, PLUGIN_SYSTEM, dedupKey)
+                    : TaxCollection.toDefaultAccount(accountId, taxAmount, TAX_TYPE,
+                            "Daily property tax (" + plots + " plots)", SYSTEM_UUID, PLUGIN_SYSTEM, dedupKey);
+
+            collections.add(collection);
         }
 
         if (collections.isEmpty()) {
@@ -126,6 +126,21 @@ public final class PropertyTaxListener implements Listener {
             }
         }
         logger.info("Daily property tax cycle: " + collected + " collected, " + skipped + " skipped, " + failed + " failed");
+    }
+
+    /**
+     * Resolves the configured government account name to an account ID.
+     * Returns {@code null} if the account is not found, causing the collection
+     * to fall back to Treasury's default tax account.
+     */
+    private @org.jetbrains.annotations.Nullable Integer resolveDestinationAccountId(@NotNull String accountName) {
+        Account account = treasuryApi.getGovernmentAccountByName(accountName);
+        if (account == null) {
+            logger.warning("Configured property tax destination '" + accountName
+                    + "' not found in Treasury — falling back to Treasury's default tax account");
+            return null;
+        }
+        return account.getAccountId();
     }
 
     // y = 2.5 * x^2 - 6 * x, rounded to 2 decimal places
