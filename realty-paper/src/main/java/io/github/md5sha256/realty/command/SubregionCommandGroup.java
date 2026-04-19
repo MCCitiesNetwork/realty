@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 public record SubregionCommandGroup(
         @NotNull RealtyPaperApi api,
@@ -50,6 +51,7 @@ public record SubregionCommandGroup(
     private static final CloudKey<String> NAME = CloudKey.of("name", String.class);
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> DURATION = CloudKey.of("duration", Duration.class);
+    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9]+$");
 
     @Override
     public @NotNull List<Command<? extends Source>> commands(
@@ -87,6 +89,11 @@ public record SubregionCommandGroup(
         }
         WorldGuardRegion parentRegion = ctx.get(PARENT_REGION);
         String name = ctx.get(NAME);
+        if (!VALID_NAME_PATTERN.matcher(name).matches()) {
+            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_INVALID_NAME,
+                    Placeholder.unparsed("region", name)));
+            return;
+        }
         double price = ctx.get(PRICE);
         Duration duration = ctx.get(DURATION);
         boolean canBypass = player.hasPermission(BYPASS_PERMISSION);

@@ -90,6 +90,7 @@ create:
   freehold-success: "Created WorldGuard region <region> and registered it as freehold!"
   already-registered: "Region <region> is already registered in Realty!"
   region-exists: "A WorldGuard region named <region> already exists!"
+  invalid-name: "Region name <region> is invalid. Names must be alphanumeric only."
   incomplete-selection: "You must make a WorldEdit selection first!"
   error: "Failed to create region: <error>"
 
@@ -459,6 +460,7 @@ subregion:
   create-success: "Subregion <region> created as a child of <parent>."
   create-error: "Failed to create subregion: <error>"
   region-exists: "A region named <region> already exists."
+  invalid-name: "Region name <region> is invalid. Names must be alphanumeric only."
   no-freehold: "Region <region> is not a freehold region."
   not-titleholder: "You are not the titleholder of region <region>."
   wrong-world: "Your WorldEdit selection is in a different world than the parent region."

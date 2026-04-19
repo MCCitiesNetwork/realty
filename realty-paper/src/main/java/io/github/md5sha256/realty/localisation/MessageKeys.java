@@ -107,6 +107,7 @@ public final class MessageKeys {
     public static final String CREATE_FREEHOLD_SUCCESS = "create.freehold-success";
     public static final String CREATE_ALREADY_REGISTERED = "create.already-registered";
     public static final String CREATE_REGION_EXISTS = "create.region-exists";
+    public static final String CREATE_INVALID_NAME = "create.invalid-name";
     public static final String CREATE_INCOMPLETE_SELECTION = "create.incomplete-selection";
     public static final String CREATE_ERROR = "create.error";
 
@@ -369,6 +370,7 @@ public final class MessageKeys {
     public static final String SUBREGION_CREATE_SUCCESS = "subregion.create-success";
     public static final String SUBREGION_CREATE_ERROR = "subregion.create-error";
     public static final String SUBREGION_REGION_EXISTS = "subregion.region-exists";
+    public static final String SUBREGION_INVALID_NAME = "subregion.invalid-name";
     public static final String SUBREGION_NO_FREEHOLD = "subregion.no-freehold";
     public static final String SUBREGION_NOT_TITLEHOLDER = "subregion.not-titleholder";
     public static final String SUBREGION_WRONG_WORLD = "subregion.wrong-world";

@@ -111,7 +111,7 @@ public class SignTextApplicator {
         if (!world.isChunkLoaded(chunkX, chunkZ)) {
             return ApplyResult.BLOCK_NOT_LOADED;
         }
-        Block block = world.getBlockAt(blockX, blockY, blockZ);
+        Block block = world.getBlockAt(blockX, blockY, blockZ);git
         if (!(block.getState(false) instanceof Sign sign)) {
             return ApplyResult.FAILED;
         }

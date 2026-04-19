@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 /**
  * Handles {@code /realty create leasehold <name> <price> <period> <maxextensions>}
@@ -54,6 +55,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
                              @NotNull MessageContainer messages) implements CustomCommandBean {
 
     private static final CloudKey<String> NAME = CloudKey.of("name", String.class);
+    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9]+$");
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
     private static final CloudKey<Integer> MAX_EXTENSIONS = CloudKey.of("maxextensions", Integer.class);
@@ -110,6 +112,11 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
             return;
         }
         String name = ctx.get(NAME);
+        if (!VALID_NAME_PATTERN.matcher(name).matches()) {
+            player.sendMessage(messages.messageFor(MessageKeys.CREATE_INVALID_NAME,
+                    Placeholder.unparsed("region", name)));
+            return;
+        }
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
@@ -168,6 +175,11 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
             return;
         }
         String name = ctx.get(NAME);
+        if (!VALID_NAME_PATTERN.matcher(name).matches()) {
+            player.sendMessage(messages.messageFor(MessageKeys.CREATE_INVALID_NAME,
+                    Placeholder.unparsed("region", name)));
+            return;
+        }
         Double price = ctx.flags().getValue(PRICE_FLAG, null);
         UUID authority = ctx.flags()
                 .getValue(AUTHORITY_FLAG, settings.get().defaultFreeholdAuthority());
