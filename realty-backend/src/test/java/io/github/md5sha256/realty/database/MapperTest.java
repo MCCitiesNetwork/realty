@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.SearchResultEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
@@ -224,6 +225,69 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 int count = wrapper.realtyRegionMapper().countRegionsByTenant(PLAYER_B);
                 Assertions.assertTrue(count >= 1);
+            }
+        }
+    }
+
+    // ==================== SearchMapper ====================
+
+    @Nested
+    @DisplayName("SearchMapper")
+    class SearchMapperTests {
+
+        @Test
+        @DisplayName("excludeRented omits occupied leaseholds from search results")
+        void excludeRentedFiltersOccupiedLeaseholds() {
+            String availableLeasehold = uniqueRegionId();
+            createLeaseholdRegion(availableLeasehold, AUTHORITY);
+
+            String rentedLeasehold = uniqueRegionId();
+            createLeaseholdRegion(rentedLeasehold, AUTHORITY);
+            logic.rentRegion(rentedLeasehold, WORLD_ID, PLAYER_A);
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                int countIncludingRented = wrapper.searchMapper()
+                        .searchCount(false, true, null, null,
+                                false, 0.0, Double.MAX_VALUE);
+                int countExcludingRented = wrapper.searchMapper()
+                        .searchCount(false, true, null, null,
+                                true, 0.0, Double.MAX_VALUE);
+                List<SearchResultEntity> availableOnly = wrapper.searchMapper()
+                        .search(false, true, null, null,
+                                true, 0.0, Double.MAX_VALUE, 10, 0);
+
+                Assertions.assertEquals(2, countIncludingRented);
+                Assertions.assertEquals(1, countExcludingRented);
+                Assertions.assertEquals(1, availableOnly.size());
+                Assertions.assertEquals(availableLeasehold, availableOnly.get(0).worldGuardRegionId());
+            }
+        }
+
+        @Test
+        @DisplayName("excludeRented does not hide freeholds")
+        void excludeRentedKeepsFreeholds() {
+            String freehold = uniqueRegionId();
+            boolean created = logic.createFreehold(freehold, WORLD_ID, 1000.0, AUTHORITY, null);
+            Assertions.assertTrue(created);
+
+            String availableLeasehold = uniqueRegionId();
+            createLeaseholdRegion(availableLeasehold, AUTHORITY);
+
+            String rentedLeasehold = uniqueRegionId();
+            createLeaseholdRegion(rentedLeasehold, AUTHORITY);
+            logic.rentRegion(rentedLeasehold, WORLD_ID, PLAYER_A);
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                List<SearchResultEntity> results = wrapper.searchMapper()
+                        .search(true, true, null, null,
+                                true, 0.0, Double.MAX_VALUE, 10, 0);
+                List<String> regionIds = results.stream()
+                        .map(SearchResultEntity::worldGuardRegionId)
+                        .toList();
+
+                Assertions.assertTrue(regionIds.contains(freehold));
+                Assertions.assertTrue(regionIds.contains(availableLeasehold));
+                Assertions.assertFalse(regionIds.contains(rentedLeasehold));
             }
         }
     }

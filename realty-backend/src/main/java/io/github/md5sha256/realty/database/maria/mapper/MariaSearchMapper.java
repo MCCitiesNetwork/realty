@@ -58,6 +58,9 @@ public interface MariaSearchMapper extends SearchMapper {
                 INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
                 WHERE lc.price &gt;= #{minPrice}
                     AND lc.price &lt;= #{maxPrice}
+                    <if test="excludeRented">
+                    AND lc.tenantId IS NULL
+                    </if>
                     <if test="tagIds != null and tagIds.size() > 0">
                     AND EXISTS (
                         SELECT 1 FROM RegionTag rt
@@ -94,6 +97,7 @@ public interface MariaSearchMapper extends SearchMapper {
                                              @Param("includeLeasehold") boolean includeLeasehold,
                                              @Param("tagIds") @Nullable Collection<String> tagIds,
                                              @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
+                                             @Param("excludeRented") boolean excludeRented,
                                              @Param("minPrice") double minPrice,
                                              @Param("maxPrice") double maxPrice,
                                              @Param("limit") int limit,
@@ -142,6 +146,9 @@ public interface MariaSearchMapper extends SearchMapper {
                 INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
                 WHERE lc.price &gt;= #{minPrice}
                     AND lc.price &lt;= #{maxPrice}
+                    <if test="excludeRented">
+                    AND lc.tenantId IS NULL
+                    </if>
                     <if test="tagIds != null and tagIds.size() > 0">
                     AND EXISTS (
                         SELECT 1 FROM RegionTag rt
@@ -170,6 +177,7 @@ public interface MariaSearchMapper extends SearchMapper {
                     @Param("includeLeasehold") boolean includeLeasehold,
                     @Param("tagIds") @Nullable Collection<String> tagIds,
                     @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
+                    @Param("excludeRented") boolean excludeRented,
                     @Param("minPrice") double minPrice,
                     @Param("maxPrice") double maxPrice);
 
