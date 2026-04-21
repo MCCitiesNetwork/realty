@@ -8,7 +8,7 @@ Realty is a plugin for [Paper](https://papermc.io/) Minecraft servers that allow
 - **Java** 21
 - **MariaDB/MySQL database** to store region data
 - **Vault** and a Vault-compatible economy
-- **WorldGuard amd WorldEdit** (required)
+- **WorldGuard and WorldEdit** (required)
 - **Essentials** (optional)
 
 ## Build
@@ -32,8 +32,9 @@ Other artifacts:
 
 | Module | Role |
 |--------|------|
-| `realty-api` | Public API surface |
-| `realty-common` | Shared logic and database access |
+| `realty-backend-api` | Public backend and domain API surface |
+| `realty-backend` | Shared database and domain logic |
+| `realty-paper-api` | Paper-facing API for integrations |
 | `realty-paper` | Main Paper plugin |
 | `realty-paper-plan-extension` | Optional [Plan](https://github.com/plan-player-analytics/Plan) integration |
 | `realty-areashop-importer` | Optional AreaShop migration helper |
