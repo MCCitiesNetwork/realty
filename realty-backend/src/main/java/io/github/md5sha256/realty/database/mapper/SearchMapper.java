@@ -8,10 +8,11 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Mapper for searching regions by contract type, tags, and price range.
+ * Mapper for searching regions by contract type, tags, price range, and lease occupancy.
  *
  * @param tagIds         when non-null, only regions with at least one of these tags are included
  * @param excludedTagIds when non-null, regions with any of these tags are excluded
+ * @param excludeRented  when true, occupied leaseholds are omitted from results
  * @see SearchResultEntity
  */
 public interface SearchMapper {
@@ -20,6 +21,7 @@ public interface SearchMapper {
                                              boolean includeLeasehold,
                                              @Nullable Collection<String> tagIds,
                                              @Nullable Collection<String> excludedTagIds,
+                                             boolean excludeRented,
                                              double minPrice,
                                              double maxPrice,
                                              int limit,
@@ -29,6 +31,7 @@ public interface SearchMapper {
                     boolean includeLeasehold,
                     @Nullable Collection<String> tagIds,
                     @Nullable Collection<String> excludedTagIds,
+                    boolean excludeRented,
                     double minPrice,
                     double maxPrice);
 

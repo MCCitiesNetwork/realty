@@ -59,6 +59,7 @@ public final class SearchDialog {
 
     static final String INPUT_FREEHOLD = "freehold";
     static final String INPUT_LEASEHOLD = "leasehold";
+    static final String INPUT_EXCLUDE_RENTED = "exclude_rented";
     static final String INPUT_MIN_PRICE = "min_price";
     static final String INPUT_MAX_PRICE = "max_price";
 
@@ -85,6 +86,7 @@ public final class SearchDialog {
     static final class SearchState {
         boolean freehold = true;
         boolean leasehold = true;
+        boolean excludeRented = false;
         String minPrice = "0";
         String maxPrice = "";
         final Map<String, TagState> tagStates = new LinkedHashMap<>();
@@ -129,6 +131,11 @@ public final class SearchDialog {
                 .onTrue("true")
                 .onFalse("false")
                 .build());
+        inputs.add(DialogInput.bool(INPUT_EXCLUDE_RENTED, Component.text("Exclude Rented Leaseholds"))
+                .initial(state.excludeRented)
+                .onTrue("true")
+                .onFalse("false")
+                .build());
         inputs.add(DialogInput.text(INPUT_MIN_PRICE, Component.text("Min Price"))
                 .width(150)
                 .initial(state.minPrice)
@@ -161,6 +168,7 @@ public final class SearchDialog {
             double maxPrice = parsePrice(state.maxPrice, Double.MAX_VALUE);
             boolean includeFreehold = state.freehold;
             boolean includeLeasehold = state.leasehold;
+            boolean excludeRented = state.excludeRented;
             playerStates.remove(player.getUniqueId());
 
             if (!includeFreehold && !includeLeasehold) {
@@ -168,7 +176,7 @@ public final class SearchDialog {
                 return;
             }
             performSearch(audience, includeFreehold, includeLeasehold, tagFilter,
-                    excludeFilter, minPrice, maxPrice, 1);
+                    excludeFilter, excludeRented, minPrice, maxPrice, 1);
         };
 
         DialogActionCallback configTagsCallback = (response, audience) -> {
@@ -193,7 +201,7 @@ public final class SearchDialog {
                         .canCloseWithEscape(true)
                         .afterAction(DialogBase.DialogAfterAction.CLOSE)
                         .body(List.of(DialogBody.plainMessage(
-                                Component.text("Filter regions by type and price range."))))
+                                Component.text("Filter regions by type, occupancy, and price range."))))
                         .inputs(inputs)
                         .build())
                 .type(DialogType.multiAction(
@@ -280,6 +288,10 @@ public final class SearchDialog {
         state.freehold = freehold == null || freehold;
         Boolean leasehold = response.getBoolean(INPUT_LEASEHOLD);
         state.leasehold = leasehold == null || leasehold;
+        Boolean excludeRented = response.getBoolean(INPUT_EXCLUDE_RENTED);
+        if (excludeRented != null) {
+            state.excludeRented = excludeRented;
+        }
         String minPrice = response.getText(INPUT_MIN_PRICE);
         if (minPrice != null) {
             state.minPrice = minPrice;
@@ -297,12 +309,13 @@ public final class SearchDialog {
                        boolean includeFreehold, boolean includeLeasehold,
                        @Nullable Collection<String> tagIds,
                        @Nullable Collection<String> excludedTagIds,
+                       boolean excludeRented,
                        double minPrice, double maxPrice, int page) {
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 SearchMapper mapper = session.searchMapper();
                 int totalCount = mapper.searchCount(includeFreehold, includeLeasehold,
-                        tagIds, excludedTagIds, minPrice, maxPrice);
+                        tagIds, excludedTagIds, excludeRented, minPrice, maxPrice);
 
                 if (totalCount == 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.SEARCH_NO_RESULTS));
@@ -319,7 +332,7 @@ public final class SearchDialog {
 
                 int offset = (page - 1) * PAGE_SIZE;
                 List<SearchResultEntity> results = mapper.search(includeFreehold, includeLeasehold,
-                        tagIds, excludedTagIds, minPrice, maxPrice, PAGE_SIZE, offset);
+                        tagIds, excludedTagIds, excludeRented, minPrice, maxPrice, PAGE_SIZE, offset);
 
                 TextComponent.Builder builder = Component.text();
                 builder.append(messages.messageFor(MessageKeys.SEARCH_HEADER,
@@ -336,7 +349,7 @@ public final class SearchDialog {
                 }
 
                 appendFooter(builder, includeFreehold, includeLeasehold, tagIds, excludedTagIds,
-                        minPrice, maxPrice, page, totalPages);
+                        excludeRented, minPrice, maxPrice, page, totalPages);
                 sender.sendMessage(builder.build());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.SEARCH_ERROR,
@@ -361,15 +374,16 @@ public final class SearchDialog {
                               boolean includeFreehold, boolean includeLeasehold,
                               @Nullable Collection<String> tagIds,
                               @Nullable Collection<String> excludedTagIds,
+                              boolean excludeRented,
                               double minPrice, double maxPrice,
                               int page, int totalPages) {
         Component previousComponent = page > 1
                 ? buildNavComponent(MessageKeys.SEARCH_PREVIOUS, includeFreehold, includeLeasehold,
-                tagIds, excludedTagIds, minPrice, maxPrice, page - 1)
+                tagIds, excludedTagIds, excludeRented, minPrice, maxPrice, page - 1)
                 : Component.empty();
         Component nextComponent = page < totalPages
                 ? buildNavComponent(MessageKeys.SEARCH_NEXT, includeFreehold, includeLeasehold,
-                tagIds, excludedTagIds, minPrice, maxPrice, page + 1)
+                tagIds, excludedTagIds, excludeRented, minPrice, maxPrice, page + 1)
                 : Component.empty();
         builder.appendNewline()
                 .append(messages.messageFor(MessageKeys.SEARCH_FOOTER,
@@ -383,8 +397,21 @@ public final class SearchDialog {
                                                  boolean includeFreehold, boolean includeLeasehold,
                                                  @Nullable Collection<String> tagIds,
                                                  @Nullable Collection<String> excludedTagIds,
+                                                 boolean excludeRented,
                                                  double minPrice, double maxPrice,
                                                  int targetPage) {
+        return parseMiniMessage(key, "<command>", buildResultsCommand(includeFreehold, includeLeasehold,
+                tagIds, excludedTagIds, excludeRented, minPrice, maxPrice, targetPage));
+    }
+
+    static @NotNull String buildResultsCommand(boolean includeFreehold,
+                                               boolean includeLeasehold,
+                                               @Nullable Collection<String> tagIds,
+                                               @Nullable Collection<String> excludedTagIds,
+                                               boolean excludeRented,
+                                               double minPrice,
+                                               double maxPrice,
+                                               int targetPage) {
         StringBuilder command = new StringBuilder("/realty search results");
         if (includeFreehold) {
             command.append(" --freehold");
@@ -398,6 +425,9 @@ public final class SearchDialog {
         if (excludedTagIds != null && !excludedTagIds.isEmpty()) {
             command.append(" --exclude-tags ").append(String.join(",", excludedTagIds));
         }
+        if (excludeRented) {
+            command.append(" --exclude-rented");
+        }
         if (minPrice > 0) {
             command.append(" --min-price ").append(minPrice);
         }
@@ -405,7 +435,7 @@ public final class SearchDialog {
             command.append(" --max-price ").append(maxPrice);
         }
         command.append(" --page ").append(targetPage);
-        return parseMiniMessage(key, "<command>", command.toString());
+        return command.toString();
     }
 
     private @NotNull Component parseMiniMessage(@NotNull String key,

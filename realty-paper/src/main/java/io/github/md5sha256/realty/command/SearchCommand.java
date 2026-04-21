@@ -47,6 +47,10 @@ public record SearchCommand(
                     .withComponent(StringParser.stringParser())
                     .build();
 
+    private static final CommandFlag<Void> EXCLUDE_RENTED_FLAG =
+            CommandFlag.<Source>builder("exclude-rented")
+                    .build();
+
     private static final CommandFlag<Double> MIN_PRICE_FLAG =
             CommandFlag.<Source>builder("min-price")
                     .withComponent(DoubleParser.doubleParser(0))
@@ -77,6 +81,7 @@ public record SearchCommand(
                 .flag(LEASEHOLD_FLAG)
                 .flag(TAGS_FLAG)
                 .flag(EXCLUDE_TAGS_FLAG)
+                .flag(EXCLUDE_RENTED_FLAG)
                 .flag(MIN_PRICE_FLAG)
                 .flag(MAX_PRICE_FLAG)
                 .flag(PAGE_FLAG)
@@ -104,12 +109,13 @@ public record SearchCommand(
         }
         Collection<String> tagIds = parseTagIds(ctx.flags().getValue(TAGS_FLAG, null));
         Collection<String> excludedTagIds = parseTagIds(ctx.flags().getValue(EXCLUDE_TAGS_FLAG, null));
+        boolean excludeRented = ctx.flags().hasFlag(EXCLUDE_RENTED_FLAG);
         double minPrice = ctx.flags().getValue(MIN_PRICE_FLAG, 0.0);
         double maxPrice = ctx.flags().getValue(MAX_PRICE_FLAG, Double.MAX_VALUE);
         int page = ctx.flags().getValue(PAGE_FLAG, 1);
 
         searchDialog.performSearch(sender, includeFreehold, includeLeasehold, tagIds,
-                excludedTagIds, minPrice, maxPrice, page);
+                excludedTagIds, excludeRented, minPrice, maxPrice, page);
     }
 
     @Nullable
