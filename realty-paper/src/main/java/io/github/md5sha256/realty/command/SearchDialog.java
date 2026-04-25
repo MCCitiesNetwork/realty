@@ -192,7 +192,7 @@ public final class SearchDialog {
         };
 
         List<ActionButton> actions = new ArrayList<>();
-        actions.add(ActionButton.builder(Component.text("Search"))
+        actions.add(ActionButton.builder(Component.text("Search", NamedTextColor.GREEN))
                 .width(150)
                 .action(DialogAction.customClick(searchCallback, clickOptions))
                 .build());
