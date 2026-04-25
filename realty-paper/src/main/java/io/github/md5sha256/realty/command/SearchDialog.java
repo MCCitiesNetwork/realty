@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -18,6 +19,7 @@ import io.papermc.paper.registry.data.dialog.action.DialogAction;
 import io.papermc.paper.registry.data.dialog.action.DialogActionCallback;
 import io.papermc.paper.registry.data.dialog.body.DialogBody;
 import io.papermc.paper.registry.data.dialog.input.DialogInput;
+import io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput;
 import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
@@ -61,6 +63,7 @@ public final class SearchDialog {
     static final String INPUT_LEASEHOLD = "leasehold";
     static final String INPUT_MIN_PRICE = "min_price";
     static final String INPUT_MAX_PRICE = "max_price";
+    static final String INPUT_OCCUPANCY = "occupancy";
 
     private final Database database;
     private final ExecutorState executorState;
@@ -87,6 +90,7 @@ public final class SearchDialog {
         boolean leasehold = true;
         String minPrice = "0";
         String maxPrice = "";
+        OccupancyFilter occupancy = OccupancyFilter.UNOCCUPIED;
         final Map<String, TagState> tagStates = new LinkedHashMap<>();
     }
 
@@ -139,6 +143,16 @@ public final class SearchDialog {
                 .initial(state.maxPrice)
                 .maxLength(15)
                 .build());
+        inputs.add(DialogInput.singleOption(INPUT_OCCUPANCY, Component.text("Occupancy"), List.of(
+                SingleOptionDialogInput.OptionEntry.create(OccupancyFilter.IGNORE.name(),
+                        Component.text("Any"), state.occupancy == OccupancyFilter.IGNORE),
+                SingleOptionDialogInput.OptionEntry.create(OccupancyFilter.OCCUPIED.name(),
+                        Component.text("Occupied"), state.occupancy == OccupancyFilter.OCCUPIED),
+                SingleOptionDialogInput.OptionEntry.create(OccupancyFilter.UNOCCUPIED.name(),
+                        Component.text("Unoccupied"), state.occupancy == OccupancyFilter.UNOCCUPIED)))
+                .width(150)
+                .labelVisible(true)
+                .build());
 
         ClickCallback.Options clickOptions = ClickCallback.Options.builder()
                 .uses(ClickCallback.UNLIMITED_USES)
@@ -161,6 +175,7 @@ public final class SearchDialog {
             double maxPrice = parsePrice(state.maxPrice, Double.MAX_VALUE);
             boolean includeFreehold = state.freehold;
             boolean includeLeasehold = state.leasehold;
+            OccupancyFilter occupancy = state.occupancy;
             playerStates.remove(player.getUniqueId());
 
             if (!includeFreehold && !includeLeasehold) {
@@ -168,7 +183,7 @@ public final class SearchDialog {
                 return;
             }
             performSearch(audience, includeFreehold, includeLeasehold, tagFilter,
-                    excludeFilter, minPrice, maxPrice, 1);
+                    excludeFilter, minPrice, maxPrice, occupancy, 1);
         };
 
         DialogActionCallback configTagsCallback = (response, audience) -> {
@@ -288,6 +303,14 @@ public final class SearchDialog {
         if (maxPrice != null) {
             state.maxPrice = maxPrice;
         }
+        String occupancy = response.getText(INPUT_OCCUPANCY);
+        if (occupancy != null) {
+            try {
+                state.occupancy = OccupancyFilter.valueOf(occupancy);
+            } catch (IllegalArgumentException ignored) {
+                // leave previous value
+            }
+        }
     }
 
     /**
@@ -297,12 +320,13 @@ public final class SearchDialog {
                        boolean includeFreehold, boolean includeLeasehold,
                        @Nullable Collection<String> tagIds,
                        @Nullable Collection<String> excludedTagIds,
-                       double minPrice, double maxPrice, int page) {
+                       double minPrice, double maxPrice,
+                       @NotNull OccupancyFilter occupancy, int page) {
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 SearchMapper mapper = session.searchMapper();
                 int totalCount = mapper.searchCount(includeFreehold, includeLeasehold,
-                        tagIds, excludedTagIds, minPrice, maxPrice);
+                        tagIds, excludedTagIds, minPrice, maxPrice, occupancy);
 
                 if (totalCount == 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.SEARCH_NO_RESULTS));
@@ -319,7 +343,7 @@ public final class SearchDialog {
 
                 int offset = (page - 1) * PAGE_SIZE;
                 List<SearchResultEntity> results = mapper.search(includeFreehold, includeLeasehold,
-                        tagIds, excludedTagIds, minPrice, maxPrice, PAGE_SIZE, offset);
+                        tagIds, excludedTagIds, minPrice, maxPrice, occupancy, PAGE_SIZE, offset);
 
                 TextComponent.Builder builder = Component.text();
                 builder.append(messages.messageFor(MessageKeys.SEARCH_HEADER,
@@ -336,7 +360,7 @@ public final class SearchDialog {
                 }
 
                 appendFooter(builder, includeFreehold, includeLeasehold, tagIds, excludedTagIds,
-                        minPrice, maxPrice, page, totalPages);
+                        minPrice, maxPrice, occupancy, page, totalPages);
                 sender.sendMessage(builder.build());
             } catch (Exception ex) {
                 sender.sendMessage(messages.messageFor(MessageKeys.SEARCH_ERROR,
@@ -362,14 +386,15 @@ public final class SearchDialog {
                               @Nullable Collection<String> tagIds,
                               @Nullable Collection<String> excludedTagIds,
                               double minPrice, double maxPrice,
+                              @NotNull OccupancyFilter occupancy,
                               int page, int totalPages) {
         Component previousComponent = page > 1
                 ? buildNavComponent(MessageKeys.SEARCH_PREVIOUS, includeFreehold, includeLeasehold,
-                tagIds, excludedTagIds, minPrice, maxPrice, page - 1)
+                tagIds, excludedTagIds, minPrice, maxPrice, occupancy, page - 1)
                 : Component.empty();
         Component nextComponent = page < totalPages
                 ? buildNavComponent(MessageKeys.SEARCH_NEXT, includeFreehold, includeLeasehold,
-                tagIds, excludedTagIds, minPrice, maxPrice, page + 1)
+                tagIds, excludedTagIds, minPrice, maxPrice, occupancy, page + 1)
                 : Component.empty();
         builder.appendNewline()
                 .append(messages.messageFor(MessageKeys.SEARCH_FOOTER,
@@ -384,6 +409,7 @@ public final class SearchDialog {
                                                  @Nullable Collection<String> tagIds,
                                                  @Nullable Collection<String> excludedTagIds,
                                                  double minPrice, double maxPrice,
+                                                 @NotNull OccupancyFilter occupancy,
                                                  int targetPage) {
         StringBuilder command = new StringBuilder("/realty search results");
         if (includeFreehold) {
@@ -403,6 +429,9 @@ public final class SearchDialog {
         }
         if (maxPrice < Double.MAX_VALUE) {
             command.append(" --max-price ").append(maxPrice);
+        }
+        if (occupancy != OccupancyFilter.UNOCCUPIED) {
+            command.append(" --occupancy ").append(occupancy.name());
         }
         command.append(" --page ").append(targetPage);
         return parseMiniMessage(key, "<command>", command.toString());

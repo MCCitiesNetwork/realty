@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.bukkit.command.CommandSender;
@@ -9,6 +10,7 @@ import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.DoubleParser;
+import org.incendo.cloud.parser.standard.EnumParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.jetbrains.annotations.NotNull;
@@ -57,6 +59,11 @@ public record SearchCommand(
                     .withComponent(DoubleParser.doubleParser(0))
                     .build();
 
+    private static final CommandFlag<OccupancyFilter> OCCUPANCY_FLAG =
+            CommandFlag.<Source>builder("occupancy")
+                    .withComponent(EnumParser.enumParser(OccupancyFilter.class))
+                    .build();
+
     private static final CommandFlag<Integer> PAGE_FLAG =
             CommandFlag.<Source>builder("page")
                     .withComponent(IntegerParser.integerParser(1))
@@ -79,6 +86,7 @@ public record SearchCommand(
                 .flag(EXCLUDE_TAGS_FLAG)
                 .flag(MIN_PRICE_FLAG)
                 .flag(MAX_PRICE_FLAG)
+                .flag(OCCUPANCY_FLAG)
                 .flag(PAGE_FLAG)
                 .handler(this::executeResults)
                 .build();
@@ -106,10 +114,11 @@ public record SearchCommand(
         Collection<String> excludedTagIds = parseTagIds(ctx.flags().getValue(EXCLUDE_TAGS_FLAG, null));
         double minPrice = ctx.flags().getValue(MIN_PRICE_FLAG, 0.0);
         double maxPrice = ctx.flags().getValue(MAX_PRICE_FLAG, Double.MAX_VALUE);
+        OccupancyFilter occupancy = ctx.flags().getValue(OCCUPANCY_FLAG, OccupancyFilter.UNOCCUPIED);
         int page = ctx.flags().getValue(PAGE_FLAG, 1);
 
         searchDialog.performSearch(sender, includeFreehold, includeLeasehold, tagIds,
-                excludedTagIds, minPrice, maxPrice, page);
+                excludedTagIds, minPrice, maxPrice, occupancy, page);
     }
 
     @Nullable
