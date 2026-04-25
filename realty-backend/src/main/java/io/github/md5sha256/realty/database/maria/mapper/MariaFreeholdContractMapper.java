@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
@@ -10,6 +11,7 @@ import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 
@@ -201,5 +203,18 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             WHERE price IS NOT NULL
             """)
     double averagePrice();
+
+    @Override
+    @Select("""
+            SELECT titleHolderId, COUNT(*) AS plotCount
+            FROM FreeholdContract
+            WHERE titleHolderId IS NOT NULL
+            GROUP BY titleHolderId
+            """)
+    @ConstructorArgs({
+            @Arg(column = "titleHolderId", javaType = UUID.class),
+            @Arg(column = "plotCount", javaType = int.class)
+    })
+    @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolder();
 
 }
