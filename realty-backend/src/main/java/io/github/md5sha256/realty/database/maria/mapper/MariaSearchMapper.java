@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
+import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import org.apache.ibatis.annotations.Arg;
@@ -27,6 +28,12 @@ public interface MariaSearchMapper extends SearchMapper {
                 WHERE fc.price IS NOT NULL
                     AND fc.price &gt;= #{minPrice}
                     AND fc.price &lt;= #{maxPrice}
+                    <if test="occupancy.name() == 'OCCUPIED'">
+                    AND fc.titleHolderId IS NOT NULL
+                    </if>
+                    <if test="occupancy.name() == 'UNOCCUPIED'">
+                    AND fc.titleHolderId IS NULL
+                    </if>
                     <if test="tagIds != null and tagIds.size() > 0">
                     AND EXISTS (
                         SELECT 1 FROM RegionTag rt
@@ -58,6 +65,12 @@ public interface MariaSearchMapper extends SearchMapper {
                 INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
                 WHERE lc.price &gt;= #{minPrice}
                     AND lc.price &lt;= #{maxPrice}
+                    <if test="occupancy.name() == 'OCCUPIED'">
+                    AND lc.tenantId IS NOT NULL
+                    </if>
+                    <if test="occupancy.name() == 'UNOCCUPIED'">
+                    AND lc.tenantId IS NULL
+                    </if>
                     <if test="tagIds != null and tagIds.size() > 0">
                     AND EXISTS (
                         SELECT 1 FROM RegionTag rt
@@ -96,6 +109,7 @@ public interface MariaSearchMapper extends SearchMapper {
                                              @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
                                              @Param("minPrice") double minPrice,
                                              @Param("maxPrice") double maxPrice,
+                                             @Param("occupancy") @NotNull OccupancyFilter occupancy,
                                              @Param("limit") int limit,
                                              @Param("offset") int offset);
 
@@ -111,6 +125,12 @@ public interface MariaSearchMapper extends SearchMapper {
                 WHERE fc.price IS NOT NULL
                     AND fc.price &gt;= #{minPrice}
                     AND fc.price &lt;= #{maxPrice}
+                    <if test="occupancy.name() == 'OCCUPIED'">
+                    AND fc.titleHolderId IS NOT NULL
+                    </if>
+                    <if test="occupancy.name() == 'UNOCCUPIED'">
+                    AND fc.titleHolderId IS NULL
+                    </if>
                     <if test="tagIds != null and tagIds.size() > 0">
                     AND EXISTS (
                         SELECT 1 FROM RegionTag rt
@@ -142,6 +162,12 @@ public interface MariaSearchMapper extends SearchMapper {
                 INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
                 WHERE lc.price &gt;= #{minPrice}
                     AND lc.price &lt;= #{maxPrice}
+                    <if test="occupancy.name() == 'OCCUPIED'">
+                    AND lc.tenantId IS NOT NULL
+                    </if>
+                    <if test="occupancy.name() == 'UNOCCUPIED'">
+                    AND lc.tenantId IS NULL
+                    </if>
                     <if test="tagIds != null and tagIds.size() > 0">
                     AND EXISTS (
                         SELECT 1 FROM RegionTag rt
@@ -171,6 +197,7 @@ public interface MariaSearchMapper extends SearchMapper {
                     @Param("tagIds") @Nullable Collection<String> tagIds,
                     @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
                     @Param("minPrice") double minPrice,
-                    @Param("maxPrice") double maxPrice);
+                    @Param("maxPrice") double maxPrice,
+                    @Param("occupancy") @NotNull OccupancyFilter occupancy);
 
 }
