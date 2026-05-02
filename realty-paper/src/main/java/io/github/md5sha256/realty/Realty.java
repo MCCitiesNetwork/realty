@@ -46,6 +46,7 @@ import io.github.md5sha256.realty.command.SignCommand;
 import io.github.md5sha256.realty.command.SubregionCommandGroup;
 import io.github.md5sha256.realty.command.TagCommandGroup;
 import io.github.md5sha256.realty.command.TeleportCommand;
+import io.github.md5sha256.realty.command.TransferCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
@@ -532,6 +533,7 @@ public final class Realty extends JavaPlugin {
                 new RentCommand(paperApi, notificationService, messageContainer),
                 new UnrentCommand(paperApi, notificationService, messageContainer),
                 new SetCommandGroup(paperApi, messageContainer),
+                new TransferCommand(paperApi, messageContainer),
                 new UnsetCommandGroup(paperApi, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();

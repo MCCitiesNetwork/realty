@@ -505,6 +505,40 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+    // --- Transfer Title Holder ---
+
+    @Override
+    public @NotNull SetTitleHolderResult transferTitleHolder(@NotNull String worldGuardRegionId,
+                                                              @NotNull UUID worldId,
+                                                              @Nullable UUID titleHolderId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new SetTitleHolderResult.NoFreeholdContract();
+            }
+            UUID previousTitleHolder = freehold.titleHolderId();
+            int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId);
+            if (updated == 0) {
+                return new SetTitleHolderResult.UpdateFailed();
+            }
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            double historyPrice = freehold.price() != null ? freehold.price() : 0;
+            if (titleHolderId != null) {
+                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.SET_TITLEHOLDER.name(),
+                        titleHolderId, freehold.authorityId(), historyPrice);
+            } else {
+                UUID historyBuyerId = previousTitleHolder != null ? previousTitleHolder : freehold.authorityId();
+                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.UNSET_TITLEHOLDER.name(),
+                        historyBuyerId, freehold.authorityId(), historyPrice);
+            }
+            wrapper.session().commit();
+            return new SetTitleHolderResult.Success(previousTitleHolder);
+        }
+    }
+
     // --- Update Subregion Landlords ---
 
     @Override

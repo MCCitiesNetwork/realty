@@ -195,6 +195,12 @@ public interface RealtyBackend {
                                                  @NotNull UUID worldId,
                                                  @Nullable UUID titleHolderId);
 
+    // --- Transfer Title Holder (sets title holder and clears price) ---
+
+    @NotNull SetTitleHolderResult transferTitleHolder(@NotNull String worldGuardRegionId,
+                                                      @NotNull UUID worldId,
+                                                      @Nullable UUID titleHolderId);
+
     // --- Update Subregion Landlords ---
 
     void updateSubregionLandlords(@NotNull List<String> childRegionIds,

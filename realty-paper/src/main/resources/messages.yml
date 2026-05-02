@@ -393,6 +393,13 @@ set-titleholder:
   update-failed: "Failed to update title holder for region <region>."
   error: "Failed to set title holder: <error>"
 
+transfer:
+  success: "Region <region> transferred to <titleholder> and price cleared."
+  no-freehold-contract: "Region <region> does not have a freehold contract."
+  update-failed: "Failed to transfer region <region>."
+  error: "Failed to transfer region: <error>"
+  no-permission: "You do not have permission to transfer this region."
+
 set-tenant:
   success: "Tenant for region <region> set to <tenant>."
   no-leasehold-contract: "Region <region> does not have a lease contract."
