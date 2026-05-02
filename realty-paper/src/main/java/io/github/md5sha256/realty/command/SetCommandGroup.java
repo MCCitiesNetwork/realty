@@ -61,10 +61,6 @@ public record SetCommandGroup(
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::executeSetTitleHolder)
                 .build();
-        var transferCommand = base.literal("transfer")
-                .permission("realty.command.set.titleholder")
-                .proxies(titleholderCommand)
-                .build();
         return List.of(
                 base.literal("price")
                         .permission("realty.command.set.price")
@@ -86,7 +82,6 @@ public record SetCommandGroup(
                         .handler(this::executeSetLandlord)
                         .build(),
                 titleholderCommand,
-                transferCommand,
                 base.literal("tenant")
                         .permission("realty.command.set.tenant")
                         .required("tenant", AuthorityParser.authority())

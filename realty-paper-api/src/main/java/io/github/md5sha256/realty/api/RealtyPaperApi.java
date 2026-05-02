@@ -138,6 +138,11 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
             @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId);
 
+    // --- TransferTitleHolder (sets title holder and clears price) ---
+
+    @NotNull CompletableFuture<SetTitleHolderResult> transferTitleHolder(
+            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId);
+
     // --- SetTenant ---
 
     sealed interface SetTenantResult {

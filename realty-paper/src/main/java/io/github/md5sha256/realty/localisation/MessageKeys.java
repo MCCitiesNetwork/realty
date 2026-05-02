@@ -336,6 +336,13 @@ public final class MessageKeys {
     public static final String SET_TITLEHOLDER_UPDATE_FAILED = "set-titleholder.update-failed";
     public static final String SET_TITLEHOLDER_ERROR = "set-titleholder.error";
 
+    // transfer
+    public static final String TRANSFER_SUCCESS = "transfer.success";
+    public static final String TRANSFER_NO_FREEHOLD_CONTRACT = "transfer.no-freehold-contract";
+    public static final String TRANSFER_UPDATE_FAILED = "transfer.update-failed";
+    public static final String TRANSFER_ERROR = "transfer.error";
+    public static final String TRANSFER_NO_PERMISSION = "transfer.no-permission";
+
     // unset (shared)
     public static final String UNSET_NO_PERMISSION = "unset.no-permission";
     public static final String UNSET_CHECK_PERMISSIONS_ERROR = "unset.check-permissions-error";

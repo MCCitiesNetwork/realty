@@ -579,6 +579,47 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     @Override
+    public @NotNull CompletableFuture<SetTitleHolderResult> transferTitleHolder(
+            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(() -> {
+            RealtyBackend.SetTitleHolderResult result = realtyApi.transferTitleHolder(regionId, worldId, titleHolderId);
+            if (result instanceof RealtyBackend.SetTitleHolderResult.Success) {
+                Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
+                return Map.entry(result, placeholders);
+            }
+            return Map.<RealtyBackend.SetTitleHolderResult, Map<String, String>>entry(result, Map.of());
+        }, executorState.dbExec()).thenApplyAsync(entry -> switch (entry.getKey()) {
+            case RealtyBackend.SetTitleHolderResult.Success success -> {
+                ProtectedRegion protectedRegion = region.region();
+                protectedRegion.getOwners().clear();
+                protectedRegion.getMembers().clear();
+                RegionState state;
+                if (titleHolderId != null) {
+                    protectedRegion.getOwners().addPlayer(titleHolderId);
+                    state = RegionState.SOLD;
+                    updateChildLandlords(regionId, region.world(), titleHolderId);
+                } else {
+                    state = RegionState.FOR_SALE;
+                }
+                regionProfileService.applyFlags(region, state, entry.getValue());
+                signTextApplicator.updateLoadedSigns(region.world(), regionId,
+                        state, entry.getValue());
+                yield (SetTitleHolderResult) new SetTitleHolderResult.Success(
+                        success.previousTitleHolder(), regionId);
+            }
+            case RealtyBackend.SetTitleHolderResult.NoFreeholdContract ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.NoFreeholdContract(regionId);
+            case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
+        }, executorState.mainThreadExec()).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            return new SetTitleHolderResult.Error(String.valueOf(cause.getMessage()));
+        });
+    }
+
+    @Override
     public @NotNull CompletableFuture<SetTenantResult> setTenant(
             @NotNull WorldGuardRegion region, @Nullable UUID tenantId) {
         String regionId = region.region().getId();

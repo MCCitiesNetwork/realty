@@ -159,6 +159,12 @@ permissions:
   realty.command.set.titleholder.others:
     description: Allows using /realty set titleholder on regions you don't own
     default: op
+  realty.command.transfer:
+    description: Allows using /realty transfer on own regions
+    default: op
+  realty.command.transfer.others:
+    description: Allows using /realty transfer on regions you don't own
+    default: op
   realty.command.set.tenant:
     description: Allows using /realty set tenant on own regions
     default: op
