@@ -228,8 +228,15 @@ public final class SafeLocationFinder {
         BlockVector3 max = region.getMaximumPoint();
 
         int startX = (min.x() + max.x()) / 2;
-        int startY = (min.y() + max.y()) / 2;
+        int startY;
         int startZ = (min.z() + max.z()) / 2;
+
+        // Start searching around ground level for tall plots
+        if (max.y() - min.y() >= 100 && 80 <= max.y() && 80 >= min.y()) {
+            startY = 80;
+        } else {
+            startY = (min.y() + max.y()) / 2;
+        }
 
         // Load center chunk and check center first
         return world.getChunkAtAsync(Math.floorDiv(startX, 16), Math.floorDiv(startZ, 16))
