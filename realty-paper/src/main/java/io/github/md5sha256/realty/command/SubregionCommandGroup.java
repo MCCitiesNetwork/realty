@@ -51,7 +51,7 @@ public record SubregionCommandGroup(
     private static final CloudKey<String> NAME = CloudKey.of("name", String.class);
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> DURATION = CloudKey.of("duration", Duration.class);
-    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9]+$");
+    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9-]+$");
 
     @Override
     public @NotNull List<Command<? extends Source>> commands(

@@ -55,7 +55,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
                              @NotNull MessageContainer messages) implements CustomCommandBean {
 
     private static final CloudKey<String> NAME = CloudKey.of("name", String.class);
-    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9]+$");
+    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9-]+$");
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
     private static final CloudKey<Integer> MAX_EXTENSIONS = CloudKey.of("maxextensions", Integer.class);
