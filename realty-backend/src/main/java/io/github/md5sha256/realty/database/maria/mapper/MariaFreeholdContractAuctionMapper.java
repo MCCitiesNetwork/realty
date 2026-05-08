@@ -179,6 +179,7 @@ public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuct
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND sca.ended = FALSE
             """)
     boolean existsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                            @Param("worldId") @NotNull UUID worldId);
