@@ -5,19 +5,24 @@ api-version: "1.21.8"
 authors: [ md5sha256 ]
 dependencies:
   server:
+    # Vault and Treasury are both optional — the plugin's resolveEconomyProvider()
+    # in Realty.java prefers Treasury (full ledger support) and falls back to Vault.
+    # If neither is present at enable-time, the plugin self-disables with an
+    # explicit log line. Marking either as `required: true` here would over-
+    # constrain the manifest relative to what the code actually demands.
     Vault:
       load: BEFORE
       join-classpath: true
-      required: true
+      required: false
+    Treasury:
+      load: BEFORE
+      join-classpath: true
+      required: false
     WorldGuard:
       load: BEFORE
       join-classpath: true
       required: true
     Essentials:
-      load: BEFORE
-      join-classpath: true
-      required: false
-    Treasury:
       load: BEFORE
       join-classpath: true
       required: false
