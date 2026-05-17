@@ -222,7 +222,8 @@ public final class SafeLocationFinder {
     public @NotNull CompletableFuture<@Nullable Location> findSafeInRegion(
             @NotNull ProtectedRegion region,
             @NotNull World world,
-            int maxTries) {
+            int maxTries,
+            int teleportStartHeight) {
 
         BlockVector3 min = region.getMinimumPoint();
         BlockVector3 max = region.getMaximumPoint();
@@ -231,9 +232,9 @@ public final class SafeLocationFinder {
         int startY;
         int startZ = (min.z() + max.z()) / 2;
 
-        // Start searching around ground level for tall plots
-        if (max.y() - min.y() >= 100 && 80 <= max.y() && 80 >= min.y()) {
-            startY = 80;
+        // Start searching around the configued level (ground level) for tall plots
+        if (max.y() - min.y() >= 100 && teleportStartHeight <= max.y() && teleportStartHeight >= min.y()) {
+            startY = teleportStartHeight;
         } else {
             startY = (min.y() + max.y()) / 2;
         }

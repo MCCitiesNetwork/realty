@@ -541,7 +541,7 @@ public final class Realty extends JavaPlugin {
                 }, messageContainer),
                 new RemoveCommand(messageContainer),
                 new SignCommand(paperApi, executorState, messageContainer),
-                new TeleportCommand(getLogger(), paperApi, messageContainer, safeLocationFinder),
+                new TeleportCommand(getLogger(), paperApi, this.settings, messageContainer, safeLocationFinder),
                 new SubregionCommandGroup(paperApi, this.settings, messageContainer),
                 new CleanupCommandGroup(this.database,
                         executorState,
