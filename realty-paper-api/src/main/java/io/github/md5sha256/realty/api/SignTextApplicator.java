@@ -187,7 +187,7 @@ public class SignTextApplicator {
                     for (SignWithRegion swr : resolved) {
                         if (applySignTextIfLoaded(world, swr.signEntity().blockX(),
                                 swr.signEntity().blockY(), swr.signEntity().blockZ(),
-                                swr.regionId(), swr.state(), swr.placeholders()) == ApplyResult.BLOCK_NOT_LOADED) {
+                                swr.regionId(), swr.state(), swr.placeholders()) == ApplyResult.FAILED) {
                             stale.add(swr.signEntity());
                         }
                     }
@@ -207,6 +207,8 @@ public class SignTextApplicator {
             for (RealtySignEntity signEntity : stale) {
                 session.realtySignMapper().deleteByPosition(
                         signEntity.worldId(), signEntity.blockX(),
+                        signEntity.blockY(), signEntity.blockZ());
+                signCache.remove(signEntity.worldId(), signEntity.blockX(),
                         signEntity.blockY(), signEntity.blockZ());
             }
         }
