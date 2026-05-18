@@ -38,9 +38,6 @@ public record Settings(
         if (subregionTagBlacklist == null) {
             subregionTagBlacklist = List.of();
         }
-        if (teleportStartHeight < -64 || teleportStartHeight > 320) {
-            teleportStartHeight = 80;
-        }
     }
 }
 
