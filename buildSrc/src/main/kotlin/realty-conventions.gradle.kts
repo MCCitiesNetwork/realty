@@ -29,6 +29,10 @@ repositories {
         url = uri("https://repo.essentialsx.net/releases/")
     }
     maven {
+        name = "paradaux-releases"
+        url = uri("https://repo.paradaux.io/releases")
+    }
+    maven {
         name = "paradaux-snapshots"
         url = uri("https://repo.paradaux.io/snapshots")
     }
