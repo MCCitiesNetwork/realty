@@ -27,11 +27,15 @@ public class PlayerNameCache {
     }
 
     private String lookupUsername(@NotNull UUID uuid) {
-        PlayerProfile profile = this.server.createProfile(uuid);
-        if (profile.complete(false, true)) {
-            return profile.getName();
+        try {
+            PlayerProfile profile = this.server.createProfile(uuid);
+            if (profile.complete(false, true)) {
+                return profile.getName();
+            }
+            return uuid.toString();
+        } catch (Exception ex) {
+            return uuid.toString();
         }
-        return uuid.toString();
     }
 
     @NotNull
