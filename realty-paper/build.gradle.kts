@@ -14,6 +14,8 @@ dependencies {
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
+    implementation("org.enginehub:squirrelid:0.3.2")
+    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
     compileOnly("net.essentialsx:EssentialsX:2.21.2") {
         exclude(group = "org.bukkit", module = "bukkit")
         exclude(group = "org.spigotmc", module = "spigot-api")
@@ -54,6 +56,9 @@ tasks {
         relocate("org.intellij.lang", "${base}.org.intellij.lang")
         relocate("net.kyori.option", "${base}.net.kyori.option")
         relocate("org.incendo.cloud", "${base}.org.incendo.cloud")
+        relocate("org.enginehub.squirrelid", "${base}.org.enginehub.squirrelid")
+        relocate("org.sqlite", "${base}.org.sqlite")
+        mergeServiceFiles()
     }
 
     processResources {

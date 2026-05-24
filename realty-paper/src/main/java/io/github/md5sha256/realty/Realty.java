@@ -69,8 +69,8 @@ import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
-import io.github.md5sha256.realty.util.PlayerNameCache;
 import io.github.md5sha256.realty.util.SimpleDateFormatSerializer;
+import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
 import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
@@ -124,7 +124,7 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
-    private final PlayerNameCache nameCache = new PlayerNameCache(getServer());
+    private SquirrelIdUsernameResolver nameResolver;
     private ExecutorState executorState;
     private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
@@ -209,6 +209,16 @@ public final class Realty extends JavaPlugin {
         };
         this.executorState = new ExecutorState(getServer().getScheduler()
                 .getMainThreadExecutor(this), Executors.newFixedThreadPool(4, threadFactory));
+        try {
+            this.nameResolver = new SquirrelIdUsernameResolver(
+                    new File(getDataFolder(), "profiles.sqlite"),
+                    this.executorState.dbExec());
+        } catch (IOException ex) {
+            getLogger().severe("Failed to initialize profile cache!");
+            ex.printStackTrace();
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         MariaDatabase mariaDatabase = new MariaDatabase(this.databaseSettings, getLogger());
         this.database = mariaDatabase;
         try {
@@ -220,7 +230,7 @@ public final class Realty extends JavaPlugin {
             return;
         }
         this.logic = new RealtyBackendImpl(mariaDatabase,
-                this.nameCache::getUsername,
+                this.nameResolver::getUsername,
                 dateTime -> DateFormatter.format(this.settings.get(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
         var economyProvider = getServer().getServicesManager().getRegistration(Economy.class);
