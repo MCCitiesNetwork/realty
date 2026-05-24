@@ -8,10 +8,9 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.database.Database;
-import net.milkbowl.vault.economy.Economy;
-import net.milkbowl.vault.economy.EconomyResponse;
+import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.PaymentResult;
 import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -46,7 +45,7 @@ class RealtyPaperApiImplTest {
     @Mock
     private RealtyBackend realtyApi;
     @Mock
-    private Economy economy;
+    private EconomyProvider economyProvider;
     @Mock
     private Database database;
     @Mock
@@ -55,8 +54,6 @@ class RealtyPaperApiImplTest {
     private SignTextApplicator signTextApplicator;
     @Mock
     private World world;
-    @Mock
-    private OfflinePlayer offlinePlayer;
 
     private SignCache signCache;
     private RealtyPaperApiImpl api;
@@ -79,7 +76,7 @@ class RealtyPaperApiImplTest {
     void setUp() {
         signCache = new SignCache();
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService());
-        api = new RealtyPaperApiImpl(realtyApi, economy, executorState, database,
+        api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
@@ -89,8 +86,6 @@ class RealtyPaperApiImplTest {
         wgRegion = new WorldGuardRegion(protectedRegion, world);
 
         bukkitMock = mockStatic(Bukkit.class);
-        bukkitMock.when(() -> Bukkit.getOfflinePlayer(any(UUID.class)))
-                .thenReturn(offlinePlayer);
 
         // Mock WorldGuard static chain: getInstance() -> platform -> regionContainer -> get() -> null
         // Returning null for RegionManager makes updateChildLandlords return early
@@ -149,14 +144,6 @@ class RealtyPaperApiImplTest {
                 return true;
             }
         };
-    }
-
-    private EconomyResponse successResponse(double amount) {
-        return new EconomyResponse(amount, amount, EconomyResponse.ResponseType.SUCCESS, null);
-    }
-
-    private EconomyResponse failureResponse(String message) {
-        return new EconomyResponse(0, 0, EconomyResponse.ResponseType.FAILURE, message);
     }
 
     // ═══════════════════════════════════════════════════
@@ -218,7 +205,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.BuyResult.Success(1000.0, AUTHORITY_ID, TITLE_HOLDER_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(500.0);
+            when(economyProvider.getBalance(BUYER_ID)).thenReturn(500.0);
 
             RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
 
@@ -237,9 +224,9 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.BuyResult.Success(1000.0, AUTHORITY_ID, TITLE_HOLDER_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(2000.0);
-            when(economy.withdrawPlayer(any(OfflinePlayer.class), eq(1000.0)))
-                    .thenReturn(failureResponse("Bank error"));
+            when(economyProvider.getBalance(BUYER_ID)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER_ID), any(UUID.class), eq(1000.0), any()))
+                    .thenReturn(new PaymentResult.Failure("Bank error"));
 
             RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
 
@@ -254,11 +241,9 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.BuyResult.Success(1000.0, AUTHORITY_ID, TITLE_HOLDER_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of("price", "1000"));
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(2000.0);
-            when(economy.withdrawPlayer(any(OfflinePlayer.class), eq(1000.0)))
-                    .thenReturn(successResponse(1000.0));
-            when(economy.depositPlayer(any(OfflinePlayer.class), eq(1000.0)))
-                    .thenReturn(successResponse(1000.0));
+            when(economyProvider.getBalance(BUYER_ID)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER_ID), any(UUID.class), eq(1000.0), any()))
+                    .thenReturn(new PaymentResult.Success());
 
             RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
 
@@ -327,7 +312,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(100.0);
+            when(economyProvider.getBalance(TENANT_ID)).thenReturn(100.0);
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
 
@@ -342,11 +327,9 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(1000.0);
-            when(economy.withdrawPlayer(any(OfflinePlayer.class), eq(500.0)))
-                    .thenReturn(successResponse(500.0));
-            when(economy.depositPlayer(any(OfflinePlayer.class), eq(500.0)))
-                    .thenReturn(successResponse(500.0));
+            when(economyProvider.getBalance(TENANT_ID)).thenReturn(1000.0);
+            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(500.0), any()))
+                    .thenReturn(new PaymentResult.Success());
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
 
@@ -366,8 +349,7 @@ class RealtyPaperApiImplTest {
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.RentResult.Success.class, result);
-            verify(economy, never()).withdrawPlayer(any(OfflinePlayer.class), anyDouble());
-            verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any());
         }
 
         @Test
@@ -408,10 +390,8 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, LANDLORD_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economy.withdrawPlayer(any(OfflinePlayer.class), anyDouble()))
-                    .thenReturn(successResponse(100.0));
-            when(economy.depositPlayer(any(OfflinePlayer.class), anyDouble()))
-                    .thenReturn(successResponse(100.0));
+            when(economyProvider.transfer(eq(LANDLORD_ID), eq(TENANT_ID), eq(100.0), any()))
+                    .thenReturn(new PaymentResult.Success());
 
             protectedRegion.getOwners().addPlayer(TENANT_ID);
 
@@ -432,8 +412,8 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(new RealtyBackend.RentResult.Success(100.0, 3600, LANDLORD_ID));
-            when(economy.withdrawPlayer(any(OfflinePlayer.class), anyDouble()))
-                    .thenReturn(failureResponse("Insufficient funds"));
+            when(economyProvider.transfer(eq(LANDLORD_ID), eq(TENANT_ID), eq(100.0), any()))
+                    .thenReturn(new PaymentResult.Failure("Insufficient funds"));
 
             RealtyPaperApi.UnrentResult result = api.unrent(wgRegion, TENANT_ID).join();
 
@@ -479,7 +459,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.RenewLeaseholdResult.Success(200.0, LANDLORD_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(50.0);
+            when(economyProvider.getBalance(TENANT_ID)).thenReturn(50.0);
 
             RealtyPaperApi.ExtendResult result = api.extend(wgRegion, TENANT_ID).join();
 
@@ -494,11 +474,9 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.RenewLeaseholdResult.Success(200.0, LANDLORD_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economy.getBalance(any(OfflinePlayer.class))).thenReturn(500.0);
-            when(economy.withdrawPlayer(any(OfflinePlayer.class), eq(200.0)))
-                    .thenReturn(successResponse(200.0));
-            when(economy.depositPlayer(any(OfflinePlayer.class), eq(200.0)))
-                    .thenReturn(successResponse(200.0));
+            when(economyProvider.getBalance(TENANT_ID)).thenReturn(500.0);
+            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any()))
+                    .thenReturn(new PaymentResult.Success());
 
             RealtyPaperApi.ExtendResult result = api.extend(wgRegion, TENANT_ID).join();
 

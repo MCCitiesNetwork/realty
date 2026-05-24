@@ -55,6 +55,7 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.listener.PropertyTaxListener;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -65,6 +66,7 @@ import io.github.md5sha256.realty.settings.RegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
+import io.github.md5sha256.realty.settings.TaxSettings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
@@ -75,6 +77,9 @@ import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.TreasuryEconomyProvider;
+import io.github.md5sha256.realty.economy.VaultEconomyProvider;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.World;
 import org.bukkit.permissions.Permission;
@@ -89,6 +94,7 @@ import org.incendo.cloud.paper.PaperCommandManager;
 import org.incendo.cloud.paper.util.sender.PaperSimpleSenderMapper;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.spongepowered.configurate.ConfigurationNode;
 import org.spongepowered.configurate.yaml.NodeStyle;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
@@ -122,6 +128,7 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<Settings> settings = new AtomicReference<>();
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
+    private final AtomicReference<TaxSettings> taxSettings = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
     private SquirrelIdUsernameResolver nameResolver;
@@ -167,6 +174,10 @@ public final class Realty extends JavaPlugin {
         return this.realtyTags.get();
     }
 
+    public TaxSettings taxSettings() {
+        return this.taxSettings.get();
+    }
+
     @Override
     public void onLoad() {
         try {
@@ -174,11 +185,13 @@ public final class Realty extends JavaPlugin {
             copyResourceTemplate("messages.yml", "defaults/default-messages.yml");
             copyResourceTemplate("settings.yml", "defaults/default-settings.yml");
             copyResourceTemplate("profiles.yml", "defaults/default-profiles.yml");
+            copyResourceTemplate("taxes.yml", "defaults/default-taxes.yml");
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());
             this.regionFlagSettings.set(loadRegionFlagSettings());
             this.realtyTags.set(new RealtyTags(loadRegionTagSettings()));
+            this.taxSettings.set(loadTaxSettings());
             registerTagPermissions(this.realtyTags.get());
             configureRegionFlagService(this.regionFlagSettings.get());
 
@@ -235,9 +248,9 @@ public final class Realty extends JavaPlugin {
                 this.nameResolver::getUsername,
                 dateTime -> DateFormatter.format(this.settings.get(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
-        var economyProvider = getServer().getServicesManager().getRegistration(Economy.class);
+        EconomyProvider economyProvider = resolveEconomyProvider();
         if (economyProvider == null) {
-            getLogger().severe("Economy not found, plugin will now disable!");
+            getLogger().severe("No economy found (neither Treasury nor Vault), plugin will now disable!");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -262,8 +275,16 @@ public final class Realty extends JavaPlugin {
                 new SignInteractionListener(this.database, this.logic,
                         this.regionProfileService, this.executorState, this.signCache,
                         this.signTextApplicator, this.messageContainer), this);
+        var treasuryRegistration = getServer().getServicesManager()
+                .getRegistration(net.democracycraft.treasury.api.TreasuryApi.class);
+        if (treasuryRegistration != null) {
+            getServer().getPluginManager().registerEvents(
+                    new PropertyTaxListener(this.database, treasuryRegistration.getProvider(),
+                            this.taxSettings, getLogger()), this);
+            getLogger().info("Registered property tax listener (daily cycle)");
+        }
         this.paperApi = new RealtyPaperApiImpl(
-                this.logic, economyProvider.getProvider(), this.executorState, this.database,
+                this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache);
         scheduleTasks();
         registerCommands(this.paperApi,
@@ -309,6 +330,24 @@ public final class Realty extends JavaPlugin {
             }
         }
         getLogger().info("Plugin disabled successfully");
+    }
+
+    private @Nullable EconomyProvider resolveEconomyProvider() {
+        if (getServer().getPluginManager().isPluginEnabled("Treasury")) {
+            var registration = getServer().getServicesManager()
+                    .getRegistration(net.democracycraft.treasury.api.TreasuryApi.class);
+            if (registration != null) {
+                getLogger().info("Detected Treasury, using Treasury as the economy provider (full ledger support)");
+                return new TreasuryEconomyProvider(registration.getProvider());
+            }
+            getLogger().warning("Treasury plugin is loaded but TreasuryApi service is not registered; falling back to Vault");
+        }
+        var registration = getServer().getServicesManager().getRegistration(Economy.class);
+        if (registration != null) {
+            getLogger().info("Using Vault as the economy provider");
+            return new VaultEconomyProvider(registration.getProvider());
+        }
+        return null;
     }
 
     private void scheduleTasks() {
@@ -417,6 +456,11 @@ public final class Realty extends JavaPlugin {
         return settingsRoot.get(RegionTagSettings.class);
     }
 
+    private TaxSettings loadTaxSettings() throws IOException {
+        ConfigurationNode settingsRoot = copyDefaultsYaml("taxes");
+        return settingsRoot.get(TaxSettings.class);
+    }
+
     private void unregisterTagPermissions(@NotNull RealtyTags realtyTags) {
         PluginManager pluginManager = getServer().getPluginManager();
         for (ConfigRegionTag tag : realtyTags.values()) {
@@ -511,6 +555,7 @@ public final class Realty extends JavaPlugin {
         registerTagPermissions(this.realtyTags.get());
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
+        this.taxSettings.set(loadTaxSettings());
         reloadMessages();
         warnOrphanedTags();
     }
