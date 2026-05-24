@@ -208,11 +208,13 @@ public final class Realty extends JavaPlugin {
             return thread;
         };
         this.executorState = new ExecutorState(getServer().getScheduler()
-                .getMainThreadExecutor(this), Executors.newFixedThreadPool(4, threadFactory));
+                .getMainThreadExecutor(this),
+                Executors.newFixedThreadPool(4, threadFactory),
+                Executors.newThreadPerTaskExecutor(threadFactory));
         try {
             this.nameResolver = new SquirrelIdUsernameResolver(
                     new File(getDataFolder(), "profiles.sqlite"),
-                    this.executorState.dbExec());
+                    this.executorState.networkExec());
         } catch (IOException ex) {
             getLogger().severe("Failed to initialize profile cache!");
             ex.printStackTrace();
@@ -284,10 +286,15 @@ public final class Realty extends JavaPlugin {
             this.profileApplicator.cancel();
         }
         if (this.executorState != null) {
-            try (ExecutorService service = this.executorState.dbExec();) {
-                service.shutdownNow();
-                if (!service.awaitTermination(30, TimeUnit.SECONDS)) {
+            try (ExecutorService dbService = this.executorState.dbExec();
+                 ExecutorService networkService = this.executorState.networkExec()) {
+                dbService.shutdownNow();
+                networkService.shutdownNow();
+                if (!dbService.awaitTermination(30, TimeUnit.SECONDS)) {
                     getLogger().severe("Failed to await database threadpool shutdown!");
+                }
+                if (!networkService.awaitTermination(30, TimeUnit.SECONDS)) {
+                    getLogger().severe("Failed to await network threadpool shutdown!");
                 }
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
