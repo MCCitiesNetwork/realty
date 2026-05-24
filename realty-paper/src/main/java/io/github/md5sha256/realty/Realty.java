@@ -34,13 +34,13 @@ import io.github.md5sha256.realty.command.HelpCommand;
 import io.github.md5sha256.realty.command.HistoryCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
-import io.github.md5sha256.realty.command.SearchCommand;
-import io.github.md5sha256.realty.command.SearchDialog;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
 import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.RentCommand;
+import io.github.md5sha256.realty.command.SearchCommand;
+import io.github.md5sha256.realty.command.SearchDialog;
 import io.github.md5sha256.realty.command.SetCommandGroup;
 import io.github.md5sha256.realty.command.SignCommand;
 import io.github.md5sha256.realty.command.SubregionCommandGroup;
@@ -60,23 +60,22 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
+import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.RegionProfile;
 import io.github.md5sha256.realty.settings.RegionProfileSettings;
-import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.ComponentSerializer;
 import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
+import io.github.md5sha256.realty.util.PlayerNameCache;
 import io.github.md5sha256.realty.util.SimpleDateFormatSerializer;
 import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionDefault;
@@ -108,9 +107,9 @@ import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -125,6 +124,7 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
+    private final PlayerNameCache nameCache = new PlayerNameCache(getServer());
     private ExecutorState executorState;
     private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
@@ -219,10 +219,9 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        this.logic = new RealtyBackendImpl(mariaDatabase, uuid -> {
-            OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
-            return player.getName() != null ? player.getName() : uuid.toString();
-        }, dateTime -> DateFormatter.format(this.settings.get(), dateTime),
+        this.logic = new RealtyBackendImpl(mariaDatabase,
+                this.nameCache::getUsername,
+                dateTime -> DateFormatter.format(this.settings.get(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
         var economyProvider = getServer().getServicesManager().getRegistration(Economy.class);
         if (economyProvider == null) {
@@ -436,9 +435,10 @@ public final class Realty extends JavaPlugin {
                         .filter(tagId -> !configTagIds.contains(tagId))
                         .toList();
                 if (!orphaned.isEmpty()) {
-                    getLogger().warning("Found orphaned tags in the database that are not in region-tags.yml: "
-                            + String.join(", ", orphaned)
-                            + ". Run /realty cleanup tags to remove them.");
+                    getLogger().warning(
+                            "Found orphaned tags in the database that are not in region-tags.yml: "
+                                    + String.join(", ", orphaned)
+                                    + ". Run /realty cleanup tags to remove them.");
                 }
             } catch (Exception ex) {
                 getLogger().warning("Failed to check for orphaned tags: " + ex.getMessage());
@@ -524,7 +524,11 @@ public final class Realty extends JavaPlugin {
                 new RegisterCommand(paperApi, this.settings, messageContainer),
                 new DeleteCommand(paperApi, messageContainer),
                 new HistoryCommand(paperApi, this.settings, messageContainer),
-                new InfoCommand(paperApi, this.settings, this.database, this.realtyTags, messageContainer),
+                new InfoCommand(paperApi,
+                        this.settings,
+                        this.database,
+                        this.realtyTags,
+                        messageContainer),
                 new ListCommand(paperApi, messageContainer),
                 new OfferCommandGroup(paperApi,
                         notificationService,

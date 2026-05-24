@@ -41,18 +41,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 public class RealtyBackendImpl implements RealtyBackend {
 
     private final Database database;
-    private final Function<UUID, String> nameResolver;
+    private final Function<UUID, CompletableFuture<String>> nameResolver;
     private final Function<LocalDateTime, String> dateFormatter;
     private final LongSupplier offerPaymentDurationSeconds;
 
     public RealtyBackendImpl(@NotNull Database database,
-                             @NotNull Function<UUID, String> nameResolver,
+                             @NotNull Function<UUID, CompletableFuture<String>> nameResolver,
                              @NotNull Function<LocalDateTime, String> dateFormatter,
                              @NotNull LongSupplier offerPaymentDurationSeconds) {
         this.database = database;
@@ -883,10 +884,10 @@ public class RealtyBackendImpl implements RealtyBackend {
 
         FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
         if (freehold != null) {
-            String titleHolder = freehold.titleHolderId() != null ? nameResolver.apply(freehold.titleHolderId()) : "";
+            String titleHolder = freehold.titleHolderId() != null ? nameResolver.apply(freehold.titleHolderId()).join() : "";
             placeholders.put("title_holder", titleHolder);
             placeholders.put("titleholder", titleHolder);
-            placeholders.put("authority", nameResolver.apply(freehold.authorityId()));
+            placeholders.put("authority", nameResolver.apply(freehold.authorityId()).join());
             placeholders.put("price", freehold.price() != null ? CurrencyFormatter.format(freehold.price()) : "");
             Double lastSoldPrice = wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId);
             placeholders.put("last_sold_price", lastSoldPrice != null ? CurrencyFormatter.format(lastSoldPrice) : "");
@@ -894,8 +895,8 @@ public class RealtyBackendImpl implements RealtyBackend {
 
         LeaseholdContractEntity lease = wrapper.leaseholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
         if (lease != null) {
-            placeholders.put("landlord", nameResolver.apply(lease.landlordId()));
-            placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()) : "");
+            placeholders.put("landlord", nameResolver.apply(lease.landlordId()).join());
+            placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()).join() : "");
             placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
             placeholders.put("start_date", lease.startDate() != null ? dateFormatter.apply(lease.startDate()) : "N/A");
