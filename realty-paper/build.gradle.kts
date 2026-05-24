@@ -14,8 +14,12 @@ dependencies {
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    implementation("org.enginehub:squirrelid:0.3.2")
-    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
+    implementation("org.enginehub:squirrelid:0.3.2") {
+        isTransitive = false
+    }
+    implementation("org.xerial:sqlite-jdbc:3.46.1.0") {
+        isTransitive = false
+    }
     compileOnly("net.essentialsx:EssentialsX:2.21.2") {
         exclude(group = "org.bukkit", module = "bukkit")
         exclude(group = "org.spigotmc", module = "spigot-api")
