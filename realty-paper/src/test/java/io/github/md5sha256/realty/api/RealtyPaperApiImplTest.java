@@ -75,7 +75,7 @@ class RealtyPaperApiImplTest {
     @BeforeEach
     void setUp() {
         signCache = new SignCache();
-        ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService());
+        ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache);
 
