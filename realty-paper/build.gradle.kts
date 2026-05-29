@@ -30,6 +30,7 @@ dependencies {
     implementation("org.spongepowered:configurate-yaml:4.2.0")
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    testImplementation("net.democracycraft:treasury-api:2.0.0")
     testImplementation("org.mockito:mockito-core:5.15.2")
     testImplementation("org.mockito:mockito-junit-jupiter:5.15.2")
     testImplementation("com.github.MilkBowl:VaultAPI:1.7") {

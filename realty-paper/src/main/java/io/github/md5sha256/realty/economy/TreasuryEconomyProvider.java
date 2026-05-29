@@ -16,10 +16,11 @@ import java.util.UUID;
  * in the player's Treasury transaction history.
  * <p>
  * Account resolution: the payer is always resolved as a personal account
- * (created with starting balance if missing). The recipient is resolved
- * by preferring any non-personal account (government/business) owned by
- * that UUID, falling back to a personal account.  This correctly handles
- * authority UUIDs that correspond to government Treasury accounts.
+ * (created with starting balance if missing). The recipient is resolved by
+ * preferring its PERSONAL account — rental/sale income belongs to the
+ * landlord personally, even if they happen to own a firm. Only when the
+ * recipient has no personal account (a synthetic authority UUID backing a
+ * government entity) do we fall back to a government/business account.
  */
 public final class TreasuryEconomyProvider implements EconomyProvider {
 
@@ -73,18 +74,28 @@ public final class TreasuryEconomyProvider implements EconomyProvider {
     }
 
     /**
-     * Resolves the recipient's Treasury account. Prefers a government or business
-     * account when one exists (e.g. for authority/landlord UUIDs tied to a town
-     * or government entity), falling back to a personal account.
+     * Resolves the recipient's Treasury account.
+     * <p>
+     * A real player landlord always owns a PERSONAL account (Treasury enforces
+     * one per player), so we prefer it: their rental/sale income must land in
+     * their personal balance, never in a firm BUSINESS account they happen to
+     * own (firm accounts are owned by the proprietor's own UUID, which is how
+     * such funds previously leaked into business accounts).
+     * <p>
+     * Only when the recipient has no personal account — i.e. a synthetic
+     * authority UUID that backs a government entity — do we fall back to the
+     * prior government &gt; business &gt; first-available ordering so authority
+     * payments still route to the configured government treasury account.
      */
     private @NotNull Account resolveRecipientAccount(@NotNull UUID ownerUuid) {
         List<Account> accounts = treasuryApi.getAccountsByOwner(ownerUuid);
         if (!accounts.isEmpty()) {
-            // Prefer government > business > personal so that authority accounts
-            // correctly route funds to the configured government treasury account.
             return accounts.stream()
-                    .filter(a -> a.getAccountType() == AccountType.GOVERNMENT)
+                    .filter(a -> a.getAccountType() == AccountType.PERSONAL)
                     .findFirst()
+                    .or(() -> accounts.stream()
+                            .filter(a -> a.getAccountType() == AccountType.GOVERNMENT)
+                            .findFirst())
                     .or(() -> accounts.stream()
                             .filter(a -> a.getAccountType() == AccountType.BUSINESS)
                             .findFirst())
