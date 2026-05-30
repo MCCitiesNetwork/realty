@@ -472,6 +472,15 @@ public interface RealtyBackend {
                           @NotNull UUID offererId,
                           double amount);
 
+    /**
+     * Commit the ownership transfer for a fully-paid offer purchase. Called ONLY
+     * after the economy payment has succeeded, so the region is never handed over
+     * before the money moves. Idempotent and a no-op if the record isn't fully paid.
+     */
+    void finalizeOfferPurchase(@NotNull String worldGuardRegionId,
+                               @NotNull UUID worldId,
+                               @NotNull UUID offererId);
+
     // --- Pay Bid ---
 
     sealed interface PayBidResult {
@@ -492,6 +501,15 @@ public interface RealtyBackend {
                         @NotNull UUID worldId,
                         @NotNull UUID bidderId,
                         double amount);
+
+    /**
+     * Commit the ownership transfer for a fully-paid auction bid. Called ONLY
+     * after the economy payment has succeeded, so the region is never handed over
+     * before the money moves. Idempotent and a no-op if the record isn't fully paid.
+     */
+    void finalizeBidPurchase(@NotNull String worldGuardRegionId,
+                             @NotNull UUID worldId,
+                             @NotNull UUID bidderId);
 
     // --- Expired Bidding Auctions ---
 

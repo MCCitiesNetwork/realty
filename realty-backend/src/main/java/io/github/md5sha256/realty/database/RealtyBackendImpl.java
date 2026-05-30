@@ -1273,6 +1273,9 @@ public class RealtyBackendImpl implements RealtyBackend {
     // --- Pay Offer ---
 
 
+    /** Currency drift tolerance (half a cent) for "fully paid" comparisons on DOUBLE columns. */
+    private static final double PAYMENT_EPSILON = 0.005;
+
     @Override
     public @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
                                              @NotNull UUID worldId,
@@ -1285,7 +1288,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new PayOfferResult.NoPaymentRecord();
             }
             double amountOwed = payment.offerPrice() - payment.currentPayment();
-            if (amount > amountOwed) {
+            if (amount > amountOwed + PAYMENT_EPSILON) {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);
             }
             double newTotal = payment.currentPayment() + amount;
@@ -1299,21 +1302,41 @@ public class RealtyBackendImpl implements RealtyBackend {
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             UUID authorityId = freehold.authorityId();
             UUID titleHolderId = freehold.titleHolderId();
-            if (newTotal == payment.offerPrice()) {
-                // Fully paid — transfer ownership, reset price (not for freehold)
-                freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
-                freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
-                paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
-                wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
-                wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
-                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.OFFER_BUY.name(),
-                        offererId, authorityId, payment.offerPrice());
-            }
+            // Record the payment only. Ownership transfer is DEFERRED to
+            // finalizeOfferPurchase, which the paper layer calls ONLY after the
+            // economy payment succeeds. Committing the transfer here (before the
+            // money moved) handed the region over for free when payment failed.
             wrapper.session().commit();
-            if (newTotal == payment.offerPrice()) {
+            if (newTotal >= payment.offerPrice() - PAYMENT_EPSILON) {
                 return new PayOfferResult.FullyPaid(authorityId, titleHolderId);
             }
             return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal, authorityId, titleHolderId);
+        }
+    }
+
+    @Override
+    public void finalizeOfferPurchase(@NotNull String worldGuardRegionId,
+                                      @NotNull UUID worldId,
+                                      @NotNull UUID offererId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
+            FreeholdContractOfferPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
+            // Only finalize a real, fully-paid record for this offerer. Idempotent:
+            // a second call (or one after rollback) finds nothing/under-paid and no-ops.
+            if (payment == null || !payment.offererId().equals(offererId)
+                    || payment.currentPayment() < payment.offerPrice() - PAYMENT_EPSILON) {
+                return;
+            }
+            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
+            wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
+            wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
+            wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.OFFER_BUY.name(),
+                    offererId, freehold.authorityId(), payment.offerPrice());
+            wrapper.session().commit();
         }
     }
 
@@ -1351,7 +1374,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new PayBidResult.PaymentExpired();
             }
             double amountOwed = payment.bidPrice() - payment.currentPayment();
-            if (amount > amountOwed) {
+            if (amount > amountOwed + PAYMENT_EPSILON) {
                 return new PayBidResult.ExceedsAmountOwed(amountOwed);
             }
             double newTotal = payment.currentPayment() + amount;
@@ -1365,20 +1388,40 @@ public class RealtyBackendImpl implements RealtyBackend {
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             UUID authorityId = freehold.authorityId();
             UUID titleHolderId = freehold.titleHolderId();
-            if (newTotal == payment.bidPrice()) {
-                // Fully paid — transfer ownership, reset price (not for freehold)
-                freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
-                freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
-                paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
-                wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
-                wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),
-                        bidderId, authorityId, payment.bidPrice());
-            }
+            // Record the payment only. Ownership transfer is DEFERRED to
+            // finalizeBidPurchase, called by the paper layer ONLY after the
+            // economy payment succeeds — so a failed/insufficient payment can
+            // never hand over the region (previously it did, for free).
             wrapper.session().commit();
-            if (newTotal == payment.bidPrice()) {
+            if (newTotal >= payment.bidPrice() - PAYMENT_EPSILON) {
                 return new PayBidResult.FullyPaid(authorityId, titleHolderId);
             }
             return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal, authorityId, titleHolderId);
+        }
+    }
+
+    @Override
+    public void finalizeBidPurchase(@NotNull String worldGuardRegionId,
+                                    @NotNull UUID worldId,
+                                    @NotNull UUID bidderId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
+            FreeholdContractBidPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
+            // Only finalize a real, fully-paid record for this bidder. Idempotent:
+            // a second call (or one after rollback) finds nothing/under-paid and no-ops.
+            if (payment == null || !payment.bidderId().equals(bidderId)
+                    || payment.currentPayment() < payment.bidPrice() - PAYMENT_EPSILON) {
+                return;
+            }
+            FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
+            wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
+            wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),
+                    bidderId, freehold.authorityId(), payment.bidPrice());
+            wrapper.session().commit();
         }
     }
 
