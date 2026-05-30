@@ -61,10 +61,20 @@ class TaxFormulaTest {
         }
 
         @Test
-        void defaultFormulaMatchesLegacyBehaviour() {
-            // The pre-feature hardcoded formula: 2.5*x^2 - 6*x
-            for (int x = 4; x <= 12; x++) {
-                Assertions.assertEquals(2.5 * x * x - 6.0 * x, eval("2.5 * <plots>^2 - 6 * <plots>", x), 1e-9);
+        void constantBaseRaisedToTheVariable() {
+            // The Act's exponential term: 1.16^<plots> = Math.pow(1.16, plots).
+            Assertions.assertEquals(Math.pow(1.16, 8), eval("1.16^<plots>", 8), 1e-9);
+            // ^ binds tighter than *: 0.25 * 1.16^plots = 0.25 * pow(1.16, plots).
+            Assertions.assertEquals(0.25 * Math.pow(1.16, 8), eval("0.25 * 1.16^<plots>", 8), 1e-9);
+        }
+
+        @Test
+        void actDefaultFormula() {
+            // 0.25*1.16^x + 0.3*x^2 + 2.5*x - 25 — evaluated as a whole.
+            String f = "0.25 * 1.16^<plots> + 0.3 * <plots>^2 + 2.5 * <plots> - 25";
+            for (int x = 8; x <= 50; x++) {
+                double expected = 0.25 * Math.pow(1.16, x) + 0.3 * x * x + 2.5 * x - 25;
+                Assertions.assertEquals(expected, eval(f, x), 1e-9);
             }
         }
     }

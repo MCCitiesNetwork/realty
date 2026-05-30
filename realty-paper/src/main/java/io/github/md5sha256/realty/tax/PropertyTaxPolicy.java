@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.settings.TagMatch;
 import io.github.md5sha256.realty.settings.TaxRule;
 import io.github.md5sha256.realty.settings.TaxSettings;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -15,11 +16,20 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
- * Compiled property-tax ruleset. Built once per tax cycle from {@link TaxSettings}:
- * each rule's {@link TaxFormula} is parsed up front (bad formulas are logged and
- * dropped). For a region, the first rule whose {@link TagMatch} matches its tags
- * wins; if none match, the default formula applies. {@code <plots>} is bound to
- * the owner's total plot count by the caller.
+ * Compiled property-tax ruleset. Built once per tax cycle from {@link TaxSettings}.
+ *
+ * <p><b>Federal model (the Taxation Act).</b> The {@code default-formula} gives the
+ * owner's <em>total</em> daily tax as a single function of their plot count — it is
+ * evaluated <em>once</em> on the federally-taxed plot count and rounded <em>down</em>
+ * to the cent, and owners with {@code exemptThreshold} federal plots or fewer pay
+ * nothing. With no rules configured (the default) this is exactly the Act:
+ * {@code floor(default-formula(totalPlots))}, exempt at/below the threshold.
+ *
+ * <p><b>Local-government overrides (optional, off by default).</b> A plot whose tags
+ * match a rule (first match wins) is taxed by that rule per-property — with
+ * {@code <plots>} bound to the owner's total plots — and is excluded from the federal
+ * count. This models the Act's "unless otherwise provided by Local Governments"
+ * clause; the shipped config defines no rules, so every plot is federal.
  */
 public final class PropertyTaxPolicy {
 
@@ -57,30 +67,68 @@ public final class PropertyTaxPolicy {
     }
 
     /**
-     * Tax for a single region: the first matching rule's formula (else the
-     * default), evaluated at {@code totalPlots}. Non-finite or non-positive
-     * results clamp to zero; otherwise rounded HALF_UP to 2 dp.
+     * Total daily property tax for one owner.
      *
-     * @param regionTags the region's tags (any case)
-     * @param totalPlots the owner's total plot count, bound to {@code <plots>}
+     * <p>Federal plots (no matching rule) are taxed by the default formula evaluated
+     * <em>once</em> on their count; an owner at or below {@code exemptThreshold}
+     * federal plots pays no federal tax. Plots matching a rule are instead taxed by
+     * that rule per-property, with {@code <plots>} bound to the owner's total plots.
+     * The two parts are summed and rounded down to the cent (the Act rounds down).
+     *
+     * <p>With no rules configured this reduces to {@code floor(default-formula(N))}
+     * for N total plots above the threshold — i.e. exactly the Taxation Act.
+     *
+     * @param plotTagSets one tag-set per plot the owner title-holds (tags any case)
+     * @param exemptThreshold federal plots at/below which no federal tax is charged
      */
-    public @NotNull BigDecimal taxForRegion(@NotNull Set<String> regionTags, int totalPlots) {
-        Set<String> tags = regionTags.stream()
-                .map(t -> t.toLowerCase(Locale.ROOT))
-                .collect(Collectors.toSet());
+    public @NotNull BigDecimal taxForOwner(@NotNull List<Set<String>> plotTagSets, int exemptThreshold) {
+        int totalPlots = plotTagSets.size();
+        int federalPlots = 0;
+        double overrideRaw = 0.0;
 
-        TaxFormula formula = defaultFormula;
-        for (CompiledRule rule : rules) {
-            if (rule.match().matches(tags)) {
-                formula = rule.formula();
-                break;
+        for (Set<String> plotTags : plotTagSets) {
+            TaxFormula override = matchRule(plotTags);
+            if (override == null) {
+                federalPlots++;
+            } else {
+                double v = override.evaluate(totalPlots);
+                if (Double.isFinite(v) && v > 0.0) {
+                    overrideRaw += v;
+                }
             }
         }
 
-        double raw = formula.evaluate(totalPlots);
+        // Federal tax: a single evaluation on the federal plot count (the Act's
+        // formula), charged only above the exemption threshold.
+        double federalRaw = 0.0;
+        if (federalPlots > exemptThreshold) {
+            double v = defaultFormula.evaluate(federalPlots);
+            if (Double.isFinite(v) && v > 0.0) {
+                federalRaw = v;
+            }
+        }
+
+        double raw = federalRaw + overrideRaw;
         if (!Double.isFinite(raw) || raw <= 0.0) {
             return BigDecimal.ZERO;
         }
-        return BigDecimal.valueOf(raw).setScale(2, RoundingMode.HALF_UP);
+        // The Taxation Act rounds tax down to the nearest cent.
+        return BigDecimal.valueOf(raw).setScale(2, RoundingMode.FLOOR);
+    }
+
+    /** The first rule whose tags match, or {@code null} when the plot is federal. */
+    private @Nullable TaxFormula matchRule(@NotNull Set<String> rawTags) {
+        if (rules.isEmpty()) {
+            return null;
+        }
+        Set<String> tags = rawTags.stream()
+                .map(t -> t.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        for (CompiledRule rule : rules) {
+            if (rule.match().matches(tags)) {
+                return rule.formula();
+            }
+        }
+        return null;
     }
 }
