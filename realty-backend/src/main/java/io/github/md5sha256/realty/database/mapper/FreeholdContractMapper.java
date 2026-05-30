@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
+import io.github.md5sha256.realty.database.entity.TitleHeldRegionTag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -151,5 +152,14 @@ public interface FreeholdContractMapper {
      * Only players with at least one plot are included.
      */
     @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolder();
+
+    /**
+     * Enumerates every title-held freehold region together with its tags, for
+     * per-property tax assessment. Returns one row per (region, tag); a region
+     * with no tags yields a single row with {@code tagId == null}. Only freeholds
+     * with a non-null title holder are included. Group by region to rebuild each
+     * region's tag set, and by title holder to assess each owner.
+     */
+    @NotNull List<TitleHeldRegionTag> selectTitleHeldRegionTags();
 
 }

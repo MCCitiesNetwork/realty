@@ -11,8 +11,14 @@ import java.util.UUID;
 public record TaxSettings(
         @Setting("enabled") boolean enabled,
         @Setting("government-account") @NotNull String governmentAccount,
-        @Setting("exempt-uuids") @NotNull List<UUID> exemptUuids
+        @Setting("exempt-uuids") @NotNull List<UUID> exemptUuids,
+        @Setting("exempt-plot-threshold") int exemptPlotThreshold,
+        @Setting("rules") @NotNull List<TaxRule> rules,
+        @Setting("default-formula") @NotNull String defaultFormula
 ) {
+
+    /** Built-in fallback formula — the pre-tag-rules behaviour. */
+    public static final String DEFAULT_FORMULA = "2.5 * <plots>^2 - 6 * <plots>";
 
     public TaxSettings {
         if (governmentAccount == null || governmentAccount.isBlank()) {
@@ -20,6 +26,12 @@ public record TaxSettings(
         }
         if (exemptUuids == null) {
             exemptUuids = List.of();
+        }
+        if (rules == null) {
+            rules = List.of();
+        }
+        if (defaultFormula == null || defaultFormula.isBlank()) {
+            defaultFormula = DEFAULT_FORMULA;
         }
     }
 }
