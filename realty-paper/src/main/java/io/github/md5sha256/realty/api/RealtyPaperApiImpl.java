@@ -407,6 +407,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.PaymentFailed(failure.errorMessage()));
         }
+        // Money has cleared — now (and only now) commit the ownership transfer.
+        realtyApi.finalizeBidPurchase(regionId, worldId, bidderId);
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.getOwners().clear();
         protectedRegion.getOwners().addPlayer(bidderId);
@@ -498,6 +500,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.PaymentFailed(failure.errorMessage()));
         }
+        // Money has cleared — now (and only now) commit the ownership transfer.
+        realtyApi.finalizeOfferPurchase(regionId, worldId, offererId);
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.getOwners().clear();
         protectedRegion.getOwners().addPlayer(offererId);
