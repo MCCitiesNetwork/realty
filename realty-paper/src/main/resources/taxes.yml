@@ -1,7 +1,5 @@
 # Enable or disable daily property tax collection.
 # Requires the Treasury plugin to be installed and its DAILY cycle to be enabled.
-# Tax formula: tax = 2.5 * (plots^2) - 6 * plots
-# Players with 3 or fewer plots are exempt from taxation.
 enabled: true
 
 # Name of the Treasury GOVERNMENT account that receives property tax proceeds.
@@ -12,3 +10,31 @@ government-account: "DCGovernment"
 # UUIDs exempt from property tax collection.
 # Useful for authority, government, or server-owned accounts.
 exempt-uuids: []
+
+# Owners holding this many freehold plots or fewer pay no property tax at all.
+# The Taxation Act exempts owners of 7 or fewer plots. Set to 0 to tax everyone.
+exempt-plot-threshold: 7
+
+# ---------------------------------------------------------------------------
+# Property tax follows the Taxation Act: `default-formula` gives an owner's TOTAL
+# daily tax as a function of <plots> (their freehold plot count). It is evaluated
+# ONCE per owner — NOT per property — and the result is rounded DOWN to the cent.
+# Owners at or below `exempt-plot-threshold` plots pay nothing.
+#
+#   <plots> = the owner's freehold plot count
+#   operators + - * /, exponentiation ^ (e.g. 1.16^<plots>, <plots>^2),
+#   parentheses, and decimals are supported.
+#
+# `rules` below are OPTIONAL local-government overrides ("unless otherwise provided
+# by Local Governments where the plot is located"). A plot whose tags match a rule
+# is taxed per-property by that rule instead of counting toward the federal formula.
+# They are OFF by default — leave `rules` empty to apply the Act uniformly.
+#
+# Rule match syntax (first match wins, tags case-insensitive from region-tags.yml):
+#   all: [a, b]   -> region must carry every listed tag
+#   any: [a, b]   -> region must carry at least one listed tag
+# ---------------------------------------------------------------------------
+rules: []
+
+# The Taxation Act's federal property-tax formula (total daily tax for <plots> plots).
+default-formula: "0.25 * 1.16^<plots> + 0.3 * <plots>^2 + 2.5 * <plots> - 25"

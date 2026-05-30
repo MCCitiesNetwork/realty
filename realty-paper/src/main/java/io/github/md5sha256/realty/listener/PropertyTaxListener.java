@@ -2,8 +2,9 @@ package io.github.md5sha256.realty.listener;
 
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
+import io.github.md5sha256.realty.database.entity.TitleHeldRegionTag;
 import io.github.md5sha256.realty.settings.TaxSettings;
+import io.github.md5sha256.realty.tax.PropertyTaxPolicy;
 import net.democracycraft.treasury.api.TreasuryApi;
 import net.democracycraft.treasury.event.TaxCycleEvent;
 import net.democracycraft.treasury.model.economy.Account;
@@ -17,11 +18,12 @@ import org.bukkit.event.Listener;
 import org.jetbrains.annotations.NotNull;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,29 +62,49 @@ public final class PropertyTaxListener implements Listener {
             return;
         }
 
-        List<PlotOwnerCount> plotCounts;
+        // Compile the tag-matched formula ruleset for this cycle.
+        PropertyTaxPolicy policy = PropertyTaxPolicy.compile(settings, logger);
+
+        // Enumerate every title-held region with its tags, then fold into
+        // owner -> (region -> tag set).
+        Map<UUID, Map<String, Set<String>>> regionsByOwner = new HashMap<>();
         try (SqlSessionWrapper session = database.openSession(true)) {
-            plotCounts = session.freeholdContractMapper().selectPlotCountsByTitleHolder();
+            for (TitleHeldRegionTag row : session.freeholdContractMapper().selectTitleHeldRegionTags()) {
+                Map<String, Set<String>> regions =
+                        regionsByOwner.computeIfAbsent(row.titleHolderId(), k -> new HashMap<>());
+                Set<String> tags = regions.computeIfAbsent(row.worldGuardRegionId(), k -> new HashSet<>());
+                if (row.tagId() != null) {
+                    tags.add(row.tagId());
+                }
+            }
         } catch (Exception e) {
-            logger.severe("Failed to load plot counts for property tax collection: " + e.getMessage());
+            logger.severe("Failed to load title-held regions for property tax collection: " + e.getMessage());
             return;
         }
 
         Set<UUID> exempt = new HashSet<>(settings.exemptUuids());
+        int threshold = settings.exemptPlotThreshold();
         Instant periodStart = event.getPeriodStart();
 
         // Resolve the configured destination account once for the whole batch.
         Integer destinationAccountId = resolveDestinationAccountId(settings.governmentAccount());
 
         List<TaxCollection> collections = new ArrayList<>();
-        for (PlotOwnerCount entry : plotCounts) {
-            UUID owner = entry.titleHolderId();
-            int plots = entry.plotCount();
+        for (Map.Entry<UUID, Map<String, Set<String>>> ownerEntry : regionsByOwner.entrySet()) {
+            UUID owner = ownerEntry.getKey();
+            Map<String, Set<String>> regions = ownerEntry.getValue();
+            int plots = regions.size();
 
-            if (plots <= 3) {
+            if (exempt.contains(owner)) {
                 continue;
             }
-            if (exempt.contains(owner)) {
+
+            // The Act's property tax is a single function of plot count, charged once
+            // per owner. The policy applies the exemption threshold and any optional
+            // local per-property overrides; with no rules configured it is exactly
+            // floor(default-formula(plots)).
+            BigDecimal taxAmount = policy.taxForOwner(new ArrayList<>(regions.values()), threshold);
+            if (taxAmount.signum() <= 0) {
                 continue;
             }
 
@@ -92,14 +114,14 @@ public final class PropertyTaxListener implements Listener {
                 continue;
             }
 
-            BigDecimal taxAmount = computePropertyTax(plots);
             byte[] dedupKey = Idempotency.sha256("realty:property_tax:" + owner + ":" + periodStart.toEpochMilli());
+            String memo = "Daily property tax (" + plots + " plots)";
 
             TaxCollection collection = destinationAccountId != null
                     ? TaxCollection.toAccount(accountId, destinationAccountId, taxAmount, TAX_TYPE,
-                            "Daily property tax (" + plots + " plots)", SYSTEM_UUID, PLUGIN_SYSTEM, dedupKey)
+                            memo, SYSTEM_UUID, PLUGIN_SYSTEM, dedupKey)
                     : TaxCollection.toDefaultAccount(accountId, taxAmount, TAX_TYPE,
-                            "Daily property tax (" + plots + " plots)", SYSTEM_UUID, PLUGIN_SYSTEM, dedupKey);
+                            memo, SYSTEM_UUID, PLUGIN_SYSTEM, dedupKey);
 
             collections.add(collection);
         }
@@ -141,12 +163,6 @@ public final class PropertyTaxListener implements Listener {
             return null;
         }
         return account.getAccountId();
-    }
-
-    // y = 2.5 * x^2 - 6 * x, rounded to 2 decimal places
-    private static @NotNull BigDecimal computePropertyTax(int plots) {
-        double raw = 2.5 * ((double) plots * plots) - 6.0 * plots;
-        return BigDecimal.valueOf(raw).setScale(2, RoundingMode.HALF_UP);
     }
 
     private int resolvePersonalAccountId(@NotNull UUID owner) {
