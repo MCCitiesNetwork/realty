@@ -15,6 +15,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
 abstract class AbstractDatabaseTest {
@@ -48,7 +49,8 @@ abstract class AbstractDatabaseTest {
         String url = jdbcUrl.substring("jdbc:".length());
         DatabaseSettings settings = new DatabaseSettings(url, CONTAINER.getUsername(), CONTAINER.getPassword());
         database = new MariaDatabase(settings, Logger.getLogger("test"));
-        logic = new RealtyBackendImpl(database, UUID::toString, java.time.LocalDateTime::toString, () -> 86400);
+        logic = new RealtyBackendImpl(database, uuid -> CompletableFuture.completedFuture(uuid.toString()),
+                java.time.LocalDateTime::toString, () -> 86400);
     }
 
     private static String truncateUrl;

@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
+import io.github.md5sha256.realty.database.entity.TitleHeldRegionTag;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
@@ -216,5 +217,23 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             @Arg(column = "plotCount", javaType = int.class)
     })
     @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolder();
+
+    @Override
+    @Select("""
+            SELECT fc.titleHolderId       AS titleHolderId,
+                   rr.worldGuardRegionId  AS worldGuardRegionId,
+                   rt.tagId               AS tagId
+            FROM FreeholdContract fc
+            INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            LEFT JOIN RegionTag rt ON rt.worldGuardRegionId = rr.worldGuardRegionId
+            WHERE fc.titleHolderId IS NOT NULL
+            """)
+    @ConstructorArgs({
+            @Arg(column = "titleHolderId", javaType = UUID.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "tagId", javaType = String.class)
+    })
+    @NotNull List<TitleHeldRegionTag> selectTitleHeldRegionTags();
 
 }
