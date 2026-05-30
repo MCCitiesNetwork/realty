@@ -95,18 +95,15 @@ public final class PropertyTaxListener implements Listener {
             Map<String, Set<String>> regions = ownerEntry.getValue();
             int plots = regions.size();
 
-            if (plots <= threshold) {
-                continue;
-            }
             if (exempt.contains(owner)) {
                 continue;
             }
 
-            // Sum the per-property, tag-matched tax. <plots> = the owner's total plot count.
-            BigDecimal taxAmount = BigDecimal.ZERO;
-            for (Set<String> regionTags : regions.values()) {
-                taxAmount = taxAmount.add(policy.taxForRegion(regionTags, plots));
-            }
+            // The Act's property tax is a single function of plot count, charged once
+            // per owner. The policy applies the exemption threshold and any optional
+            // local per-property overrides; with no rules configured it is exactly
+            // floor(default-formula(plots)).
+            BigDecimal taxAmount = policy.taxForOwner(new ArrayList<>(regions.values()), threshold);
             if (taxAmount.signum() <= 0) {
                 continue;
             }

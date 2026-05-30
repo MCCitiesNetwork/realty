@@ -6,7 +6,7 @@ package io.github.md5sha256.realty.tax;
  * <p>Supports {@code + - * /}, exponentiation {@code ^} (right-associative,
  * binds tighter than multiplication), unary minus, parentheses, decimal
  * literals, and the variable token {@code <plots>} (also accepted bare as
- * {@code plots}). Example: {@code "2.5 * <plots>^2 - 6 * <plots>"}.
+ * {@code plots}). Example: {@code "0.25 * 1.16^<plots> + 0.3 * <plots>^2 + 2.5 * <plots> - 25"}.
  *
  * <p>Compile once with {@link #compile(String)} (throws {@link TaxFormulaException}
  * on malformed input), then evaluate cheaply many times with {@link #evaluate(double)}.

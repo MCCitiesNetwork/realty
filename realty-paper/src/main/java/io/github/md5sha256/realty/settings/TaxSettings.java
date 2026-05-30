@@ -17,8 +17,11 @@ public record TaxSettings(
         @Setting("default-formula") @NotNull String defaultFormula
 ) {
 
-    /** Built-in fallback formula — the pre-tag-rules behaviour. */
-    public static final String DEFAULT_FORMULA = "2.5 * <plots>^2 - 6 * <plots>";
+    /** Built-in default — the Taxation Act's federal property-tax formula. Gives an
+     * owner's total daily tax as a function of their plot count {@code <plots>};
+     * evaluated once per owner (not per plot). Owners of 7 or fewer plots are exempt
+     * via {@code exempt-plot-threshold}, and the result is rounded down to the cent. */
+    public static final String DEFAULT_FORMULA = "0.25 * 1.16^<plots> + 0.3 * <plots>^2 + 2.5 * <plots> - 25";
 
     public TaxSettings {
         if (governmentAccount == null || governmentAccount.isBlank()) {

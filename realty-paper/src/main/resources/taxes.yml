@@ -12,41 +12,29 @@ government-account: "DCGovernment"
 exempt-uuids: []
 
 # Owners holding this many freehold plots or fewer pay no property tax at all.
-# Set to 0 to tax everyone.
-exempt-plot-threshold: 3
+# The Taxation Act exempts owners of 7 or fewer plots. Set to 0 to tax everyone.
+exempt-plot-threshold: 7
 
 # ---------------------------------------------------------------------------
-# Tax is assessed PER PROPERTY (per freehold region) using the first rule below
-# whose tags match the region; if no rule matches, `default-formula` is used.
-# Each property's tax is summed into one daily charge per owner.
+# Property tax follows the Taxation Act: `default-formula` gives an owner's TOTAL
+# daily tax as a function of <plots> (their freehold plot count). It is evaluated
+# ONCE per owner — NOT per property — and the result is rounded DOWN to the cent.
+# Owners at or below `exempt-plot-threshold` plots pay nothing.
 #
-# Formulas are arithmetic over `<plots>` (the owner's TOTAL freehold plot count):
-#   operators + - * /, exponentiation ^ (e.g. <plots>^2), parentheses, decimals.
-# A flat formula like "25" is a fixed per-property charge; multiply by <plots>
-# for a per-property charge that scales with the owner's holdings.
+#   <plots> = the owner's freehold plot count
+#   operators + - * /, exponentiation ^ (e.g. 1.16^<plots>, <plots>^2),
+#   parentheses, and decimals are supported.
 #
-# match:
+# `rules` below are OPTIONAL local-government overrides ("unless otherwise provided
+# by Local Governments where the plot is located"). A plot whose tags match a rule
+# is taxed per-property by that rule instead of counting toward the federal formula.
+# They are OFF by default — leave `rules` empty to apply the Act uniformly.
+#
+# Rule match syntax (first match wins, tags case-insensitive from region-tags.yml):
 #   all: [a, b]   -> region must carry every listed tag
 #   any: [a, b]   -> region must carry at least one listed tag
-# Tag ids are the `tag-id` values from region-tags.yml (case-insensitive).
-# Rules are tried top-to-bottom; the first match wins.
 # ---------------------------------------------------------------------------
-rules:
-  - match:
-      all: [commercial, industrial]
-    formula: "25"
+rules: []
 
-  - match:
-      all: [residential, waterfront]
-    formula: "12 * <plots>"
-
-  - match:
-      any: [commercial]
-    formula: "10"
-
-  - match:
-      all: [residential]
-    formula: "2 * <plots>^2 - 4 * <plots>"
-
-# Applied to any property matching none of the rules above.
-default-formula: "2.5 * <plots>^2 - 6 * <plots>"
+# The Taxation Act's federal property-tax formula (total daily tax for <plots> plots).
+default-formula: "0.25 * 1.16^<plots> + 0.3 * <plots>^2 + 2.5 * <plots> - 25"
