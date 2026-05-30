@@ -55,7 +55,8 @@ class TreasuryEconomyProviderTest {
         ArgumentCaptor<TransferRequest> req = ArgumentCaptor.forClass(TransferRequest.class);
         verify(treasuryApi).transfer(req.capture());
         assertEquals(payerPersonal.getAccountId(), req.getValue().fromAccountId());
-        assertEquals(BigDecimal.valueOf(50.0), req.getValue().amount());
+        // amount() is normalised to scale 2; compareTo is scale-insensitive.
+        assertEquals(0, new BigDecimal("50.00").compareTo(req.getValue().amount()));
         return req.getValue().toAccountId();
     }
 
@@ -70,6 +71,20 @@ class TreasuryEconomyProviderTest {
 
         assertEquals(42, capturedDestination(landlord),
                 "rent must land in the landlord's personal account, not their firm");
+    }
+
+    @Test
+    void legacyGovernment_withPersonalAndGovernmentAccount_routesToGovernment() {
+        UUID government = UUID.randomUUID();
+        // Legacy DCGovernment-style entity: a real Minecraft UUID that owns both
+        // a personal account (the original player) and the government account.
+        // Leasehold income must route to the government account, not personal.
+        when(treasuryApi.getAccountsByOwner(government)).thenReturn(List.of(
+                account(13, AccountType.PERSONAL, government),
+                account(9, AccountType.GOVERNMENT, government)));
+
+        assertEquals(9, capturedDestination(government),
+                "government landlord income must route to the government account, not personal");
     }
 
     @Test
