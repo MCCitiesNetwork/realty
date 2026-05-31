@@ -275,13 +275,8 @@ public final class Realty extends JavaPlugin {
                 new SignInteractionListener(this.database, this.logic,
                         this.regionProfileService, this.executorState, this.signCache,
                         this.signTextApplicator, this.messageContainer), this);
-        var treasuryRegistration = getServer().getServicesManager()
-                .getRegistration(net.democracycraft.treasury.api.TreasuryApi.class);
-        if (treasuryRegistration != null) {
-            getServer().getPluginManager().registerEvents(
-                    new PropertyTaxListener(this.database, treasuryRegistration.getProvider(),
-                            this.taxSettings, getLogger()), this);
-            getLogger().info("Registered property tax listener (daily cycle)");
+        if (getServer().getPluginManager().isPluginEnabled("Treasury")) {
+            registerTreasuryTaxProvider();
         }
         this.paperApi = new RealtyPaperApiImpl(
                 this.logic, economyProvider, this.executorState, this.database,
@@ -330,6 +325,17 @@ public final class Realty extends JavaPlugin {
             }
         }
         getLogger().info("Plugin disabled successfully");
+    }
+
+    private void registerTreasuryTaxProvider() {
+        var treasuryRegistration = getServer().getServicesManager()
+                .getRegistration(net.democracycraft.treasury.api.TreasuryApi.class);
+        if (treasuryRegistration != null) {
+            getServer().getPluginManager().registerEvents(
+                    new PropertyTaxListener(this.database, treasuryRegistration.getProvider(),
+                            this.taxSettings, getLogger()), this);
+            getLogger().info("Registered property tax listener (daily cycle)");
+        }
     }
 
     private @Nullable EconomyProvider resolveEconomyProvider() {
