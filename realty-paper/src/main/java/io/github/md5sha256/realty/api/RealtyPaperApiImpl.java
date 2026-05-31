@@ -34,6 +34,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 
 public class RealtyPaperApiImpl implements RealtyPaperApi {
 
@@ -44,6 +47,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final RegionProfileService regionProfileService;
     private final SignTextApplicator signTextApplicator;
     private final SignCache signCache;
+
+    /**
+     * Per-region serialisation chains. Each entry is the tail of a queue of
+     * pending operations for one region; a new operation chains onto the tail
+     * so it begins only after the previous operation on that region has fully
+     * settled. See {@link #serializeByRegion}.
+     */
+    private final ConcurrentMap<String, CompletableFuture<?>> regionLocks = new ConcurrentHashMap<>();
 
     public RealtyPaperApiImpl(@NotNull RealtyBackend realtyApi,
                               @NotNull EconomyProvider economyProvider,
@@ -59,6 +70,57 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.regionProfileService = regionProfileService;
         this.signTextApplicator = signTextApplicator;
         this.signCache = signCache;
+    }
+
+    /**
+     * Serialises an economy-affecting operation against all other operations on
+     * the same region, so their DB and economy phases can never interleave.
+     *
+     * <p>Each region maintains a chain of pending operations. The supplied
+     * {@code operation} is not started until every previously queued operation
+     * on the same region has fully settled (DB mutation <em>and</em> economy
+     * transfer complete). Operations on different regions remain fully
+     * concurrent. This closes the time-of-check/time-of-use window where, for
+     * example, {@code unrent} could compute a refund from an {@code endDate}
+     * that a concurrent, not-yet-paid {@code extend} had committed.</p>
+     *
+     * @param regionId  the WorldGuard region id
+     * @param worldId   the world the region belongs to
+     * @param operation factory that builds the operation's future; invoked only
+     *                  once it is this operation's turn on the region
+     * @param <T>       the operation result type
+     * @return a future completing with the operation's result
+     */
+    private <T> @NotNull CompletableFuture<T> serializeByRegion(@NotNull String regionId,
+                                                                @NotNull UUID worldId,
+                                                                @NotNull Supplier<CompletableFuture<T>> operation) {
+        String key = worldId + ":" + regionId;
+        CompletableFuture<T> result = new CompletableFuture<>();
+        // The tail never completes exceptionally, so the chain always keeps flowing.
+        CompletableFuture<?> newTail = result.handle((value, ex) -> null);
+        CompletableFuture<?> previousTail = regionLocks.put(key, newTail);
+        CompletableFuture<?> predecessor =
+                previousTail == null ? CompletableFuture.completedFuture(null) : previousTail;
+        predecessor.whenComplete((ignoredValue, ignoredEx) -> {
+            CompletableFuture<T> op;
+            try {
+                op = operation.get();
+            } catch (Throwable t) {
+                result.completeExceptionally(t);
+                return;
+            }
+            op.whenComplete((value, ex) -> {
+                if (ex != null) {
+                    result.completeExceptionally(ex);
+                } else {
+                    result.complete(value);
+                }
+            });
+        });
+        // Drop the entry once this operation finishes, but only if nothing newer
+        // has since been queued behind it (conditional remove is atomic).
+        result.whenComplete((value, ex) -> regionLocks.remove(key, newTail));
+        return result;
     }
 
     // ═══════════════════════════════════════════════════
@@ -148,7 +210,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID worldId = region.world().getUID();
         // DB-first: atomically reserve the region before processing payment.
         // rentRegion uses WHERE tenantId IS NULL, preventing races.
-        return CompletableFuture.supplyAsync(() -> {
+        // Serialized per region so the DB reservation and payment cannot
+        // interleave with a concurrent extend/unrent on the same lease.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.RentResult result = realtyApi.rentRegion(regionId, worldId, tenantId);
             if (result instanceof RealtyBackend.RentResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -167,7 +231,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new RentResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     private @NotNull CompletableFuture<RentResult> handleRentPayment(
@@ -216,7 +280,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID worldId = region.world().getUID();
         // DB-first: atomically clear the tenant with WHERE tenantId = #{tenantId}
         // guard, then process the refund. Rollback DB if refund fails.
-        return CompletableFuture.supplyAsync(() -> {
+        // Serialized per region so the refund is computed from an endDate that
+        // reflects only fully-paid extensions, never one a concurrent extend
+        // has committed but not yet paid for.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.UnrentResult result = realtyApi.unrentRegion(regionId, worldId, tenantId);
             if (result instanceof RealtyBackend.UnrentResult.Success success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -235,7 +302,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new UnrentResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     private @NotNull CompletableFuture<UnrentResult> handleUnrentRefund(
@@ -279,7 +346,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID worldId = region.world().getUID();
         // DB-first: atomically extend the lease before processing payment.
         // renewLeasehold uses WHERE currentMaxExtensions < maxExtensions AND tenantId = ?, preventing races.
-        return CompletableFuture.supplyAsync(() -> {
+        // Serialized per region so the committed endDate extension and its
+        // payment cannot interleave with a concurrent unrent on the same lease.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.RenewLeaseholdResult result = realtyApi.renewLeasehold(regionId, worldId, tenantId);
             if (result instanceof RealtyBackend.RenewLeaseholdResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -298,7 +367,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new ExtendResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     private @NotNull CompletableFuture<ExtendResult> handleExtendPayment(

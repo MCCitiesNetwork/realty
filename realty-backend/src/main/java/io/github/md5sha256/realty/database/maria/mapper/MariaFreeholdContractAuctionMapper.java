@@ -49,6 +49,28 @@ public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuct
             SELECT sca.freeholdContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
                    sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
             FROM FreeholdContractAuction sca
+            WHERE sca.freeholdContractAuctionId = #{freeholdContractAuctionId}
+            FOR UPDATE
+            """)
+    @ConstructorArgs({
+            @Arg(column = "freeholdContractAuctionId", javaType = int.class),
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "auctioneerId", javaType = UUID.class),
+            @Arg(column = "startDate", javaType = LocalDateTime.class),
+            @Arg(column = "biddingDurationSeconds", javaType = long.class),
+            @Arg(column = "paymentDurationSeconds", javaType = long.class),
+            @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
+            @Arg(column = "minBid", javaType = double.class),
+            @Arg(column = "minStep", javaType = double.class),
+            @Arg(column = "ended", javaType = boolean.class)
+    })
+    @Nullable FreeholdContractAuctionEntity selectByIdForUpdate(@Param("freeholdContractAuctionId") int freeholdContractAuctionId);
+
+    @Override
+    @Select("""
+            SELECT sca.freeholdContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
+                   sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
+            FROM FreeholdContractAuction sca
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -68,6 +90,32 @@ public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuct
     })
     @Nullable FreeholdContractAuctionEntity selectActiveByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                              @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Select("""
+            SELECT sca.freeholdContractAuctionId, sca.realtyRegionId, sca.auctioneerId, sca.startDate, sca.biddingDurationSeconds,
+                   sca.paymentDurationSeconds, sca.paymentDeadline, sca.minBid, sca.minStep, sca.ended
+            FROM FreeholdContractAuction sca
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND sca.ended = FALSE
+            FOR UPDATE
+            """)
+    @ConstructorArgs({
+            @Arg(column = "freeholdContractAuctionId", javaType = int.class),
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "auctioneerId", javaType = UUID.class),
+            @Arg(column = "startDate", javaType = LocalDateTime.class),
+            @Arg(column = "biddingDurationSeconds", javaType = long.class),
+            @Arg(column = "paymentDurationSeconds", javaType = long.class),
+            @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
+            @Arg(column = "minBid", javaType = double.class),
+            @Arg(column = "minStep", javaType = double.class),
+            @Arg(column = "ended", javaType = boolean.class)
+    })
+    @Nullable FreeholdContractAuctionEntity selectActiveByRegionForUpdate(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                                                          @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Insert("""

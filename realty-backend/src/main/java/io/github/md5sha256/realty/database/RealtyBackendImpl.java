@@ -221,6 +221,14 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull CancelAuctionResult cancelAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
+            // Lock the active auction row first so a concurrent bid or settlement
+            // (possibly in another process) cannot interleave with the cancel.
+            FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
+                    .selectActiveByRegionForUpdate(worldGuardRegionId, worldId);
+            if (auction == null) {
+                wrapper.session().commit();
+                return new CancelAuctionResult(0, List.of());
+            }
             List<UUID> bidderIds = wrapper.freeholdContractBidMapper().selectDistinctBidders(worldGuardRegionId, worldId);
             int deleted = wrapper.freeholdContractAuctionMapper().deleteActiveAuctionByRegion(worldGuardRegionId, worldId);
             wrapper.session().commit();
@@ -240,8 +248,17 @@ public class RealtyBackendImpl implements RealtyBackend {
             FreeholdContractAuctionMapper auctionMapper = wrapper.freeholdContractAuctionMapper();
             FreeholdContractBidMapper bidMapper = wrapper.freeholdContractBidMapper();
 
-            FreeholdContractAuctionEntity auction = auctionMapper.selectActiveByRegion(worldGuardRegionId, worldId);
+            // Lock the auction row for this transaction so bid placement cannot
+            // interleave with settlement or cancellation (possibly in another
+            // process, e.g. the web/REST API) on the same auction.
+            FreeholdContractAuctionEntity auction = auctionMapper.selectActiveByRegionForUpdate(worldGuardRegionId, worldId);
             if (auction == null) {
+                return new BidResult.NoAuction();
+            }
+            // Settlement records a bid payment for the winner once bidding closes.
+            // If one exists, bidding is over (the auction lingers in its payment
+            // phase with ended = FALSE) and no further bids may be accepted.
+            if (wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new BidResult.NoAuction();
             }
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
@@ -1454,25 +1471,49 @@ public class RealtyBackendImpl implements RealtyBackend {
             return List.of();
         }
         List<ExpiredBiddingAuction> results = new ArrayList<>();
-        for (FreeholdContractAuctionEntity auction : expired) {
+        for (FreeholdContractAuctionEntity candidate : expired) {
             try (SqlSessionWrapper wrapper = database.openSession()) {
+                FreeholdContractAuctionMapper auctionMapper = wrapper.freeholdContractAuctionMapper();
+                // Lock the auction row so settlement cannot interleave with a
+                // concurrent bid or cancellation (possibly in another process).
+                FreeholdContractAuctionEntity auction =
+                        auctionMapper.selectByIdForUpdate(candidate.freeholdContractAuctionId());
+                if (auction == null || auction.ended()) {
+                    // Cancelled or already settled since the candidate snapshot.
+                    wrapper.session().commit();
+                    continue;
+                }
                 RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(auction.realtyRegionId());
                 if (region == null) {
-                    wrapper.freeholdContractAuctionMapper().markEnded(auction.freeholdContractAuctionId());
+                    auctionMapper.markEnded(auction.freeholdContractAuctionId());
+                    wrapper.session().commit();
+                    continue;
+                }
+                // Idempotency: if a winner's payment already exists this auction is
+                // already in its payment phase. Do not settle (or charge) twice.
+                if (wrapper.freeholdContractBidPaymentMapper()
+                        .existsByRegion(region.worldGuardRegionId(), region.worldId())) {
                     wrapper.session().commit();
                     continue;
                 }
                 FreeholdContractBid highestBid = wrapper.freeholdContractBidMapper()
                         .selectHighestBid(region.worldGuardRegionId(), region.worldId());
+                // Re-validate the sliding bidding window under the lock: a bid may
+                // have committed after the candidate snapshot, extending it. Bids
+                // are strictly ascending, so the highest bid is also the latest.
+                LocalDateTime windowStart = highestBid != null ? highestBid.bidTime() : auction.startDate();
+                if (LocalDateTime.now().isBefore(windowStart.plusSeconds(auction.biddingDurationSeconds()))) {
+                    wrapper.session().commit();
+                    continue;
+                }
                 if (highestBid == null) {
-                    wrapper.freeholdContractAuctionMapper().markEnded(auction.freeholdContractAuctionId());
+                    auctionMapper.markEnded(auction.freeholdContractAuctionId());
                     wrapper.session().commit();
                     results.add(new ExpiredBiddingAuction(region.worldGuardRegionId(), region.worldId(),
                             null, auction.auctioneerId()));
                 } else {
                     LocalDateTime deadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
-                    wrapper.freeholdContractAuctionMapper()
-                            .setPaymentDeadline(auction.freeholdContractAuctionId(), deadline);
+                    auctionMapper.setPaymentDeadline(auction.freeholdContractAuctionId(), deadline);
                     wrapper.freeholdContractBidPaymentMapper().insertPayment(
                             region.worldGuardRegionId(), region.worldId(),
                             highestBid.bidderId(), highestBid.bidAmount(), deadline);
