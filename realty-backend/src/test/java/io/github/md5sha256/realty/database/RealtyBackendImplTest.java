@@ -780,6 +780,9 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            // Ownership transfer is deferred to finalizeOfferPurchase, which the
+            // paper layer invokes only after the economy payment clears.
+            logic.finalizeOfferPurchase(regionId, WORLD_ID, PLAYER_B);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
             Assertions.assertNotNull(info.freehold());
@@ -794,6 +797,8 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            // The payment record is cleared by finalizeOfferPurchase, not by payOffer.
+            logic.finalizeOfferPurchase(regionId, WORLD_ID, PLAYER_B);
 
             PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 1.0);
             Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
@@ -807,6 +812,8 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            // The accepted offer is removed by finalizeOfferPurchase, not by payOffer.
+            logic.finalizeOfferPurchase(regionId, WORLD_ID, PLAYER_B);
 
             RealtyBackend.WithdrawOfferResult withdrawn = logic.withdrawOffer(regionId, WORLD_ID, PLAYER_B);
             Assertions.assertInstanceOf(RealtyBackend.WithdrawOfferResult.NoOffer.class, withdrawn);
