@@ -19,7 +19,22 @@ public interface FreeholdContractAuctionMapper {
 
     @Nullable FreeholdContractAuctionEntity selectById(int freeholdContractAuctionId);
 
+    /**
+     * Locks the auction row by id for the current transaction ({@code FOR UPDATE}).
+     * Used as the cross-process serialization point for auction settlement so it
+     * cannot interleave with concurrent bidding or cancellation on the same auction.
+     */
+    @Nullable FreeholdContractAuctionEntity selectByIdForUpdate(int freeholdContractAuctionId);
+
     @Nullable FreeholdContractAuctionEntity selectActiveByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    /**
+     * Locks the active auction row for the region for the current transaction
+     * ({@code FOR UPDATE}). Used as the cross-process serialization point for bid
+     * placement and cancellation so they cannot interleave with settlement or with
+     * each other on the same auction.
+     */
+    @Nullable FreeholdContractAuctionEntity selectActiveByRegionForUpdate(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     int createAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID auctioneerId, @NotNull LocalDateTime startDate, long biddingDurationSeconds, long paymentDurationSeconds, double minBid, double minStep);
 
