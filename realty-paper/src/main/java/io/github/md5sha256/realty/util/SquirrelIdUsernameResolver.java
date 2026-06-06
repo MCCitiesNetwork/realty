@@ -8,6 +8,7 @@ import org.enginehub.squirrelid.resolver.CombinedProfileService;
 import org.enginehub.squirrelid.resolver.HttpRepositoryService;
 import org.enginehub.squirrelid.resolver.PaperPlayerService;
 import org.enginehub.squirrelid.resolver.ProfileService;
+import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -42,6 +43,15 @@ public class SquirrelIdUsernameResolver {
 
     @NotNull
     public CompletableFuture<String> getUsername(@NotNull UUID uuid) {
+        // Prefer the server's local usercache: it holds the correct name for any player
+        // who has joined, including Bedrock/Floodgate players whose '.'-prefixed names
+        // Mojang can't resolve. The UUID overload of getOfflinePlayer never hits Mojang.
+        // Only fall through to the (Mojang-backed) profile service for a UUID the server
+        // has genuinely never seen.
+        String local = Bukkit.getOfflinePlayer(uuid).getName();
+        if (local != null && !local.isEmpty()) {
+            return CompletableFuture.completedFuture(local);
+        }
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Profile profile = this.service.findByUuid(uuid);
