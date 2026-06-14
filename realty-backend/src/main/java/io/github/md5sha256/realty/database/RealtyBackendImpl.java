@@ -763,8 +763,14 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new UnrentResult.NoLeaseholdContract();
             }
             long totalSeconds = lease.durationSeconds();
-            long remainingSeconds = lease.endDate() == null ? 0
+            // Pro-rata refund of the UNUSED portion of the current period. Renewals push
+            // endDate out by another durationSeconds each (see renewLeasehold) but are not
+            // separately escrowed, so the remaining time must be clamped to a single period.
+            // Without this clamp a tenant can renew N times and unrent for price*N, draining
+            // the landlord's account — never refund more than one period's price.
+            long rawRemainingSeconds = lease.endDate() == null ? 0
                     : Math.max(0, java.time.Duration.between(java.time.LocalDateTime.now(), lease.endDate()).getSeconds());
+            long remainingSeconds = Math.min(rawRemainingSeconds, totalSeconds);
             double refund = totalSeconds > 0 ? lease.price() * remainingSeconds / totalSeconds : 0;
             int updated = leaseholdMapper.unrentRegion(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
