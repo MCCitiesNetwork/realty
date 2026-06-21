@@ -10,6 +10,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -23,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
@@ -37,6 +39,7 @@ import java.util.logging.Logger;
 public record TeleportCommand(
         @NotNull Logger logger,
         @NotNull RealtyPaperApi api,
+        @NotNull AtomicReference<Settings> settings,
                               @NotNull MessageContainer messages,
                               @NotNull SafeLocationFinder safeLocationFinder) implements CustomCommandBean.Single {
 
@@ -110,7 +113,7 @@ public record TeleportCommand(
                 return CompletableFuture.completedFuture(loc);
             }
             return safeLocationFinder.findSafeInRegion(
-                    region.region(), region.world(), REGION_MAX_TRIES);
+                    region.region(), region.world(), REGION_MAX_TRIES, settings.get().teleportStartHeight());
         }).whenComplete((loc, ex) -> processTeleport(player, regionId, loc, ex));
     }
 
