@@ -21,7 +21,8 @@ public record Settings(
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
         @Setting("subregion-min-volume") int subregionMinVolume,
         @Setting("offer-payment-duration-seconds") long offerPaymentDurationSeconds,
-        @Setting("subregion-tag-blacklist") @NotNull List<String> subregionTagBlacklist
+        @Setting("subregion-tag-blacklist") @NotNull List<String> subregionTagBlacklist,
+        @Setting("teleportation-starting-height") int teleportStartHeight
 ) {
 
     public Settings {
