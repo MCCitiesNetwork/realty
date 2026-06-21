@@ -168,6 +168,36 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
     }
 
+    // --- Unrent refund (early lease termination) ---
+
+    @Nested
+    @DisplayName("unrentRegion refund")
+    class UnrentRefund {
+
+        @Test
+        @DisplayName("refund never exceeds one period, even after many renewals")
+        void renewThenUnrentIsClampedToOnePeriod() {
+            String regionId = uniqueRegionId();
+            // price 200 per period, 1-day period, up to 5 renewals.
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+
+            // Each renewal pushes endDate out by another period without re-escrowing.
+            for (int i = 0; i < 5; i++) {
+                logic.renewLeasehold(regionId, WORLD_ID, PLAYER_B);
+            }
+
+            RealtyBackend.UnrentResult result = logic.unrentRegion(regionId, WORLD_ID, PLAYER_B);
+            RealtyBackend.UnrentResult.Success success =
+                    Assertions.assertInstanceOf(RealtyBackend.UnrentResult.Success.class, result);
+
+            // Pre-fix this returned price * (1 + renewals) = 1200.0, draining the landlord.
+            // The refund must be clamped to a single period's price.
+            Assertions.assertTrue(success.refund() <= 200.0 + 0.01,
+                    "Refund must not exceed one period's price, was " + success.refund());
+        }
+    }
+
     // --- DeleteRegion ---
 
     @Nested
