@@ -481,6 +481,8 @@ sign:
   place-success: "Sign registered for region <region>."
   place-not-a-sign: "You must be looking at a sign block."
   place-not-registered: "Region <region> is not registered in Realty."
+  place-not-landlord: "You must be the landlord of region <region> to place a sign for it."
+  place-no-build-access: "You don't have permission to build where this sign is located."
   place-already-registered: "This sign is already registered."
   place-error: "Failed to register sign: <error>"
   remove-success: "Sign unregistered."

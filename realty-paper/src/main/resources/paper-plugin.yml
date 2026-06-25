@@ -237,6 +237,9 @@ permissions:
   realty.command.sign.place:
     description: Allows using /realty sign place
     default: op
+  realty.command.sign.place.bypass:
+    description: Bypasses the landlord check for /realty sign place
+    default: op
   realty.command.sign.remove:
     description: Allows using /realty sign remove
     default: op
