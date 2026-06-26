@@ -22,6 +22,7 @@ public record Settings(
         @Setting("subregion-min-volume") int subregionMinVolume,
         @Setting("offer-payment-duration-seconds") long offerPaymentDurationSeconds,
         @Setting("subregion-tag-blacklist") @NotNull List<String> subregionTagBlacklist,
+        @Setting("subregion-wand-material") @NotNull String subregionWandMaterial,
         @Setting("teleportation-starting-height") int teleportStartHeight
 ) {
 
@@ -37,6 +38,9 @@ public record Settings(
         }
         if (subregionTagBlacklist == null) {
             subregionTagBlacklist = List.of();
+        }
+        if (subregionWandMaterial == null || subregionWandMaterial.isBlank()) {
+            subregionWandMaterial = "GOLDEN_AXE";
         }
     }
 }

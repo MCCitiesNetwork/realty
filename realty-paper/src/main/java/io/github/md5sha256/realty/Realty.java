@@ -57,6 +57,10 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.listener.PropertyTaxListener;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
+import io.github.md5sha256.realty.listener.SubregionWandListener;
+import io.github.md5sha256.realty.command.SubregionDialog;
+import io.github.md5sha256.realty.wand.SubregionWand;
+import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
@@ -575,6 +579,16 @@ public final class Realty extends JavaPlugin {
     ) {
         String version = getPluginMeta().getVersion();
         var helpCommand = new HelpCommand(messageContainer);
+
+        SubregionWand subregionWand = new SubregionWand(this, this.settings);
+        SubregionWandManager subregionWandManager = new SubregionWandManager();
+        SubregionDialog subregionDialog = new SubregionDialog(paperApi, executorState,
+                this.database, subregionWandManager, this.settings, this.realtyTags,
+                messageContainer);
+        getServer().getPluginManager().registerEvents(
+                new SubregionWandListener(this, subregionWand, subregionWandManager,
+                        messageContainer), this);
+
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
@@ -614,7 +628,8 @@ public final class Realty extends JavaPlugin {
                 new RemoveCommand(messageContainer),
                 new SignCommand(paperApi, executorState, messageContainer),
                 new TeleportCommand(getLogger(), paperApi, this.settings, messageContainer, safeLocationFinder),
-                new SubregionCommandGroup(paperApi, this.settings, messageContainer),
+                new SubregionCommandGroup(subregionWand, subregionWandManager, subregionDialog,
+                        messageContainer),
                 new CleanupCommandGroup(this.database,
                         executorState,
                         this.realtyTags,

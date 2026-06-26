@@ -380,12 +380,17 @@ public final class MessageKeys {
     public static final String SUBREGION_INVALID_NAME = "subregion.invalid-name";
     public static final String SUBREGION_NO_FREEHOLD = "subregion.no-freehold";
     public static final String SUBREGION_NOT_TITLEHOLDER = "subregion.not-titleholder";
-    public static final String SUBREGION_WRONG_WORLD = "subregion.wrong-world";
-    public static final String SUBREGION_INCOMPLETE_SELECTION = "subregion.incomplete-selection";
     public static final String SUBREGION_EXCEEDS_BOUNDS = "subregion.exceeds-bounds";
     public static final String SUBREGION_OVERLAPS_SIBLING = "subregion.overlaps-sibling";
     public static final String SUBREGION_TOO_SMALL = "subregion.too-small";
     public static final String SUBREGION_TAG_BLACKLISTED = "subregion.tag-blacklisted";
+    public static final String SUBREGION_WAND_GIVEN = "subregion.wand-given";
+    public static final String SUBREGION_SELECTION_CLEARED = "subregion.selection-cleared";
+    public static final String SUBREGION_NOTHING_TO_CLEAR = "subregion.nothing-to-clear";
+    public static final String SUBREGION_HINT_PLACE = "subregion.hint-place";
+    public static final String SUBREGION_HINT_READY = "subregion.hint-ready";
+    public static final String SUBREGION_SELECTION_INCOMPLETE = "subregion.selection-incomplete";
+    public static final String SUBREGION_NO_PARENT_CANDIDATES = "subregion.no-parent-candidates";
 
     // teleport
     public static final String TP_SUCCESS = "tp.success";

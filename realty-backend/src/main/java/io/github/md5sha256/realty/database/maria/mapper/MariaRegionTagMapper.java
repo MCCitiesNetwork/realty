@@ -31,6 +31,14 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
                @Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
 
     @Override
+    @Insert("""
+            INSERT IGNORE INTO RegionTag (tagId, worldGuardRegionId)
+            VALUES (#{tagId}, #{worldGuardRegionId})
+            """)
+    int insertIfAbsent(@Param("tagId") @NotNull String tagId,
+                       @Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+
+    @Override
     @Select("""
             SELECT worldGuardRegionId
             FROM RegionTag
