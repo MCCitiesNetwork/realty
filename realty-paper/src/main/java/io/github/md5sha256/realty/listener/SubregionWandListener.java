@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.wand.SubregionWand;
 import io.github.md5sha256.realty.wand.SubregionWandManager;
+import io.github.md5sha256.realty.wand.WandSelection;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -94,7 +95,7 @@ public final class SubregionWandListener implements Listener {
             if (!wand.isWand(player.getInventory().getItemInMainHand())) {
                 continue;
             }
-            SubregionWandManager.WandSelection selection = wandManager.get(player.getUniqueId());
+            WandSelection selection = wandManager.get(player.getUniqueId());
             int size = selection == null ? 0 : selection.size();
             // Keep a hint on the action bar while the wand is held (refreshed before it fades).
             player.sendActionBar(messages.messageFor(size >= 2

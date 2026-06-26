@@ -36,6 +36,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import io.github.md5sha256.realty.wand.SubregionWandManager;
+import io.github.md5sha256.realty.wand.WandSelection;
 
 /**
  * Guided two-page dialog for creating a subregion from the player's wand selection.
@@ -71,30 +73,13 @@ public final class SubregionDialog {
     private static final String INPUT_UNLIMITED_RENEWALS = "unlimited_renewals";
     private static final String INPUT_MAX_RENEWALS = "max_renewals";
     private static final String INPUT_HEIGHT = "height";
+    private static final String TAG_INPUT_PREFIX = "tag_";
     private static final int DEFAULT_HEIGHT = 16;
     private static final int FORM_INPUT_WIDTH = 200;
     /** Stored as the lease's max renewals to mean "no cap"; the backend maps any negative to NULL. */
     private static final int UNLIMITED_RENEWALS = -1;
     private static final ClickCallback.Options CLICK_OPTIONS =
             ClickCallback.Options.builder().uses(ClickCallback.UNLIMITED_USES).build();
-
-    /** Lease-duration units offered in the create dialog. */
-    enum DurationUnit {
-        MINUTES(60L, "Minutes"),
-        HOURS(3600L, "Hours"),
-        DAYS(86400L, "Days"),
-        WEEKS(604800L, "Weeks");
-
-        final long seconds;
-        final String label;
-
-        DurationUnit(long seconds, String label) {
-            this.seconds = seconds;
-            this.label = label;
-        }
-    }
-
-    private static final String TAG_INPUT_PREFIX = "tag_";
 
     private final RealtyPaperApi api;
     private final ExecutorState executorState;
@@ -104,22 +89,6 @@ public final class SubregionDialog {
     private final AtomicReference<RealtyTags> realtyTags;
     private final MessageContainer messages;
     private final ConcurrentHashMap<UUID, SubregionState> playerStates = new ConcurrentHashMap<>();
-
-    static final class SubregionState {
-        Region selection;
-        World world;
-        UUID worldId;
-        final List<String> parentCandidates = new ArrayList<>();
-        String parentId;
-        String name = "";
-        String price = "100";
-        String durationAmount = "30";
-        String durationUnit = DurationUnit.DAYS.name();
-        boolean unlimitedRenewals = true;
-        String maxRenewals = "3";
-        final List<String> permittedTagIds = new ArrayList<>();
-        final Set<String> selectedTags = new LinkedHashSet<>();
-    }
 
     public SubregionDialog(@NotNull RealtyPaperApi api,
                            @NotNull ExecutorState executorState,
@@ -142,7 +111,7 @@ public final class SubregionDialog {
      * current wand selection.
      */
     public void open(@NotNull Player player) {
-        SubregionWandManager.WandSelection wandSelection = wandManager.get(player.getUniqueId());
+        WandSelection wandSelection = wandManager.get(player.getUniqueId());
         if (wandSelection == null || !wandSelection.isComplete()) {
             player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_SELECTION_INCOMPLETE));
             return;
@@ -241,7 +210,7 @@ public final class SubregionDialog {
      * Opens the height dialog for the player's current footprint selection.
      */
     public void openHeight(@NotNull Player player) {
-        SubregionWandManager.WandSelection selection = wandManager.get(player.getUniqueId());
+        WandSelection selection = wandManager.get(player.getUniqueId());
         if (selection == null || !selection.isComplete()) {
             player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_SELECTION_INCOMPLETE));
             return;
@@ -250,7 +219,7 @@ public final class SubregionDialog {
     }
 
     private void showHeightDialog(@NotNull Player player,
-                                  @NotNull SubregionWandManager.WandSelection selection) {
+                                  @NotNull WandSelection selection) {
         World world = selection.world();
         // Floor is the lowest corner the player marked; the slider only sets how tall it is.
         int baseFloor = selection.minPointY();
@@ -314,7 +283,7 @@ public final class SubregionDialog {
         player.showDialog(dialog);
     }
 
-    private void saveHeight(@NotNull SubregionWandManager.WandSelection selection,
+    private void saveHeight(@NotNull WandSelection selection,
                             @NotNull DialogResponseView response,
                             int baseFloor, int worldMax) {
         Float raw = response.getFloat(INPUT_HEIGHT);
@@ -364,7 +333,10 @@ public final class SubregionDialog {
         DialogActionCallback nextCallback = (response, audience) -> {
             saveCreate(state, response);
             RegionManager regionManager = regionManager(state.world);
-            if (regionManager == null || !validate(player, state, regionManager)) {
+            state.error = regionManager == null
+                    ? error("Region manager unavailable")
+                    : validate(state, regionManager);
+            if (state.error != null) {
                 showCreateDialog(player, state);
                 return;
             }
@@ -387,12 +359,19 @@ public final class SubregionDialog {
                     .build());
         }
 
+        List<DialogBody> body = new ArrayList<>();
+        if (state.error != null) {
+            body.add(DialogBody.plainMessage(state.error.colorIfAbsent(NamedTextColor.RED)));
+        }
+        body.add(DialogBody.plainMessage(Component.text("Landlord: " + player.getName())));
+        // The error is a one-shot for this reopen; don't keep it around for Back/Done navigation.
+        state.error = null;
+
         Dialog dialog = Dialog.create(factory -> factory.empty()
                 .base(DialogBase.builder(Component.text("Step 2 of 3: Details"))
                         .canCloseWithEscape(true)
                         .afterAction(DialogBase.DialogAfterAction.CLOSE)
-                        .body(List.of(DialogBody.plainMessage(Component.text(
-                                "Landlord: " + player.getName()))))
+                        .body(body)
                         .inputs(inputs)
                         .build())
                 .type(DialogType.multiAction(actions,
@@ -497,13 +476,19 @@ public final class SubregionDialog {
 
     private void submit(@NotNull Player player, @NotNull SubregionState state) {
         RegionManager regionManager = regionManager(state.world);
-        if (regionManager == null || !validate(player, state, regionManager)) {
+        state.error = regionManager == null
+                ? error("Region manager unavailable")
+                : validate(state, regionManager);
+        if (state.error != null) {
+            // Reopen the details dialog so the error is visible rather than hidden behind it.
+            showCreateDialog(player, state);
             return;
         }
         ProtectedRegion parent = regionManager.getRegion(state.parentId);
         if (parent == null) {
-            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_NO_FREEHOLD,
-                    Placeholder.unparsed("region", state.parentId)));
+            state.error = messages.messageFor(MessageKeys.SUBREGION_NO_FREEHOLD,
+                    Placeholder.unparsed("region", state.parentId));
+            showCreateDialog(player, state);
             return;
         }
         WorldGuardRegion parentRegion = new WorldGuardRegion(parent, state.world);
@@ -551,61 +536,54 @@ public final class SubregionDialog {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RegionTagMapper mapper = session.regionTagMapper();
                 for (String tagId : tagIds) {
-                    if (!mapper.exists(tagId, regionId)) {
-                        mapper.insert(tagId, regionId);
-                    }
+                    mapper.insertIfAbsent(tagId, regionId);
                 }
             }
         });
     }
 
     /**
-     * Validates the current form, messaging the player and returning {@code false} on the first
-     * problem. Geometry/ownership were already enforced at {@link #open}; this re-checks the
-     * user-entered fields plus name uniqueness and sibling overlap against the chosen parent.
+     * Validates the current form. Returns {@code null} when everything is valid, otherwise the
+     * error message to show at the top of the details dialog. Geometry/ownership were already
+     * enforced at {@link #open}; this re-checks the user-entered fields plus name uniqueness and
+     * sibling overlap against the chosen parent.
      */
-    private boolean validate(@NotNull Player player, @NotNull SubregionState state,
-                             @NotNull RegionManager regionManager) {
+    private @Nullable Component validate(@NotNull SubregionState state,
+                                         @NotNull RegionManager regionManager) {
         if (state.name == null || !VALID_NAME_PATTERN.matcher(state.name).matches()) {
-            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_INVALID_NAME,
-                    Placeholder.unparsed("region", String.valueOf(state.name))));
-            return false;
+            return messages.messageFor(MessageKeys.SUBREGION_INVALID_NAME,
+                    Placeholder.unparsed("region", String.valueOf(state.name)));
         }
         if (regionManager.getRegion(state.name) != null) {
-            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_REGION_EXISTS,
-                    Placeholder.unparsed("region", state.name)));
-            return false;
+            return messages.messageFor(MessageKeys.SUBREGION_REGION_EXISTS,
+                    Placeholder.unparsed("region", state.name));
         }
         ProtectedRegion parent = regionManager.getRegion(state.parentId);
         if (parent == null) {
-            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_NO_FREEHOLD,
-                    Placeholder.unparsed("region", String.valueOf(state.parentId))));
-            return false;
+            return messages.messageFor(MessageKeys.SUBREGION_NO_FREEHOLD,
+                    Placeholder.unparsed("region", String.valueOf(state.parentId)));
         }
         ProtectedRegion sibling = SubregionSelectionValidator.overlappingSibling(
                 state.selection, parent, regionManager);
         if (sibling != null) {
-            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_OVERLAPS_SIBLING,
-                    Placeholder.unparsed("sibling", sibling.getId())));
-            return false;
+            return messages.messageFor(MessageKeys.SUBREGION_OVERLAPS_SIBLING,
+                    Placeholder.unparsed("sibling", sibling.getId()));
         }
         if (parsePrice(state.price) <= 0) {
-            player.sendMessage(messages.messageFor(MessageKeys.COMMON_ERROR,
-                    Placeholder.unparsed("error", "Price must be more than 0.")));
-            return false;
+            return error("Price must be more than 0.");
         }
         Duration duration = resolveDuration(state);
         if (duration == null || duration.isZero() || duration.isNegative()) {
-            player.sendMessage(messages.messageFor(MessageKeys.COMMON_ERROR,
-                    Placeholder.unparsed("error", "Lease length must be more than 0.")));
-            return false;
+            return error("Lease length must be more than 0.");
         }
         if (resolveMaxRenewals(state) == null) {
-            player.sendMessage(messages.messageFor(MessageKeys.COMMON_ERROR,
-                    Placeholder.unparsed("error", "Max renewals must be 0 or more.")));
-            return false;
+            return error("Max renewals must be 0 or more.");
         }
-        return true;
+        return null;
+    }
+
+    private @NotNull Component error(@NotNull String text) {
+        return messages.messageFor(MessageKeys.COMMON_ERROR, Placeholder.unparsed("error", text));
     }
 
     private void saveCreate(@NotNull SubregionState state, @NotNull DialogResponseView response) {
