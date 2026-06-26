@@ -25,8 +25,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
                 #{tenantId},
                 #{price},
                 #{durationSeconds},
-                NOW(),
-                NOW() + INTERVAL #{durationSeconds} SECOND,
+                CASE WHEN #{tenantId} IS NULL THEN NULL ELSE NOW() END,
+                CASE WHEN #{tenantId} IS NULL THEN NULL ELSE NOW() + INTERVAL #{durationSeconds} SECOND END,
                 CASE WHEN #{maxRenewals} >= 0 THEN 0     ELSE NULL END,
                 CASE WHEN #{maxRenewals} >= 0 THEN #{maxRenewals} ELSE NULL END
             )
