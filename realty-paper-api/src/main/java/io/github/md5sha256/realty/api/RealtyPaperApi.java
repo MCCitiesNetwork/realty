@@ -233,7 +233,7 @@ public interface RealtyPaperApi {
             @NotNull WorldGuardRegion parentRegion,
             @NotNull String childName,
             @NotNull Region selection,
-            double price, long durationSeconds,
+            double price, long durationSeconds, int maxRenewals,
             @NotNull UUID landlordId);
 
     // --- Sign Place ---

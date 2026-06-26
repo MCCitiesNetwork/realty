@@ -857,7 +857,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion parentRegion,
             @NotNull String childName,
             @NotNull Region selection,
-            double price, long durationSeconds,
+            double price, long durationSeconds, int maxRenewals,
             @NotNull UUID landlordId) {
         String parentId = parentRegion.region().getId();
         UUID worldId = parentRegion.world().getUID();
@@ -867,7 +867,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 return (QuickCreateSubregionResult) new QuickCreateSubregionResult.NoFreeholdContract(parentId);
             }
             boolean created = realtyApi.createLeasehold(
-                    childName, worldId, price, durationSeconds, -1, landlordId);
+                    childName, worldId, price, durationSeconds, maxRenewals, landlordId);
             if (!created) {
                 return (QuickCreateSubregionResult) new QuickCreateSubregionResult.RegionExists(childName);
             }

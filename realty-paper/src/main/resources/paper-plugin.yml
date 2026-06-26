@@ -225,10 +225,13 @@ permissions:
   realty.command.tag.clear:
     description: Allows using /realty tag clear
     default: op
-  realty.command.subregion.quickcreate:
-    description: Allows using /realty subregion quickcreate
+  realty.command.subregion.wand:
+    description: Allows using /realty subregion wand
     default: op
-  realty.command.subregion.quickcreate.bypass:
+  realty.command.subregion.confirm:
+    description: Allows using /realty subregion confirm
+    default: op
+  realty.command.subregion.confirm.bypass:
     description: Allows subregioning on freehold regions you don't own
     default: op
   realty.command.tp:
