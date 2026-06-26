@@ -1,5 +1,11 @@
 package io.github.md5sha256.realty.command;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldguard.LocalPlayer;
+import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
+import com.sk89q.worldguard.protection.flags.Flags;
+import com.sk89q.worldguard.protection.regions.RegionQuery;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -59,6 +65,8 @@ public record SignCommand(@NotNull RealtyPaperApi api,
         return List.of(place, remove, list);
     }
 
+    private static final String BYPASS_PERMISSION = "realty.command.sign.place.bypass";
+
     private void executePlace(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
         if (!(sender instanceof Player player)) {
@@ -70,6 +78,12 @@ public record SignCommand(@NotNull RealtyPaperApi api,
             sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_A_SIGN));
             return;
         }
+        // The player must be able to build where the sign physically sits, so signs cannot
+        // be registered inside a region the player has no access to.
+        if (!canBuildAt(player, targetBlock)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NO_BUILD_ACCESS));
+            return;
+        }
         WorldGuardRegion region = ctx.get("region");
         String regionId = region.region().getId();
         int blockX = targetBlock.getX();
@@ -77,6 +91,34 @@ public record SignCommand(@NotNull RealtyPaperApi api,
         int blockZ = targetBlock.getZ();
         UUID signWorldId = targetBlock.getWorld().getUID();
 
+        // Staff with the bypass permission may place signs for any region; everyone else
+        // may only place signs for regions they are the landlord of.
+        boolean canBypass = player.hasPermission(BYPASS_PERMISSION);
+        if (canBypass) {
+            placeSign(player, region, regionId, signWorldId, blockX, blockY, blockZ);
+            return;
+        }
+        UUID worldId = region.world().getUID();
+        api.getLeaseholdContract(regionId, worldId)
+                .thenAccept(lease -> {
+                    if (lease == null || !player.getUniqueId().equals(lease.landlordId())) {
+                        player.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_LANDLORD,
+                                Placeholder.unparsed("region", regionId)));
+                        return;
+                    }
+                    placeSign(player, region, regionId, signWorldId, blockX, blockY, blockZ);
+                }).exceptionally(ex -> {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    cause.printStackTrace();
+                    player.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_ERROR,
+                            Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
+                    return null;
+                });
+    }
+
+    private void placeSign(@NotNull Player sender, @NotNull WorldGuardRegion region,
+                           @NotNull String regionId, @NotNull UUID signWorldId,
+                           int blockX, int blockY, int blockZ) {
         api.placeSign(region, signWorldId, blockX, blockY, blockZ)
                 .thenAccept(result -> {
                     switch (result) {
@@ -97,6 +139,22 @@ public record SignCommand(@NotNull RealtyPaperApi api,
                             Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
                     return null;
                 });
+    }
+
+    /**
+     * Tests whether the player is allowed to build at the given block, honouring WorldGuard
+     * region membership and the {@code BUILD} flag (and the WorldGuard bypass permission).
+     */
+    private boolean canBuildAt(@NotNull Player player, @NotNull Block block) {
+        LocalPlayer localPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
+        com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(block.getWorld());
+        if (WorldGuard.getInstance().getPlatform().getSessionManager()
+                .hasBypass(localPlayer, weWorld)) {
+            return true;
+        }
+        RegionQuery query = WorldGuard.getInstance().getPlatform()
+                .getRegionContainer().createQuery();
+        return query.testBuild(BukkitAdapter.adapt(block.getLocation()), localPlayer, Flags.BUILD);
     }
 
     private void executeRemove(@NotNull CommandContext<Source> ctx) {

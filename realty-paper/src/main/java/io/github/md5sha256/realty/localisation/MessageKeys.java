@@ -396,6 +396,8 @@ public final class MessageKeys {
     public static final String SIGN_PLACE_SUCCESS = "sign.place-success";
     public static final String SIGN_PLACE_NOT_A_SIGN = "sign.place-not-a-sign";
     public static final String SIGN_PLACE_NOT_REGISTERED = "sign.place-not-registered";
+    public static final String SIGN_PLACE_NOT_LANDLORD = "sign.place-not-landlord";
+    public static final String SIGN_PLACE_NO_BUILD_ACCESS = "sign.place-no-build-access";
     public static final String SIGN_PLACE_ALREADY_REGISTERED = "sign.place-already-registered";
     public static final String SIGN_PLACE_ERROR = "sign.place-error";
     public static final String SIGN_REMOVE_SUCCESS = "sign.remove-success";
