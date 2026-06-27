@@ -1,19 +1,18 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
-import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LeaseExtendEvent;
 import io.github.md5sha256.realty.api.event.LeaseExtendedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.PluginManager;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
@@ -26,8 +25,7 @@ import org.jetbrains.annotations.NotNull;
 public record ExtendCommand(
         @NotNull RealtyPaperApi api,
         @NotNull MessageContainer messages,
-        @NotNull ExecutorState executorState,
-        @NotNull PluginManager pluginManager
+        @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean.Single {
 
     @Override
@@ -52,9 +50,7 @@ public record ExtendCommand(
             return;
         }
         // Cancellable pre-event (main thread); a veto stops the action before the API is called.
-        LeaseExtendEvent pre = new LeaseExtendEvent(region, sender.getUniqueId());
-        pluginManager.callEvent(pre);
-        if (pre.isCancelled()) {
+        if (events.fireSync(new LeaseExtendEvent(region, sender.getUniqueId())).isCancelled()) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
@@ -64,9 +60,8 @@ public record ExtendCommand(
                     sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_SUCCESS,
                             Placeholder.unparsed("region", success.regionId()),
                             Placeholder.unparsed("price", CurrencyFormatter.format(success.price()))));
-                    // Post-event on the main thread for external listeners.
-                    executorState.mainThreadExec().execute(() -> pluginManager.callEvent(
-                            new LeaseExtendedEvent(region, sender.getUniqueId(), success.price())));
+                    // Post-event; fireSync hops to the main thread. Available for external listeners.
+                    events.fireSync(new LeaseExtendedEvent(region, sender.getUniqueId(), success.price()));
                 }
                 case RealtyPaperApi.ExtendResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_LEASEHOLD_CONTRACT,

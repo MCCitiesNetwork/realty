@@ -1,19 +1,18 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
-import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
 import io.github.md5sha256.realty.api.event.RegionBuyEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.PluginManager;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
@@ -29,8 +28,7 @@ import org.jetbrains.annotations.NotNull;
 public record BuyCommand(
         @NotNull RealtyPaperApi api,
         @NotNull MessageContainer messages,
-        @NotNull ExecutorState executorState,
-        @NotNull PluginManager pluginManager
+        @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean.Single {
 
     @Override
@@ -55,9 +53,7 @@ public record BuyCommand(
             return;
         }
         // Cancellable pre-event (main thread); a veto stops the action before the API is called.
-        RegionBuyEvent pre = new RegionBuyEvent(region, sender.getUniqueId());
-        pluginManager.callEvent(pre);
-        if (pre.isCancelled()) {
+        if (events.fireSync(new RegionBuyEvent(region, sender.getUniqueId())).isCancelled()) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
@@ -67,10 +63,9 @@ public record BuyCommand(
                     sender.sendMessage(messages.messageFor(MessageKeys.BUY_SUCCESS,
                             Placeholder.unparsed("price", CurrencyFormatter.format(success.price())),
                             Placeholder.unparsed("region", success.regionId())));
-                    // Post-event on the main thread; RegionNotificationListener notifies the seller.
-                    executorState.mainThreadExec().execute(() -> pluginManager.callEvent(
-                            new RegionBoughtEvent(region, sender.getUniqueId(),
-                                    success.previousTitleHolderId(), success.price())));
+                    // Post-event; fireSync hops to the main thread. RegionNotificationListener notifies the seller.
+                    events.fireSync(new RegionBoughtEvent(region, sender.getUniqueId(),
+                            success.previousTitleHolderId(), success.price()));
                 }
                 case RealtyPaperApi.BuyResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_NO_FREEHOLD_CONTRACT,

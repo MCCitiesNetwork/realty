@@ -56,6 +56,7 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.listener.PropertyTaxListener;
 import io.github.md5sha256.realty.listener.RegionNotificationListener;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
@@ -146,6 +147,7 @@ public final class Realty extends JavaPlugin {
     private Database database;
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApi paperApi;
+    private RealtyEventDispatch eventDispatch;
     private boolean failedLoad = false;
 
     private static @NotNull PermissionDefault toBukkitPermission(@NotNull ConfigRegionTag tag) {
@@ -287,6 +289,10 @@ public final class Realty extends JavaPlugin {
         this.paperApi = new RealtyPaperApiImpl(
                 this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache);
+        this.eventDispatch = new RealtyEventDispatch(
+                getServer(),
+                this.executorState.mainThreadExec(),
+                task -> getServer().getScheduler().runTaskAsynchronously(this, task));
         scheduleTasks();
         registerCommands(this.paperApi,
                 this.executorState,
@@ -421,7 +427,7 @@ public final class Realty extends JavaPlugin {
                                             leaseholdPlaceholders.getOrDefault(expired.worldGuardRegionId(),
                                                     Map.of()));
                                     // Post-event; RegionNotificationListener notifies tenant + landlord.
-                                    getServer().getPluginManager().callEvent(new LeaseExpiredEvent(
+                                    this.eventDispatch.fireSync(new LeaseExpiredEvent(
                                             wgRegion, expired.tenantId(), expired.landlordId()));
                                 }
                             }
@@ -601,7 +607,7 @@ public final class Realty extends JavaPlugin {
                         notificationService,
                         this.settings,
                         messageContainer),
-                new BuyCommand(paperApi, messageContainer, executorState, pluginManager),
+                new BuyCommand(paperApi, messageContainer, this.eventDispatch),
                 new CreateCommand(paperApi, this.settings, messageContainer),
                 new RegisterCommand(paperApi, this.settings, messageContainer),
                 new DeleteCommand(paperApi, messageContainer),
@@ -615,9 +621,9 @@ public final class Realty extends JavaPlugin {
                 new OfferCommandGroup(paperApi,
                         notificationService,
                         messageContainer),
-                new ExtendCommand(paperApi, messageContainer, executorState, pluginManager),
-                new RentCommand(paperApi, messageContainer, executorState, pluginManager),
-                new UnrentCommand(paperApi, messageContainer, executorState, pluginManager),
+                new ExtendCommand(paperApi, messageContainer, this.eventDispatch),
+                new RentCommand(paperApi, messageContainer, this.eventDispatch),
+                new UnrentCommand(paperApi, messageContainer, this.eventDispatch),
                 new SetCommandGroup(paperApi, messageContainer),
                 new TransferCommand(paperApi, messageContainer),
                 new UnsetCommandGroup(paperApi, messageContainer),

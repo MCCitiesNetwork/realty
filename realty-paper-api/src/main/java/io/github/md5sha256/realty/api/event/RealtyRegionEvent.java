@@ -16,6 +16,11 @@ public abstract class RealtyRegionEvent extends Event {
     private final WorldGuardRegion region;
 
     protected RealtyRegionEvent(@NotNull WorldGuardRegion region) {
+        this(region, false);
+    }
+
+    protected RealtyRegionEvent(@NotNull WorldGuardRegion region, boolean async) {
+        super(async);
         this.region = region;
     }
 
