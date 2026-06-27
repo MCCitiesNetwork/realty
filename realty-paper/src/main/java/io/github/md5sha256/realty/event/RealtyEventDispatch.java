@@ -17,7 +17,7 @@ import java.util.concurrent.Executor;
  * <p>Two explicit methods make the caller's intent clear and let each own a
  * guard for its own contract: {@link #fireSync} for synchronous events,
  * {@link #fireAsync} for asynchronous ones. Each hops to the correct thread
- * when necessary.</p>
+ * when necessary and reports whether the event proceeded.</p>
  */
 public final class RealtyEventDispatch {
 
@@ -39,61 +39,67 @@ public final class RealtyEventDispatch {
      * Fires a synchronous Realty event, hopping to the main thread if the caller
      * is not already on it.
      *
-     * <p>The returned event's cancellation state is only meaningful when the
-     * event fired inline (i.e. the caller was already on the main thread). A
-     * cancellable event that would require a hop throws, since the verdict would
-     * not be ready on return.</p>
-     *
+     * @return {@code false} if a listener cancelled the event, {@code true}
+     *         otherwise (including non-cancellable events). A cancellable event
+     *         that would require a thread hop throws, so a deferred fire is
+     *         always non-cancellable and returns {@code true}.
      * @throws IllegalArgumentException if {@code event} is asynchronous
      * @throws IllegalStateException    if {@code event} is cancellable and the
      *                                  caller is off the main thread
      */
-    public <T extends RealtyRegionEvent> @NotNull T fireSync(@NotNull T event) {
+    public boolean fireSync(@NotNull RealtyRegionEvent event) {
         if (event.isAsynchronous()) {
             throw new IllegalArgumentException(
                     "fireSync requires a synchronous event; use fireAsync for " + event.getEventName());
         }
-        if (this.server.isPrimaryThread()) {
-            this.pluginManager.callEvent(event);
-        } else {
-            if (event instanceof Cancellable) {
-                throw new IllegalStateException(
-                        "Cancellable synchronous events must be fired from the main thread: "
-                                + event.getEventName());
-            }
-            this.mainThreadExecutor.execute(() -> this.pluginManager.callEvent(event));
-        }
-        return event;
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "Cancellable synchronous events must be fired from the main thread: ");
     }
 
     /**
      * Fires an asynchronous Realty event, hopping off the main thread if the
      * caller is on it.
      *
-     * <p>The returned event's cancellation state is only meaningful when the
-     * event fired inline (i.e. the caller was already off the main thread). A
-     * cancellable event that would require a hop throws, since the verdict would
-     * not be ready on return.</p>
-     *
+     * @return {@code false} if a listener cancelled the event, {@code true}
+     *         otherwise (including non-cancellable events). A cancellable event
+     *         that would require a thread hop throws, so a deferred fire is
+     *         always non-cancellable and returns {@code true}.
      * @throws IllegalArgumentException if {@code event} is synchronous
      * @throws IllegalStateException    if {@code event} is cancellable and the
      *                                  caller is on the main thread
      */
-    public <T extends RealtyRegionEvent> @NotNull T fireAsync(@NotNull T event) {
+    public boolean fireAsync(@NotNull RealtyRegionEvent event) {
         if (!event.isAsynchronous()) {
             throw new IllegalArgumentException(
                     "fireAsync requires an asynchronous event; use fireSync for " + event.getEventName());
         }
-        if (!this.server.isPrimaryThread()) {
+        return fireOrHop(event, !this.server.isPrimaryThread(), this.asyncExecutor,
+                "Cancellable asynchronous events must be fired off the main thread: ");
+    }
+
+    /**
+     * Fires {@code event} inline when the caller is already on the thread the
+     * event requires, reporting whether it proceeded (was not cancelled).
+     * Otherwise hops onto {@code targetExecutor} and returns {@code true}; a
+     * cancellable event that would require such a hop throws, since its
+     * cancellation verdict could not be reported on return.
+     */
+    private boolean fireOrHop(@NotNull RealtyRegionEvent event,
+                              boolean onRequiredThread,
+                              @NotNull Executor targetExecutor,
+                              @NotNull String cancellableHopError) {
+        if (onRequiredThread) {
             this.pluginManager.callEvent(event);
-        } else {
-            if (event instanceof Cancellable) {
-                throw new IllegalStateException(
-                        "Cancellable asynchronous events must be fired off the main thread: "
-                                + event.getEventName());
-            }
-            this.asyncExecutor.execute(() -> this.pluginManager.callEvent(event));
+            return !cancelled(event);
         }
-        return event;
+        if (event instanceof Cancellable) {
+            throw new IllegalStateException(cancellableHopError + event.getEventName());
+        }
+        targetExecutor.execute(() -> this.pluginManager.callEvent(event));
+        return true;
+    }
+
+    private static boolean cancelled(@NotNull RealtyRegionEvent event) {
+        return event instanceof Cancellable c && c.isCancelled();
     }
 }

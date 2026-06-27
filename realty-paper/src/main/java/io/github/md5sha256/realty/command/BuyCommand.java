@@ -53,7 +53,7 @@ public record BuyCommand(
             return;
         }
         // Cancellable pre-event (main thread); a veto stops the action before the API is called.
-        if (events.fireSync(new RegionBuyEvent(region, sender.getUniqueId())).isCancelled()) {
+        if (!events.fireSync(new RegionBuyEvent(region, sender.getUniqueId()))) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }

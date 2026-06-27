@@ -57,7 +57,7 @@ public record UnrentCommand(
             return;
         }
         // Cancellable pre-event (main thread); a veto stops the action before the API is called.
-        if (events.fireSync(new RegionUnrentEvent(region, sender.getUniqueId())).isCancelled()) {
+        if (!events.fireSync(new RegionUnrentEvent(region, sender.getUniqueId()))) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
