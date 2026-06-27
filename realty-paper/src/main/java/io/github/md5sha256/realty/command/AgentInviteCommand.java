@@ -5,7 +5,10 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AgentInviteEvent;
+import io.github.md5sha256.realty.api.event.AgentInvitedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
@@ -29,7 +32,8 @@ import java.util.UUID;
  */
 public record AgentInviteCommand(@NotNull RealtyPaperApi api,
                                   @NotNull NotificationService notificationService,
-                                  @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+                                  @NotNull MessageContainer messages,
+                                  @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -64,6 +68,10 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
                     Placeholder.unparsed("region", regionId)));
             return;
         }
+        if (!events.fireSync(new AgentInviteEvent(region, player.getUniqueId(), inviteeId))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.inviteAgent(regionId, worldId, player.getUniqueId(), inviteeId).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.InviteAgentResult.Success() -> {
@@ -74,6 +82,7 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITED,
                                     Placeholder.unparsed("player", player.getName()),
                                     Placeholder.unparsed("region", regionId)));
+                    events.fireSync(new AgentInvitedEvent(region, player.getUniqueId(), inviteeId));
                 }
                 case RealtyBackend.InviteAgentResult.NoFreeholdContract() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NO_FREEHOLD,

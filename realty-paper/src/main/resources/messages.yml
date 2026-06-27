@@ -8,6 +8,7 @@ common:
   players-only: "Only players can use this command."
   no-permission: "You do not have permission to run this command."
   error: "An error occurred: <error>"
+  action-cancelled: "That action was blocked."
 
 accept-offer:
   success: "Accepted offer from <player> on region <region>."

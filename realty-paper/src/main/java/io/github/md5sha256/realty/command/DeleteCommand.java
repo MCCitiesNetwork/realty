@@ -2,11 +2,15 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.RegionDeleteEvent;
+import io.github.md5sha256.realty.api.event.RegionDeletedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.paper.util.sender.Source;
@@ -22,7 +26,8 @@ import org.jetbrains.annotations.NotNull;
  */
 public record DeleteCommand(
         @NotNull RealtyPaperApi api,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean.Single {
 
     @Override
@@ -47,10 +52,19 @@ public record DeleteCommand(
             return;
         }
 
+        if (sender instanceof Player player
+                && !events.fireSync(new RegionDeleteEvent(region, player.getUniqueId()))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.deleteRegion(region, includeWorldGuard).thenAccept(result -> {
             switch (result) {
-                case RealtyPaperApi.DeleteResult.Success ignored ->
+                case RealtyPaperApi.DeleteResult.Success ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.DELETE_SUCCESS));
+                        if (sender instanceof Player player) {
+                            events.fireSync(new RegionDeletedEvent(region, player.getUniqueId()));
+                        }
+                }
                 case RealtyPaperApi.DeleteResult.NotRegistered ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.DELETE_NOT_REGISTERED));
                 case RealtyPaperApi.DeleteResult.WorldGuardSaveError wgError ->

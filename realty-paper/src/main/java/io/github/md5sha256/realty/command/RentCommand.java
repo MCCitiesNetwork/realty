@@ -2,10 +2,12 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.RegionRentEvent;
+import io.github.md5sha256.realty.api.event.RegionRentedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -25,8 +27,8 @@ import java.time.Duration;
  */
 public record RentCommand(
         @NotNull RealtyPaperApi api,
-        @NotNull NotificationService notificationService,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean.Single {
 
     @Override
@@ -50,7 +52,11 @@ public record RentCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        String regionId = region.region().getId();
+        // Cancellable pre-event (main thread); a veto stops the action before the API is called.
+        if (!events.fireSync(new RegionRentEvent(region, sender.getUniqueId()))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.rent(region, sender.getUniqueId()).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.RentResult.Success success -> {
@@ -59,11 +65,9 @@ public record RentCommand(
                             Placeholder.unparsed("price", CurrencyFormatter.format(success.price())),
                             Placeholder.unparsed("duration",
                                     DurationFormatter.format(Duration.ofSeconds(success.durationSeconds())))));
-                    notificationService.queueNotification(success.landlordId(),
-                            messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
-                                    Placeholder.unparsed("player", sender.getName()),
-                                    Placeholder.unparsed("price", CurrencyFormatter.format(success.price())),
-                                    Placeholder.unparsed("region", success.regionId())));
+                    // Post-event; fireSync hops to the main thread. RegionNotificationListener notifies the landlord.
+                    events.fireSync(new RegionRentedEvent(region, sender.getUniqueId(),
+                            success.landlordId(), success.price(), success.durationSeconds()));
                 }
                 case RealtyPaperApi.RentResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASEHOLD_CONTRACT,

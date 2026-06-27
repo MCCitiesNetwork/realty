@@ -4,7 +4,9 @@ import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AgentInviteRejectedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
@@ -27,7 +29,8 @@ import java.util.UUID;
  */
 public record AgentInviteRejectCommand(@NotNull RealtyPaperApi api,
                                         @NotNull NotificationService notificationService,
-                                        @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+                                        @NotNull MessageContainer messages,
+                                        @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -65,6 +68,7 @@ public record AgentInviteRejectCommand(@NotNull RealtyPaperApi api,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_REJECTED,
                                     Placeholder.unparsed("player", player.getName()),
                                     Placeholder.unparsed("region", regionId)));
+                    events.fireSync(new AgentInviteRejectedEvent(region, inviteeId));
                 }
                 case RealtyBackend.RejectAgentInviteResult.NotFound() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_REJECT_NOT_FOUND,

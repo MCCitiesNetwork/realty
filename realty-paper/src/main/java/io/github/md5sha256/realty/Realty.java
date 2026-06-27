@@ -17,6 +17,8 @@ import io.github.md5sha256.realty.api.SignCache;
 import io.github.md5sha256.realty.api.SignProfile;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AuctionEndedEvent;
+import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
 import io.github.md5sha256.realty.command.AgentInviteCommand;
@@ -55,7 +57,9 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.listener.PropertyTaxListener;
+import io.github.md5sha256.realty.listener.RegionNotificationListener;
 import io.github.md5sha256.realty.listener.SignInteractionListener;
 import io.github.md5sha256.realty.listener.SubregionWandListener;
 import io.github.md5sha256.realty.command.SubregionDialog;
@@ -144,6 +148,7 @@ public final class Realty extends JavaPlugin {
     private Database database;
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApi paperApi;
+    private RealtyEventDispatch eventDispatch;
     private boolean failedLoad = false;
 
     private static @NotNull PermissionDefault toBukkitPermission(@NotNull ConfigRegionTag tag) {
@@ -285,6 +290,10 @@ public final class Realty extends JavaPlugin {
         this.paperApi = new RealtyPaperApiImpl(
                 this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache);
+        this.eventDispatch = new RealtyEventDispatch(
+                getServer(),
+                this.executorState.mainThreadExec(),
+                task -> getServer().getScheduler().runTaskAsynchronously(this, task));
         scheduleTasks();
         registerCommands(this.paperApi,
                 this.executorState,
@@ -367,7 +376,8 @@ public final class Realty extends JavaPlugin {
             if (this.logic == null) {
                 return;
             }
-            for (RealtyBackend.ExpiredBiddingAuction auction : this.logic.clearExpiredBiddingAuctions()) {
+            List<RealtyBackend.ExpiredBiddingAuction> endedAuctions = this.logic.clearExpiredBiddingAuctions();
+            for (RealtyBackend.ExpiredBiddingAuction auction : endedAuctions) {
                 if (auction.winnerId() != null) {
                     this.notificationService.queueNotification(auction.winnerId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
@@ -377,6 +387,28 @@ public final class Realty extends JavaPlugin {
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
                                     Placeholder.unparsed("region", auction.worldGuardRegionId())));
                 }
+            }
+            if (!endedAuctions.isEmpty()) {
+                // Resolve WorldGuard regions and fire post-events on the main thread.
+                scheduler.runTask(this, () -> {
+                    for (RealtyBackend.ExpiredBiddingAuction auction : endedAuctions) {
+                        World world = getServer().getWorld(auction.worldId());
+                        if (world == null) {
+                            continue;
+                        }
+                        RegionManager regionManager = WorldGuard.getInstance().getPlatform()
+                                .getRegionContainer().get(BukkitAdapter.adapt(world));
+                        if (regionManager == null) {
+                            continue;
+                        }
+                        ProtectedRegion protectedRegion = regionManager.getRegion(auction.worldGuardRegionId());
+                        if (protectedRegion != null) {
+                            this.eventDispatch.fireSync(new AuctionEndedEvent(
+                                    new WorldGuardRegion(protectedRegion, world),
+                                    auction.winnerId(), auction.auctioneerId()));
+                        }
+                    }
+                });
             }
             for (RealtyBackend.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
                 this.notificationService.queueNotification(payment.bidderId(),
@@ -412,23 +444,18 @@ public final class Realty extends JavaPlugin {
                                 ProtectedRegion protectedRegion = regionManager.getRegion(expired.worldGuardRegionId());
                                 if (protectedRegion != null) {
                                     protectedRegion.getOwners().removePlayer(expired.tenantId());
+                                    WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
                                     regionProfileService.applyFlags(
-                                            new WorldGuardRegion(protectedRegion, world),
+                                            wgRegion,
                                             RegionState.FOR_LEASE,
                                             leaseholdPlaceholders.getOrDefault(expired.worldGuardRegionId(),
                                                     Map.of()));
+                                    // Post-event; RegionNotificationListener notifies tenant + landlord.
+                                    this.eventDispatch.fireSync(new LeaseExpiredEvent(
+                                            wgRegion, expired.tenantId(), expired.landlordId()));
                                 }
                             }
                         }
-                        this.notificationService.queueNotification(expired.tenantId(),
-                                this.messageContainer.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED,
-                                        Placeholder.unparsed("region",
-                                                expired.worldGuardRegionId())));
-                        this.notificationService.queueNotification(expired.landlordId(),
-                                this.messageContainer.messageFor(
-                                        MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD,
-                                        Placeholder.unparsed("region",
-                                                expired.worldGuardRegionId())));
                     }
                 });
             }
@@ -585,26 +612,30 @@ public final class Realty extends JavaPlugin {
         SubregionDialog subregionDialog = new SubregionDialog(paperApi, executorState,
                 this.database, subregionWandManager, this.settings, this.realtyTags,
                 messageContainer);
-        getServer().getPluginManager().registerEvents(
+        PluginManager pluginManager = getServer().getPluginManager();
+        pluginManager.registerEvents(
                 new SubregionWandListener(this, subregionWand, subregionWandManager,
                         messageContainer), this);
+        pluginManager.registerEvents(
+                new RegionNotificationListener(notificationService, messageContainer), this);
 
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
-                new AgentInviteCommand(paperApi, notificationService, messageContainer),
-                new AgentInviteAcceptCommand(paperApi, notificationService, messageContainer),
-                new AgentInviteRejectCommand(paperApi, notificationService, messageContainer),
-                new AgentInviteWithdrawCommand(paperApi, notificationService, messageContainer),
-                new AgentRemoveCommand(paperApi, notificationService, messageContainer),
+                new AgentInviteCommand(paperApi, notificationService, messageContainer, this.eventDispatch),
+                new AgentInviteAcceptCommand(paperApi, notificationService, messageContainer, this.eventDispatch),
+                new AgentInviteRejectCommand(paperApi, notificationService, messageContainer, this.eventDispatch),
+                new AgentInviteWithdrawCommand(paperApi, notificationService, messageContainer, this.eventDispatch),
+                new AgentRemoveCommand(paperApi, notificationService, messageContainer, this.eventDispatch),
                 new AuctionCommandGroup(paperApi,
                         notificationService,
                         this.settings,
-                        messageContainer),
-                new BuyCommand(paperApi, notificationService, messageContainer),
-                new CreateCommand(paperApi, this.settings, messageContainer),
-                new RegisterCommand(paperApi, this.settings, messageContainer),
-                new DeleteCommand(paperApi, messageContainer),
+                        messageContainer,
+                        this.eventDispatch),
+                new BuyCommand(paperApi, messageContainer, this.eventDispatch),
+                new CreateCommand(paperApi, this.settings, messageContainer, this.eventDispatch),
+                new RegisterCommand(paperApi, this.settings, messageContainer, this.eventDispatch),
+                new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
                 new HistoryCommand(paperApi, this.settings, messageContainer),
                 new InfoCommand(paperApi,
                         this.settings,
@@ -614,12 +645,13 @@ public final class Realty extends JavaPlugin {
                 new ListCommand(paperApi, messageContainer),
                 new OfferCommandGroup(paperApi,
                         notificationService,
-                        messageContainer),
-                new ExtendCommand(paperApi, messageContainer),
-                new RentCommand(paperApi, notificationService, messageContainer),
-                new UnrentCommand(paperApi, notificationService, messageContainer),
-                new SetCommandGroup(paperApi, messageContainer),
-                new TransferCommand(paperApi, messageContainer),
+                        messageContainer,
+                        this.eventDispatch),
+                new ExtendCommand(paperApi, messageContainer, this.eventDispatch),
+                new RentCommand(paperApi, messageContainer, this.eventDispatch),
+                new UnrentCommand(paperApi, messageContainer, this.eventDispatch),
+                new SetCommandGroup(paperApi, messageContainer, this.eventDispatch),
+                new TransferCommand(paperApi, messageContainer, this.eventDispatch),
                 new UnsetCommandGroup(paperApi, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();

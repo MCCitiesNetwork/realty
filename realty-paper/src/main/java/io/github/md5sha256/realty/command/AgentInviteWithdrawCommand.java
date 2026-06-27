@@ -5,7 +5,9 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AgentInviteWithdrawnEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
@@ -28,7 +30,8 @@ import java.util.UUID;
  */
 public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                                           @NotNull NotificationService notificationService,
-                                          @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+                                          @NotNull MessageContainer messages,
+                                          @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -75,6 +78,7 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
                                     Placeholder.unparsed("player", resolveName(player.getUniqueId())),
                                     Placeholder.unparsed("region", regionId)));
+                    events.fireSync(new AgentInviteWithdrawnEvent(region, player.getUniqueId(), inviteeId));
                 }
                 case RealtyBackend.WithdrawAgentInviteResult.NotFound() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_NOT_FOUND,

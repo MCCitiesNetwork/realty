@@ -8,7 +8,14 @@ import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AuctionBidEvent;
+import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
+import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
+import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -47,7 +54,8 @@ public record AuctionCommandGroup(
         @NotNull RealtyPaperApi api,
         @NotNull NotificationService notificationService,
         @NotNull AtomicReference<Settings> settings,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
 
     @Override
@@ -165,6 +173,11 @@ public record AuctionCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        if (!events.fireSync(new AuctionCreateEvent(region, player.getUniqueId(), minBid, minBidStep,
+                bidDuration.toSeconds(), paymentDuration.toSeconds()))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.createAuction(
                 regionId,
                 region.world().getUID(),
@@ -175,9 +188,12 @@ public record AuctionCommandGroup(
                 minBidStep
         ).thenAccept(result -> {
             switch (result) {
-                case RealtyBackend.CreateAuctionResult.Success ignored ->
+                case RealtyBackend.CreateAuctionResult.Success ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_SUCCESS,
                                 Placeholder.unparsed("region", regionId)));
+                        events.fireSync(new AuctionCreatedEvent(region, player.getUniqueId(),
+                                minBid, minBidStep));
+                }
                 case RealtyBackend.CreateAuctionResult.NotSanctioned ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NOT_SANCTIONED,
                                 Placeholder.unparsed("region", regionId)));
@@ -216,6 +232,9 @@ public record AuctionCommandGroup(
                         messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
                                 Placeholder.unparsed("region", regionId)));
             }
+            if (sender instanceof Player canceller) {
+                events.fireSync(new AuctionCancelledEvent(region, canceller.getUniqueId()));
+            }
         }).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_ERROR,
                     Placeholder.unparsed("error", ex.getMessage())));
@@ -238,6 +257,10 @@ public record AuctionCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        if (!events.fireSync(new AuctionBidEvent(region, sender.getUniqueId(), bidAmount))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.performBid(regionId, region.world().getUID(), sender.getUniqueId(), bidAmount)
                 .thenAccept(result -> {
                     switch (result) {
@@ -251,6 +274,7 @@ public record AuctionCommandGroup(
                                                 Placeholder.unparsed("region", regionId),
                                                 Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))));
                             }
+                            events.fireSync(new AuctionBidPlacedEvent(region, sender.getUniqueId(), bidAmount));
                         }
                         case RealtyBackend.BidResult.NoAuction ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.BID_NO_AUCTION));
@@ -304,6 +328,8 @@ public record AuctionCommandGroup(
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("region", fullyPaid.regionId())));
                     }
+                    events.fireSync(new AuctionWonPurchaseEvent(region, sender.getUniqueId(),
+                            fullyPaid.previousTitleHolderId(), fullyPaid.amount()));
                 }
                 case RealtyPaperApi.PayBidResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_NO_PAYMENT_RECORD,
