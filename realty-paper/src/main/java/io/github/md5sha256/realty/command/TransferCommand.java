@@ -2,8 +2,11 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.TitleTransferEvent;
+import io.github.md5sha256.realty.api.event.TitleTransferredEvent;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -29,7 +32,8 @@ import java.util.UUID;
  */
 public record TransferCommand(
         @NotNull RealtyPaperApi api,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean.Single {
 
     private static @NotNull String resolveName(@NotNull UUID uuid) {
@@ -66,12 +70,19 @@ public record TransferCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_NO_PERMISSION));
             return;
         }
+        if (!events.fireSync(new TitleTransferEvent(region, titleHolderId))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.transferTitleHolder(region, titleHolderId).thenAccept(result -> {
             switch (result) {
-                case RealtyPaperApi.SetTitleHolderResult.Success success ->
+                case RealtyPaperApi.SetTitleHolderResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_SUCCESS,
                                 Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
                                 Placeholder.unparsed("region", success.regionId())));
+                        events.fireSync(new TitleTransferredEvent(region, titleHolderId,
+                                success.previousTitleHolder()));
+                }
                 case RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));

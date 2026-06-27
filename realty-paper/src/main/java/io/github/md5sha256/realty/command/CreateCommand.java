@@ -15,10 +15,13 @@ import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
+import io.github.md5sha256.realty.api.event.RegionCreateEvent;
+import io.github.md5sha256.realty.api.event.RegionCreatedEvent;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
@@ -52,7 +55,8 @@ import java.util.regex.Pattern;
  */
 public record CreateCommand(@NotNull RealtyPaperApi api,
                              @NotNull AtomicReference<Settings> settings,
-                             @NotNull MessageContainer messages) implements CustomCommandBean {
+                             @NotNull MessageContainer messages,
+                             @NotNull RealtyEventDispatch events) implements CustomCommandBean {
 
     private static final CloudKey<String> NAME = CloudKey.of("name", String.class);
     private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9-]+$");
@@ -141,16 +145,22 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         }
 
         ProtectedRegion wgRegion = createProtectedRegion(name, selection);
-        regionManager.addRegion(wgRegion);
         World world = player.getWorld();
         WorldGuardRegion region = new WorldGuardRegion(wgRegion, world);
+        if (!events.fireSync(new RegionCreateEvent(region, player.getUniqueId()))) {
+            player.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
+        regionManager.addRegion(wgRegion);
 
         api.createLeasehold(region, price, period.toSeconds(), maxExtensions, landlord)
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyPaperApi.CreateLeaseholdResult.Success ignored ->
+                        case RealtyPaperApi.CreateLeaseholdResult.Success ignored -> {
                                 player.sendMessage(messages.messageFor(MessageKeys.CREATE_LEASEHOLD_SUCCESS,
                                         Placeholder.unparsed("region", name)));
+                                events.fireSync(new RegionCreatedEvent(region, player.getUniqueId()));
+                        }
                         case RealtyPaperApi.CreateLeaseholdResult.AlreadyRegistered ignored -> {
                             regionManager.removeRegion(name);
                             player.sendMessage(messages.messageFor(MessageKeys.CREATE_ALREADY_REGISTERED,
@@ -204,16 +214,22 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         }
 
         ProtectedRegion wgRegion = createProtectedRegion(name, selection);
-        regionManager.addRegion(wgRegion);
         World world = player.getWorld();
         WorldGuardRegion region = new WorldGuardRegion(wgRegion, world);
+        if (!events.fireSync(new RegionCreateEvent(region, player.getUniqueId()))) {
+            player.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
+        regionManager.addRegion(wgRegion);
 
         api.createFreehold(region, price, authority, titleholder)
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyPaperApi.CreateFreeholdResult.Success ignored ->
+                        case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {
                                 player.sendMessage(messages.messageFor(MessageKeys.CREATE_FREEHOLD_SUCCESS,
                                         Placeholder.unparsed("region", name)));
+                                events.fireSync(new RegionCreatedEvent(region, player.getUniqueId()));
+                        }
                         case RealtyPaperApi.CreateFreeholdResult.AlreadyRegistered ignored -> {
                             regionManager.removeRegion(name);
                             player.sendMessage(messages.messageFor(MessageKeys.CREATE_ALREADY_REGISTERED,

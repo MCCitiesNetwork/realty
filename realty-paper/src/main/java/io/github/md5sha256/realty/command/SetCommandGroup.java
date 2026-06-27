@@ -8,7 +8,14 @@ import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.LandlordSetEvent;
+import io.github.md5sha256.realty.api.event.PriceChangedEvent;
+import io.github.md5sha256.realty.api.event.PriceSetEvent;
+import io.github.md5sha256.realty.api.event.TenantSetEvent;
+import io.github.md5sha256.realty.api.event.TitleTransferEvent;
+import io.github.md5sha256.realty.api.event.TitleTransferredEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -42,7 +49,8 @@ import java.util.UUID;
  */
 public record SetCommandGroup(
         @NotNull RealtyPaperApi api,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
 
     private static @NotNull String resolveName(@NotNull UUID uuid) {
@@ -121,12 +129,19 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }
+        if (sender instanceof Player player
+                && !events.fireSync(new PriceSetEvent(region, player.getUniqueId(), price))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.setPrice(regionId, worldId, price).thenAccept(result -> {
             switch (result) {
-                case RealtyBackend.SetPriceResult.Success ignored ->
+                case RealtyBackend.SetPriceResult.Success ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_SUCCESS,
                                 Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                 Placeholder.unparsed("region", regionId)));
+                        events.fireSync(new PriceChangedEvent(region, price));
+                }
                 case RealtyBackend.SetPriceResult.NoContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_NO_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
@@ -200,10 +215,12 @@ public record SetCommandGroup(
         }
         api.setLandlord(region, landlordId).thenAccept(result -> {
             switch (result) {
-                case RealtyPaperApi.SetLandlordResult.Success success ->
+                case RealtyPaperApi.SetLandlordResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
                                 Placeholder.unparsed("landlord", resolveName(landlordId)),
                                 Placeholder.unparsed("region", success.regionId())));
+                        events.fireSync(new LandlordSetEvent(region, landlordId, success.previousLandlord()));
+                }
                 case RealtyPaperApi.SetLandlordResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));
@@ -234,12 +251,19 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }
+        if (!events.fireSync(new TitleTransferEvent(region, titleHolderId))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.setTitleHolder(region, titleHolderId).thenAccept(result -> {
             switch (result) {
-                case RealtyPaperApi.SetTitleHolderResult.Success success ->
+                case RealtyPaperApi.SetTitleHolderResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SUCCESS,
                                 Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
                                 Placeholder.unparsed("region", success.regionId())));
+                        events.fireSync(new TitleTransferredEvent(region, titleHolderId,
+                                success.previousTitleHolder()));
+                }
                 case RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));
@@ -272,10 +296,13 @@ public record SetCommandGroup(
         }
         api.setTenant(region, tenantId).thenAccept(result -> {
             switch (result) {
-                case RealtyPaperApi.SetTenantResult.Success success ->
+                case RealtyPaperApi.SetTenantResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,
                                 Placeholder.unparsed("tenant", resolveName(tenantId)),
                                 Placeholder.unparsed("region", success.regionId())));
+                        events.fireSync(new TenantSetEvent(region, tenantId, success.previousTenant(),
+                                success.landlordId()));
+                }
                 case RealtyPaperApi.SetTenantResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));

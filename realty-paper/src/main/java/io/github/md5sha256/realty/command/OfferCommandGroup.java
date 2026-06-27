@@ -6,7 +6,15 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.OfferAcceptEvent;
+import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
+import io.github.md5sha256.realty.api.event.OfferPlaceEvent;
+import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
+import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
+import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
+import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -46,7 +54,8 @@ import java.util.concurrent.CompletableFuture;
 public record OfferCommandGroup(
         @NotNull RealtyPaperApi api,
         @NotNull NotificationService notificationService,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -131,6 +140,10 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        if (!events.fireSync(new OfferPlaceEvent(region, sender.getUniqueId(), price))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.placeOffer(regionId, region.world().getUID(), sender.getUniqueId(), price)
                 .thenAccept(result -> {
                     switch (result) {
@@ -145,6 +158,8 @@ public record OfferCommandGroup(
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                                 Placeholder.unparsed("region", regionId)));
                             }
+                            events.fireSync(new OfferPlacedEvent(region, sender.getUniqueId(),
+                                    success.titleHolderId(), price));
                         }
                         case RealtyBackend.OfferResult.NoFreeholdContract ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NO_FREEHOLD_CONTRACT,
@@ -280,6 +295,10 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        if (!events.fireSync(new OfferAcceptEvent(region, sender.getUniqueId(), target.getUniqueId()))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.acceptOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
@@ -290,6 +309,8 @@ public record OfferCommandGroup(
                             notificationService.queueNotification(target.getUniqueId(),
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
                                             Placeholder.unparsed("region", regionId)));
+                            events.fireSync(new OfferAcceptedEvent(region, sender.getUniqueId(),
+                                    target.getUniqueId()));
                         }
                         case RealtyBackend.AcceptOfferResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NOT_SANCTIONED,
@@ -347,6 +368,8 @@ public record OfferCommandGroup(
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("region", fullyPaid.regionId())));
                     }
+                    events.fireSync(new OfferPurchaseCompletedEvent(region, sender.getUniqueId(),
+                            fullyPaid.previousTitleHolderId(), fullyPaid.amount()));
                 }
                 case RealtyPaperApi.PayOfferResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,
@@ -397,6 +420,7 @@ public record OfferCommandGroup(
                                                 Placeholder.unparsed("player", sender.getName()),
                                                 Placeholder.unparsed("region", regionId)));
                             }
+                            events.fireSync(new OfferWithdrawnEvent(region, sender.getUniqueId(), titleHolderId));
                         }
                         case RealtyBackend.WithdrawOfferResult.NoOffer() ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_NO_OFFER,
@@ -444,6 +468,8 @@ public record OfferCommandGroup(
                             notificationService.queueNotification(target.getUniqueId(),
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                             Placeholder.unparsed("region", regionId)));
+                            events.fireSync(new OfferRejectedEvent(region, sender.getUniqueId(),
+                                    target.getUniqueId()));
                         }
                         case RealtyBackend.RejectOfferResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,
@@ -488,6 +514,7 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("region", regionId));
                             for (UUID offererId : success.offererIds()) {
                                 notificationService.queueNotification(offererId, notification);
+                                events.fireSync(new OfferRejectedEvent(region, sender.getUniqueId(), offererId));
                             }
                         }
                         case RealtyBackend.RejectAllOffersResult.NotSanctioned ignored ->
