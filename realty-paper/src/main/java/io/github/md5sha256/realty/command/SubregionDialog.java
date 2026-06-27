@@ -140,10 +140,15 @@ public final class SubregionDialog {
         }
 
         boolean canBypass = player.hasPermission(BYPASS_PERMISSION);
-        List<ProtectedRegion> geometricCandidates = SubregionSelectionValidator.candidateParents(
+        SubregionSelectionValidator.ParentSearch search = SubregionSelectionValidator.candidateParents(
                 player.getUniqueId(), canBypass, selection, regionManager);
+        List<ProtectedRegion> geometricCandidates = search.candidates();
         if (geometricCandidates.isEmpty()) {
-            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_NO_PARENT_CANDIDATES));
+            // Distinguish "selection sits outside every region" from "you don't own the region it's in".
+            String key = search.anyContaining()
+                    ? MessageKeys.SUBREGION_NO_PARENT_CANDIDATES
+                    : MessageKeys.SUBREGION_PARENT_OUTSIDE;
+            player.sendMessage(messages.messageFor(key));
             return;
         }
 
@@ -151,7 +156,7 @@ public final class SubregionDialog {
         Collection<String> blacklist = settings.get().subregionTagBlacklist();
 
         // Filter to actual freeholds that aren't tag-blacklisted, without blocking a worker thread.
-        List<CompletableFuture<String>> checks = new ArrayList<>();
+        List<CompletableFuture<CandidateCheck>> checks = new ArrayList<>();
         for (ProtectedRegion candidate : geometricCandidates) {
             String id = candidate.getId();
             CompletableFuture<FreeholdContractEntity> freehold = api.getFreeholdContract(id, worldId);
@@ -159,15 +164,15 @@ public final class SubregionDialog {
                     ? CompletableFuture.completedFuture(List.of())
                     : api.getTagIdsByRegion(id);
             checks.add(freehold.thenCombine(tags, (contract, tagList) -> {
-                if (contract == null) {
-                    return null;
-                }
+                boolean isFreehold = contract != null;
+                boolean blacklisted = false;
                 for (String tag : tagList) {
                     if (blacklist.contains(tag)) {
-                        return null;
+                        blacklisted = true;
+                        break;
                     }
                 }
-                return id;
+                return new CandidateCheck(id, isFreehold, blacklisted);
             }));
         }
 
@@ -177,15 +182,23 @@ public final class SubregionDialog {
                     state.selection = selection;
                     state.world = world;
                     state.worldId = worldId;
-                    for (CompletableFuture<String> check : checks) {
-                        String id = check.join();
-                        if (id != null) {
-                            state.parentCandidates.add(id);
+                    boolean anyFreehold = false;
+                    for (CompletableFuture<CandidateCheck> check : checks) {
+                        CandidateCheck result = check.join();
+                        if (!result.isFreehold()) {
+                            continue;
+                        }
+                        anyFreehold = true;
+                        if (!result.blacklisted()) {
+                            state.parentCandidates.add(result.id());
                         }
                     }
                     if (state.parentCandidates.isEmpty()) {
-                        player.sendMessage(messages.messageFor(
-                                MessageKeys.SUBREGION_NO_PARENT_CANDIDATES));
+                        // anyFreehold means the only thing stopping us is the tag blacklist;
+                        // otherwise the owned region simply isn't a freehold parent.
+                        player.sendMessage(messages.messageFor(anyFreehold
+                                ? MessageKeys.SUBREGION_TAG_BLACKLISTED
+                                : MessageKeys.SUBREGION_PARENT_NOT_FREEHOLD));
                         return;
                     }
                     state.parentId = state.parentCandidates.get(0);
@@ -688,5 +701,13 @@ public final class SubregionDialog {
     private static RegionManager regionManager(@NotNull World world) {
         return WorldGuard.getInstance().getPlatform().getRegionContainer()
                 .get(BukkitAdapter.adapt(world));
+    }
+
+    /**
+     * The result of database-filtering one geometric candidate parent: whether it is a registered
+     * freehold contract and whether it carries a blacklisted tag. Keeping both flags lets the
+     * dialog explain exactly why no parent was usable.
+     */
+    private record CandidateCheck(@NotNull String id, boolean isFreehold, boolean blacklisted) {
     }
 }

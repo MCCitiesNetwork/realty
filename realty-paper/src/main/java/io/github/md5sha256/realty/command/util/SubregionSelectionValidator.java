@@ -27,26 +27,40 @@ public final class SubregionSelectionValidator {
     }
 
     /**
-     * Returns the parent regions the player may subregion under: regions that fully contain the
+     * The outcome of the geometry + ownership search for parent regions.
+     *
+     * @param candidates    regions that fully contain the selection and (unless {@code canBypass})
+     *                      are owned by the player — the regions eligible to be parents
+     * @param anyContaining whether any region geometrically contains the selection at all,
+     *                      regardless of ownership. Distinguishes "your selection is outside every
+     *                      region" from "you don't own the region(s) it's inside".
+     */
+    public record ParentSearch(@NotNull List<ProtectedRegion> candidates, boolean anyContaining) {
+    }
+
+    /**
+     * Searches for the parent regions the player may subregion under: regions that fully contain the
      * selection and (unless {@code canBypass}) are owned by the player. Freehold-contract and
      * tag-blacklist filtering happen later against the database — this method is pure WorldGuard
      * geometry and ownership.
      */
-    public static @NotNull List<ProtectedRegion> candidateParents(@NotNull UUID playerId,
-                                                                   boolean canBypass,
-                                                                   @NotNull Region selection,
-                                                                   @NotNull RegionManager regionManager) {
+    public static @NotNull ParentSearch candidateParents(@NotNull UUID playerId,
+                                                         boolean canBypass,
+                                                         @NotNull Region selection,
+                                                         @NotNull RegionManager regionManager) {
         List<ProtectedRegion> candidates = new ArrayList<>();
+        boolean anyContaining = false;
         for (ProtectedRegion region : regionManager.getRegions().values()) {
-            if (!canBypass && !region.getOwners().contains(playerId)) {
+            if (!regionIsFullyContainedByParent(selection, region)) {
                 continue;
             }
-            if (!regionIsFullyContainedByParent(selection, region)) {
+            anyContaining = true;
+            if (!canBypass && !region.getOwners().contains(playerId)) {
                 continue;
             }
             candidates.add(region);
         }
-        return candidates;
+        return new ParentSearch(candidates, anyContaining);
     }
 
     /**

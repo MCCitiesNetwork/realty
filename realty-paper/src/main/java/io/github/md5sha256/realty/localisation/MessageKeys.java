@@ -392,6 +392,8 @@ public final class MessageKeys {
     public static final String SUBREGION_HINT_READY = "subregion.hint-ready";
     public static final String SUBREGION_SELECTION_INCOMPLETE = "subregion.selection-incomplete";
     public static final String SUBREGION_NO_PARENT_CANDIDATES = "subregion.no-parent-candidates";
+    public static final String SUBREGION_PARENT_OUTSIDE = "subregion.parent-outside";
+    public static final String SUBREGION_PARENT_NOT_FREEHOLD = "subregion.parent-not-freehold";
 
     // teleport
     public static final String TP_SUCCESS = "tp.success";
