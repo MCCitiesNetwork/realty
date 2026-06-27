@@ -1,8 +1,11 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.LeaseExtendEvent;
+import io.github.md5sha256.realty.api.event.LeaseExtendedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -10,6 +13,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.PluginManager;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
@@ -21,7 +25,9 @@ import org.jetbrains.annotations.NotNull;
  */
 public record ExtendCommand(
         @NotNull RealtyPaperApi api,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull ExecutorState executorState,
+        @NotNull PluginManager pluginManager
 ) implements CustomCommandBean.Single {
 
     @Override
@@ -45,13 +51,23 @@ public record ExtendCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        String regionId = region.region().getId();
+        // Cancellable pre-event (main thread); a veto stops the action before the API is called.
+        LeaseExtendEvent pre = new LeaseExtendEvent(region, sender.getUniqueId());
+        pluginManager.callEvent(pre);
+        if (pre.isCancelled()) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.extend(region, sender.getUniqueId()).thenAccept(result -> {
             switch (result) {
-                case RealtyPaperApi.ExtendResult.Success success ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_SUCCESS,
-                                Placeholder.unparsed("region", success.regionId()),
-                                Placeholder.unparsed("price", CurrencyFormatter.format(success.price()))));
+                case RealtyPaperApi.ExtendResult.Success success -> {
+                    sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_SUCCESS,
+                            Placeholder.unparsed("region", success.regionId()),
+                            Placeholder.unparsed("price", CurrencyFormatter.format(success.price()))));
+                    // Post-event on the main thread for external listeners.
+                    executorState.mainThreadExec().execute(() -> pluginManager.callEvent(
+                            new LeaseExtendedEvent(region, sender.getUniqueId(), success.price())));
+                }
                 case RealtyPaperApi.ExtendResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));

@@ -1,9 +1,11 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
-import io.github.md5sha256.realty.api.NotificationService;
+import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.RegionUnrentEvent;
+import io.github.md5sha256.realty.api.event.RegionUnrentedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -11,6 +13,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.PluginManager;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
@@ -24,8 +27,9 @@ import org.jetbrains.annotations.NotNull;
  */
 public record UnrentCommand(
         @NotNull RealtyPaperApi api,
-        @NotNull NotificationService notificationService,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull ExecutorState executorState,
+        @NotNull PluginManager pluginManager
 ) implements CustomCommandBean.Single {
 
     @Override
@@ -55,17 +59,23 @@ public record UnrentCommand(
                     Placeholder.unparsed("region", regionId)));
             return;
         }
+        // Cancellable pre-event (main thread); a veto stops the action before the API is called.
+        RegionUnrentEvent pre = new RegionUnrentEvent(region, sender.getUniqueId());
+        pluginManager.callEvent(pre);
+        if (pre.isCancelled()) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+            return;
+        }
         api.unrent(region, sender.getUniqueId()).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.UnrentResult.Success success -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_SUCCESS,
                             Placeholder.unparsed("region", success.regionId()),
                             Placeholder.unparsed("refund", CurrencyFormatter.format(success.refund()))));
-                    notificationService.queueNotification(success.landlordId(),
-                            messages.messageFor(MessageKeys.NOTIFICATION_REGION_UNRENTED,
-                                    Placeholder.unparsed("player", sender.getName()),
-                                    Placeholder.unparsed("region", success.regionId()),
-                                    Placeholder.unparsed("refund", CurrencyFormatter.format(success.refund()))));
+                    // Post-event on the main thread; RegionNotificationListener notifies the landlord.
+                    executorState.mainThreadExec().execute(() -> pluginManager.callEvent(
+                            new RegionUnrentedEvent(region, sender.getUniqueId(),
+                                    success.landlordId(), success.refund())));
                 }
                 case RealtyPaperApi.UnrentResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,

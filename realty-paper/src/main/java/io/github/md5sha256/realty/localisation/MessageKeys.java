@@ -12,6 +12,7 @@ public final class MessageKeys {
     public static final String COMMON_PLAYERS_ONLY = "common.players-only";
     public static final String COMMON_NO_PERMISSION = "common.no-permission";
     public static final String COMMON_ERROR = "common.error";
+    public static final String COMMON_ACTION_CANCELLED = "common.action-cancelled";
 
     // accept-offer
     public static final String ACCEPT_OFFER_SUCCESS = "accept-offer.success";
