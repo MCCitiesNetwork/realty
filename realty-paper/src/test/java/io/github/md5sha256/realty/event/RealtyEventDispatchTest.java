@@ -23,9 +23,10 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,14 +56,26 @@ class RealtyEventDispatchTest {
     // ── fireSync ──────────────────────────────────────────────────────────
 
     @Test
-    void fireSync_syncEvent_onMainThread_firesInlineAndReturnsEvent() {
+    void fireSync_syncEvent_onMainThread_firesInlineAndReturnsTrue() {
         when(server.isPrimaryThread()).thenReturn(true);
         RegionRentEvent event = new RegionRentEvent(region, UUID.randomUUID());
 
-        assertSame(event, dispatch.fireSync(event));
+        assertTrue(dispatch.fireSync(event));
 
         verify(pluginManager).callEvent(event);
         assertTrue(mainExec.tasks.isEmpty());
+    }
+
+    @Test
+    void fireSync_cancellableEvent_cancelledByListener_returnsFalse() {
+        when(server.isPrimaryThread()).thenReturn(true);
+        RegionRentEvent event = new RegionRentEvent(region, UUID.randomUUID());
+        doAnswer(invocation -> {
+            ((Cancellable) invocation.getArgument(0)).setCancelled(true);
+            return null;
+        }).when(pluginManager).callEvent(event);
+
+        assertFalse(dispatch.fireSync(event));
     }
 
     @Test
@@ -71,9 +84,9 @@ class RealtyEventDispatchTest {
         RegionRentedEvent event = new RegionRentedEvent(
                 region, UUID.randomUUID(), UUID.randomUUID(), 10.0, 60L);
 
-        dispatch.fireSync(event);
+        // Deferred — not fired inline, scheduled onto the main-thread executor; reports proceed.
+        assertTrue(dispatch.fireSync(event));
 
-        // Deferred — not fired inline, scheduled onto the main-thread executor.
         verify(pluginManager, never()).callEvent(event);
         assertEquals(1, mainExec.tasks.size());
         mainExec.runAll();
@@ -100,14 +113,26 @@ class RealtyEventDispatchTest {
     // ── fireAsync ─────────────────────────────────────────────────────────
 
     @Test
-    void fireAsync_asyncEvent_offMainThread_firesInline() {
+    void fireAsync_asyncEvent_offMainThread_firesInlineAndReturnsTrue() {
         when(server.isPrimaryThread()).thenReturn(false);
         AsyncEvent event = new AsyncEvent(region);
 
-        assertSame(event, dispatch.fireAsync(event));
+        assertTrue(dispatch.fireAsync(event));
 
         verify(pluginManager).callEvent(event);
         assertTrue(asyncExec.tasks.isEmpty());
+    }
+
+    @Test
+    void fireAsync_cancellableEvent_cancelledByListener_returnsFalse() {
+        when(server.isPrimaryThread()).thenReturn(false);
+        CancellableAsyncEvent event = new CancellableAsyncEvent(region);
+        doAnswer(invocation -> {
+            ((Cancellable) invocation.getArgument(0)).setCancelled(true);
+            return null;
+        }).when(pluginManager).callEvent(event);
+
+        assertFalse(dispatch.fireAsync(event));
     }
 
     @Test
@@ -115,7 +140,7 @@ class RealtyEventDispatchTest {
         when(server.isPrimaryThread()).thenReturn(true);
         AsyncEvent event = new AsyncEvent(region);
 
-        dispatch.fireAsync(event);
+        assertTrue(dispatch.fireAsync(event));
 
         verify(pluginManager, never()).callEvent(event);
         assertEquals(1, asyncExec.tasks.size());
