@@ -1,6 +1,8 @@
 package io.github.md5sha256.realty.listener;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.api.DateTimeFormatters;
+import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationProposedEvent;
@@ -21,7 +23,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 /**
@@ -86,7 +87,7 @@ public final class RegionNotificationListener implements Listener {
 
     @EventHandler
     public void onModificationProposed(@NotNull LeaseModificationProposedEvent event) {
-        if ("landlord".equals(event.getProposerRole())) {
+        if (LeaseholdRoles.LANDLORD.equals(event.getProposerRole())) {
             // Landlord proposed: notify the tenant, who decides by renewing or not.
             this.notificationService.queueNotification(event.getTenantId(),
                     this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_PROPOSED_LANDLORD,
@@ -111,7 +112,7 @@ public final class RegionNotificationListener implements Listener {
                             Placeholder.unparsed("region", event.getRegionId())));
             case "WITHDRAWN" -> {
                 // Notify the party that did not withdraw.
-                UUID target = "landlord".equals(event.getProposerRole())
+                UUID target = LeaseholdRoles.LANDLORD.equals(event.getProposerRole())
                         ? event.getTenantId() : event.getLandlordId();
                 this.notificationService.queueNotification(target,
                         this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_WITHDRAWN,
@@ -123,8 +124,8 @@ public final class RegionNotificationListener implements Listener {
 
     @EventHandler
     public void onTerminationScheduled(@NotNull LeaseTerminationScheduledEvent event) {
-        String date = event.getEffectiveDate().format(DATE_FORMAT);
-        if ("landlord".equals(event.getTerminatedByRole())) {
+        String date = event.getEffectiveDate().format(DateTimeFormatters.DATE_TIME);
+        if (LeaseholdRoles.LANDLORD.equals(event.getTerminatedByRole())) {
             this.notificationService.queueNotification(event.getTenantId(),
                     this.messages.messageFor(MessageKeys.NOTIFICATION_TERMINATION_SCHEDULED_TENANT,
                             Placeholder.unparsed("region", event.getRegionId()),
@@ -140,7 +141,7 @@ public final class RegionNotificationListener implements Listener {
     @EventHandler
     public void onTerminationCancelled(@NotNull LeaseTerminationCancelledEvent event) {
         // Notify the party that did not initiate the (now-cancelled) termination.
-        UUID target = "landlord".equals(event.getTerminatedByRole())
+        UUID target = LeaseholdRoles.LANDLORD.equals(event.getTerminatedByRole())
                 ? event.getTenantId() : event.getLandlordId();
         this.notificationService.queueNotification(target,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_TERMINATION_CANCELLED,
@@ -157,8 +158,6 @@ public final class RegionNotificationListener implements Listener {
                 this.messages.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_TERMINATED_LANDLORD,
                         Placeholder.unparsed("region", event.getRegionId())));
     }
-
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     /**
      * Resolves a player's display name for use in notification text, falling

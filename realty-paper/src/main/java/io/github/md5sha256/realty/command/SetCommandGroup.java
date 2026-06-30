@@ -236,8 +236,6 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        String regionId = region.region().getId();
-        UUID worldId = region.world().getUID();
         authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", () ->
         api.setLandlord(region, landlordId).thenAccept(result -> {
             switch (result) {
@@ -270,7 +268,6 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        String regionId = region.region().getId();
         if (sender instanceof Player player
                 && !sender.hasPermission("realty.command.set.titleholder.others")
                 && !region.region().getOwners().contains(player.getUniqueId())) {
@@ -313,7 +310,6 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        String regionId = region.region().getId();
         authorizeLeaseholdSet(sender, region, "realty.command.set.tenant.others", () ->
         api.setTenant(region, tenantId).thenAccept(result -> {
             switch (result) {

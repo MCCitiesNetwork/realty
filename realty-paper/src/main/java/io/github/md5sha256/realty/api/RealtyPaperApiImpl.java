@@ -492,9 +492,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Derive the initiating role; an admin (bypass) acts as the landlord (no charge).
         String role;
         if (actorId.equals(lease.tenantId())) {
-            role = "tenant";
+            role = LeaseholdRoles.TENANT;
         } else if (actorId.equals(lease.landlordId()) || bypassAuth) {
-            role = "landlord";
+            role = LeaseholdRoles.LANDLORD;
         } else {
             return TerminationPlan.fail(new TerminateResult.NotAuthorized(regionId));
         }
@@ -503,7 +503,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         java.time.LocalDateTime currentEnd = lease.endDate() != null ? lease.endDate() : now;
         double charge = 0;
         java.time.LocalDateTime newEndDate;
-        if ("tenant".equals(role) && currentEnd.isBefore(effectiveEnd)) {
+        if (LeaseholdRoles.TENANT.equals(role) && currentEnd.isBefore(effectiveEnd)) {
             // Notice runs past the paid term: charge whole extensions to cover it (overrides the cap).
             long gapSeconds = java.time.Duration.between(currentEnd, effectiveEnd).getSeconds();
             long duration = lease.durationSeconds();
