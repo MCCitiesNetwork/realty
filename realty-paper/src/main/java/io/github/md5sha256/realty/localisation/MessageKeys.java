@@ -268,6 +268,7 @@ public final class MessageKeys {
     public static final String EXTEND_UPDATE_FAILED = "extend.update-failed";
     public static final String EXTEND_INSUFFICIENT_FUNDS = "extend.insufficient-funds";
     public static final String EXTEND_PAYMENT_FAILED = "extend.payment-failed";
+    public static final String EXTEND_TERMINATING = "extend.terminating";
     public static final String EXTEND_ERROR = "extend.error";
 
     // unrent
@@ -434,6 +435,57 @@ public final class MessageKeys {
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED = "notification.leasehold-expired";
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD = "notification.leasehold-expired-landlord";
     public static final String NOTIFICATION_REGION_UNRENTED = "notification.region-unrented";
+    public static final String NOTIFICATION_MODIFY_PROPOSED_LANDLORD = "notification.modify-proposed-landlord";
+    public static final String NOTIFICATION_MODIFY_PROPOSED_TENANT = "notification.modify-proposed-tenant";
+    public static final String NOTIFICATION_MODIFY_ACCEPTED = "notification.modify-accepted";
+    public static final String NOTIFICATION_MODIFY_REJECTED = "notification.modify-rejected";
+    public static final String NOTIFICATION_MODIFY_WITHDRAWN = "notification.modify-withdrawn";
+    public static final String NOTIFICATION_TERMINATION_SCHEDULED_TENANT = "notification.termination-scheduled-tenant";
+    public static final String NOTIFICATION_TERMINATION_SCHEDULED_LANDLORD = "notification.termination-scheduled-landlord";
+    public static final String NOTIFICATION_TERMINATION_CANCELLED = "notification.termination-cancelled";
+    public static final String NOTIFICATION_LEASEHOLD_TERMINATED_TENANT = "notification.leasehold-terminated-tenant";
+    public static final String NOTIFICATION_LEASEHOLD_TERMINATED_LANDLORD = "notification.leasehold-terminated-landlord";
+
+    // modify
+    public static final String MODIFY_PROPOSE_SUCCESS_LANDLORD = "modify.propose-success-landlord";
+    public static final String MODIFY_PROPOSE_SUCCESS_TENANT = "modify.propose-success-tenant";
+    public static final String MODIFY_NO_LEASEHOLD_CONTRACT = "modify.no-leasehold-contract";
+    public static final String MODIFY_NOT_OCCUPIED = "modify.not-occupied";
+    public static final String MODIFY_TERMINATING = "modify.terminating";
+    public static final String MODIFY_NOT_AUTHORIZED = "modify.not-authorized";
+    public static final String MODIFY_NOT_LANDLORD = "modify.not-landlord";
+    public static final String MODIFY_UPDATE_FAILED = "modify.update-failed";
+    public static final String MODIFY_ERROR = "modify.error";
+    public static final String MODIFY_ACCEPT_SUCCESS = "modify.accept-success";
+    public static final String MODIFY_REJECT_SUCCESS = "modify.reject-success";
+    public static final String MODIFY_WITHDRAW_SUCCESS = "modify.withdraw-success";
+    public static final String MODIFY_NO_PENDING_PROPOSAL = "modify.no-pending-proposal";
+    public static final String MODIFY_NOT_TENANT_PROPOSAL = "modify.not-tenant-proposal";
+    public static final String MODIFY_NOT_PROPOSER = "modify.not-proposer";
+    public static final String MODIFY_INFO_NONE = "modify.info-none";
+    public static final String MODIFY_INFO = "modify.info";
+
+    // terminate
+    public static final String TERMINATE_SUCCESS = "terminate.success";
+    public static final String TERMINATE_SUCCESS_CHARGED = "terminate.success-charged";
+    public static final String TERMINATE_NO_LEASEHOLD_CONTRACT = "terminate.no-leasehold-contract";
+    public static final String TERMINATE_NOT_OCCUPIED = "terminate.not-occupied";
+    public static final String TERMINATE_ALREADY_TERMINATING = "terminate.already-terminating";
+    public static final String TERMINATE_NOT_AUTHORIZED = "terminate.not-authorized";
+    public static final String TERMINATE_INSUFFICIENT_FUNDS = "terminate.insufficient-funds";
+    public static final String TERMINATE_PAYMENT_FAILED = "terminate.payment-failed";
+    public static final String TERMINATE_UPDATE_FAILED = "terminate.update-failed";
+    public static final String TERMINATE_ERROR = "terminate.error";
+    public static final String TERMINATE_CANCEL_SUCCESS = "terminate.cancel-success";
+    public static final String TERMINATE_CANCEL_NO_LEASEHOLD_CONTRACT = "terminate.cancel-no-leasehold-contract";
+    public static final String TERMINATE_CANCEL_NOT_TERMINATING = "terminate.cancel-not-terminating";
+    public static final String TERMINATE_CANCEL_NOT_AUTHORIZED = "terminate.cancel-not-authorized";
+    public static final String TERMINATE_CANCEL_UPDATE_FAILED = "terminate.cancel-update-failed";
+    public static final String TERMINATE_CANCEL_ERROR = "terminate.cancel-error";
+
+    // set (leasehold authorization)
+    public static final String SET_NOT_LANDLORD = "set.not-landlord";
+    public static final String SET_OCCUPIED_USE_MODIFY = "set.occupied-use-modify";
 
     // search
     public static final String SEARCH_HEADER = "search.header";

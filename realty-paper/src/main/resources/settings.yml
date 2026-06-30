@@ -10,6 +10,11 @@ profile-reapply-per-tick: 10
 subregion-min-volume: 20
 # Duration (in seconds) for an accepted offer payment deadline. Default: 86400 (24 hours).
 offer-payment-duration-seconds: 86400
+# Minimum notice (in seconds) before a rental termination takes effect. The notice is always honoured:
+# if the current paid term ends sooner, the lease is extended to cover it (a tenant pays for those
+# extensions) and any prepaid-but-unused time is refunded when the lease finally ends.
+# Default: 604800 (7 days).
+lease-termination-notice-seconds: 604800
 # Tag IDs that prevent a parent region from being subregioned.
 # If a region has any of these tags, it cannot be used as a parent for subregion creation.
 subregion-tag-blacklist: []

@@ -310,6 +310,7 @@ extend:
   update-failed: "Failed to extend lease for region <region>."
   insufficient-funds: "You do not have enough funds. Your balance: <balance>. Extension price: <price>."
   payment-failed: "Payment failed: <error>"
+  terminating: "Region <region> is scheduled for termination and can no longer be extended."
   error: "Failed to extend lease: <error>"
 
 unrent:
@@ -342,6 +343,45 @@ remove:
 set:
   no-permission: "You do not have permission to modify this region."
   check-permissions-error: "Failed to check permissions: <error>"
+  not-landlord: "You are not the landlord of region <region>."
+  occupied-use-modify: "Region <region> is currently rented. Use /realty modify to change its terms for the next cycle, or have an admin force the change."
+
+modify:
+  propose-success-landlord: "Proposed new terms for region <region>. They take effect the next time the tenant renews; the tenant may decline by not renewing."
+  propose-success-tenant: "Requested new terms for region <region>. The landlord must accept before they take effect."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
+  not-occupied: "Region <region> has no tenant, so there is nothing to modify. Use /realty set while it is vacant."
+  terminating: "Region <region> is scheduled for termination and cannot be modified."
+  not-authorized: "You are not the landlord or tenant of region <region>."
+  not-landlord: "Only the landlord of region <region> can do that."
+  update-failed: "Failed to modify region <region>."
+  error: "Failed to modify region: <error>"
+  accept-success: "Accepted the tenant's proposed terms for region <region>. They take effect on the next renewal."
+  reject-success: "Rejected the tenant's proposed terms for region <region>."
+  withdraw-success: "Withdrew the pending proposal for region <region>."
+  no-pending-proposal: "Region <region> has no pending modification proposal."
+  not-tenant-proposal: "There is no tenant proposal awaiting your decision on region <region>."
+  not-proposer: "You did not make the pending proposal for region <region>."
+  info-none: "Region <region> has no pending modification."
+  info: "Pending modification for region <region> (proposed by <role>, status <status>): price=<price>, duration=<duration>, max-extensions=<maxextensions>."
+
+terminate:
+  success: "Scheduled termination of region <region>. The lease ends <date>."
+  success-charged: "Scheduled termination of region <region>. The lease ends <date>. You were charged <charged> to cover the notice period."
+  no-leasehold-contract: "Region <region> does not have a lease contract."
+  not-occupied: "Region <region> has no tenant to terminate."
+  already-terminating: "Region <region> is already scheduled for termination."
+  not-authorized: "You are not the landlord or tenant of region <region>."
+  insufficient-funds: "You do not have enough funds to cover the notice period. Your balance: <balance>. Required: <price>."
+  payment-failed: "Payment failed: <error>"
+  update-failed: "Failed to terminate region <region>."
+  error: "Failed to terminate region: <error>"
+  cancel-success: "Cancelled the scheduled termination of region <region>."
+  cancel-no-leasehold-contract: "Region <region> does not have a lease contract."
+  cancel-not-terminating: "Region <region> is not scheduled for termination."
+  cancel-not-authorized: "Only the party that initiated the termination of region <region> can cancel it."
+  cancel-update-failed: "Failed to cancel the termination of region <region>."
+  cancel-error: "Failed to cancel termination: <error>"
 
 set-price:
   success: "Price for region <region> set to <price>."
@@ -463,6 +503,16 @@ notification:
   region-unrented: "<prefix> <player> unrented region <region>. Refund: <refund>."
   leasehold-expired: "<prefix> Your lease on region <region> has expired."
   leasehold-expired-landlord: "<prefix> The lease on region <region> has expired; the tenant has been removed."
+  modify-proposed-landlord: "<prefix> Your landlord proposed new terms for region <region>, effective when you next renew. Renew to accept, or let the lease end to decline."
+  modify-proposed-tenant: "<prefix> <player> requested new terms for region <region>. Use /realty modify accept or /realty modify reject."
+  modify-accepted: "<prefix> Your proposed terms for region <region> were accepted; they take effect on your next renewal."
+  modify-rejected: "<prefix> Your proposed terms for region <region> were rejected."
+  modify-withdrawn: "<prefix> The pending modification proposal for region <region> was withdrawn."
+  termination-scheduled-tenant: "<prefix> Your lease on region <region> has been scheduled for termination, effective <date>."
+  termination-scheduled-landlord: "<prefix> The tenant of region <region> has scheduled termination, effective <date>."
+  termination-cancelled: "<prefix> The scheduled termination of region <region> has been cancelled."
+  leasehold-terminated-tenant: "<prefix> Your lease on region <region> has ended. Refund: <refund>."
+  leasehold-terminated-landlord: "<prefix> The lease on region <region> has ended via termination; the tenant has been removed."
 
 subregion:
   create-success: "<region> is now up for rent."
