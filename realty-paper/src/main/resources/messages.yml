@@ -362,8 +362,6 @@ modify:
   no-pending-proposal: "Region <region> has no pending modification proposal."
   not-tenant-proposal: "There is no tenant proposal awaiting your decision on region <region>."
   not-proposer: "You did not make the pending proposal for region <region>."
-  info-none: "Region <region> has no pending modification."
-  info: "Pending modification for region <region> (proposed by <role>, status <status>): price=<price>, duration=<duration>, max-extensions=<maxextensions>."
 
 terminate:
   success: "Scheduled termination of region <region>. The lease ends <date>."

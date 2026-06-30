@@ -88,7 +88,20 @@ public record ModifyCommandGroup(
         );
     }
 
-    private enum ResolveAction { ACCEPT, REJECT, WITHDRAW }
+    /** The three ways to resolve a pending proposal, each carrying its success message and resolution name. */
+    private enum ResolveAction {
+        ACCEPT(MessageKeys.MODIFY_ACCEPT_SUCCESS, "ACCEPTED"),
+        REJECT(MessageKeys.MODIFY_REJECT_SUCCESS, "REJECTED"),
+        WITHDRAW(MessageKeys.MODIFY_WITHDRAW_SUCCESS, "WITHDRAWN");
+
+        private final String successKey;
+        private final String resolution;
+
+        ResolveAction(String successKey, String resolution) {
+            this.successKey = successKey;
+            this.resolution = resolution;
+        }
+    }
 
     private void executePropose(@NotNull CommandContext<Source> ctx,
                                 @Nullable Double price, @Nullable Long durationSeconds,
@@ -166,18 +179,9 @@ public record ModifyCommandGroup(
         future.thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.ResolveModificationResult.Success success -> {
-                    String successKey = switch (action) {
-                        case ACCEPT -> MessageKeys.MODIFY_ACCEPT_SUCCESS;
-                        case REJECT -> MessageKeys.MODIFY_REJECT_SUCCESS;
-                        case WITHDRAW -> MessageKeys.MODIFY_WITHDRAW_SUCCESS;
-                    };
-                    sender.sendMessage(messages.messageFor(successKey, Placeholder.unparsed("region", regionId)));
-                    String resolution = switch (action) {
-                        case ACCEPT -> "ACCEPTED";
-                        case REJECT -> "REJECTED";
-                        case WITHDRAW -> "WITHDRAWN";
-                    };
-                    events.fireSync(new LeaseModificationResolvedEvent(region, resolution,
+                    sender.sendMessage(messages.messageFor(action.successKey,
+                            Placeholder.unparsed("region", regionId)));
+                    events.fireSync(new LeaseModificationResolvedEvent(region, action.resolution,
                             success.proposerRole(), success.landlordId(), success.tenantId()));
                 }
                 case RealtyBackend.ResolveModificationResult.NoLeaseholdContract ignored ->

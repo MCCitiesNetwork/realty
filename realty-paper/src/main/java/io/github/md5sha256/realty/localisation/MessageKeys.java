@@ -462,8 +462,6 @@ public final class MessageKeys {
     public static final String MODIFY_NO_PENDING_PROPOSAL = "modify.no-pending-proposal";
     public static final String MODIFY_NOT_TENANT_PROPOSAL = "modify.not-tenant-proposal";
     public static final String MODIFY_NOT_PROPOSER = "modify.not-proposer";
-    public static final String MODIFY_INFO_NONE = "modify.info-none";
-    public static final String MODIFY_INFO = "modify.info";
 
     // terminate
     public static final String TERMINATE_SUCCESS = "terminate.success";

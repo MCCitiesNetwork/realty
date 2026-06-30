@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LeaseTerminateEvent;
@@ -17,7 +18,6 @@ import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -37,8 +37,6 @@ public record TerminateCommand(
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
-
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     @Override
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
@@ -77,7 +75,7 @@ public record TerminateCommand(
         api.terminate(region, sender.getUniqueId(), bypass).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.TerminateResult.Success success -> {
-                    String date = success.effectiveDate().format(DATE_FORMAT);
+                    String date = success.effectiveDate().format(DateTimeFormatters.DATE_TIME);
                     if (success.charged() > 0) {
                         sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_SUCCESS_CHARGED,
                                 Placeholder.unparsed("region", success.regionId()),

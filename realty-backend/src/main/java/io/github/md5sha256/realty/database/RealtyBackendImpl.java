@@ -3,6 +3,8 @@ package io.github.md5sha256.realty.database;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
+import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
@@ -806,11 +808,13 @@ public class RealtyBackendImpl implements RealtyBackend {
             // extension cap now blocks renewal) rolls the application back with the session.
             LeaseholdModificationEntity activeMod = wrapper.leaseholdModificationMapper()
                     .selectActiveByContract(lease.leaseholdContractId());
-            boolean modificationApplied = activeMod != null && "ACTIVE".equals(activeMod.status());
+            boolean modificationApplied = activeMod != null
+                    && LeaseholdModificationStatus.ACTIVE.equals(activeMod.status());
             if (modificationApplied) {
                 leaseholdMapper.applyModificationTerms(worldGuardRegionId, worldId,
                         activeMod.newPrice(), activeMod.newDurationSeconds(), activeMod.newMaxExtensions());
-                wrapper.leaseholdModificationMapper().updateStatus(activeMod.modificationId(), "APPLIED");
+                wrapper.leaseholdModificationMapper().updateStatus(activeMod.modificationId(),
+                        LeaseholdModificationStatus.APPLIED);
                 // Re-read so the cap check, history and returned price reflect the new terms.
                 lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             }
@@ -874,10 +878,10 @@ public class RealtyBackendImpl implements RealtyBackend {
             String proposerRole;
             UUID proposerId;
             if (actorId.equals(lease.tenantId())) {
-                proposerRole = "tenant";
+                proposerRole = LeaseholdRoles.TENANT;
                 proposerId = lease.tenantId();
             } else if (actorId.equals(lease.landlordId()) || bypassAuth) {
-                proposerRole = "landlord";
+                proposerRole = LeaseholdRoles.LANDLORD;
                 proposerId = lease.landlordId();
             } else {
                 return new ProposeModificationResult.NotAuthorized();
@@ -894,9 +898,11 @@ public class RealtyBackendImpl implements RealtyBackend {
                     if (mergedDuration == null) mergedDuration = existing.newDurationSeconds();
                     if (mergedMax == null) mergedMax = existing.newMaxExtensions();
                 }
-                wrapper.leaseholdModificationMapper().updateStatus(existing.modificationId(), "SUPERSEDED");
+                wrapper.leaseholdModificationMapper().updateStatus(existing.modificationId(),
+                        LeaseholdModificationStatus.SUPERSEDED);
             }
-            String status = "landlord".equals(proposerRole) ? "ACTIVE" : "AWAITING_LANDLORD";
+            String status = LeaseholdRoles.LANDLORD.equals(proposerRole)
+                    ? LeaseholdModificationStatus.ACTIVE : LeaseholdModificationStatus.AWAITING_LANDLORD;
             int modificationId = wrapper.leaseholdModificationMapper().insert(lease.leaseholdContractId(),
                     proposerRole, proposerId, mergedPrice, mergedDuration, mergedMax, status);
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
@@ -904,7 +910,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     mergedPrice, mergedDuration, mergedMax);
             wrapper.session().commit();
             return new ProposeModificationResult.Success(modificationId, proposerRole,
-                    "ACTIVE".equals(status), lease.landlordId(), lease.tenantId());
+                    LeaseholdModificationStatus.ACTIVE.equals(status), lease.landlordId(), lease.tenantId());
         }
     }
 
@@ -943,11 +949,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (mod == null) {
                 return new ResolveModificationResult.NoPendingProposal();
             }
-            if (!"AWAITING_LANDLORD".equals(mod.status())) {
+            if (!LeaseholdModificationStatus.AWAITING_LANDLORD.equals(mod.status())) {
                 return new ResolveModificationResult.NotTenantProposal();
             }
             wrapper.leaseholdModificationMapper().updateStatus(mod.modificationId(),
-                    accept ? "ACTIVE" : "REJECTED");
+                    accept ? LeaseholdModificationStatus.ACTIVE : LeaseholdModificationStatus.REJECTED);
             UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     (accept ? HistoryEventType.MODIFY_ACCEPT : HistoryEventType.MODIFY_REJECT).name(),
@@ -978,7 +984,8 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!bypassAuth && !mod.proposerId().equals(actorId)) {
                 return new ResolveModificationResult.NotAuthorized();
             }
-            wrapper.leaseholdModificationMapper().updateStatus(mod.modificationId(), "WITHDRAWN");
+            wrapper.leaseholdModificationMapper().updateStatus(mod.modificationId(),
+                    LeaseholdModificationStatus.WITHDRAWN);
             UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.MODIFY_WITHDRAW.name(), tenantId, lease.landlordId(),
@@ -1037,9 +1044,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease.terminationEffectiveDate() == null) {
                 return new CancelTerminationResult.NotTerminating();
             }
-            String role = lease.terminatedByRole() != null ? lease.terminatedByRole() : "landlord";
+            String role = lease.terminatedByRole() != null ? lease.terminatedByRole() : LeaseholdRoles.LANDLORD;
             // Only the party that initiated the termination (or an admin) may cancel it.
-            UUID initiator = "tenant".equals(role) ? lease.tenantId() : lease.landlordId();
+            UUID initiator = LeaseholdRoles.TENANT.equals(role) ? lease.tenantId() : lease.landlordId();
             if (!bypassAuth && !actorId.equals(initiator)) {
                 return new CancelTerminationResult.NotAuthorized();
             }
