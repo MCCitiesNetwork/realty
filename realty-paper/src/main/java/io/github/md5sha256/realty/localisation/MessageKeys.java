@@ -510,6 +510,7 @@ public final class MessageKeys {
     // set (leasehold authorization)
     public static final String SET_NOT_LANDLORD = "set.not-landlord";
     public static final String SET_OCCUPIED_USE_MODIFY = "set.occupied-use-modify";
+    public static final String SET_LEASEHOLD_NO_PERMISSION = "set.leasehold-no-permission";
 
     // search
     public static final String SEARCH_HEADER = "search.header";

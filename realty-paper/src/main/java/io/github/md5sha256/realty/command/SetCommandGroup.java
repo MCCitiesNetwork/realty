@@ -29,6 +29,7 @@ import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.List;
@@ -66,9 +67,15 @@ public record SetCommandGroup(
      * be set instantly by its landlord, an occupied lease must use {@code /realty modify} so rents cannot
      * be changed mid-tenancy without notice. For a freehold/unregistered region this falls back to the
      * WorldGuard-owner check so title-holder-owned regions keep working.
+     *
+     * <p>A non-null {@code leaseholdPerm} additionally gates an instant leasehold term change behind that
+     * node, so it is refused (pointing at {@code /realty modify}) unless the caller holds it. It is set for
+     * the terms {@code /realty modify} also covers (price, duration, max-extensions) and left {@code null}
+     * for structural transfers (landlord, tenant), which have no {@code /modify} equivalent.</p>
      */
     private void authorizeLeaseholdSet(@NotNull CommandSender sender, @NotNull WorldGuardRegion region,
-                                       @NotNull String bypassPerm, @NotNull Runnable onAuthorized) {
+                                       @NotNull String bypassPerm, @Nullable String leaseholdPerm,
+                                       @NotNull Runnable onAuthorized) {
         if (!(sender instanceof Player player)) {
             onAuthorized.run();
             return;
@@ -81,7 +88,12 @@ public record SetCommandGroup(
         boolean isWorldGuardOwner = region.region().getOwners().contains(player.getUniqueId());
         api.getLeaseholdContract(regionId, region.world().getUID()).thenAccept(lease -> {
             if (lease != null) {
-                if (lease.tenantId() != null) {
+                // Some instant term changes on a leasehold require an extra node; without it the
+                // change must go through /realty modify so it applies on the next cycle.
+                if (leaseholdPerm != null && !player.hasPermission(leaseholdPerm)) {
+                    player.sendMessage(messages.messageFor(MessageKeys.SET_LEASEHOLD_NO_PERMISSION,
+                            Placeholder.unparsed("region", regionId)));
+                } else if (lease.tenantId() != null) {
                     player.sendMessage(messages.messageFor(MessageKeys.SET_OCCUPIED_USE_MODIFY,
                             Placeholder.unparsed("region", regionId)));
                 } else if (!player.getUniqueId().equals(lease.landlordId())) {
@@ -169,7 +181,8 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        authorizeLeaseholdSet(sender, region, "realty.command.set.price.others", () ->
+        authorizeLeaseholdSet(sender, region, "realty.command.set.price.others",
+                "realty.command.set.price.leasehold", () ->
         api.setPrice(regionId, worldId, price).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.SetPriceResult.Success ignored -> {
@@ -209,7 +222,8 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        authorizeLeaseholdSet(sender, region, "realty.command.set.duration.others", () ->
+        authorizeLeaseholdSet(sender, region, "realty.command.set.duration.others",
+                "realty.command.set.duration.leasehold", () ->
         api.setDuration(regionId, worldId, duration.toSeconds()).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.SetDurationResult.Success ignored ->
@@ -236,7 +250,7 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", () ->
+        authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", null, () ->
         api.setLandlord(region, landlordId).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetLandlordResult.Success success -> {
@@ -310,7 +324,7 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        authorizeLeaseholdSet(sender, region, "realty.command.set.tenant.others", () ->
+        authorizeLeaseholdSet(sender, region, "realty.command.set.tenant.others", null, () ->
         api.setTenant(region, tenantId).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTenantResult.Success success -> {
@@ -345,7 +359,8 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        authorizeLeaseholdSet(sender, region, "realty.command.set.maxextensions.others", () ->
+        authorizeLeaseholdSet(sender, region, "realty.command.set.maxextensions.others",
+                "realty.command.set.maxextensions.leasehold", () ->
         api.setMaxRenewals(regionId, worldId, maxExtensions).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.SetMaxRenewalsResult.Success ignored ->

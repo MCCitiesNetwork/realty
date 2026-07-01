@@ -621,6 +621,8 @@ set:
     occupied-use-modify: <prefix> Region <yellow><region></yellow> is currently rented.
         Use <green>/realty modify</green> to change its terms for the next cycle, or
         have an admin force the change.
+    leasehold-no-permission: <prefix> Leasehold terms cannot be set instantly. Use <green>/realty
+        modify</green> to change region <yellow><region></yellow> from the next cycle.
 modify:
     propose-success-landlord: <prefix> You have <green>proposed new terms</green> for
         region <yellow><region></yellow>. They take effect the next time the tenant
