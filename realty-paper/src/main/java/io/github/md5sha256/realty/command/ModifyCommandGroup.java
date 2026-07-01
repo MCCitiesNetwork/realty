@@ -1,7 +1,5 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.CurrencyFormatter;
-import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -10,6 +8,7 @@ import io.github.md5sha256.realty.api.event.LeaseModificationProposedEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
 import io.github.md5sha256.realty.api.event.LeaseModifyProposeEvent;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.LeaseholdChangeSummary;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
@@ -30,7 +29,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -121,7 +119,7 @@ public record ModifyCommandGroup(
                 output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_INBOX_ENTRY,
                         Placeholder.unparsed("region", view.worldGuardRegionId()),
                         Placeholder.unparsed("player", resolveName(view.proposerId())),
-                        Placeholder.unparsed("changes", describeChanges(view))));
+                        Placeholder.component("changes", describeChanges(view))));
             }
             sender.sendMessage(output);
         });
@@ -143,26 +141,17 @@ public record ModifyCommandGroup(
                         ? MessageKeys.MODIFY_STATUS_ACTIVE : MessageKeys.MODIFY_STATUS_AWAITING;
                 output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_OUTBOX_ENTRY,
                         Placeholder.unparsed("region", view.worldGuardRegionId()),
-                        Placeholder.unparsed("changes", describeChanges(view)),
+                        Placeholder.component("changes", describeChanges(view)),
                         Placeholder.component("status", messages.messageFor(statusKey))));
             }
             sender.sendMessage(output);
         });
     }
 
-    /** Renders the non-null proposed terms as a short human-readable summary. */
-    private static @NotNull String describeChanges(@NotNull LeaseholdModificationView view) {
-        List<String> parts = new ArrayList<>();
-        if (view.newPrice() != null) {
-            parts.add("price → " + CurrencyFormatter.format(view.newPrice()));
-        }
-        if (view.newDurationSeconds() != null) {
-            parts.add("duration → " + DurationFormatter.format(Duration.ofSeconds(view.newDurationSeconds())));
-        }
-        if (view.newMaxExtensions() != null) {
-            parts.add("max-extensions → " + view.newMaxExtensions());
-        }
-        return parts.isEmpty() ? "no change" : String.join(", ", parts);
+    /** Renders the non-null proposed terms as a localized summary (formatting lives in messages.yml). */
+    private @NotNull Component describeChanges(@NotNull LeaseholdModificationView view) {
+        return LeaseholdChangeSummary.render(messages,
+                view.newPrice(), view.newDurationSeconds(), view.newMaxExtensions());
     }
 
     private static @NotNull String resolveName(@NotNull UUID uuid) {

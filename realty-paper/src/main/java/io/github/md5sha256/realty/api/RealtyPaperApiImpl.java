@@ -230,6 +230,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     CompletableFuture.completedFuture(new RentResult.NoLeaseholdContract(regionId));
             case RealtyBackend.RentResult.AlreadyOccupied ignored ->
                     CompletableFuture.completedFuture(new RentResult.AlreadyOccupied(regionId));
+            case RealtyBackend.RentResult.NotAcceptingTenants ignored ->
+                    CompletableFuture.completedFuture(new RentResult.NotAcceptingTenants(regionId));
             case RealtyBackend.RentResult.UpdateFailed ignored ->
                     CompletableFuture.completedFuture(new RentResult.UpdateFailed(regionId));
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -1271,6 +1273,15 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull String regionId, @NotNull UUID worldId, int maxRenewals) {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.setMaxRenewals(regionId, worldId, maxRenewals),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull UUID actorId, boolean bypassAuth, boolean accepting) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.setRentable(regionId, worldId, actorId, bypassAuth, accepting),
                 executorState.dbExec());
     }
 

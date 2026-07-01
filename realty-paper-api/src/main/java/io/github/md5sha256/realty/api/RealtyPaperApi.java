@@ -47,6 +47,7 @@ public interface RealtyPaperApi {
                        @NotNull UUID landlordId) implements RentResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements RentResult {}
         record AlreadyOccupied(@NotNull String regionId) implements RentResult {}
+        record NotAcceptingTenants(@NotNull String regionId) implements RentResult {}
         record InsufficientFunds(double price, double balance) implements RentResult {}
         record PaymentFailed(@NotNull String error) implements RentResult {}
         record UpdateFailed(@NotNull String regionId) implements RentResult {}
@@ -378,6 +379,10 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
             @NotNull String regionId, @NotNull UUID worldId, int maxRenewals);
+
+    @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull UUID actorId, boolean bypassAuth, boolean accepting);
 
     // --- Leasehold Modifications ---
 

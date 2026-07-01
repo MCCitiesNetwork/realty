@@ -734,6 +734,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease.tenantId() != null) {
                 return new RentResult.AlreadyOccupied();
             }
+            if (!lease.acceptingTenants()) {
+                return new RentResult.NotAcceptingTenants();
+            }
             int updated = leaseholdMapper.rentRegion(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new RentResult.UpdateFailed();
@@ -742,6 +745,35 @@ public class RealtyBackendImpl implements RealtyBackend {
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId());
+        }
+    }
+
+    // --- Set Rentable ---
+
+    @Override
+    public @NotNull SetRentableResult setRentable(@NotNull String worldGuardRegionId,
+                                                  @NotNull UUID worldId,
+                                                  @NotNull UUID actorId,
+                                                  boolean bypassAuth,
+                                                  boolean accepting) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new SetRentableResult.NoLeaseholdContract();
+            }
+            if (!bypassAuth && !actorId.equals(lease.landlordId())) {
+                return new SetRentableResult.NotAuthorized();
+            }
+            if (lease.acceptingTenants() == accepting) {
+                return new SetRentableResult.NoChange(accepting);
+            }
+            int updated = leaseholdMapper.updateAcceptingTenantsByRegion(worldGuardRegionId, worldId, accepting);
+            if (updated == 0) {
+                return new SetRentableResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new SetRentableResult.Success(accepting);
         }
     }
 

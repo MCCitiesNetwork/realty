@@ -42,6 +42,7 @@ import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.RentCommand;
+import io.github.md5sha256.realty.command.RentableCommand;
 import io.github.md5sha256.realty.command.SearchCommand;
 import io.github.md5sha256.realty.command.SearchDialog;
 import io.github.md5sha256.realty.command.ModifyCommandGroup;
@@ -694,6 +695,7 @@ public final class Realty extends JavaPlugin {
                         this.eventDispatch),
                 new ExtendCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentCommand(paperApi, messageContainer, this.eventDispatch),
+                new RentableCommand(paperApi, messageContainer),
                 new UnrentCommand(paperApi, messageContainer, this.eventDispatch),
                 new SetCommandGroup(paperApi, messageContainer, this.eventDispatch),
                 new ModifyCommandGroup(paperApi, messageContainer, this.eventDispatch),

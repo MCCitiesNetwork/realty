@@ -166,6 +166,8 @@ public final class MessageKeys {
     public static final String HISTORY_EVENT_SET_TENANT = "history.event.set-tenant";
     public static final String HISTORY_EVENT_UNSET_TENANT = "history.event.unset-tenant";
     public static final String HISTORY_EVENT_SET_MAX_EXTENSIONS = "history.event.set-max-extensions";
+    // Event types without a constant here get their history.event.* key derived from the event name
+    // by HistoryCommand.deriveEventMessageKey; those keys are defined in messages.yml.
 
     // info
     public static final String INFO_HEADER = "info.header";
@@ -287,7 +289,18 @@ public final class MessageKeys {
     public static final String RENT_UPDATE_FAILED = "rent.update-failed";
     public static final String RENT_INSUFFICIENT_FUNDS = "rent.insufficient-funds";
     public static final String RENT_PAYMENT_FAILED = "rent.payment-failed";
+    public static final String RENT_NOT_ACCEPTING_TENANTS = "rent.not-accepting-tenants";
     public static final String RENT_ERROR = "rent.error";
+
+    // rentable
+    public static final String RENTABLE_ENABLED = "rentable.enabled";
+    public static final String RENTABLE_DISABLED = "rentable.disabled";
+    public static final String RENTABLE_ALREADY_ENABLED = "rentable.already-enabled";
+    public static final String RENTABLE_ALREADY_DISABLED = "rentable.already-disabled";
+    public static final String RENTABLE_NO_LEASEHOLD_CONTRACT = "rentable.no-leasehold-contract";
+    public static final String RENTABLE_NOT_LANDLORD = "rentable.not-landlord";
+    public static final String RENTABLE_UPDATE_FAILED = "rentable.update-failed";
+    public static final String RENTABLE_ERROR = "rentable.error";
 
     // set (shared)
     public static final String SET_NO_PERMISSION = "set.no-permission";
@@ -470,6 +483,10 @@ public final class MessageKeys {
     public static final String MODIFY_OUTBOX_NONE = "modify.outbox-none";
     public static final String MODIFY_STATUS_ACTIVE = "modify.status-active";
     public static final String MODIFY_STATUS_AWAITING = "modify.status-awaiting";
+    public static final String MODIFY_CHANGE_PRICE = "modify.change-price";
+    public static final String MODIFY_CHANGE_DURATION = "modify.change-duration";
+    public static final String MODIFY_CHANGE_MAX_EXTENSIONS = "modify.change-max-extensions";
+    public static final String MODIFY_CHANGES_NONE = "modify.changes-none";
 
     // terminate
     public static final String TERMINATE_SUCCESS = "terminate.success";

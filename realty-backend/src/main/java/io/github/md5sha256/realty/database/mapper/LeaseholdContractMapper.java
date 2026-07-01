@@ -85,6 +85,11 @@ public interface LeaseholdContractMapper {
                                   @NotNull UUID worldId,
                                   int maxRenewals);
 
+    /** Sets whether the region accepts new tenants. */
+    int updateAcceptingTenantsByRegion(@NotNull String worldGuardRegionId,
+                                       @NotNull UUID worldId,
+                                       boolean accepting);
+
     /**
      * Applies non-null modification terms to the contract ({@code COALESCE} per field, so {@code null}
      * leaves a field unchanged). When a new (smaller) extension cap is applied, {@code currentMaxExtensions}

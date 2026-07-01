@@ -60,7 +60,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
     @Select("""
             SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId, lc.price, lc.durationSeconds,
                    lc.startDate, lc.endDate, lc.currentMaxExtensions, lc.maxExtensions,
-                   lc.terminationEffectiveDate, lc.terminatedByRole
+                   lc.terminationEffectiveDate, lc.terminatedByRole, lc.acceptingTenants
             FROM LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
@@ -78,7 +78,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             @Arg(column = "currentMaxExtensions", javaType = Integer.class),
             @Arg(column = "maxExtensions", javaType = Integer.class),
             @Arg(column = "terminationEffectiveDate", javaType = LocalDateTime.class),
-            @Arg(column = "terminatedByRole", javaType = String.class)
+            @Arg(column = "terminatedByRole", javaType = String.class),
+            @Arg(column = "acceptingTenants", javaType = boolean.class)
     })
     @Nullable LeaseholdContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                      @Param("worldId") @NotNull UUID worldId);
@@ -94,10 +95,24 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             AND lc.tenantId IS NULL
+            AND lc.acceptingTenants = TRUE
             """)
     int rentRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                    @Param("worldId") @NotNull UUID worldId,
                    @Param("tenantId") @NotNull UUID tenantId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.acceptingTenants = #{accepting}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int updateAcceptingTenantsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                       @Param("worldId") @NotNull UUID worldId,
+                                       @Param("accepting") boolean accepting);
 
     @Override
     @Update("""

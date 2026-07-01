@@ -500,7 +500,7 @@ class RealtyPaperApiImplTest {
 
         private LeaseholdContractEntity lease(LocalDateTime endDate, LocalDateTime terminationDate) {
             return new LeaseholdContractEntity(1, LANDLORD_ID, TENANT_ID, 200.0, 604800L,
-                    LocalDateTime.now().minusSeconds(1), endDate, null, null, terminationDate, null);
+                    LocalDateTime.now().minusSeconds(1), endDate, null, null, terminationDate, null, true);
         }
 
         @Test

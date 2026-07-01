@@ -263,12 +263,30 @@ public interface RealtyBackend {
         record Success(double price, long durationSeconds, @NotNull UUID landlordId) implements RentResult {}
         record NoLeaseholdContract() implements RentResult {}
         record AlreadyOccupied() implements RentResult {}
+        record NotAcceptingTenants() implements RentResult {}
         record UpdateFailed() implements RentResult {}
     }
 
     @NotNull RentResult rentRegion(@NotNull String worldGuardRegionId,
                                    @NotNull UUID worldId,
                                    @NotNull UUID tenantId);
+
+    // --- Set Rentable (accepting new tenants) ---
+
+    sealed interface SetRentableResult {
+        record Success(boolean acceptingTenants) implements SetRentableResult {}
+        record NoLeaseholdContract() implements SetRentableResult {}
+        record NotAuthorized() implements SetRentableResult {}
+        record NoChange(boolean acceptingTenants) implements SetRentableResult {}
+        record UpdateFailed() implements SetRentableResult {}
+    }
+
+    /** Sets whether a leasehold accepts new tenants. Only the landlord, or an admin via {@code bypassAuth}, may. */
+    @NotNull SetRentableResult setRentable(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId,
+                                           @NotNull UUID actorId,
+                                           boolean bypassAuth,
+                                           boolean accepting);
 
     void rollbackRent(@NotNull String worldGuardRegionId,
                       @NotNull UUID worldId);

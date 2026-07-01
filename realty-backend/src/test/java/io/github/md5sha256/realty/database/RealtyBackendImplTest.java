@@ -332,6 +332,50 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
     }
 
+    // --- Rentable ---
+
+    @Nested
+    @DisplayName("rentable")
+    class Rentable {
+
+        @Test
+        @DisplayName("a closed leasehold cannot be rented, and reopening restores it")
+        void closedBlocksRent() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+
+            // Landlord closes it to new tenants.
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.Success.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_A, false, false));
+            Assertions.assertFalse(logic.getLeaseholdContract(regionId, WORLD_ID).acceptingTenants());
+
+            Assertions.assertInstanceOf(RealtyBackend.RentResult.NotAcceptingTenants.class,
+                    logic.rentRegion(regionId, WORLD_ID, PLAYER_B));
+
+            // Reopening lets a tenant rent again.
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.Success.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_A, false, true));
+            Assertions.assertInstanceOf(RealtyBackend.RentResult.Success.class,
+                    logic.rentRegion(regionId, WORLD_ID, PLAYER_B));
+        }
+
+        @Test
+        @DisplayName("only the landlord (or an admin) can toggle rentable")
+        void onlyLandlordCanToggle() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.NotAuthorized.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_C, false, false));
+            // A no-op toggle reports NoChange (default is accepting).
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.NoChange.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_A, false, true));
+            // Admin bypass can toggle regardless of who they are.
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.Success.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_C, true, false));
+        }
+    }
+
     // --- DeleteRegion ---
 
     @Nested

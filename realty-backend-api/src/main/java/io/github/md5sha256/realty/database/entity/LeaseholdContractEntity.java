@@ -20,6 +20,7 @@ import java.util.UUID;
  * @param maxExtensions        Maximum allowed extensions (nullable)
  * @param terminationEffectiveDate When the lease is scheduled to end early, or {@code null} if not terminating
  * @param terminatedByRole     {@code "landlord"} or {@code "tenant"} when terminating, else {@code null}
+ * @param acceptingTenants     Whether the region may be rented by a new tenant (does not affect the current one)
  * @see io.github.md5sha256.realty.api.LeaseContract
  */
 public record LeaseholdContractEntity(
@@ -33,6 +34,7 @@ public record LeaseholdContractEntity(
         @Nullable Integer currentMaxExtensions,
         @Nullable Integer maxExtensions,
         @Nullable LocalDateTime terminationEffectiveDate,
-        @Nullable String terminatedByRole
+        @Nullable String terminatedByRole,
+        boolean acceptingTenants
 ) {
 }

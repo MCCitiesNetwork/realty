@@ -75,6 +75,9 @@ public record RentCommand(
                 case RealtyPaperApi.RentResult.AlreadyOccupied occupied ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_ALREADY_OCCUPIED,
                                 Placeholder.unparsed("region", occupied.regionId())));
+                case RealtyPaperApi.RentResult.NotAcceptingTenants notAccepting ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.RENT_NOT_ACCEPTING_TENANTS,
+                                Placeholder.unparsed("region", notAccepting.regionId())));
                 case RealtyPaperApi.RentResult.InsufficientFunds insufficient ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_INSUFFICIENT_FUNDS,
                                 Placeholder.unparsed("price", CurrencyFormatter.format(insufficient.price())),
