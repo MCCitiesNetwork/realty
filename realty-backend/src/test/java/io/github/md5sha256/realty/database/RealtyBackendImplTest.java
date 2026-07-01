@@ -254,6 +254,27 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("inbox lists tenant proposals awaiting the landlord; outbox lists the proposer's own")
+        void inboxAndOutbox() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+            logic.proposeModification(regionId, WORLD_ID, PLAYER_B, false, 150.0, null, null);
+
+            // Landlord (PLAYER_A) sees it in their inbox; tenant (PLAYER_B) sees it in their outbox.
+            Assertions.assertEquals(1, logic.listModificationsAwaitingLandlord(PLAYER_A).size());
+            Assertions.assertEquals(1, logic.listPendingModificationsByProposer(PLAYER_B).size());
+            // The tenant has nothing awaiting them as a landlord; the landlord proposed nothing.
+            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(PLAYER_B).isEmpty());
+            Assertions.assertTrue(logic.listPendingModificationsByProposer(PLAYER_A).isEmpty());
+
+            // Once the landlord rejects it, both listings clear.
+            logic.rejectModification(regionId, WORLD_ID, PLAYER_A, false);
+            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(PLAYER_A).isEmpty());
+            Assertions.assertTrue(logic.listPendingModificationsByProposer(PLAYER_B).isEmpty());
+        }
+
+        @Test
         @DisplayName("a stranger cannot propose a modification")
         void strangerCannotPropose() {
             String regionId = uniqueRegionId();

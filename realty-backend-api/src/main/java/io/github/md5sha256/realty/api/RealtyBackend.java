@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import org.jetbrains.annotations.NotNull;
@@ -359,6 +360,12 @@ public interface RealtyBackend {
                                                             @NotNull UUID worldId,
                                                             @NotNull UUID actorId,
                                                             boolean bypassAuth);
+
+    /** Tenant proposals awaiting the given landlord's decision (inbox). */
+    @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull UUID landlordId);
+
+    /** The given player's own non-terminal proposals (outbox). */
+    @NotNull List<LeaseholdModificationView> listPendingModificationsByProposer(@NotNull UUID proposerId);
 
     // --- Terminate Leasehold (with notice) ---
 

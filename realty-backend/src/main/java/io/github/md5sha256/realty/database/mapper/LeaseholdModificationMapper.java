@@ -1,9 +1,11 @@
 package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,4 +30,10 @@ public interface LeaseholdModificationMapper {
 
     /** Sets the status of a modification, stamping {@code resolvedAt = NOW()} for terminal statuses. */
     int updateStatus(int modificationId, @NotNull String status);
+
+    /** Tenant proposals awaiting a decision from the given landlord ({@code AWAITING_LANDLORD}). */
+    @NotNull List<LeaseholdModificationView> selectAwaitingByLandlord(@NotNull UUID landlordId);
+
+    /** Non-terminal proposals made by the given player (their own pending requests/changes). */
+    @NotNull List<LeaseholdModificationView> selectPendingByProposer(@NotNull UUID proposerId);
 }

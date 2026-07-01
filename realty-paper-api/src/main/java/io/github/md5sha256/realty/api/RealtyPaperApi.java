@@ -4,6 +4,7 @@ import com.sk89q.worldedit.regions.Region;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import org.jetbrains.annotations.NotNull;
@@ -106,11 +107,13 @@ public interface RealtyPaperApi {
      * Schedules an early termination of {@code region}'s lease, honouring the configured minimum notice.
      * The initiating role is derived from {@code actorId} (landlord, tenant, or admin via {@code bypassAuth}
      * acting as landlord); a tenant pays for any whole extensions needed to cover the notice, a landlord
-     * does not.
+     * does not. When {@code immediate} is true the notice is skipped (the lease ends at once and the tenant
+     * is refunded all remaining prepaid time) — a staff power, gated by the caller.
      */
     @NotNull CompletableFuture<TerminateResult> terminate(@NotNull WorldGuardRegion region,
                                                           @NotNull UUID actorId,
-                                                          boolean bypassAuth);
+                                                          boolean bypassAuth,
+                                                          boolean immediate);
 
     // --- PayBid ---
 
@@ -394,6 +397,12 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.CancelTerminationResult> cancelTermination(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+
+    @NotNull CompletableFuture<List<LeaseholdModificationView>> listModificationsAwaitingLandlord(
+            @NotNull UUID landlordId);
+
+    @NotNull CompletableFuture<List<LeaseholdModificationView>> listPendingModificationsByProposer(
+            @NotNull UUID proposerId);
 
     // --- Query ---
 

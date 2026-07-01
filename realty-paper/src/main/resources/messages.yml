@@ -362,6 +362,14 @@ modify:
   no-pending-proposal: "Region <region> has no pending modification proposal."
   not-tenant-proposal: "There is no tenant proposal awaiting your decision on region <region>."
   not-proposer: "You did not make the pending proposal for region <region>."
+  inbox-header: "<gold>Proposals awaiting your decision:</gold>"
+  inbox-entry: "<gray>- <white><region></white> from <white><player></white>: <changes> <yellow>(/realty modify accept|reject)</yellow></gray>"
+  inbox-none: "You have no rental proposals awaiting your decision."
+  outbox-header: "<gold>Your pending proposals:</gold>"
+  outbox-entry: "<gray>- <white><region></white>: <changes> <yellow>(<status>)</yellow></gray>"
+  outbox-none: "You have no pending proposals."
+  status-active: "applies on next renewal"
+  status-awaiting: "awaiting landlord"
 
 terminate:
   success: "Scheduled termination of region <region>. The lease ends <date>."
@@ -370,6 +378,7 @@ terminate:
   not-occupied: "Region <region> has no tenant to terminate."
   already-terminating: "Region <region> is already scheduled for termination."
   not-authorized: "You are not the landlord or tenant of region <region>."
+  now-no-permission: "You do not have permission to terminate without notice."
   insufficient-funds: "You do not have enough funds to cover the notice period. Your balance: <balance>. Required: <price>."
   payment-failed: "Payment failed: <error>"
   update-failed: "Failed to terminate region <region>."

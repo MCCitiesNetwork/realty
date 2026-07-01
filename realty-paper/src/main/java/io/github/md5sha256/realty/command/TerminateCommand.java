@@ -16,6 +16,7 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.paper.util.sender.Source;
+import org.incendo.cloud.parser.flag.CommandFlag;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -38,12 +39,16 @@ public record TerminateCommand(
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
 
+    /** {@code --now} skips the notice period (immediate end + full refund); gated by {@code realty.command.terminate.now}. */
+    private static final CommandFlag<Void> NOW_FLAG = CommandFlag.<Source>builder("now").build();
+
     @Override
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder.literal("terminate");
         return List.of(
                 base.permission("realty.command.terminate")
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                        .flag(NOW_FLAG)
                         .handler(this::executeTerminate)
                         .build(),
                 base.literal("cancel")
@@ -65,6 +70,11 @@ public record TerminateCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
+        boolean immediate = ctx.flags().hasFlag(NOW_FLAG);
+        if (immediate && !sender.hasPermission("realty.command.terminate.now")) {
+            sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_NOW_NO_PERMISSION));
+            return;
+        }
         // Cancellable pre-event (main thread); a veto stops the action before the API is called.
         if (!events.fireSync(new LeaseTerminateEvent(region, sender.getUniqueId()))) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
@@ -72,7 +82,7 @@ public record TerminateCommand(
         }
         boolean bypass = sender.hasPermission("realty.command.terminate.others");
         String regionId = region.region().getId();
-        api.terminate(region, sender.getUniqueId(), bypass).thenAccept(result -> {
+        api.terminate(region, sender.getUniqueId(), bypass, immediate).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.TerminateResult.Success success -> {
                     String date = success.effectiveDate().format(DateTimeFormatters.DATE_TIME);

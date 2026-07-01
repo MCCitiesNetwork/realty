@@ -1,5 +1,8 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -9,10 +12,14 @@ import io.github.md5sha256.realty.api.event.LeaseModifyProposeEvent;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -23,6 +30,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,6 +42,8 @@ import java.util.UUID;
  *   <li>{@code /realty modify price|duration|maxextensions <value> [region]} — propose new terms</li>
  *   <li>{@code /realty modify accept|reject [region]} — landlord resolves a tenant's proposal</li>
  *   <li>{@code /realty modify withdraw [region]} — proposer withdraws their pending proposal</li>
+ *   <li>{@code /realty modify inbox} — tenant proposals awaiting you (as landlord)</li>
+ *   <li>{@code /realty modify outbox} — your own pending proposals</li>
  * </ul>
  *
  * <p>A landlord's proposal applies automatically when the tenant next renews (the tenant declines by
@@ -84,8 +94,81 @@ public record ModifyCommandGroup(
                         .permission("realty.command.modify.withdraw")
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(ctx -> executeResolve(ctx, ResolveAction.WITHDRAW))
+                        .build(),
+                base.literal("inbox")
+                        .permission("realty.command.modify.inbox")
+                        .handler(this::executeInbox)
+                        .build(),
+                base.literal("outbox")
+                        .permission("realty.command.modify.outbox")
+                        .handler(this::executeOutbox)
                         .build()
         );
+    }
+
+    private void executeInbox(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+            return;
+        }
+        api.listModificationsAwaitingLandlord(sender.getUniqueId()).thenAccept(views -> {
+            if (views.isEmpty()) {
+                sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_INBOX_NONE));
+                return;
+            }
+            Component output = messages.messageFor(MessageKeys.MODIFY_INBOX_HEADER);
+            for (LeaseholdModificationView view : views) {
+                output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_INBOX_ENTRY,
+                        Placeholder.unparsed("region", view.worldGuardRegionId()),
+                        Placeholder.unparsed("player", resolveName(view.proposerId())),
+                        Placeholder.unparsed("changes", describeChanges(view))));
+            }
+            sender.sendMessage(output);
+        });
+    }
+
+    private void executeOutbox(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player sender)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+            return;
+        }
+        api.listPendingModificationsByProposer(sender.getUniqueId()).thenAccept(views -> {
+            if (views.isEmpty()) {
+                sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_OUTBOX_NONE));
+                return;
+            }
+            Component output = messages.messageFor(MessageKeys.MODIFY_OUTBOX_HEADER);
+            for (LeaseholdModificationView view : views) {
+                String statusKey = LeaseholdModificationStatus.ACTIVE.equals(view.status())
+                        ? MessageKeys.MODIFY_STATUS_ACTIVE : MessageKeys.MODIFY_STATUS_AWAITING;
+                output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_OUTBOX_ENTRY,
+                        Placeholder.unparsed("region", view.worldGuardRegionId()),
+                        Placeholder.unparsed("changes", describeChanges(view)),
+                        Placeholder.component("status", messages.messageFor(statusKey))));
+            }
+            sender.sendMessage(output);
+        });
+    }
+
+    /** Renders the non-null proposed terms as a short human-readable summary. */
+    private static @NotNull String describeChanges(@NotNull LeaseholdModificationView view) {
+        List<String> parts = new ArrayList<>();
+        if (view.newPrice() != null) {
+            parts.add("price → " + CurrencyFormatter.format(view.newPrice()));
+        }
+        if (view.newDurationSeconds() != null) {
+            parts.add("duration → " + DurationFormatter.format(Duration.ofSeconds(view.newDurationSeconds())));
+        }
+        if (view.newMaxExtensions() != null) {
+            parts.add("max-extensions → " + view.newMaxExtensions());
+        }
+        return parts.isEmpty() ? "no change" : String.join(", ", parts);
+    }
+
+    private static @NotNull String resolveName(@NotNull UUID uuid) {
+        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+        String name = player.getName();
+        return name != null ? name : uuid.toString();
     }
 
     /** The three ways to resolve a pending proposal, each carrying its success message and resolution name. */

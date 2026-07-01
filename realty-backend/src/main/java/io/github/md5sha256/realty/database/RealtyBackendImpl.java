@@ -16,6 +16,7 @@ import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
@@ -993,6 +994,20 @@ public class RealtyBackendImpl implements RealtyBackend {
             wrapper.session().commit();
             return new ResolveModificationResult.Success(mod.modificationId(), tenantId,
                     lease.landlordId(), mod.proposerRole());
+        }
+    }
+
+    @Override
+    public @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull UUID landlordId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdModificationMapper().selectAwaitingByLandlord(landlordId);
+        }
+    }
+
+    @Override
+    public @NotNull List<LeaseholdModificationView> listPendingModificationsByProposer(@NotNull UUID proposerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdModificationMapper().selectPendingByProposer(proposerId);
         }
     }
 

@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.mapper.LeaseholdModificationMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
@@ -11,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public interface MariaLeaseholdModificationMapper extends LeaseholdModificationMapper {
@@ -95,4 +97,53 @@ public interface MariaLeaseholdModificationMapper extends LeaseholdModificationM
             """)
     int updateStatus(@Param("modificationId") int modificationId,
                      @Param("status") @NotNull String status);
+
+    @Override
+    @Select("""
+            SELECT rr.worldGuardRegionId, rr.worldId, m.proposerRole, m.proposerId,
+                   m.newPrice, m.newDurationSeconds, m.newMaxExtensions, m.status, m.createdAt
+            FROM LeaseholdModification m
+            INNER JOIN Contract c ON c.contractId = m.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = m.leaseholdContractId
+            WHERE m.status = 'AWAITING_LANDLORD'
+            AND lc.landlordId = #{landlordId}
+            ORDER BY m.createdAt DESC
+            """)
+    @ConstructorArgs({
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "proposerRole", javaType = String.class),
+            @Arg(column = "proposerId", javaType = UUID.class),
+            @Arg(column = "newPrice", javaType = Double.class),
+            @Arg(column = "newDurationSeconds", javaType = Long.class),
+            @Arg(column = "newMaxExtensions", javaType = Integer.class),
+            @Arg(column = "status", javaType = String.class),
+            @Arg(column = "createdAt", javaType = LocalDateTime.class)
+    })
+    @NotNull List<LeaseholdModificationView> selectAwaitingByLandlord(@Param("landlordId") @NotNull UUID landlordId);
+
+    @Override
+    @Select("""
+            SELECT rr.worldGuardRegionId, rr.worldId, m.proposerRole, m.proposerId,
+                   m.newPrice, m.newDurationSeconds, m.newMaxExtensions, m.status, m.createdAt
+            FROM LeaseholdModification m
+            INNER JOIN Contract c ON c.contractId = m.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE m.proposerId = #{proposerId}
+            AND m.status IN ('AWAITING_LANDLORD', 'ACTIVE')
+            ORDER BY m.createdAt DESC
+            """)
+    @ConstructorArgs({
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "proposerRole", javaType = String.class),
+            @Arg(column = "proposerId", javaType = UUID.class),
+            @Arg(column = "newPrice", javaType = Double.class),
+            @Arg(column = "newDurationSeconds", javaType = Long.class),
+            @Arg(column = "newMaxExtensions", javaType = Integer.class),
+            @Arg(column = "status", javaType = String.class),
+            @Arg(column = "createdAt", javaType = LocalDateTime.class)
+    })
+    @NotNull List<LeaseholdModificationView> selectPendingByProposer(@Param("proposerId") @NotNull UUID proposerId);
 }

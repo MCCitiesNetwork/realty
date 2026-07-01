@@ -16,6 +16,7 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
@@ -426,10 +427,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<TerminateResult> terminate(@NotNull WorldGuardRegion region,
                                                                  @NotNull UUID actorId,
-                                                                 boolean bypassAuth) {
+                                                                 boolean bypassAuth,
+                                                                 boolean immediate) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        long noticeSeconds = terminationNoticeSeconds.getAsLong();
+        long noticeSeconds = immediate ? 0L : terminationNoticeSeconds.getAsLong();
         // Serialized per region: the read→charge→commit sequence cannot interleave with a concurrent
         // extend/unrent/terminate on the same lease.
         return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
@@ -1312,6 +1314,22 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.cancelTermination(regionId, worldId, actorId, bypassAuth),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<LeaseholdModificationView>>
+            listModificationsAwaitingLandlord(@NotNull UUID landlordId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.listModificationsAwaitingLandlord(landlordId),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<LeaseholdModificationView>>
+            listPendingModificationsByProposer(@NotNull UUID proposerId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.listPendingModificationsByProposer(proposerId),
                 executorState.dbExec());
     }
 

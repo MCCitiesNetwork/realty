@@ -510,7 +510,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(lease(LocalDateTime.now().plusDays(30), null));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, UUID.randomUUID(), false).join();
+                    api.terminate(wgRegion, UUID.randomUUID(), false, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.NotAuthorized.class, result);
             verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
@@ -523,7 +523,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(lease(LocalDateTime.now().plusDays(30), LocalDateTime.now().plusDays(7)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, LANDLORD_ID, false).join();
+                    api.terminate(wgRegion, LANDLORD_ID, false, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.AlreadyTerminating.class, result);
         }
@@ -537,7 +537,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, LANDLORD_ID, false).join();
+                    api.terminate(wgRegion, LANDLORD_ID, false, false).join();
 
             RealtyPaperApi.TerminateResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
@@ -559,12 +559,30 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, TENANT_ID, false).join();
+                    api.terminate(wgRegion, TENANT_ID, false, false).join();
 
             RealtyPaperApi.TerminateResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
             Assertions.assertEquals(200.0, success.charged());
             verify(economyProvider).transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any());
+        }
+
+        @Test
+        @DisplayName("immediate (--now) termination skips notice and charges nothing")
+        void immediateSkipsNotice() {
+            // endDate ~now: a normal tenant termination would owe an extension; --now must not charge.
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(lease(LocalDateTime.now(), null));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("tenant")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
+
+            RealtyPaperApi.TerminateResult result =
+                    api.terminate(wgRegion, TENANT_ID, false, true).join();
+
+            RealtyPaperApi.TerminateResult.Success success =
+                    Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
+            Assertions.assertEquals(0.0, success.charged());
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any());
         }
 
         @Test
@@ -575,7 +593,7 @@ class RealtyPaperApiImplTest {
             when(economyProvider.getBalance(TENANT_ID)).thenReturn(50.0);
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, TENANT_ID, false).join();
+                    api.terminate(wgRegion, TENANT_ID, false, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.InsufficientFunds.class, result);
             verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());

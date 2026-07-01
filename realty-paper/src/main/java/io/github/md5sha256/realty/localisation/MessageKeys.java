@@ -462,6 +462,14 @@ public final class MessageKeys {
     public static final String MODIFY_NO_PENDING_PROPOSAL = "modify.no-pending-proposal";
     public static final String MODIFY_NOT_TENANT_PROPOSAL = "modify.not-tenant-proposal";
     public static final String MODIFY_NOT_PROPOSER = "modify.not-proposer";
+    public static final String MODIFY_INBOX_HEADER = "modify.inbox-header";
+    public static final String MODIFY_INBOX_ENTRY = "modify.inbox-entry";
+    public static final String MODIFY_INBOX_NONE = "modify.inbox-none";
+    public static final String MODIFY_OUTBOX_HEADER = "modify.outbox-header";
+    public static final String MODIFY_OUTBOX_ENTRY = "modify.outbox-entry";
+    public static final String MODIFY_OUTBOX_NONE = "modify.outbox-none";
+    public static final String MODIFY_STATUS_ACTIVE = "modify.status-active";
+    public static final String MODIFY_STATUS_AWAITING = "modify.status-awaiting";
 
     // terminate
     public static final String TERMINATE_SUCCESS = "terminate.success";
@@ -470,6 +478,7 @@ public final class MessageKeys {
     public static final String TERMINATE_NOT_OCCUPIED = "terminate.not-occupied";
     public static final String TERMINATE_ALREADY_TERMINATING = "terminate.already-terminating";
     public static final String TERMINATE_NOT_AUTHORIZED = "terminate.not-authorized";
+    public static final String TERMINATE_NOW_NO_PERMISSION = "terminate.now-no-permission";
     public static final String TERMINATE_INSUFFICIENT_FUNDS = "terminate.insufficient-funds";
     public static final String TERMINATE_PAYMENT_FAILED = "terminate.payment-failed";
     public static final String TERMINATE_UPDATE_FAILED = "terminate.update-failed";

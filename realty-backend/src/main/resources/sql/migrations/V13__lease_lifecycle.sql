@@ -28,6 +28,10 @@ ALTER TABLE LeaseholdModification
 
 -- Index lookups of the single non-terminal modification per contract.
 CREATE INDEX idx_leasehold_modification_contract ON LeaseholdModification (leaseholdContractId, status);
+-- Index the outbox lookup (a player's own pending proposals).
+CREATE INDEX idx_leasehold_modification_proposer ON LeaseholdModification (proposerId);
+-- Index landlord-scoped lookups (inbox join + the existing per-landlord counts/lists).
+CREATE INDEX idx_leasehold_contract_landlord ON LeaseholdContract (landlordId);
 
 -- Scheduled early termination. When set, the lease ends at terminationEffectiveDate (honoured by the
 -- expiry sweep) instead of waiting for endDate; terminatedByRole records who initiated it.
