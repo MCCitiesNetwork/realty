@@ -19,6 +19,7 @@ import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.AuctionEndedEvent;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
+import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
 import io.github.md5sha256.realty.command.AgentInviteCommand;
@@ -41,9 +42,12 @@ import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.RentCommand;
+import io.github.md5sha256.realty.command.RentableCommand;
 import io.github.md5sha256.realty.command.SearchCommand;
 import io.github.md5sha256.realty.command.SearchDialog;
+import io.github.md5sha256.realty.command.ModifyCommandGroup;
 import io.github.md5sha256.realty.command.SetCommandGroup;
+import io.github.md5sha256.realty.command.TerminateCommand;
 import io.github.md5sha256.realty.command.SignCommand;
 import io.github.md5sha256.realty.command.SubregionCommandGroup;
 import io.github.md5sha256.realty.command.TagCommandGroup;
@@ -139,6 +143,7 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<TaxSettings> taxSettings = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
+    private EconomyProvider economyProvider;
     private SquirrelIdUsernameResolver nameResolver;
     private ExecutorState executorState;
     private RealtyBackend logic;
@@ -258,6 +263,7 @@ public final class Realty extends JavaPlugin {
                 dateTime -> DateFormatter.format(this.settings.get(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
         EconomyProvider economyProvider = resolveEconomyProvider();
+        this.economyProvider = economyProvider;
         if (economyProvider == null) {
             getLogger().severe("No economy found (neither Treasury nor Vault), plugin will now disable!");
             getServer().getPluginManager().disablePlugin(this);
@@ -289,7 +295,8 @@ public final class Realty extends JavaPlugin {
         }
         this.paperApi = new RealtyPaperApiImpl(
                 this.logic, economyProvider, this.executorState, this.database,
-                this.regionProfileService, this.signTextApplicator, this.signCache);
+                this.regionProfileService, this.signTextApplicator, this.signCache,
+                () -> this.settings.get().terminationNoticeSeconds());
         this.eventDispatch = new RealtyEventDispatch(
                 getServer(),
                 this.executorState.mainThreadExec(),
@@ -453,6 +460,45 @@ public final class Realty extends JavaPlugin {
                                     // Post-event; RegionNotificationListener notifies tenant + landlord.
                                     this.eventDispatch.fireSync(new LeaseExpiredEvent(
                                             wgRegion, expired.tenantId(), expired.landlordId()));
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            // Leaseholds whose scheduled termination date has elapsed: end them, refund any
+            // prepaid-but-unused time (landlord → tenant), and notify both parties.
+            List<RealtyBackend.TerminatedLeasehold> terminatedLeaseholds = this.logic.clearTerminatedLeaseholds();
+            if (!terminatedLeaseholds.isEmpty()) {
+                Map<String, Map<String, String>> terminatedPlaceholders = new HashMap<>();
+                for (RealtyBackend.TerminatedLeasehold terminated : terminatedLeaseholds) {
+                    terminatedPlaceholders.put(terminated.worldGuardRegionId(),
+                            this.logic.getRegionPlaceholders(terminated.worldGuardRegionId(),
+                                    terminated.worldId()));
+                }
+                scheduler.runTask(this, () -> {
+                    for (RealtyBackend.TerminatedLeasehold terminated : terminatedLeaseholds) {
+                        if (terminated.refund() > 0 && this.economyProvider != null) {
+                            this.economyProvider.transfer(terminated.landlordId(), terminated.tenantId(),
+                                    terminated.refund(), "Lease Termination Refund: " + terminated.worldGuardRegionId());
+                        }
+                        World world = getServer().getWorld(terminated.worldId());
+                        if (world != null) {
+                            RegionManager regionManager = WorldGuard.getInstance()
+                                    .getPlatform()
+                                    .getRegionContainer()
+                                    .get(BukkitAdapter.adapt(world));
+                            if (regionManager != null) {
+                                ProtectedRegion protectedRegion = regionManager.getRegion(terminated.worldGuardRegionId());
+                                if (protectedRegion != null) {
+                                    protectedRegion.getOwners().removePlayer(terminated.tenantId());
+                                    WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
+                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE,
+                                            terminatedPlaceholders.getOrDefault(terminated.worldGuardRegionId(),
+                                                    Map.of()));
+                                    this.eventDispatch.fireSync(new LeaseTerminatedEvent(wgRegion,
+                                            terminated.tenantId(), terminated.landlordId(),
+                                            terminated.refund(), terminated.terminatedByRole()));
                                 }
                             }
                         }
@@ -649,8 +695,11 @@ public final class Realty extends JavaPlugin {
                         this.eventDispatch),
                 new ExtendCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentCommand(paperApi, messageContainer, this.eventDispatch),
+                new RentableCommand(paperApi, messageContainer),
                 new UnrentCommand(paperApi, messageContainer, this.eventDispatch),
                 new SetCommandGroup(paperApi, messageContainer, this.eventDispatch),
+                new ModifyCommandGroup(paperApi, messageContainer, this.eventDispatch),
+                new TerminateCommand(paperApi, messageContainer, this.eventDispatch),
                 new TransferCommand(paperApi, messageContainer, this.eventDispatch),
                 new UnsetCommandGroup(paperApi, messageContainer),
                 new ReloadCommand(executorState, () -> {

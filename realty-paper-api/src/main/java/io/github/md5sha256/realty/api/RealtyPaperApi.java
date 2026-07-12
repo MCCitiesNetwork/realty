@@ -4,6 +4,7 @@ import com.sk89q.worldedit.regions.Region;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import org.jetbrains.annotations.NotNull;
@@ -46,6 +47,7 @@ public interface RealtyPaperApi {
                        @NotNull UUID landlordId) implements RentResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements RentResult {}
         record AlreadyOccupied(@NotNull String regionId) implements RentResult {}
+        record NotAcceptingTenants(@NotNull String regionId) implements RentResult {}
         record InsufficientFunds(double price, double balance) implements RentResult {}
         record PaymentFailed(@NotNull String error) implements RentResult {}
         record UpdateFailed(@NotNull String regionId) implements RentResult {}
@@ -75,6 +77,7 @@ public interface RealtyPaperApi {
         record Success(double price, @NotNull String regionId) implements ExtendResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements ExtendResult {}
         record NoExtensionsRemaining(@NotNull String regionId) implements ExtendResult {}
+        record Terminating(@NotNull String regionId) implements ExtendResult {}
         record InsufficientFunds(double price, double balance) implements ExtendResult {}
         record PaymentFailed(@NotNull String error) implements ExtendResult {}
         record UpdateFailed(@NotNull String regionId) implements ExtendResult {}
@@ -83,6 +86,35 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<ExtendResult> extend(@NotNull WorldGuardRegion region,
                                                      @NotNull UUID tenantId);
+
+    // --- Terminate (with notice) ---
+
+    sealed interface TerminateResult {
+        /** {@code charged} is any forced-extension rent the tenant paid to cover the notice period. */
+        record Success(@NotNull String regionId, @NotNull LocalDateTime effectiveDate, double charged,
+                       @NotNull UUID landlordId, @NotNull UUID tenantId,
+                       @NotNull String terminatedByRole) implements TerminateResult {}
+        record NoLeaseholdContract(@NotNull String regionId) implements TerminateResult {}
+        record NotOccupied(@NotNull String regionId) implements TerminateResult {}
+        record AlreadyTerminating(@NotNull String regionId) implements TerminateResult {}
+        record NotAuthorized(@NotNull String regionId) implements TerminateResult {}
+        record InsufficientFunds(double price, double balance) implements TerminateResult {}
+        record PaymentFailed(@NotNull String error) implements TerminateResult {}
+        record UpdateFailed(@NotNull String regionId) implements TerminateResult {}
+        record Error(@NotNull String message) implements TerminateResult {}
+    }
+
+    /**
+     * Schedules an early termination of {@code region}'s lease, honouring the configured minimum notice.
+     * The initiating role is derived from {@code actorId} (landlord, tenant, or admin via {@code bypassAuth}
+     * acting as landlord); a tenant pays for any whole extensions needed to cover the notice, a landlord
+     * does not. When {@code immediate} is true the notice is skipped (the lease ends at once and the tenant
+     * is refunded all remaining prepaid time) — a staff power, gated by the caller.
+     */
+    @NotNull CompletableFuture<TerminateResult> terminate(@NotNull WorldGuardRegion region,
+                                                          @NotNull UUID actorId,
+                                                          boolean bypassAuth,
+                                                          boolean immediate);
 
     // --- PayBid ---
 
@@ -347,6 +379,35 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
             @NotNull String regionId, @NotNull UUID worldId, int maxRenewals);
+
+    @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull UUID actorId, boolean bypassAuth, boolean accepting);
+
+    // --- Leasehold Modifications ---
+
+    @NotNull CompletableFuture<RealtyBackend.ProposeModificationResult> proposeModification(
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull UUID actorId, boolean bypassAuth,
+            @Nullable Double newPrice, @Nullable Long newDurationSeconds, @Nullable Integer newMaxExtensions);
+
+    @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> acceptModification(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+
+    @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> rejectModification(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+
+    @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> withdrawModification(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+
+    @NotNull CompletableFuture<RealtyBackend.CancelTerminationResult> cancelTermination(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+
+    @NotNull CompletableFuture<List<LeaseholdModificationView>> listModificationsAwaitingLandlord(
+            @NotNull UUID landlordId);
+
+    @NotNull CompletableFuture<List<LeaseholdModificationView>> listPendingModificationsByProposer(
+            @NotNull UUID proposerId);
 
     // --- Query ---
 

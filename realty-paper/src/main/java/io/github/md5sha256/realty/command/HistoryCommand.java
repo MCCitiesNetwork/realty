@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.LeaseholdChangeSummary;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
@@ -30,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -175,7 +177,14 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                                 Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
                                                 Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
                                                 Placeholder.unparsed("price",
-                                                        lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A")));
+                                                        lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A"),
+                                                // <changes> labels extensionsRemaining as "Max Extensions", which only
+                                                // holds true for the modification-proposal events (MODIFY_PROPOSE/ACCEPT/
+                                                // REJECT/WITHDRAW store the proposed cap there). RENEW/MODIFY_APPLY store
+                                                // the remaining count instead, so their templates use <price>, not <changes>.
+                                                Placeholder.component("changes", LeaseholdChangeSummary.render(
+                                                        messages, lease.price(), lease.durationSeconds(),
+                                                        lease.extensionsRemaining()))));
                             }
                         }
                     }
@@ -230,7 +239,16 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
 
     private static @NotNull String resolveEventMessageKey(@NotNull String eventType) {
         String key = EVENT_TYPE_MESSAGE_KEYS.get(eventType);
-        return key != null ? key : eventType;
+        return key != null ? key : deriveEventMessageKey(eventType);
+    }
+
+    /**
+     * Derives the {@code history.event.<lower-kebab>} message key from an event name, so a new
+     * {@link HistoryEventType} renders without a manual map entry. Only naming-convention exceptions
+     * (e.g. {@code SET_PRICE}, which distinguishes freehold vs. leasehold) need registering above.
+     */
+    private static @NotNull String deriveEventMessageKey(@NotNull String eventType) {
+        return "history.event." + eventType.toLowerCase(Locale.ROOT).replace('_', '-');
     }
 
     private static @NotNull String resolveLeaseholdEventMessageKey(@NotNull String eventType) {

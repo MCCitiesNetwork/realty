@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.database.maria;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
+import io.github.md5sha256.realty.database.mapper.LeaseholdModificationMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseholdHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
@@ -22,6 +23,7 @@ import io.github.md5sha256.realty.database.maria.mapper.MariaAgentHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractAgentInviteMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdContractMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdModificationMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdHistoryMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractAuctionMapper;
@@ -48,6 +50,11 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     @Override
     public @NotNull LeaseholdContractMapper leaseholdContractMapper() {
         return session.getMapper(MariaLeaseholdContractMapper.class);
+    }
+
+    @Override
+    public @NotNull LeaseholdModificationMapper leaseholdModificationMapper() {
+        return session.getMapper(MariaLeaseholdModificationMapper.class);
     }
 
     @Override

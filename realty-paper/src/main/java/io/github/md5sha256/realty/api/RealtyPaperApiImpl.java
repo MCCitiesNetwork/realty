@@ -16,6 +16,7 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
@@ -47,6 +48,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final RegionProfileService regionProfileService;
     private final SignTextApplicator signTextApplicator;
     private final SignCache signCache;
+    private final java.util.function.LongSupplier terminationNoticeSeconds;
 
     /**
      * Per-region serialisation chains. Each entry is the tail of a queue of
@@ -62,7 +64,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull Database database,
                               @NotNull RegionProfileService regionProfileService,
                               @NotNull SignTextApplicator signTextApplicator,
-                              @NotNull SignCache signCache) {
+                              @NotNull SignCache signCache,
+                              @NotNull java.util.function.LongSupplier terminationNoticeSeconds) {
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
         this.executorState = executorState;
@@ -70,6 +73,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.regionProfileService = regionProfileService;
         this.signTextApplicator = signTextApplicator;
         this.signCache = signCache;
+        this.terminationNoticeSeconds = terminationNoticeSeconds;
     }
 
     /**
@@ -226,6 +230,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     CompletableFuture.completedFuture(new RentResult.NoLeaseholdContract(regionId));
             case RealtyBackend.RentResult.AlreadyOccupied ignored ->
                     CompletableFuture.completedFuture(new RentResult.AlreadyOccupied(regionId));
+            case RealtyBackend.RentResult.NotAcceptingTenants ignored ->
+                    CompletableFuture.completedFuture(new RentResult.NotAcceptingTenants(regionId));
             case RealtyBackend.RentResult.UpdateFailed ignored ->
                     CompletableFuture.completedFuture(new RentResult.UpdateFailed(regionId));
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -362,6 +368,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     CompletableFuture.completedFuture(new ExtendResult.NoLeaseholdContract(regionId));
             case RealtyBackend.RenewLeaseholdResult.NoExtensionsRemaining ignored ->
                     CompletableFuture.completedFuture(new ExtendResult.NoExtensionsRemaining(regionId));
+            case RealtyBackend.RenewLeaseholdResult.Terminating ignored ->
+                    CompletableFuture.completedFuture(new ExtendResult.Terminating(regionId));
             case RealtyBackend.RenewLeaseholdResult.UpdateFailed ignored ->
                     CompletableFuture.completedFuture(new ExtendResult.UpdateFailed(regionId));
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -402,6 +410,116 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return CompletableFuture.runAsync(
                 () -> realtyApi.rollbackRenewLeasehold(regionId, worldId, tenantId),
                 executorState.dbExec());
+    }
+
+    // --- Terminate (with notice) ---
+
+    /** Computed plan for an early termination; {@code failure} is non-null when the operation should abort. */
+    private record TerminationPlan(@Nullable TerminateResult failure,
+                                   @Nullable String role,
+                                   @Nullable UUID landlordId, @Nullable UUID tenantId,
+                                   double charge,
+                                   @Nullable java.time.LocalDateTime newEndDate,
+                                   @Nullable java.time.LocalDateTime effectiveEnd) {
+        static TerminationPlan fail(@NotNull TerminateResult result) {
+            return new TerminationPlan(result, null, null, null, 0, null, null);
+        }
+    }
+
+    @Override
+    public @NotNull CompletableFuture<TerminateResult> terminate(@NotNull WorldGuardRegion region,
+                                                                 @NotNull UUID actorId,
+                                                                 boolean bypassAuth,
+                                                                 boolean immediate) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        long noticeSeconds = immediate ? 0L : terminationNoticeSeconds.getAsLong();
+        // Serialized per region: the read→charge→commit sequence cannot interleave with a concurrent
+        // extend/unrent/terminate on the same lease.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
+                () -> computeTerminationPlan(regionId, realtyApi.getLeaseholdContract(regionId, worldId),
+                        actorId, bypassAuth, noticeSeconds),
+                executorState.dbExec()
+        ).thenComposeAsync(plan -> {
+            if (plan.failure() != null) {
+                return CompletableFuture.completedFuture(plan.failure());
+            }
+            // A tenant pays for any whole extensions needed to cover the notice; a landlord does not.
+            if (plan.charge() > 0) {
+                double balance = economyProvider.getBalance(actorId);
+                if (balance < plan.charge()) {
+                    return CompletableFuture.completedFuture(
+                            (TerminateResult) new TerminateResult.InsufficientFunds(plan.charge(), balance));
+                }
+                PaymentResult payment = economyProvider.transfer(plan.tenantId(), plan.landlordId(),
+                        plan.charge(), "Lease Termination Notice: " + regionId);
+                if (payment instanceof PaymentResult.Failure failure) {
+                    return CompletableFuture.completedFuture(
+                            (TerminateResult) new TerminateResult.PaymentFailed(failure.errorMessage()));
+                }
+            }
+            return CompletableFuture.supplyAsync(
+                    () -> realtyApi.terminateLease(regionId, worldId, plan.newEndDate(),
+                            plan.effectiveEnd(), plan.role()),
+                    executorState.dbExec()
+            ).thenApplyAsync(backend -> {
+                if (backend instanceof RealtyBackend.TerminateLeaseholdResult.Success) {
+                    return (TerminateResult) new TerminateResult.Success(regionId, plan.effectiveEnd(),
+                            plan.charge(), plan.landlordId(), plan.tenantId(), plan.role());
+                }
+                // Should not happen under the per-region lock; refund any charge defensively.
+                if (plan.charge() > 0) {
+                    economyProvider.transfer(plan.landlordId(), plan.tenantId(), plan.charge(),
+                            "Lease Termination Refund: " + regionId);
+                }
+                return (TerminateResult) new TerminateResult.UpdateFailed(regionId);
+            }, executorState.mainThreadExec());
+        }, executorState.mainThreadExec()).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            return new TerminateResult.Error(String.valueOf(cause.getMessage()));
+        }));
+    }
+
+    private @NotNull TerminationPlan computeTerminationPlan(
+            @NotNull String regionId,
+            @Nullable io.github.md5sha256.realty.database.entity.LeaseholdContractEntity lease,
+            @NotNull UUID actorId, boolean bypassAuth, long noticeSeconds) {
+        if (lease == null) {
+            return TerminationPlan.fail(new TerminateResult.NoLeaseholdContract(regionId));
+        }
+        if (lease.tenantId() == null) {
+            return TerminationPlan.fail(new TerminateResult.NotOccupied(regionId));
+        }
+        if (lease.terminationEffectiveDate() != null) {
+            return TerminationPlan.fail(new TerminateResult.AlreadyTerminating(regionId));
+        }
+        // Derive the initiating role; an admin (bypass) acts as the landlord (no charge).
+        String role;
+        if (actorId.equals(lease.tenantId())) {
+            role = LeaseholdRoles.TENANT;
+        } else if (actorId.equals(lease.landlordId()) || bypassAuth) {
+            role = LeaseholdRoles.LANDLORD;
+        } else {
+            return TerminationPlan.fail(new TerminateResult.NotAuthorized(regionId));
+        }
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime effectiveEnd = now.plusSeconds(noticeSeconds);
+        java.time.LocalDateTime currentEnd = lease.endDate() != null ? lease.endDate() : now;
+        double charge = 0;
+        java.time.LocalDateTime newEndDate;
+        if (LeaseholdRoles.TENANT.equals(role) && currentEnd.isBefore(effectiveEnd)) {
+            // Notice runs past the paid term: charge whole extensions to cover it (overrides the cap).
+            long gapSeconds = java.time.Duration.between(currentEnd, effectiveEnd).getSeconds();
+            long duration = lease.durationSeconds();
+            long extensions = (gapSeconds + duration - 1) / duration;
+            charge = extensions * lease.price();
+            newEndDate = currentEnd.plusSeconds(extensions * duration);
+        } else {
+            // Landlord (no charge) or tenant already paid through the notice: end no earlier than the
+            // notice date, never before the already-paid term.
+            newEndDate = currentEnd.isAfter(effectiveEnd) ? currentEnd : effectiveEnd;
+        }
+        return new TerminationPlan(null, role, lease.landlordId(), lease.tenantId(), charge, newEndDate, effectiveEnd);
     }
 
     @Override
@@ -1155,6 +1273,74 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull String regionId, @NotNull UUID worldId, int maxRenewals) {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.setMaxRenewals(regionId, worldId, maxRenewals),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull UUID actorId, boolean bypassAuth, boolean accepting) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.setRentable(regionId, worldId, actorId, bypassAuth, accepting),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.ProposeModificationResult> proposeModification(
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull UUID actorId, boolean bypassAuth,
+            @Nullable Double newPrice, @Nullable Long newDurationSeconds, @Nullable Integer newMaxExtensions) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.proposeModification(regionId, worldId, actorId, bypassAuth,
+                        newPrice, newDurationSeconds, newMaxExtensions),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> acceptModification(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.acceptModification(regionId, worldId, actorId, bypassAuth),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> rejectModification(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.rejectModification(regionId, worldId, actorId, bypassAuth),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> withdrawModification(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.withdrawModification(regionId, worldId, actorId, bypassAuth),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.CancelTerminationResult> cancelTermination(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.cancelTermination(regionId, worldId, actorId, bypassAuth),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<LeaseholdModificationView>>
+            listModificationsAwaitingLandlord(@NotNull UUID landlordId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.listModificationsAwaitingLandlord(landlordId),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<LeaseholdModificationView>>
+            listPendingModificationsByProposer(@NotNull UUID proposerId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.listPendingModificationsByProposer(proposerId),
                 executorState.dbExec());
     }
 

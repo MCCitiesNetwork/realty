@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
+import io.github.md5sha256.realty.database.mapper.LeaseholdModificationMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseholdHistoryMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
@@ -29,6 +30,8 @@ public interface SqlSessionWrapper extends Closeable {
     @NotNull ContractMapper contractMapper();
 
     @NotNull LeaseholdContractMapper leaseholdContractMapper();
+
+    @NotNull LeaseholdModificationMapper leaseholdModificationMapper();
 
     @NotNull RealtyRegionMapper realtyRegionMapper();
 

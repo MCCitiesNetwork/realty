@@ -8,6 +8,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.database.Database;
+import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import org.bukkit.Bukkit;
@@ -23,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -77,7 +79,7 @@ class RealtyPaperApiImplTest {
         signCache = new SignCache();
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
-                regionProfileService, signTextApplicator, signCache);
+                regionProfileService, signTextApplicator, signCache, () -> 604800);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
 
@@ -485,6 +487,116 @@ class RealtyPaperApiImplTest {
             Assertions.assertEquals(200.0, success.price());
             verify(signTextApplicator).updateLoadedSigns(eq(world), eq(REGION_ID),
                     eq(RegionState.LEASED), any());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // terminate()
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("terminate")
+    class Terminate {
+
+        private LeaseholdContractEntity lease(LocalDateTime endDate, LocalDateTime terminationDate) {
+            return new LeaseholdContractEntity(1, LANDLORD_ID, TENANT_ID, 200.0, 604800L,
+                    LocalDateTime.now().minusSeconds(1), endDate, null, null, terminationDate, null, true);
+        }
+
+        @Test
+        @DisplayName("returns NotAuthorized when the actor is neither landlord nor tenant")
+        void notAuthorized() {
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(lease(LocalDateTime.now().plusDays(30), null));
+
+            RealtyPaperApi.TerminateResult result =
+                    api.terminate(wgRegion, UUID.randomUUID(), false, false).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.NotAuthorized.class, result);
+            verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("returns AlreadyTerminating when a termination is already scheduled")
+        void alreadyTerminating() {
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(lease(LocalDateTime.now().plusDays(30), LocalDateTime.now().plusDays(7)));
+
+            RealtyPaperApi.TerminateResult result =
+                    api.terminate(wgRegion, LANDLORD_ID, false, false).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.AlreadyTerminating.class, result);
+        }
+
+        @Test
+        @DisplayName("landlord termination with the notice already paid charges nothing")
+        void landlordNoCharge() {
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(lease(LocalDateTime.now().plusDays(30), null));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
+
+            RealtyPaperApi.TerminateResult result =
+                    api.terminate(wgRegion, LANDLORD_ID, false, false).join();
+
+            RealtyPaperApi.TerminateResult.Success success =
+                    Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
+            Assertions.assertEquals(0.0, success.charged());
+            Assertions.assertEquals("landlord", success.terminatedByRole());
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any());
+        }
+
+        @Test
+        @DisplayName("tenant termination past the paid term charges one extension and refunds at the end")
+        void tenantChargesExtension() {
+            // endDate ~now, notice 7 days, duration 7 days → exactly one extension owed.
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(lease(LocalDateTime.now(), null));
+            when(economyProvider.getBalance(TENANT_ID)).thenReturn(1000.0);
+            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any()))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("tenant")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
+
+            RealtyPaperApi.TerminateResult result =
+                    api.terminate(wgRegion, TENANT_ID, false, false).join();
+
+            RealtyPaperApi.TerminateResult.Success success =
+                    Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
+            Assertions.assertEquals(200.0, success.charged());
+            verify(economyProvider).transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any());
+        }
+
+        @Test
+        @DisplayName("immediate (--now) termination skips notice and charges nothing")
+        void immediateSkipsNotice() {
+            // endDate ~now: a normal tenant termination would owe an extension; --now must not charge.
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(lease(LocalDateTime.now(), null));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("tenant")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
+
+            RealtyPaperApi.TerminateResult result =
+                    api.terminate(wgRegion, TENANT_ID, false, true).join();
+
+            RealtyPaperApi.TerminateResult.Success success =
+                    Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
+            Assertions.assertEquals(0.0, success.charged());
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any());
+        }
+
+        @Test
+        @DisplayName("tenant termination is refused when funds cannot cover the notice")
+        void tenantInsufficientFunds() {
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(lease(LocalDateTime.now(), null));
+            when(economyProvider.getBalance(TENANT_ID)).thenReturn(50.0);
+
+            RealtyPaperApi.TerminateResult result =
+                    api.terminate(wgRegion, TENANT_ID, false, false).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.InsufficientFunds.class, result);
+            verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
         }
     }
 
