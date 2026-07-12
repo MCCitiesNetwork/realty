@@ -69,6 +69,9 @@ public record ExtendCommand(
                 case RealtyPaperApi.ExtendResult.NoExtensionsRemaining noExtensions ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_NO_EXTENSIONS,
                                 Placeholder.unparsed("region", noExtensions.regionId())));
+                case RealtyPaperApi.ExtendResult.Terminating terminating ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_TERMINATING,
+                                Placeholder.unparsed("region", terminating.regionId())));
                 case RealtyPaperApi.ExtendResult.InsufficientFunds insufficient ->
                         sender.sendMessage(messages.messageFor(MessageKeys.EXTEND_INSUFFICIENT_FUNDS,
                                 Placeholder.unparsed("price", CurrencyFormatter.format(insufficient.price())),

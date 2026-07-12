@@ -50,7 +50,9 @@ public final class MariaSchemaMigrator {
             new MigrationStep(9, "clear dates without tenant", "V9__clear_dates_no_tenant.sql"),
             new MigrationStep(10, "set unset history events", "V10__set_unset_history_events.sql"),
             new MigrationStep(11, "leasehold set price history", "V11__leasehold_set_price_history.sql"),
-            new MigrationStep(12, "region tags", "V12__region_tags.sql")
+            new MigrationStep(12, "region tags", "V12__region_tags.sql"),
+            new MigrationStep(13, "lease lifecycle", "V13__lease_lifecycle.sql"),
+            new MigrationStep(14, "leasehold accepting tenants", "V14__leasehold_accepting_tenants.sql")
     );
 
     private MariaSchemaMigrator() {

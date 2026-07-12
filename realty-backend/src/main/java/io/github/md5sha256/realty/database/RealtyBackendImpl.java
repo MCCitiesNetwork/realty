@@ -3,6 +3,8 @@ package io.github.md5sha256.realty.database;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
+import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
@@ -13,6 +15,9 @@ import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
+import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
@@ -729,6 +734,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease.tenantId() != null) {
                 return new RentResult.AlreadyOccupied();
             }
+            if (!lease.acceptingTenants()) {
+                return new RentResult.NotAcceptingTenants();
+            }
             int updated = leaseholdMapper.rentRegion(worldGuardRegionId, worldId, tenantId);
             if (updated == 0) {
                 return new RentResult.UpdateFailed();
@@ -737,6 +745,35 @@ public class RealtyBackendImpl implements RealtyBackend {
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId());
+        }
+    }
+
+    // --- Set Rentable ---
+
+    @Override
+    public @NotNull SetRentableResult setRentable(@NotNull String worldGuardRegionId,
+                                                  @NotNull UUID worldId,
+                                                  @NotNull UUID actorId,
+                                                  boolean bypassAuth,
+                                                  boolean accepting) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new SetRentableResult.NoLeaseholdContract();
+            }
+            if (!bypassAuth && !actorId.equals(lease.landlordId())) {
+                return new SetRentableResult.NotAuthorized();
+            }
+            if (lease.acceptingTenants() == accepting) {
+                return new SetRentableResult.NoChange(accepting);
+            }
+            int updated = leaseholdMapper.updateAcceptingTenantsByRegion(worldGuardRegionId, worldId, accepting);
+            if (updated == 0) {
+                return new SetRentableResult.UpdateFailed();
+            }
+            wrapper.session().commit();
+            return new SetRentableResult.Success(accepting);
         }
     }
 
@@ -796,6 +833,24 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease == null) {
                 return new RenewLeaseholdResult.NoLeaseholdContract();
             }
+            if (lease.terminationEffectiveDate() != null) {
+                return new RenewLeaseholdResult.Terminating();
+            }
+            // Apply any landlord modification that is active for the next cycle, then renew under the
+            // new terms. The whole block is committed atomically below, so an early return (e.g. the
+            // extension cap now blocks renewal) rolls the application back with the session.
+            LeaseholdModificationEntity activeMod = wrapper.leaseholdModificationMapper()
+                    .selectActiveByContract(lease.leaseholdContractId());
+            boolean modificationApplied = activeMod != null
+                    && LeaseholdModificationStatus.ACTIVE.equals(activeMod.status());
+            if (modificationApplied) {
+                leaseholdMapper.applyModificationTerms(worldGuardRegionId, worldId,
+                        activeMod.newPrice(), activeMod.newDurationSeconds(), activeMod.newMaxExtensions());
+                wrapper.leaseholdModificationMapper().updateStatus(activeMod.modificationId(),
+                        LeaseholdModificationStatus.APPLIED);
+                // Re-read so the cap check, history and returned price reflect the new terms.
+                lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            }
             if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
                 return new RenewLeaseholdResult.NoExtensionsRemaining();
             }
@@ -806,6 +861,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             Integer extensionsRemaining = null;
             if (lease.maxExtensions() != null) {
                 extensionsRemaining = lease.maxExtensions() - (lease.currentMaxExtensions() + 1);
+            }
+            if (modificationApplied) {
+                wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                        HistoryEventType.MODIFY_APPLY.name(),
+                        tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
             }
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENEW.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
@@ -821,6 +881,232 @@ public class RealtyBackendImpl implements RealtyBackend {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             wrapper.leaseholdContractMapper().rollbackRenewLeasehold(worldGuardRegionId, worldId, tenantId);
             wrapper.session().commit();
+        }
+    }
+
+    // --- Leasehold Modifications ---
+
+
+    @Override
+    public @NotNull ProposeModificationResult proposeModification(@NotNull String worldGuardRegionId,
+                                                                  @NotNull UUID worldId,
+                                                                  @NotNull UUID actorId,
+                                                                  boolean bypassAuth,
+                                                                  @Nullable Double newPrice,
+                                                                  @Nullable Long newDurationSeconds,
+                                                                  @Nullable Integer newMaxExtensions) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new ProposeModificationResult.NoLeaseholdContract();
+            }
+            if (lease.tenantId() == null) {
+                return new ProposeModificationResult.NotOccupied();
+            }
+            if (lease.terminationEffectiveDate() != null) {
+                return new ProposeModificationResult.Terminating();
+            }
+            // Derive the proposer's role from the actor; an admin (bypass) acts as the landlord.
+            String proposerRole;
+            UUID proposerId;
+            if (actorId.equals(lease.tenantId())) {
+                proposerRole = LeaseholdRoles.TENANT;
+                proposerId = lease.tenantId();
+            } else if (actorId.equals(lease.landlordId()) || bypassAuth) {
+                proposerRole = LeaseholdRoles.LANDLORD;
+                proposerId = lease.landlordId();
+            } else {
+                return new ProposeModificationResult.NotAuthorized();
+            }
+            LeaseholdModificationEntity existing = wrapper.leaseholdModificationMapper()
+                    .selectActiveByContract(lease.leaseholdContractId());
+            Double mergedPrice = newPrice;
+            Long mergedDuration = newDurationSeconds;
+            Integer mergedMax = newMaxExtensions;
+            if (existing != null) {
+                // Same-role proposals merge (carry forward unspecified fields); a different role supersedes.
+                if (existing.proposerRole().equals(proposerRole)) {
+                    if (mergedPrice == null) mergedPrice = existing.newPrice();
+                    if (mergedDuration == null) mergedDuration = existing.newDurationSeconds();
+                    if (mergedMax == null) mergedMax = existing.newMaxExtensions();
+                }
+                wrapper.leaseholdModificationMapper().updateStatus(existing.modificationId(),
+                        LeaseholdModificationStatus.SUPERSEDED);
+            }
+            String status = LeaseholdRoles.LANDLORD.equals(proposerRole)
+                    ? LeaseholdModificationStatus.ACTIVE : LeaseholdModificationStatus.AWAITING_LANDLORD;
+            int modificationId = wrapper.leaseholdModificationMapper().insert(lease.leaseholdContractId(),
+                    proposerRole, proposerId, mergedPrice, mergedDuration, mergedMax, status);
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.MODIFY_PROPOSE.name(), lease.tenantId(), lease.landlordId(),
+                    mergedPrice, mergedDuration, mergedMax);
+            wrapper.session().commit();
+            return new ProposeModificationResult.Success(modificationId, proposerRole,
+                    LeaseholdModificationStatus.ACTIVE.equals(status), lease.landlordId(), lease.tenantId());
+        }
+    }
+
+    @Override
+    public @NotNull ResolveModificationResult acceptModification(@NotNull String worldGuardRegionId,
+                                                                 @NotNull UUID worldId,
+                                                                 @NotNull UUID actorId,
+                                                                 boolean bypassAuth) {
+        return resolveTenantProposal(worldGuardRegionId, worldId, actorId, bypassAuth, true);
+    }
+
+    @Override
+    public @NotNull ResolveModificationResult rejectModification(@NotNull String worldGuardRegionId,
+                                                                 @NotNull UUID worldId,
+                                                                 @NotNull UUID actorId,
+                                                                 boolean bypassAuth) {
+        return resolveTenantProposal(worldGuardRegionId, worldId, actorId, bypassAuth, false);
+    }
+
+    private @NotNull ResolveModificationResult resolveTenantProposal(@NotNull String worldGuardRegionId,
+                                                                     @NotNull UUID worldId,
+                                                                     @NotNull UUID actorId,
+                                                                     boolean bypassAuth,
+                                                                     boolean accept) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new ResolveModificationResult.NoLeaseholdContract();
+            }
+            if (!bypassAuth && !actorId.equals(lease.landlordId())) {
+                return new ResolveModificationResult.NotAuthorized();
+            }
+            LeaseholdModificationEntity mod = wrapper.leaseholdModificationMapper()
+                    .selectActiveByContract(lease.leaseholdContractId());
+            if (mod == null) {
+                return new ResolveModificationResult.NoPendingProposal();
+            }
+            if (!LeaseholdModificationStatus.AWAITING_LANDLORD.equals(mod.status())) {
+                return new ResolveModificationResult.NotTenantProposal();
+            }
+            wrapper.leaseholdModificationMapper().updateStatus(mod.modificationId(),
+                    accept ? LeaseholdModificationStatus.ACTIVE : LeaseholdModificationStatus.REJECTED);
+            UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    (accept ? HistoryEventType.MODIFY_ACCEPT : HistoryEventType.MODIFY_REJECT).name(),
+                    tenantId, lease.landlordId(),
+                    mod.newPrice(), mod.newDurationSeconds(), mod.newMaxExtensions());
+            wrapper.session().commit();
+            return new ResolveModificationResult.Success(mod.modificationId(), tenantId,
+                    lease.landlordId(), mod.proposerRole());
+        }
+    }
+
+    @Override
+    public @NotNull ResolveModificationResult withdrawModification(@NotNull String worldGuardRegionId,
+                                                                   @NotNull UUID worldId,
+                                                                   @NotNull UUID actorId,
+                                                                   boolean bypassAuth) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new ResolveModificationResult.NoLeaseholdContract();
+            }
+            LeaseholdModificationEntity mod = wrapper.leaseholdModificationMapper()
+                    .selectActiveByContract(lease.leaseholdContractId());
+            if (mod == null) {
+                return new ResolveModificationResult.NoPendingProposal();
+            }
+            if (!bypassAuth && !mod.proposerId().equals(actorId)) {
+                return new ResolveModificationResult.NotAuthorized();
+            }
+            wrapper.leaseholdModificationMapper().updateStatus(mod.modificationId(),
+                    LeaseholdModificationStatus.WITHDRAWN);
+            UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.MODIFY_WITHDRAW.name(), tenantId, lease.landlordId(),
+                    mod.newPrice(), mod.newDurationSeconds(), mod.newMaxExtensions());
+            wrapper.session().commit();
+            return new ResolveModificationResult.Success(mod.modificationId(), tenantId,
+                    lease.landlordId(), mod.proposerRole());
+        }
+    }
+
+    @Override
+    public @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull UUID landlordId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdModificationMapper().selectAwaitingByLandlord(landlordId);
+        }
+    }
+
+    @Override
+    public @NotNull List<LeaseholdModificationView> listPendingModificationsByProposer(@NotNull UUID proposerId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.leaseholdModificationMapper().selectPendingByProposer(proposerId);
+        }
+    }
+
+    // --- Terminate Leasehold ---
+
+
+    @Override
+    public @NotNull TerminateLeaseholdResult terminateLease(@NotNull String worldGuardRegionId,
+                                                            @NotNull UUID worldId,
+                                                            @NotNull LocalDateTime newEndDate,
+                                                            @NotNull LocalDateTime effectiveDate,
+                                                            @NotNull String terminatedByRole) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new TerminateLeaseholdResult.NoLeaseholdContract();
+            }
+            if (lease.tenantId() == null) {
+                return new TerminateLeaseholdResult.NotOccupied();
+            }
+            if (lease.terminationEffectiveDate() != null) {
+                return new TerminateLeaseholdResult.AlreadyTerminating();
+            }
+            int updated = leaseholdMapper.scheduleTermination(worldGuardRegionId, worldId,
+                    newEndDate, effectiveDate, terminatedByRole);
+            if (updated == 0) {
+                return new TerminateLeaseholdResult.UpdateFailed();
+            }
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.TERMINATE.name(), lease.tenantId(), lease.landlordId(),
+                    lease.price(), lease.durationSeconds(), null);
+            wrapper.session().commit();
+            return new TerminateLeaseholdResult.Success(lease.tenantId(), lease.landlordId());
+        }
+    }
+
+    @Override
+    public @NotNull CancelTerminationResult cancelTermination(@NotNull String worldGuardRegionId,
+                                                              @NotNull UUID worldId,
+                                                              @NotNull UUID actorId,
+                                                              boolean bypassAuth) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new CancelTerminationResult.NoLeaseholdContract();
+            }
+            if (lease.terminationEffectiveDate() == null) {
+                return new CancelTerminationResult.NotTerminating();
+            }
+            String role = lease.terminatedByRole() != null ? lease.terminatedByRole() : LeaseholdRoles.LANDLORD;
+            // Only the party that initiated the termination (or an admin) may cancel it.
+            UUID initiator = LeaseholdRoles.TENANT.equals(role) ? lease.tenantId() : lease.landlordId();
+            if (!bypassAuth && !actorId.equals(initiator)) {
+                return new CancelTerminationResult.NotAuthorized();
+            }
+            int updated = leaseholdMapper.clearTermination(worldGuardRegionId, worldId);
+            if (updated == 0) {
+                return new CancelTerminationResult.UpdateFailed();
+            }
+            UUID tenantId = lease.tenantId() != null ? lease.tenantId() : lease.landlordId();
+            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                    HistoryEventType.TERMINATION_CANCEL.name(), tenantId, lease.landlordId(),
+                    null, null, null);
+            wrapper.session().commit();
+            return new CancelTerminationResult.Success(role, lease.landlordId(), tenantId);
         }
     }
 
@@ -1605,6 +1891,37 @@ public class RealtyBackendImpl implements RealtyBackend {
                 wrapper.session().commit();
                 results.add(new ExpiredLeasehold(lease.tenantId(), lease.landlordId(),
                         lease.worldGuardRegionId(), lease.worldId()));
+            }
+        }
+        return results;
+    }
+
+    // --- Terminated Leaseholds ---
+
+
+    @Override
+    public @NotNull List<TerminatedLeasehold> clearTerminatedLeaseholds() {
+        List<TerminatedLeaseholdView> terminated;
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            terminated = wrapper.leaseholdContractMapper().selectTerminatedLeaseholds();
+        }
+        List<TerminatedLeasehold> results = new ArrayList<>();
+        for (TerminatedLeaseholdView lease : terminated) {
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                // Refund the prepaid-but-unused span (endDate − effectiveDate), clamped to one period —
+                // the same clamp the manual unrent uses so renew-then-terminate cannot over-refund.
+                long unusedSeconds = Math.max(0, Duration.between(
+                        lease.terminationEffectiveDate(), lease.endDate()).getSeconds());
+                long clampedSeconds = Math.min(unusedSeconds, lease.durationSeconds());
+                double refund = lease.durationSeconds() > 0
+                        ? lease.price() * clampedSeconds / lease.durationSeconds() : 0;
+                wrapper.leaseholdContractMapper().clearTenant(lease.leaseholdContractId());
+                wrapper.leaseholdHistoryMapper().insert(lease.worldGuardRegionId(), lease.worldId(),
+                        HistoryEventType.LEASEHOLD_EXPIRY.name(), lease.tenantId(), lease.landlordId(),
+                        null, null, null);
+                wrapper.session().commit();
+                results.add(new TerminatedLeasehold(lease.tenantId(), lease.landlordId(),
+                        lease.worldGuardRegionId(), lease.worldId(), refund, lease.terminatedByRole()));
             }
         }
         return results;

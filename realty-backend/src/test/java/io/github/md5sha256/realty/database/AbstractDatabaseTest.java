@@ -76,6 +76,7 @@ abstract class AbstractDatabaseTest {
                     TRUNCATE TABLE FreeholdContractOffer;
                     TRUNCATE TABLE FreeholdContractSanctionedAuctioneers;
                     TRUNCATE TABLE FreeholdContractAuction;
+                    TRUNCATE TABLE LeaseholdModification;
                     TRUNCATE TABLE LeaseholdContract;
                     TRUNCATE TABLE FreeholdContract;
                     TRUNCATE TABLE Contract;

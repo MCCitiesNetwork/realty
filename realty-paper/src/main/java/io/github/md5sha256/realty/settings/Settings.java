@@ -21,6 +21,7 @@ public record Settings(
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
         @Setting("subregion-min-volume") int subregionMinVolume,
         @Setting("offer-payment-duration-seconds") long offerPaymentDurationSeconds,
+        @Setting("lease-termination-notice-seconds") long terminationNoticeSeconds,
         @Setting("subregion-tag-blacklist") @NotNull List<String> subregionTagBlacklist,
         @Setting("subregion-wand-material") @NotNull String subregionWandMaterial,
         @Setting("teleportation-starting-height") int teleportStartHeight
@@ -35,6 +36,9 @@ public record Settings(
         }
         if (offerPaymentDurationSeconds <= 0) {
             offerPaymentDurationSeconds = 86400;
+        }
+        if (terminationNoticeSeconds <= 0) {
+            terminationNoticeSeconds = 604800;
         }
         if (subregionTagBlacklist == null) {
             subregionTagBlacklist = List.of();

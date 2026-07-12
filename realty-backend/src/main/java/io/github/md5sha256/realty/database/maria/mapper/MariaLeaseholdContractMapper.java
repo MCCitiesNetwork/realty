@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
@@ -58,7 +59,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
     @Override
     @Select("""
             SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId, lc.price, lc.durationSeconds,
-                   lc.startDate, lc.endDate, lc.currentMaxExtensions, lc.maxExtensions
+                   lc.startDate, lc.endDate, lc.currentMaxExtensions, lc.maxExtensions,
+                   lc.terminationEffectiveDate, lc.terminatedByRole, lc.acceptingTenants
             FROM LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
@@ -74,7 +76,10 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             @Arg(column = "startDate", javaType = LocalDateTime.class),
             @Arg(column = "endDate", javaType = LocalDateTime.class),
             @Arg(column = "currentMaxExtensions", javaType = Integer.class),
-            @Arg(column = "maxExtensions", javaType = Integer.class)
+            @Arg(column = "maxExtensions", javaType = Integer.class),
+            @Arg(column = "terminationEffectiveDate", javaType = LocalDateTime.class),
+            @Arg(column = "terminatedByRole", javaType = String.class),
+            @Arg(column = "acceptingTenants", javaType = boolean.class)
     })
     @Nullable LeaseholdContractEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                      @Param("worldId") @NotNull UUID worldId);
@@ -90,10 +95,24 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             AND lc.tenantId IS NULL
+            AND lc.acceptingTenants = TRUE
             """)
     int rentRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                    @Param("worldId") @NotNull UUID worldId,
                    @Param("tenantId") @NotNull UUID tenantId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.acceptingTenants = #{accepting}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int updateAcceptingTenantsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                       @Param("worldId") @NotNull UUID worldId,
+                                       @Param("accepting") boolean accepting);
 
     @Override
     @Update("""
@@ -157,6 +176,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             SET tenantId = NULL,
                 startDate = NULL,
                 endDate = NULL,
+                terminationEffectiveDate = NULL,
+                terminatedByRole = NULL,
                 currentMaxExtensions = CASE WHEN maxExtensions IS NOT NULL THEN 0 ELSE NULL END
             WHERE leaseholdContractId = #{leaseholdContractId}
             """)
@@ -167,9 +188,71 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             UPDATE LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.endDate = #{newEndDate},
+                lc.terminationEffectiveDate = #{terminationEffectiveDate},
+                lc.terminatedByRole = #{terminatedByRole}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND lc.tenantId IS NOT NULL
+            AND lc.terminationEffectiveDate IS NULL
+            """)
+    int scheduleTermination(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                            @Param("worldId") @NotNull UUID worldId,
+                            @Param("newEndDate") @NotNull LocalDateTime newEndDate,
+                            @Param("terminationEffectiveDate") @NotNull LocalDateTime terminationEffectiveDate,
+                            @Param("terminatedByRole") @NotNull String terminatedByRole);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.terminationEffectiveDate = NULL,
+                lc.terminatedByRole = NULL
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND lc.terminationEffectiveDate IS NOT NULL
+            """)
+    int clearTermination(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                         @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Select("""
+            SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId,
+                   rr.worldGuardRegionId, rr.worldId,
+                   lc.price, lc.durationSeconds, lc.endDate,
+                   lc.terminationEffectiveDate, lc.terminatedByRole
+            FROM LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE lc.tenantId IS NOT NULL
+            AND lc.terminationEffectiveDate IS NOT NULL
+            AND lc.terminationEffectiveDate <= NOW()
+            """)
+    @ConstructorArgs({
+            @Arg(column = "leaseholdContractId", javaType = int.class),
+            @Arg(column = "landlordId", javaType = UUID.class),
+            @Arg(column = "tenantId", javaType = UUID.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "price", javaType = double.class),
+            @Arg(column = "durationSeconds", javaType = long.class),
+            @Arg(column = "endDate", javaType = LocalDateTime.class),
+            @Arg(column = "terminationEffectiveDate", javaType = LocalDateTime.class),
+            @Arg(column = "terminatedByRole", javaType = String.class)
+    })
+    @NotNull List<TerminatedLeaseholdView> selectTerminatedLeaseholds();
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.tenantId = NULL,
                 lc.startDate = NULL,
                 lc.endDate = NULL,
+                lc.terminationEffectiveDate = NULL,
+                lc.terminatedByRole = NULL,
                 lc.currentMaxExtensions = CASE WHEN lc.maxExtensions IS NOT NULL THEN 0 ELSE NULL END
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
@@ -250,6 +333,28 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
     int updateMaxRenewalsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                   @Param("worldId") @NotNull UUID worldId,
                                   @Param("maxRenewals") int maxRenewals);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.price = COALESCE(#{newPrice}, lc.price),
+                lc.durationSeconds = COALESCE(#{newDurationSeconds}, lc.durationSeconds),
+                lc.maxExtensions = COALESCE(#{newMaxExtensions}, lc.maxExtensions),
+                lc.currentMaxExtensions = CASE
+                    WHEN #{newMaxExtensions} IS NOT NULL AND lc.currentMaxExtensions IS NOT NULL
+                        THEN LEAST(lc.currentMaxExtensions, #{newMaxExtensions})
+                    ELSE lc.currentMaxExtensions
+                END
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int applyModificationTerms(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                               @Param("worldId") @NotNull UUID worldId,
+                               @Param("newPrice") @Nullable Double newPrice,
+                               @Param("newDurationSeconds") @Nullable Long newDurationSeconds,
+                               @Param("newMaxExtensions") @Nullable Integer newMaxExtensions);
 
     @Override
     @Select("""

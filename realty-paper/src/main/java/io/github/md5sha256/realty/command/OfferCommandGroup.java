@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -34,7 +35,6 @@ import org.incendo.cloud.suggestion.Suggestion;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -57,8 +57,6 @@ public record OfferCommandGroup(
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
-
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     @Override
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
@@ -216,7 +214,7 @@ public record OfferCommandGroup(
                     output = output.appendNewline().append(messages.messageFor(MessageKeys.OFFERS_LIST_ENTRY,
                             Placeholder.unparsed("region", offer.worldGuardRegionId()),
                             Placeholder.unparsed("price", String.format("%.2f", offer.offerPrice())),
-                            Placeholder.unparsed("date", offer.offerTime().format(DATE_FORMAT)),
+                            Placeholder.unparsed("date", offer.offerTime().format(DateTimeFormatters.DATE_TIME)),
                             Placeholder.unparsed("status", status)));
                 }
 
@@ -262,7 +260,7 @@ public record OfferCommandGroup(
                             Placeholder.unparsed("region", offer.worldGuardRegionId()),
                             Placeholder.unparsed("player", offererName),
                             Placeholder.unparsed("price", String.format("%.2f", offer.offerPrice())),
-                            Placeholder.unparsed("date", offer.offerTime().format(DATE_FORMAT)),
+                            Placeholder.unparsed("date", offer.offerTime().format(DateTimeFormatters.DATE_TIME)),
                             Placeholder.unparsed("status", status)));
                 }
 

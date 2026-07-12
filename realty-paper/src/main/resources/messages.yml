@@ -1,538 +1,798 @@
-prefix: "[Realty]"
-
+prefix: <newline><gradient:#00aaff:#008EFF><b>Realty</b> <dark_grey>»<reset>
 error:
-  no-region: "No region specified and you are not standing in a WorldGuard region."
-
+    no-region: <prefix> <red>You are not standing in a WorldGuard region.
 common:
-  player-not-found: "Player <player> has never played on this server."
-  players-only: "Only players can use this command."
-  no-permission: "You do not have permission to run this command."
-  error: "An error occurred: <error>"
-  action-cancelled: "That action was blocked."
-
+    player-not-found: Player <player> has never played on this server.
+    players-only: Only players can use this command.
+    no-permission: You do not have permission to run this command.
+    error: 'An error occurred: <error>'
+    action-cancelled: That action was blocked.
 accept-offer:
-  success: "Accepted offer from <player> on region <region>."
-  not-sanctioned: "You are not authorized to accept offers on region <region>."
-  no-offer: "Player <player> does not have an offer on region <region>."
-  auction-exists: "Region <region> has an auction. Offers cannot be accepted while an auction exists."
-  already-accepted: "Region <region> already has an accepted offer."
-  insert-failed: "Failed to accept offer on region <region>."
-  error: "Failed to accept offer: <error>"
-
+    success: <prefix> You have <green>accepted <player>'s offer</green> for region
+        <yellow><region>.</yellow>
+    no-offer: <prefix> <player> has not placed an offer on region <region>.
+    auction-exists: <prefix> Offers cannot be accepted while an auction is ongoing
+        for <yellow><region>.</yellow>
+    already-accepted: <prefix> You have already accepted an offer for region <yellow><region>.</yellow>
+    insert-failed: <prefix> Failed to accept offer on region <yellow><region>.</yellow>
+    error: '<prefix> Failed to accept offer: <error>'
+    not-sanctioned: You are not authorized to accept offers on region <yellow><region>.</yellow>
 add:
-  check-permissions-error: "Failed to check permissions: <error>"
-  no-permission: "You do not have permission to add players to this region!"
-  success: "Successfully added <target> to region <region>!"
-
+    check-permissions-error: 'Failed to check permissions: <error>'
+    no-permission: <prefix> You do not have permission to add players to this region.
+    success: <prefix> You have added <green><target></green> to region <yellow><region>.</yellow>
 agent-invite:
-  success: "Invited <player> as an agent for region <region>."
-  already-invited: "<player> already has a pending invite for region <region>."
-  already-agent: "<player> is already an agent for region <region>."
-  not-titleholder: "You are not the title holder of region <region>."
-  is-titleholder: "<player> is the title holder of region <region> and cannot be invited as an agent."
-  is-authority: "<player> is the authority of region <region> and cannot be invited as an agent."
-  no-freehold: "Region <region> does not have a freehold contract."
-  error: "Failed to invite agent: <error>"
-
+    success: <prefix> You have <green>successfully invited <player></green> as an
+        agent for region <yellow><region>.</yellow>
+    already-invited: <prefix> <player> already has a pending invite for region <yellow><region>.</yellow>
+    already-agent: <prefix> <player> is already an agent for region <yellow><region>.</yellow>
+    not-titleholder: <prefix> You are not the title holder of region <yellow><region>.</yellow>
+    is-titleholder: <prefix> <player> is the title holder of region <yellow><region></yellow>
+        and cannot be invited as an agent.
+    is-authority: <prefix> <player> is the authority of region <yellow><region></yellow>
+        and cannot be invited as an agent.
+    no-freehold: <prefix> Region <yellow><region></yellow> is not a freehold.
+    error: '<prefix> Failed to invite agent: <error>'
 agent-invite-accept:
-  success: "Accepted agent invite for region <region>."
-  not-found: "You do not have a pending invite for region <region>."
-  already-agent: "You are already an agent for region <region>."
-  error: "Failed to accept agent invite: <error>"
-
+    success: <prefix> You have <green>accepted the invitation</green> to become an
+        agent for region <yellow><region>.</yellow>
+    not-found: <prefix> You do not have a pending invite for region <yellow><region>.</yellow>
+    already-agent: <prefix> You are already an agent for region <region>.
+    error: '<prefix> Failed to accept agent invite: <error>'
 agent-invite-reject:
-  success: "Rejected agent invite for region <region>."
-  not-found: "You do not have a pending invite for region <region>."
-  error: "Failed to reject agent invite: <error>"
-
+    success: <prefix> You have <red>rejected the invitation</red> to become an agent
+        for region <yellow><region>.</yellow>
+    not-found: <prefix> You do not have a pending invite for region <region>.
+    error: '<prefix> Failed to reject agent invite: <error>'
 agent-invite-withdraw:
-  success: "Withdrew agent invite for <player> on region <region>."
-  not-found: "<player> does not have a pending invite for region <region>."
-  error: "Failed to withdraw agent invite: <error>"
-
+    success: <prefix> You have <red>withdrawn <player>'s agent invite</red> for region
+        <yellow><region>.</yellow>
+    not-found: <prefix> <player> does not have a pending invite for region <yellow><region>.</yellow>
+    error: '<prefix> Failed to withdraw agent invite: <error>'
 agent-remove:
-  success: "Removed <player> from the sanctioned auctioneers for region <region>."
-  not-found: "<player> is not a sanctioned auctioneer for region <region>."
-  error: "Failed to remove sanctioned auctioneer: <error>"
-
+    success: <prefix> You have <red>removed <player></red> as an agent for region
+        <yellow><region>.</yellow>
+    not-found: <prefix> <player> is not an agent for region <yellow><region>.</yellow>
+    error: '<prefix> Failed to remove agent: <error>'
 auction:
-  success: "Auction created for region <region>."
-  not-sanctioned: "You are not authorized to start an auction on region <region>."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  error: "Failed to create auction: <error>"
-
+    success: <prefix> You have succesfully started an auction for region <gold><region>.</gold>
+    not-sanctioned: <prefix> You are not authorized to start an auction on region
+        <gold><region>.</gold>
+    no-freehold-contract: <prefix> You cannot auction region <gold><region></gold>
+        as it is for leasehold.
+    error: '<prefix> Failed to create auction: <error>'
 buy:
-  success: "You bought region <region> for <price>."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  not-for-sale: "Region <region> is not for sale."
-  is-authority: "You cannot buy this region because you are its authority."
-  is-title-holder: "You cannot buy a region you already own."
-  insufficient-funds: "You do not have enough funds. Your balance: <balance>. Price: <price>."
-  payment-failed: "Payment failed: <error>"
-  transfer-failed: "Failed to transfer region <region>."
-  error: "Failed to buy region: <error>"
-
+    success: <prefix> You bought region <yellow><region></yellow> for <price>.
+    no-freehold-contract: <prefix> Region <yellow><region></yellow> does not have
+        a freehold contract.
+    not-for-sale: <prefix> Region <yellow><region></yellow> is not for sale.
+    is-authority: <prefix> You cannot buy this region because you are its authority.
+    is-title-holder: <prefix> You cannot buy a region you already own.
+    insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red>$<balance>.</red>
+        Price: <green>$<price>.</green>'
+    payment-failed: '<prefix> <red>Payment failed: <error>'
+    transfer-failed: <prefix> <red>Failed to transfer region <region>.
+    error: '<prefix> <red>Failed to buy region: <error>'
 bid:
-  no-auction: "That region does not have an active auction!"
-  is-owner: "You cannot bid on a region you own."
-  too-low-minimum: "Bid too low, the minimum bid is <amount>."
-  too-low-current: "Bid too low, the next highest bid is <amount>."
-  already-highest: "You are already the highest bidder on this region."
-  success: "Bid of <amount> placed on region <region>."
-  error: "Failed to perform bid: <error>"
-
+    no-auction: <prefix> That region is not currently up for auction!
+    is-owner: <prefix> You cannot bid on a region you own.
+    too-low-minimum: <prefix> Your proposed bid is <red>too low</red>, the minimum
+        bid is <green><amount>.</green>
+    too-low-current: <prefix> Your proposed bid is too low, the next highest bid is
+        <green><amount>.</green>
+    already-highest: <prefix> You are already the highest bidder for this region.
+    success: <prefix> You have <green>successfully placed a bid of <amount></green>
+        on region <gold><region>.</gold>
+    error: '<prefix> Failed to perform bid: <error>'
 cancel-auction:
-  no-auction: "That region does not have an active auction!"
-  success: "Auction for region <region> has been cancelled."
-  error: "Failed to cancel auction: <error>"
-
-create:
-  leasehold-success: "Created WorldGuard region <region> and registered it as a rental!"
-  freehold-success: "Created WorldGuard region <region> and registered it as freehold!"
-  already-registered: "Region <region> is already registered in Realty!"
-  region-exists: "A WorldGuard region named <region> already exists!"
-  invalid-name: "Region name <region> is invalid. Names must contain letters, numbers and dashes only."
-  incomplete-selection: "You must make a WorldEdit selection first!"
-  error: "Failed to create region: <error>"
-
-register-rental:
-  success: "Rental region registered successfully!"
-  already-registered: "Region already registered!"
-  error: "Failed to register rental region: <error>"
-
-register-freehold:
-  success: "Freehold region registered successfully!"
-  already-registered: "Region already registered!"
-  error: "Failed to register freehold region: <error>"
-
+    no-auction: <prefix> That region is not currently up for auction!
+    success: <prefix> You have <red>cancelled the auction</red> for region <gold><region>.</gold>
+    error: '<prefix> Failed to cancel auction: <error>'
+create-rental:
+    success: <prefix> Lease region created successfully!
+    already-registered: <prefix> Lease region already registered!
+    error: '<prefix> Failed to create rental region: <error>'
+create-freehold:
+    success: <prefix> Freehold region created successfully!
+    already-registered: <prefix> Region already registered!
+    error: '<prefix> Failed to create freeholder region: <error>'
 delete:
-  not-registered: "Region is not registered in Realty!"
-  worldguard-save-error: "Failed to save WorldGuard regions: <error>"
-  success: "Region deleted successfully!"
-  error: "Failed to delete region: <error>"
-
+    not-registered: <prefix> Region is not registered in Realty!
+    worldguard-save-error: '<prefix> Failed to save WorldGuard regions: <error>'
+    success: <prefix> Region deleted successfully!
+    error: '<prefix> Failed to delete region: <error>'
 info:
-  header: "--- Region Info: <region> ---"
-  no-contracts: "No contracts or auctions found for this region."
-  sold:
-    - "<#00aaff>►</#00aaff> Contract Type: <dark_green><b>Freehold</dark_green>"
-    - "<#00aaff>►</#00aaff> Title Holder: <#00aaff><title_holder></#00aaff>"
-    - "<#00aaff>►</#00aaff> Members: <yellow><members></yellow>"
-    - "<#00aaff>►</#00aaff> Last Sold Price: <green>$<last_sold_price></green>"
-    - "<#00aaff>►</#00aaff> Authority: <dark_green><authority></dark_green>"
-  for-sale:
-    - "<#00aaff>►</#00aaff> Contract Type: <dark_green><b>Freehold</dark_green>"
-    - "<#00aaff>►</#00aaff> Title Holder: <#00aaff><title_holder></#00aaff>"
-    - "<#00aaff>►</#00aaff> Price: <green>$<price></green>"
-    - "<#00aaff>►</#00aaff> Authority: <dark_green><authority></dark_green>"
-  leasehold:
-    - "Lease:"
-    - "Landlord: <landlord>"
-    - "Tenant: <tenant>"
-    - "Price: <price>"
-    - "Duration: <duration>"
-    - "Start Date: <start_date>"
-    - "End Date: <end_date>"
-    - "Time Left: <time_left>"
-    - "Extensions: <extensions>"
-  auction-active: "<#00aaff>►</#00aaff> Active Auction: <yellow><has_auction></yellow>"
-  tags: "<#00aaff>►</#00aaff> Tags: <yellow><tags></yellow>"
-  error: "Failed to retrieve region info: <error>"
-
-history:
-  header: "--- History: <region> ---"
-  no-results: "No history found for region <region>."
-  event:
-    buy: "<gray><time></gray> <yellow>Purchase</yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
-    auction-buy: "<gray><time></gray> <yellow>Auction Purchase</yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
-    offer-buy: "<gray><time></gray> <yellow>Offer Purchase</yellow> | Buyer: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
-    agent-add: "<gray><time></gray> <yellow>Agent Added</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
-    agent-remove: "<gray><time></gray> <yellow>Agent Removed</yellow> | Agent: <#00aaff><agent></#00aaff> | By: <dark_green><actor></dark_green>"
-    rent: "<gray><time></gray> <yellow>Rented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-    renew: "<gray><time></gray> <yellow>Lease Renewed</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-    unrent: "<gray><time></gray> <yellow>Unrented</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-    leasehold-expiry: "<gray><time></gray> <yellow>Lease Expired</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-    set-price-freehold: "<gray><time></gray> <yellow>Price Set</yellow> | Authority: <dark_green><authority></dark_green> | Price: <green>$<price></green>"
-    set-price-leasehold: "<gray><time></gray> <yellow>Lease Price Set</yellow> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-    unset-price: "<gray><time></gray> <yellow>Price Unset</yellow> | Authority: <dark_green><authority></dark_green>"
-    set-titleholder: "<gray><time></gray> <yellow>Titleholder Set</yellow> | New Titleholder: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green>"
-    unset-titleholder: "<gray><time></gray> <yellow>Titleholder Unset</yellow> | Previous: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green>"
-    set-duration: "<gray><time></gray> <yellow>Duration Set</yellow> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-    set-landlord: "<gray><time></gray> <yellow>Landlord Set</yellow> | New Landlord: <dark_green><landlord></dark_green> | Tenant: <#00aaff><tenant></#00aaff>"
-    set-tenant: "<gray><time></gray> <yellow>Tenant Set</yellow> | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>"
-    unset-tenant: "<gray><time></gray> <yellow>Tenant Unset</yellow> | Previous: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>"
-    set-max-extensions: "<gray><time></gray> <yellow>Max Extensions Set</yellow> | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>"
-  footer: "Page <page> of <total> <previous><next>"
-  previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
-  next: " <click:run_command:<command>><yellow>Next ></yellow></click>"
-  invalid-page: "Page <page> does not exist. There are <total> page(s)."
-  error: "Failed to retrieve history: <error>"
-
+    header: <prefix> Information for <b><region>
+    no-contracts: <prefix> No contracts or auctions found for this region.
+    sold:
+    - <reset>
+    - <#00aaff><bold>»</bold></#00aaff> Bought by <#00aaff><bold><title_holder></bold></#00aaff>
+    - '<#00aaff><bold>»</bold></#00aaff> Purchase price: <green>$<last_sold_price></green>
+        <grey>(history)</grey>'
+    - '<#00aaff><bold>»</bold></#00aaff> Added players: <red><members></red>'
+    - '<#00aaff><bold>»</bold></#00aaff> Authority: <grey><bold><authority></bold></grey>'
+    for-sale:
+    - <reset>
+    - <#00aaff><bold>»</bold></#00aaff> Asking price is <green><bold>$<price></bold></green>
+    - '<#00aaff><bold>»</bold></#00aaff> Current owner: <red><title_holder></red>'
+    - '<#00aaff><bold>»</bold></#00aaff> Authority: <grey><bold><authority></bold></grey>'
+    leasehold:
+    - <reset>
+    - <#00aaff><bold>»</bold></#00aaff> Leased by <#00aaff><bold><tenant></bold></#00aaff>
+    - '<#00aaff><bold>»</bold></#00aaff> Landlord: <green><landlord></green>'
+    - '<#00aaff><bold>»</bold></#00aaff> Duration: <red>$<price> per <duration></red>
+        <grey>(<extensions> extensions)</grey>'
+    - '<#00aaff><bold>»</bold></#00aaff> Expiry: <red><end_date></red> <grey>(in <time_left>)</grey>'
+    - '<#00aaff><bold>»</bold></#00aaff> Added players: <yellow><members></yellow>'
+    auction-active: '<#00aaff><bold>»</bold></#00aaff> Active Auction: <gold><has_auction></gold><newline>'
+    error: '<prefix> Failed to retrieve region info: <error>'
+    tags: '<#00aaff><bold>»</bold></#00aaff> Tags: <gold><tags></gold><newline>'
 auction-info:
-  header: "--- Auction Info: <region> ---"
-  no-auction: "Region <region> does not have an active auction."
-  details:
-    - "<#00aaff>►</#00aaff> Auctioneer: <#00aaff><auctioneer></#00aaff>"
-    - "<#00aaff>►</#00aaff> Start Date: <yellow><start_date></yellow>"
-    - "<#00aaff>►</#00aaff> Bidding Duration: <yellow><duration></yellow>"
-    - "<#00aaff>►</#00aaff> Bidding End Date: <yellow><bidding_end_date></yellow>"
-    - "<#00aaff>►</#00aaff> Payment Deadline: <yellow><deadline></yellow>"
-    - "<#00aaff>►</#00aaff> Min Bid: <green>$<min_bid></green>"
-    - "<#00aaff>►</#00aaff> Min Step: <green>$<min_step></green>"
-    - "<#00aaff>►</#00aaff> Highest Bid: <green>$<highest_bid_amount></green> (<yellow><highest_bid_player></yellow>)"
-  error: "Failed to retrieve auction info: <error>"
-
+    header: <prefix> Auction for <region>
+    no-auction: <prefix> Region <gold><region></gold> is not currently up for auction.
+    details:
+    - <reset>
+    - '<#00aaff><bold>»</bold></#00aaff> Auctioneer: <#00aaff><bold><auctioneer></bold></#00aaff>'
+    - '<#00aaff><bold>»</bold></#00aaff> Min Bid: <green>$<min_bid></green> | Min
+        Step: <green>$<min_step></green>'
+    - <#00aaff><bold>»</bold></#00aaff> Ends <yellow><duration></yellow> after last
+        bid!
+    - <reset>
+    - '<#00aaff><bold>»</bold></#00aaff> End Date: <red><bidding_end_date></red>'
+    - '<#00aaff><bold>»</bold></#00aaff> Payment Deadline: <yellow><deadline></yellow>'
+    - '<#00aaff><bold>»</bold></#00aaff> Highest Bid: <green>$<highest_bid_amount>
+        by <highest_bid_player></green>'
+    - <reset>
+    error: '<prefix> Failed to retrieve auction info: <error>'
 list:
-  players-only: "Only players can use this command without specifying a player."
-  no-regions: "No regions found for <player>."
-  invalid-page: "Page <page> does not exist. There are <total> page(s)."
-  header: "--- Regions for <player> ---"
-  category: "<label>:"
-  entry: "  - <region>"
-  rented-entry: "  - <region> <gray>(<time_left>)</gray>"
-  footer: "Page <page> of <total> <previous><next>"
-  previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
-  next: " <click:run_command:<command>><yellow>Next ></yellow></click>"
-  error: "Failed to list regions: <error>"
-
+    players-only: <prefix> Only players can use this command without specifying a
+        player.
+    no-regions: <prefix> <player> has no regions. <red>:(
+    invalid-page: <prefix> Page <page> does not exist. There are <total> page(s).
+    header: <prefix> Regions for <player>
+    category: '<label>:'
+    entry: ' <#00aaff><bold>»</bold></#00aaff> <click:run_command:''/realty info <region>''><white><region></white></click>'
+    rented-entry: ' <#00aaff><bold>»</bold></#00aaff> <click:run_command:''/realty
+        info <region>''><white><region></white> <gray>(<time_left>)</gray></click>'
+    footer: <previous> Page <page> of <total> <next>
+    previous: <click:run_command:<command>><yellow>«</yellow></click>
+    next: <click:run_command:<command>><yellow>»</yellow></click>
+    error: '<prefix> Failed to list regions: <error>'
 offers-list:
-  no-offers: "You have no outbound offers."
-  header: "--- Your Outbound Offers ---"
-  entry: "  <region>: <price> (<date>) — <status>"
-  error: "Failed to list offers: <error>"
-
+    no-offers: <prefix> You have no outbound offers.
+    header: <prefix> Offers Outbox
+    entry: ' <dark_grey>-</dark_grey> <grey>[<status>]</grey> You have offered <green>$<price></green>
+        for <yellow><region></yellow> '
+    error: '<prefix> Failed to list offers: <error>'
 offers-inbound:
-  no-offers: "You have no inbound offers."
-  header: "--- Inbound Offers on Your Regions ---"
-  entry: "  <region>: <player> offered <price> (<date>) — <status>"
-  error: "Failed to list inbound offers: <error>"
-
+    no-offers: <prefix> You have no inbound offers. <red>:(
+    header: <prefix> Offers Inbox
+    entry: ' <dark_grey>-</dark_grey> <grey>[<status>]</grey> <blue><player></blue>
+        is offering <green>$<price></green> for <yellow><region></yellow> '
+    error: '<prefix> Failed to list inbound offers: <error>'
 offer:
-  success: "Offer of <price> placed on region <region>."
-  no-freehold-contract: "Region <region> does not have an active freehold contract."
-  not-accepting: "Region <region> is not currently accepting offers."
-  is-owner: "You cannot place an offer on a region you own."
-  already-has-offer: "You already have an offer on region <region>. Withdraw it first before placing a new one."
-  auction-exists: "Region <region> has an auction. Offers cannot be placed while an auction exists."
-  insert-failed: "Failed to place offer on region <region>."
-  error: "Failed to place offer: <error>"
-
+    success: <prefix> You have placed an offer of <green>$<price></green> on region
+        <yellow><region>.
+    no-freehold-contract: <prefix> You cannot place an offer for <gold><region></gold>,
+        as it is for a leasehold.
+    is-owner: <prefix> You cannot place an offer on a region you own.
+    already-has-offer: <prefix> You already have an offer on region <yellow><region></yellow>.
+        Please withdraw it first before placing a new one.
+    auction-exists: <prefix> Offers cannot be placed while an auction is ongoing for
+        <gold><region>.</gold>
+    insert-failed: <prefix> Failed to place offer on region <region>.
+    error: '<prefix> Failed to place offer: <error>'
+    not-accepting: Region <region> is not currently accepting offers.
 pay-bid:
-  insufficient-funds: "You do not have enough funds. Your balance: <balance>."
-  payment-failed: "Payment failed: <error>"
-  success: "Payment of <amount> applied to region <region>. Total paid: <total>. Remaining: <remaining>."
-  fully-paid: "Payment of <amount> applied to region <region>. Bid fully paid! Region ownership will be transferred to you."
-  no-payment-record: "You do not have a winning bid on region <region>. Payment refunded."
-  payment-expired: "The payment deadline for region <region> has passed. Payment refunded."
-  exceeds-owed: "Payment of <amount> exceeds the remaining amount owed (<owed>) on region <region>. Payment refunded."
-  error: "Failed to process payment: <error>. Payment refunded."
-  transfer-failed: "Failed to transfer region: WorldGuard region manager not available."
-  transfer-success: "Region <region> ownership has been transferred to you."
-
+    insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
+    payment-failed: '<prefix> Payment failed: <error>'
+    success: '<prefix> You have <green>successfully paid <amount></green> towards
+        region <gold><region>.</gold> Total paid: <green><total>.</green> Remaining:
+        <red><remaining>.</red>'
+    fully-paid: <prefix> You have <green>successfully paid <amount></green> towards
+        region <gold><region>.</gold>, and fully paid off your bid! The title will
+        now be will be transferred to you.
+    no-payment-record: <prefix> You do not have a winning bid on region <gold><region>.</gold>
+        Payment refunded.
+    payment-expired: <prefix> The payment deadline for region <gold><region></gold>
+        has passed. Payment refunded.
+    exceeds-owed: <prefix> Payment of <green><amount></green> exceeds the remaining
+        amount owed (<green><owed></green>) on region <gold><region></gold>. Payment
+        refunded.
+    error: '<prefix> Failed to process payment: <error>. Payment refunded.'
+    transfer-failed: '<prefix> Failed to transfer region: WorldGuard region manager
+        not available.'
+    transfer-success: <prefix> The title for region <gold><region></gold> has been
+        <green>successfully transferred</green> to you. <green>:)</green>
 pay-offer:
-  insufficient-funds: "You do not have enough funds. Your balance: <balance>."
-  payment-failed: "Payment failed: <error>"
-  success: "Payment of <amount> applied to region <region>. Total paid: <total>. Remaining: <remaining>."
-  fully-paid: "Payment of <amount> applied to region <region>. Offer fully paid! Region ownership will be transferred to you."
-  no-payment-record: "You do not have an accepted offer on region <region>. Payment refunded."
-  exceeds-owed: "Payment of <amount> exceeds the remaining amount owed (<owed>) on region <region>. Payment refunded."
-  error: "Failed to process payment: <error>. Payment refunded."
-  transfer-failed: "Failed to transfer region: WorldGuard region manager not available."
-  transfer-success: "Region <region> ownership has been transferred to you."
-
+    insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
+    payment-failed: '<prefix> Payment failed: <error>'
+    success: '<prefix> You have <green>successfully paid <amount></green> towards
+        region <gold><region>.</gold> Total paid: <green><total>.</green> Remaining:
+        <red><remaining>.</red>'
+    fully-paid: <prefix> You have <green>successfully paid <amount></green> towards
+        region <gold><region>.</gold>, and fully paid off your offer! The title will
+        now be will be transferred to you.
+    no-payment-record: <prefix> You do not have an accepted on region <gold><region>.</gold>
+        Payment refunded.
+    exceeds-owed: <prefix> Payment of <green><amount></green> exceeds the remaining
+        amount owed (<green><owed></green>) on region <gold><region></gold>. Payment
+        refunded.
+    error: '<prefix> Failed to process payment: <error>. Payment refunded.'
+    transfer-failed: 'Failed to transfer region: WorldGuard region manager not available.'
+    transfer-success: <prefix> The title for region <gold><region></gold> has been
+        <green>successfully transferred</green> to you. <green>:)</green>
 help:
-  main:
-    - "<gold>--- Realty > Commands ---</gold>"
-    - "<gray>Click one of the categories to learn more.</gray>"
-    - ""
-    - "<click:run_command:/realty help basics><yellow><bold>Basics</bold></yellow> <gray>- General commands</gray></click>"
-    - "<click:run_command:/realty help management><yellow><bold>Management</bold></yellow> <gray>- Region management commands</gray></click>"
-    - "<click:run_command:/realty help offers><yellow><bold>Offers</bold></yellow> <gray>- Buying regions via offers</gray></click>"
-    - "<click:run_command:/realty help auctions><yellow><bold>Auctions</bold></yellow> <gray>- Bidding on region auctions</gray></click>"
-  unknown-category: "<red>Unknown category. Use: basics, management, offers, or auctions.</red>"
-  basics:
-    - "<gold>--- Realty > Basics ---</gold>"
-    - "<yellow>/realty help</yellow> <gray>- Show help categories</gray>"
-    - "<yellow>/realty info <region></yellow> <gray>- Display region info</gray>"
-    - "<yellow>/realty list [owned|rented] [--page <n>] [--player <name>]</yellow> <gray>- List regions</gray>"
-    - "<yellow>/realty buy <region></yellow> <gray>- Buy a region at the listed price</gray>"
-    - "<yellow>/realty rent <region></yellow> <gray>- Rent a region</gray>"
-    - "<yellow>/realty extend <region></yellow> <gray>- Extend a lease</gray>"
-    - "<yellow>/realty unrent <region></yellow> <gray>- Unrent a region (prorated refund)</gray>"
-    - "<yellow>/realty search [--type <freehold|leasehold>] [--tags <tags>] [--min-price <n>] [--max-price <n>]</yellow> <gray>- Search regions</gray>"
-  management:
-    - "<gold>--- Realty > Management ---</gold>"
-    - "<yellow>/realty add <player> <region></yellow> <gray>- Add a player to a region</gray>"
-    - "<yellow>/realty set price <price> <region></yellow> <gray>- Set freehold or leasehold price</gray>"
-    - "<yellow>/realty unset price <region></yellow> <gray>- Remove region freehold price</gray>"
-    - "<yellow>/realty set duration <duration> <region></yellow> <gray>- Set lease duration</gray>"
-    - "<yellow>/realty set landlord <player> <region></yellow> <gray>- Set lease landlord</gray>"
-    - "<yellow>/realty set titleholder <player> <region></yellow> <gray>- Set freehold title holder</gray>"
-    - "<yellow>/realty unset titleholder <region></yellow> <gray>- Clear freehold title holder</gray>"
-    - "<yellow>/realty set tenant <player> <region></yellow> <gray>- Set lease tenant</gray>"
-    - "<yellow>/realty unset tenant <region></yellow> <gray>- Clear lease tenant</gray>"
-    - "<yellow>/realty agent invite <player> <region></yellow> <gray>- Invite a player as an agent</gray>"
-    - "<yellow>/realty agent invite accept <region></yellow> <gray>- Accept an agent invite</gray>"
-    - "<yellow>/realty agent invite reject <region></yellow> <gray>- Reject an agent invite</gray>"
-    - "<yellow>/realty agent invite withdraw <player> <region></yellow> <gray>- Withdraw an agent invite</gray>"
-    - "<yellow>/realty agent remove <player> <region></yellow> <gray>- Remove a sanctioned auctioneer</gray>"
-  offers:
-    - "<gold>--- Realty > Offers ---</gold>"
-    - "<yellow>/realty offer send <price> <region></yellow> <gray>- Make an offer on a region</gray>"
-    - "<yellow>/realty offer inbox</yellow> <gray>- View offers received on your regions</gray>"
-    - "<yellow>/realty offer outbox</yellow> <gray>- View offers you have sent</gray>"
-    - "<yellow>/realty offer accept <player> <region></yellow> <gray>- Accept an offer</gray>"
-    - "<yellow>/realty offer pay <amount> <region></yellow> <gray>- Pay for an accepted offer</gray>"
-    - "<yellow>/realty offer withdraw <region></yellow> <gray>- Withdraw your offer</gray>"
-    - "<yellow>/realty offer reject <player> [region]</yellow> <gray>- Reject an offer</gray>"
-    - "<yellow>/realty offer rejectall [region]</yellow> <gray>- Reject all offers</gray>"
-  auctions:
-    - "<gold>--- Realty > Auctions ---</gold>"
-    - "<yellow>/realty auction info [region]</yellow> <gray>- View auction details</gray>"
-    - "<yellow>/realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region></yellow> <gray>- Create an auction</gray>"
-    - "<yellow>/realty auction bid <amount> <region></yellow> <gray>- Bid on an auction</gray>"
-    - "<yellow>/realty auction paybid <amount> <region></yellow> <gray>- Pay for a winning bid</gray>"
-    - "<yellow>/realty auction cancel <region></yellow> <gray>- Cancel an auction</gray>"
-  admin:
-    - "<gold>--- Realty > Admin ---</gold>"
-    - "<yellow>/realty create freehold <price> [--titleholder <name>] [--authority <name>] <region></yellow> <gray>- Create a freehold</gray>"
-    - "<yellow>/realty create leasehold <price> <period> <maxextensions> [--landlord <name>] <region></yellow> <gray>- Create a lease</gray>"
-    - "<yellow>/realty set authority <player> <region></yellow> <gray>- Set freehold authority</gray>"
-    - "<yellow>/realty remove <player> <region></yellow> <gray>- Remove a player from a region</gray>"
-    - "<yellow>/realty delete <region> [includeworldguard]</yellow> <gray>- Delete a region</gray>"
-    - "<yellow>/realty reload</yellow> <gray>- Reload configuration</gray>"
-
+    main:
+    - <prefix> Commands
+    - <#00aaff><bold>»</bold></#00aaff> <white>Click one of the categories to learn
+        more about the plugin!</white><newline>
+    - <#00aaff><bold>»</bold></#00aaff> <click:run_command:/realty help basics><green><bold>Basics</bold></green>
+        <grey>- General commands</grey></click>
+    - <#00aaff><bold>»</bold></#00aaff> <click:run_command:/realty help offers><yellow><bold>Offers</bold></yellow>
+        <grey>- Buying regions via offers</grey></click>
+    - <#00aaff><bold>»</bold></#00aaff> <click:run_command:/realty help management><blue><bold>Management</bold></blue>
+        <grey>- Manage your regions</grey></click>
+    - <#00aaff><bold>»</bold></#00aaff> <click:run_command:/realty help auctions><gold><bold>Auctions</bold></gold>
+        <grey>- Bidding on region auctions</grey></click>
+    unknown-category: '<red>Unknown category. Use: basics, offers, or auctions.</red>'
+    basics:
+    - <prefix> Basic Commands
+    - <dark_grey>►</dark_grey> <green>/realty help</green> <grey>- Show help categories</grey>
+    - <dark_grey>►</dark_grey> <green>/realty info <region></green> <grey>- Display
+        region info</grey>
+    - <dark_grey>►</dark_grey> <green>/realty list [--player <player>] [--page <page>]</green>
+        <grey>- List regions</grey>
+    - <dark_grey>►</dark_grey> <green>/realty buy <region></green> <grey>- Buy a region
+        at the listed price</grey>
+    - <dark_grey>►</dark_grey> <green>/realty rent <region></green> <grey>- Rent a
+        region</grey>
+    - <dark_grey>►</dark_grey> <green>/realty extend <region></green> <grey>- extend
+        a leasehold</grey>
+    - <dark_grey>►</dark_grey> <green>/realty unrent <region></green> <grey>- End your
+        lease early for a prorated refund</grey>
+    - <dark_grey>►</dark_grey> <green>/realty terminate <region></green> <grey>- Schedule
+        a lease to end after notice</grey>
+    - <dark_grey>►</dark_grey> <green>/realty terminate cancel <region></green> <grey>-
+        Cancel a scheduled termination</grey>
+    - <dark_grey>►</dark_grey> <green>/realty add <player> <region></green> <grey>-
+        Add a player to a region</grey>
+    - <dark_grey>►</dark_grey> <green>/realty remove <player> <region></green> <grey>-
+        Remove a player from a region</grey>
+    offers:
+    - <prefix> Offer Commands
+    - <dark_grey>►</dark_grey> <yellow>/realty offer send <price> <region></yellow>
+        <grey>- Make an offer on a region</grey>
+    - <dark_grey>►</dark_grey> <yellow>/realty offer inbox</yellow> <grey>- View offers
+        received on your regions</grey>
+    - <dark_grey>►</dark_grey> <yellow>/realty offer outbox</yellow> <grey>- View
+        offers you have sent</grey>
+    - <dark_grey>►</dark_grey> <yellow>/realty offer accept <player> <region></yellow>
+        <grey>- Accept an offer</grey>
+    - <dark_grey>►</dark_grey> <yellow>/realty offer reject <player> <region></yellow>
+        <grey>- Reject an offer</grey>
+    - <dark_grey>►</dark_grey> <yellow>/realty offer pay <amount> <region></yellow>
+        <grey>- Pay for an accepted offer</grey>
+    - <dark_grey>►</dark_grey> <yellow>/realty offer withdraw <region></yellow> <grey>-
+        Withdraw your offer</grey>
+    auctions:
+    - <prefix> Auction Commands
+    - <dark_grey>►</dark_grey> <gold>/realty auction <bidduration> <paymentduration>
+        <minbid> <minbidstep> <region></gold> <grey>- Create an auction</grey>
+    - <dark_grey>►</dark_grey> <gold>/realty auction bid <amount> <region></gold>
+        <grey>- Bid on an auction</grey>
+    - <dark_grey>►</dark_grey> <gold>/realty auction paybid <amount> <region></gold>
+        <grey>- Pay for a winning bid</grey>
+    - <dark_grey>►</dark_grey> <gold>/realty auction cancel <region></gold> <grey>-
+        Cancel an auction</grey>
+    admin:
+    - <prefix> Administrative Commands
+    - <dark_grey>►</dark_grey> <red>/realty create freehold <name> [--price <price>]
+        [--titleholder <player>] [--authority <player>]</red> <grey>- Create a freehold</grey>
+    - <dark_grey>►</dark_grey> <red>/realty create leasehold <price> <period> <maxextensions>
+        [--landlord <name>] <region></red> <grey>- Create a leasehold</grey>
+    - <dark_grey>►</dark_grey> <red>/realty delete <region> [includeworldguard]</red>
+        <grey>- Delete a region</grey>
+    - <dark_grey>►</dark_grey> <red>/realty reload</red> <grey>- Reload configuration</grey>
+    - <dark_grey>►</dark_grey> <red>/realty set authority <player> <region></red>
+        <gray>- Set freehold authority</gray>
+    management:
+    - <prefix> Management Commands
+    - <blue>/realty set price <price> <region></blue> <gray>- Set freehold or leasehold
+        price</gray>
+    - <blue>/realty unset price <region></blue> <gray>- Remove region freehold price</gray>
+    - <blue>/realty set duration <duration> <region></blue> <gray>- Set lease duration</gray>
+    - <blue>/realty set landlord <player> <region></blue> <gray>- Set lease landlord</gray>
+    - <blue>/realty set titleholder <player> <region></blue> <gray>- Set freehold
+        title holder</gray>
+    - <blue>/realty unset titleholder <region></blue> <gray>- Clear freehold title
+        holder</gray>
+    - <blue>/realty set tenant <player> <region></blue> <gray>- Set lease tenant</gray>
+    - <blue>/realty unset tenant <region></blue> <gray>- Clear lease tenant</gray>
+    - <blue>/realty modify price|duration|maxextensions <value> <region></blue> <gray>-
+        Propose new lease terms for the next cycle</gray>
+    - <blue>/realty modify accept|reject <region></blue> <gray>- Resolve a tenant's
+        proposal</gray>
+    - <blue>/realty modify withdraw <region></blue> <gray>- Withdraw your pending proposal</gray>
+    - <blue>/realty modify inbox|outbox</blue> <gray>- View pending proposals</gray>
+    - <blue>/realty rentable <true|false> <region></blue> <gray>- Open or close a lease
+        to new tenants</gray>
+    - <blue>/realty agent invite <player> <region></blue> <gray>- Invite a player
+        as an agent</gray>
+    - <blue>/realty agent invite accept <region></blue> <gray>- Accept an agent invite</gray>
+    - <blue>/realty agent invite reject <region></blue> <gray>- Reject an agent invite</gray>
+    - <blue>/realty agent invite withdraw <player> <region></blue> <gray>- Withdraw
+        an agent invite</gray>
+    - <blue>/realty agent remove <player> <region></blue> <gray>- Remove a sanctioned
+        auctioneer</gray>
 extend:
-  success: "Lease for region <region> has been extended for <price>."
-  no-leasehold-contract: "Region <region> does not have a lease contract."
-  not-tenant: "You are not the tenant of region <region>."
-  no-extensions: "Region <region> has no remaining lease extensions."
-  update-failed: "Failed to extend lease for region <region>."
-  insufficient-funds: "You do not have enough funds. Your balance: <balance>. Extension price: <price>."
-  payment-failed: "Payment failed: <error>"
-  error: "Failed to extend lease: <error>"
-
-unrent:
-  success: "You have unrented region <region>. Refund: <refund>."
-  no-leasehold-contract: "Region <region> does not have a lease contract."
-  not-tenant: "You are not the tenant of region <region>."
-  update-failed: "Failed to unrent region <region>."
-  refund-failed: "Failed to process refund: <error>"
-  error: "Failed to unrent region: <error>"
-
+    success: <prefix> You have <green>successfully extended your lease</green> for
+        region <yellow><region></yellow> for <green>$<price>.</green>
+    no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not for lease.
+    not-tenant: <prefix>You are not the tenant of region <region>.
+    no-extensions: <prefix> You cannot extend region <yellow><region></yellow> any
+        further, as your contract has no remaining extensions.
+    update-failed: <prefix> Failed to extend lease for region <region>.
+    insufficient-funds: '<prefix> You do not have enough funds. Your balance: <green>$<balance>.</green>
+        Extensions price: <red>$<price>.</red>'
+    payment-failed: '<prefix> Payment failed: <error>'
+    terminating: <prefix> Region <yellow><region></yellow> is scheduled for termination
+        and can no longer be extended.
+    error: '<prefix> Failed to extend lease: <error>'
 rent:
-  success: "You are now renting region <region> for <price> for <duration>."
-  no-leasehold-contract: "Region <region> does not have a lease contract."
-  is-landlord: "You cannot rent region <region> because you are the landlord."
-  already-occupied: "Region <region> already has a tenant."
-  update-failed: "Failed to rent region <region>."
-  insufficient-funds: "You do not have enough funds. Your balance: <balance>. Rental price: <price>."
-  payment-failed: "Payment failed: <error>"
-  error: "Failed to rent region: <error>"
-
+    success: <prefix> You are <green>now leasing</green> region <yellow><region></yellow>
+        for <green>$<price> per <duration>!</green>
+    no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not for lease.
+    is-landlord: <prefix> <red>You cannot rent region <yellow><region></yellow> because
+        you are the landlord!
+    already-occupied: <prefix> Region <region> already has a tenant.
+    update-failed: <prefix> Failed to rent region <region>.
+    insufficient-funds: '<prefix> You do not have enough funds. Your balance: <green>$<balance>.</green>
+        Rental price: <red>$<price>.</red>'
+    payment-failed: '<prefix> Payment failed: <error>'
+    not-accepting-tenants: <prefix> Region <yellow><region></yellow> is not accepting
+        new tenants.
+    error: '<prefix> Failed to rent region: <error>'
+rentable:
+    enabled: <prefix> Region <yellow><region></yellow> is <green>now accepting new
+        tenants</green>.
+    disabled: <prefix> Region <yellow><region></yellow> is <red>no longer accepting
+        new tenants</red>.
+    already-enabled: <prefix> Region <yellow><region></yellow> is already accepting
+        new tenants.
+    already-disabled: <prefix> Region <yellow><region></yellow> is already not accepting
+        new tenants.
+    no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not a leasehold.
+    not-landlord: <prefix> You are not the landlord of region <yellow><region>.</yellow>
+    update-failed: <prefix> Failed to update region <yellow><region>.</yellow>
+    error: '<prefix> Failed to update rentable status: <error>'
 reload:
-  success: "Settings and messages reloaded successfully."
-  error: "Failed to reload messages: <error>"
-
+    success: <prefix> Messages reloaded successfully.
+    error: '<prefix> Failed to reload messages: <error>'
 remove:
-  check-permissions-error: "Failed to check permissions: <error>"
-  no-permission: "You do not have permission to remove players from this region!"
-  success: "Successfully removed <target> from region <region>!"
-
-set:
-  no-permission: "You do not have permission to modify this region."
-  check-permissions-error: "Failed to check permissions: <error>"
-
-set-price:
-  success: "Price for region <region> set to <price>."
-  no-contract: "Region <region> has no freehold or leasehold contract."
-  auction-exists: "Region <region> has an active auction. Price cannot be changed."
-  offer-payment-in-progress: "Region <region> has an offer payment in progress. Price cannot be changed."
-  bid-payment-in-progress: "Region <region> has a bid payment in progress. Price cannot be changed."
-  update-failed: "Failed to update price for region <region>."
-  error: "Failed to set price: <error>"
-
-unset:
-  no-permission: "You do not have permission to modify this region."
-  check-permissions-error: "Failed to check permissions: <error>"
-
-unset-price:
-  success: "Price for region <region> has been cleared."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  offer-payment-in-progress: "Region <region> has an offer payment in progress. Price cannot be cleared."
-  bid-payment-in-progress: "Region <region> has a bid payment in progress. Price cannot be cleared."
-  update-failed: "Failed to clear price for region <region>."
-  error: "Failed to unset price: <error>"
-
-set-duration:
-  success: "Duration for region <region> set to <duration>."
-  no-leasehold-contract: "Region <region> does not have a lease contract."
-  update-failed: "Failed to update duration for region <region>."
-  error: "Failed to set duration: <error>"
-
-set-maxextensions:
-  success: "Max extensions for region <region> set to <maxextensions>."
-  no-leasehold-contract: "Region <region> does not have a lease contract."
-  below-current: "Max extensions cannot be less than the current extension count (<current>) for region <region>."
-  update-failed: "Failed to update max extensions for region <region>."
-  error: "Failed to set max extensions: <error>"
-
-set-landlord:
-  success: "Landlord for region <region> set to <landlord>."
-  no-leasehold-contract: "Region <region> does not have a lease contract."
-  update-failed: "Failed to update landlord for region <region>."
-  error: "Failed to set landlord: <error>"
-
+    check-permissions-error: '<prefix> Failed to check permissions: <error>'
+    no-permission: <prefix> You do not have permission to remove players from this
+        region!
+    success: <prefix> You have <red>removed <target></red> from region <yellow><region>!</yellow>
 set-authority:
-  success: "Authority for region <region> set to <authority>."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  update-failed: "Failed to update authority for region <region>."
-
+    success: <prefix> Authority for region <yellow><region></yellow> set to <green><authority>.</green>
+    no-freehold-contract: <prefix> Region <yellow><region></yellow> does not have
+        a freehold contract.
+    update-failed: <prefix> Failed to update authority for region <region>.
 set-titleholder:
-  success: "Title holder for region <region> set to <titleholder>."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  update-failed: "Failed to update title holder for region <region>."
-  error: "Failed to set title holder: <error>"
-
-transfer:
-  success: "Region <region> transferred to <titleholder> and price cleared."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  update-failed: "Failed to transfer region <region>."
-  error: "Failed to transfer region: <error>"
-  no-permission: "You do not have permission to transfer this region."
-
+    success: <prefix> You have set the titleholder for region <yellow><region></yellow>
+        to <green><titleholder>.</green>
+    update-failed: <prefix> Failed to update titleholder for region <region>.
+    error: '<prefix> Failed to set titleholder: <error>'
+    no-freehold-contract: <prefix> Region <yellow><region></yellow> is for lease,
+        and accordingly cannot have a titleholder.
 set-tenant:
-  success: "Tenant for region <region> set to <tenant>."
-  no-leasehold-contract: "Region <region> does not have a lease contract."
-  update-failed: "Failed to update tenant for region <region>."
-  error: "Failed to set tenant: <error>"
-
+    success: <prefix> You have set the tenant for region <yellow><region></yellow>
+        to <green><tenant>.</green>
+    no-leasehold-contract: <prefix> Region <yellow><region></yellow> does not have
+        a lease contract.
+    update-failed: <prefix> Failed to update tenant for region <region>.
+    error: '<prefix> Failed to set tenant: <error>'
 unset-titleholder:
-  success: "Title holder for region <region> has been cleared."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  update-failed: "Failed to clear title holder for region <region>."
-  error: "Failed to unset title holder: <error>"
-
+    success: <prefix> You have cleared the titleholder for region <yellow><region>.</yellow>
+    update-failed: <prefix> Failed to clear titleholder for region <region>.
+    error: '<prefix> Failed to unset titleholder: <error>'
+    no-freehold-contract: <prefix> Region <yellow><region></yellow> is for lease,
+        and accordingly cannot have a titleholder.
 unset-tenant:
-  success: "Tenant for region <region> has been cleared."
-  no-leasehold-contract: "Region <region> does not have a lease contract."
-  update-failed: "Failed to clear tenant for region <region>."
-  error: "Failed to unset tenant: <error>"
-
+    success: <prefix> You have cleared the tenant for region <yellow><region>.</yellow>
+    no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not for lease,
+        and accordingly cannot have a tenant.
+    update-failed: <prefix> Failed to clear tenant for region <region>.
+    error: '<prefix> Failed to unset tenant: <error>'
 withdraw-offer:
-  no-offer: "You do not have an offer on region <region>."
-  accepted: "Your offer on region <region> has been accepted and cannot be withdrawn."
-  success: "Your offer on region <region> has been withdrawn."
-  error: "Failed to withdraw offer: <error>"
-
+    no-offer: <prefix> You do not have an offer on region <region>.
+    accepted: <prefix> Your offer on region <yellow><region></yellow> has been accepted
+        and cannot be withdrawn.
+    success: <prefix> Your offer on region <yellow><region></yellow> has been <red>withdrawn.</red>
+    error: '<prefix> Failed to withdraw offer: <error>'
 reject-offer:
-  success: "Rejected offer from <player> on region <region>."
-  all-success: "Rejected <count> offer(s) on region <region>."
-  not-sanctioned: "You are not authorized to reject offers on region <region>."
-  no-offer: "Player <player> does not have an offer on region <region>."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  accepted: "Region <region> has an accepted offer with payment in progress. It cannot be rejected."
-  error: "Failed to decline offer: <error>"
-
-toggle-offers:
-  success: "Offers on region <region> are now <state>."
-  not-sanctioned: "You are not authorized to toggle offers on region <region>."
-  no-freehold-contract: "Region <region> does not have a freehold contract."
-  update-failed: "Failed to update offer status on region <region>."
-  error: "Failed to toggle offers: <error>"
-
+    success: <prefix> You have <red>rejected <player>'s offer</red> for region <yellow><region></yellow>.
+    all-success: <prefix> You have <red>rejected <count> offer(s)</red> on region
+        <yellow><region></yellow>.
+    no-offer: <prefix> <player> does not have an offer on region <yellow><region></yellow>.
+    no-freehold-contract: <prefix> Region <yellow><region></yellow>. does not have
+        a freeholder contract.
+    accepted: <prefix> You have already accepted an offer for <yellow><region></yellow>,
+        with payment in progress.
+    error: '<prefix> Failed to decline offer: <error>'
+    not-sanctioned: You are not authorized to reject offers on region <region>.
 notification:
-  offer-placed: "<prefix> <player> placed an offer of <price> on region <region>."
-  offer-accepted: "<prefix> Your offer on region <region> has been accepted."
-  offer-rejected: "<prefix> Your offer on region <region> has been rejected."
-  offer-withdrawn: "<prefix> <player> withdrew their offer on region <region>."
-  ownership-transferred: "<prefix> Region <region> ownership has been transferred to <player>."
-  outbid: "<prefix> You have been outbid on region <region>. New highest bid: <amount>."
-  auction-cancelled: "<prefix> The auction for region <region> has been cancelled."
-  auction-won: "<prefix> You have won the auction for region <region>! Please pay within the payment deadline."
-  auction-ended-no-bids: "<prefix> The auction for region <region> has ended with no bids."
-  region-bought: "<prefix> <player> bought region <region> for <price>."
-  region-rented: "<prefix> <player> rented region <region> for <price>."
-  bid-payment-expired: "<prefix> Your bid payment for region <region> has expired. <amount> has been refunded."
-  offer-payment-expired: "<prefix> Your offer payment for region <region> has expired. <amount> has been refunded."
-  agent-invited: "<prefix> <player> has invited you as an agent for region <region>."
-  agent-invite-accepted: "<prefix> <player> accepted your agent invite for region <region>."
-  agent-invite-rejected: "<prefix> <player> rejected your agent invite for region <region>."
-  agent-invite-withdrawn: "<prefix> <player> withdrew your agent invite for region <region>."
-  agent-removed: "<prefix> <player> removed you as an agent for region <region>."
-  region-unrented: "<prefix> <player> unrented region <region>. Refund: <refund>."
-  leasehold-expired: "<prefix> Your lease on region <region> has expired."
-  leasehold-expired-landlord: "<prefix> The lease on region <region> has expired; the tenant has been removed."
-
-subregion:
-  create-success: "<region> is now up for rent."
-  create-error: "That didn't work: <error>"
-  region-exists: "That name's taken. Pick another."
-  invalid-name: "Names can only use letters, numbers and dashes."
-  no-freehold: "You can only do this in a region you own."
-  not-titleholder: "That's not your region."
-  exceeds-bounds: "That goes outside your region."
-  overlaps-sibling: "That overlaps <sibling>."
-  too-small: "Too small. It needs at least <min-volume> blocks."
-  tag-blacklisted: "<prefix> This region can't be split up."
-  wand-given: "<prefix> Right-click to add corners, left-click to undo, then run /realty subregion confirm."
-  selection-cleared: "<prefix> Selection cleared."
-  nothing-to-clear: "<prefix> Nothing to clear."
-  selection-incomplete: "<prefix> You need at least 2 corners first."
-  no-parent-candidates: "<prefix> You need to be standing in a region you own."
-  parent-outside: "<prefix> Your selection extends outside the region. Keep it fully inside."
-  parent-not-freehold: "<prefix> That region isn't set up for subletting."
-  hint-place: "Right-click to place corners, left-click to undo"
-  hint-ready: "Run /realty subregion confirm when you're finished"
-
+    offer-placed: <prefix> <gray></gray> <#00aaff><player></#00aaff> placed an offer
+        of <green>$<price></green> on <yellow><region></yellow>
+    offer-accepted: <prefix> <gray></gray> Your offer for <yellow><region></yellow>
+        was <green>accepted</green>
+    offer-rejected: <prefix> <gray></gray> Your offer for <yellow><region></yellow>
+        was <red>rejected</red>
+    offer-withdrawn: <prefix> <gray></gray> <#00aaff><player></#00aaff> withdrew their
+        offer on <yellow><region></yellow>
+    ownership-transferred: <prefix> <gray><time></gray> <yellow><region></yellow>
+        ownership transferred to <#00aaff><player></#00aaff>
+    outbid: <prefix> <gray><time></gray> You were outbid on <gold><region></gold>.
+        The new highest bid is <green>$<amount>.</green>
+    auction-cancelled: <prefix> <gray><time></gray> Auction for <yellow><region></yellow>
+        was <red>cancelled</red>
+    region-bought: <prefix> <gray><time></gray> <#00aaff><player></#00aaff> bought
+        <yellow><region></yellow> for <green>$<price></green>
+    region-rented: <prefix> <gray></gray> <#00aaff><player></#00aaff> rented <yellow><region></yellow>
+        for <green>$<price></green>
+    bid-payment-expired: <prefix> <gray><time></gray> Bid payment expired for <yellow><region></yellow>
+        | Refunded <green>$<amount></green>
+    offer-payment-expired: <prefix> <gray><time></gray> Offer payment expired for
+        <yellow><region></yellow> | Refunded <green>$<amount></green>
+    agent-invited: <prefix> <gray><time></gray> <#00aaff><player></#00aaff> invited
+        you as agent for <yellow><region></yellow>
+    agent-invite-accepted: <prefix> <gray><time></gray> <#00aaff><player></#00aaff>
+        accepted agent invite for <yellow><region></yellow>
+    agent-invite-rejected: <prefix> <gray><time></gray> <#00aaff><player></#00aaff>
+        rejected agent invite for <yellow><region></yellow>
+    agent-invite-withdrawn: <prefix> <gray><time></gray> <#00aaff><player></#00aaff>
+        withdrew agent invite for <yellow><region></yellow>
+    agent-removed: <prefix> <gray><time></gray> <#00aaff><player></#00aaff> removed
+        you as agent for <yellow><region></yellow>
+    region-unrented: '<prefix> <player> unrented region <region>. Refund: <refund>.'
+    auction-won: <prefix> You have won the auction for region <region>! Please pay
+        within the payment deadline.
+    auction-ended-no-bids: <prefix> The auction for region <region> has ended with
+        no bids.
+    leasehold-expired: <prefix> Your lease on region <region> has expired.
+    leasehold-expired-landlord: <prefix> The lease on region <region> has expired;
+        the tenant has been removed.
+    modify-proposed-landlord: <prefix> <gray></gray> Your landlord proposed new terms
+        for <yellow><region></yellow>. Renew to accept, or let the lease end to decline.
+    modify-proposed-tenant: <prefix> <gray></gray> <#00aaff><player></#00aaff> requested
+        new terms for <yellow><region></yellow>. Use <green>/realty modify accept</green>
+        or <red>reject</red>.
+    modify-accepted: <prefix> <gray></gray> Your proposed terms for <yellow><region></yellow>
+        were <green>accepted</green>.
+    modify-rejected: <prefix> <gray></gray> Your proposed terms for <yellow><region></yellow>
+        were <red>rejected</red>.
+    modify-withdrawn: <prefix> <gray></gray> The pending proposal for <yellow><region></yellow>
+        was <red>withdrawn</red>.
+    termination-scheduled-tenant: <prefix> <gray></gray> Your lease on <yellow><region></yellow>
+        was scheduled for termination, effective <yellow><date></yellow>.
+    termination-scheduled-landlord: <prefix> <gray></gray> The tenant of <yellow><region></yellow>
+        scheduled termination, effective <yellow><date></yellow>.
+    termination-cancelled: <prefix> <gray></gray> The scheduled termination of <yellow><region></yellow>
+        was <green>cancelled</green>.
+    leasehold-terminated-tenant: '<prefix> <gray></gray> Your lease on <yellow><region></yellow>
+        has <red>ended</red>. Refund: <green>$<refund></green>.'
+    leasehold-terminated-landlord: <prefix> <gray></gray> The lease on <yellow><region></yellow>
+        has ended via termination; the tenant has been removed.
+history:
+    header: <prefix> History for <region>
+    no-results: <prefix> No history found for <region>
+    event:
+        buy: '<gray><time></gray> <#00aaff><buyer></#00aaff> bought for <green>$<price></green>
+            | Authority: <grey><authority></grey>'
+        auction-buy: '<gray><time></gray> <#00aaff><buyer></#00aaff> won auction at
+            <green>$<price></green> | Authority: <grey><authority></grey>'
+        offer-buy: '<gray><time></gray> <#00aaff><buyer></#00aaff> bought via offer
+            for <green>$<price></green> | Authority: <grey><authority></grey>'
+        agent-add: '<gray><time></gray> <#00aaff><agent></#00aaff> added as agent
+            | By: <green><actor></green>'
+        agent-remove: '<gray><time></gray> <#00aaff><agent></#00aaff> removed as agent
+            | By: <green><actor></green>'
+        rent: '<gray><time></gray> <#00aaff><tenant></#00aaff> rented for <green>$<price></green>
+            | Landlord: <grey><landlord></grey>'
+        renew: '<gray><time></gray> <yellow>Lease Renewed</yellow> | Tenant: <#00aaff><tenant></#00aaff>
+            | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>'
+        leasehold-expiry: '<gray><time></gray> Lease expired for <#00aaff><tenant></#00aaff>
+            | Landlord: <landlord> | Price: <green>$<price></green>'
+        unrent: '<gray><time></gray> <yellow>Unrented</yellow> | Tenant: <#00aaff><tenant></#00aaff>
+            | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>'
+        set-price-freehold: '<gray><time></gray> <yellow>Price Set</yellow> | Authority:
+            <dark_green><authority></dark_green> | Price: <green>$<price></green>'
+        set-price-leasehold: '<gray><time></gray> <yellow>Lease Price Set</yellow>
+            | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>'
+        unset-price: '<gray><time></gray> <yellow>Price Unset</yellow> | Authority:
+            <dark_green><authority></dark_green>'
+        set-titleholder: '<gray><time></gray> <yellow>Titleholder Set</yellow> | New
+            Titleholder: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green>'
+        unset-titleholder: '<gray><time></gray> <yellow>Titleholder Unset</yellow>
+            | Previous: <#00aaff><buyer></#00aaff> | Authority: <dark_green><authority></dark_green>'
+        set-duration: '<gray><time></gray> <yellow>Duration Set</yellow> | Landlord:
+            <dark_green><landlord></dark_green> | Price: <green>$<price></green>'
+        set-landlord: '<gray><time></gray> <yellow>Landlord Set</yellow> | New Landlord:
+            <dark_green><landlord></dark_green> | Tenant: <#00aaff><tenant></#00aaff>'
+        set-tenant: '<gray><time></gray> <yellow>Tenant Set</yellow> | Tenant: <#00aaff><tenant></#00aaff>
+            | Landlord: <dark_green><landlord></dark_green>'
+        unset-tenant: '<gray><time></gray> <yellow>Tenant Unset</yellow> | Previous:
+            <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>'
+        set-max-extensions: '<gray><time></gray> <yellow>Max Extensions Set</yellow>
+            | Landlord: <dark_green><landlord></dark_green> | Price: <green>$<price></green>'
+        modify-propose: '<gray><time></gray> <yellow>Modification Proposed</yellow> |
+            Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>
+            | <changes>'
+        modify-accept: '<gray><time></gray> <yellow>Modification Accepted</yellow> |
+            Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>
+            | <changes>'
+        modify-reject: '<gray><time></gray> <yellow>Modification Rejected</yellow> |
+            Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>
+            | <changes>'
+        modify-withdraw: '<gray><time></gray> <yellow>Modification Withdrawn</yellow>
+            | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>
+            | <changes>'
+        modify-apply: '<gray><time></gray> <yellow>Modification Applied</yellow> | Tenant:
+            <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>
+            | Price: <green>$<price></green>'
+        terminate: '<gray><time></gray> <red>Termination Scheduled</red> | Tenant: <#00aaff><tenant></#00aaff>
+            | Landlord: <dark_green><landlord></dark_green>'
+        termination-cancel: '<gray><time></gray> <yellow>Termination Cancelled</yellow>
+            | Tenant: <#00aaff><tenant></#00aaff> | Landlord: <dark_green><landlord></dark_green>'
+    footer: <previous> Page <page> of <total> <next>
+    previous: '<click:run_command:<command>><yellow>«</yellow></click> '
+    next: ' <click:run_command:<command>><yellow>»</yellow></click>'
+    invalid-page: <prefix> Page <page> does not exist. There are <total> page(s).
+    error: '<prefix> Failed to retrieve history: <error>'
+set-price:
+    success: <prefix> You have <green>set the price</green> for <yellow><region></yellow>
+        to <green>$<price></green>
+    no-contract: <prefix> <yellow><region></yellow> does not have a freehold or leasehold
+        contract
+    auction-exists: <prefix> <yellow><region></yellow> has an active auction. Price
+        cannot be changed
+    offer-payment-in-progress: <prefix> <yellow><region></yellow> has an offer payment
+        in progress. Price cannot be changed
+    bid-payment-in-progress: <prefix> <yellow><region></yellow> has a bid payment
+        in progress. Price cannot be changed
+    update-failed: <prefix> Failed to update price for <yellow><region></yellow>
+    error: '<prefix> Failed to set price: <error>'
+unset-price:
+    success: <prefix> You have <green>cleared the price</green> for <yellow><region></yellow>
+    no-freehold-contract: <prefix> <yellow><region></yellow> does not have a freehold
+        contract
+    offer-payment-in-progress: <prefix> <yellow><region></yellow> has an offer payment
+        in progress. Price cannot be cleared
+    bid-payment-in-progress: <prefix> <yellow><region></yellow> has a bid payment
+        in progress. Price cannot be cleared
+    update-failed: <prefix> Failed to clear price for <yellow><region></yellow>
+    error: '<prefix> Failed to unset price: <error>'
+set-duration:
+    success: <prefix> You have <green>set the duration</green> for <yellow><region></yellow>
+        to <green><duration></green>
+    no-leasehold-contract: <prefix> <yellow><region></yellow> does not have a lease
+        contract
+    update-failed: <prefix> Failed to update duration for <yellow><region></yellow>
+    error: '<prefix> Failed to set duration: <error>'
+set-landlord:
+    success: <prefix> You have <green>set the landlord</green> for <yellow><region></yellow>
+        to <green><landlord></green>
+    no-leasehold-contract: <prefix> <yellow><region></yellow> does not have a lease
+        contract
+    update-failed: <prefix> Failed to update landlord for <yellow><region></yellow>
+    error: '<prefix> Failed to set landlord: <error>'
 sign:
-  place-success: "Sign registered for region <region>."
-  place-not-a-sign: "You must be looking at a sign block."
-  place-not-registered: "Region <region> is not registered in Realty."
-  place-not-landlord: "You must be the landlord of region <region> to place a sign for it."
-  place-no-build-access: "You don't have permission to build where this sign is located."
-  place-already-registered: "This sign is already registered."
-  place-error: "Failed to register sign: <error>"
-  remove-success: "Sign unregistered."
-  remove-not-a-sign: "You must be looking at a sign block."
-  remove-not-registered: "This sign is not registered."
-  remove-error: "Failed to unregister sign: <error>"
-  list-header: "--- Signs for <region> ---"
-  list-entry: "  <click:run_command:'/tp @s <x> <y> <z>'><yellow><x>, <y>, <z></yellow> <gray>(<world>)</gray></click>"
-  list-no-signs: "No signs registered for region <region>."
-  list-error: "Failed to list signs: <error>"
-
+    place-success: <prefix> You have <green>registered a sign</green> for <yellow><region></yellow>
+    place-not-a-sign: <prefix> You must be looking at a sign block
+    place-not-registered: <prefix> <yellow><region></yellow> is not registered in
+        Realty
+    place-already-registered: <prefix> This sign is already registered
+    place-error: '<prefix> Failed to register sign: <error>'
+    remove-success: <prefix> You have <red>unregistered a sign</red>
+    remove-not-a-sign: <prefix> You must be looking at a sign block
+    remove-not-registered: <prefix> This sign is not registered
+    remove-error: '<prefix> Failed to unregister sign: <error>'
+    list-header: '--- Signs for <region> ---'
+    list-entry: '  <click:run_command:''/tp @s <x> <y> <z>''><yellow><x>, <y>, <z></yellow>
+        <gray>(<world>)</gray></click>'
+    list-no-signs: No signs registered for region <region>.
+    list-error: 'Failed to list signs: <error>'
+    place-not-landlord: You must be the landlord of region <region> to place a sign
+        for it.
+    place-no-build-access: You don't have permission to build where this sign is located.
+unrent:
+    success: '<prefix> You have unrented region <yellow><region></yellow>. Refund:
+        <green>$<refund>.</green>'
+    no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not a leasehold.
+    not-tenant: <prefix> You are not the tenant of region <yellow><region></yellow>.
+    update-failed: <prefix> Failed to unrent region <yellow><region>.</yellow>
+    refund-failed: '<prefix> Failed to process refund: <error>'
+    error: '<prefix> Failed to unrent region: <error>'
+set:
+    no-permission: <prefix> You do not have permission to modify this region.
+    check-permissions-error: '<prefix> Failed to check permissions: <error>'
+    not-landlord: <prefix> You are not the landlord of region <yellow><region>.</yellow>
+    occupied-use-modify: <prefix> Region <yellow><region></yellow> is currently rented.
+        Use <green>/realty modify</green> to change its terms for the next cycle, or
+        have an admin force the change.
+    leasehold-no-permission: <prefix> Leasehold terms cannot be set instantly. Use <green>/realty
+        modify</green> to change region <yellow><region></yellow> from the next cycle.
+modify:
+    propose-success-landlord: <prefix> You have <green>proposed new terms</green> for
+        region <yellow><region></yellow>. They take effect the next time the tenant
+        renews; they may decline by not renewing.
+    propose-success-tenant: <prefix> You have <green>requested new terms</green> for
+        region <yellow><region></yellow>. The landlord must accept before they take
+        effect.
+    no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not a leasehold.
+    not-occupied: <prefix> Region <yellow><region></yellow> has no tenant, so there
+        is nothing to modify. Use <green>/realty set</green> while it is vacant.
+    terminating: <prefix> Region <yellow><region></yellow> is scheduled for termination
+        and cannot be modified.
+    not-authorized: <prefix> You are not the landlord or tenant of region <yellow><region>.</yellow>
+    not-landlord: <prefix> Only the landlord of region <yellow><region></yellow> can
+        do that.
+    update-failed: <prefix> Failed to modify region <yellow><region>.</yellow>
+    error: '<prefix> Failed to modify region: <error>'
+    accept-success: <prefix> You have <green>accepted the proposed terms</green> for
+        region <yellow><region></yellow>. They take effect on the next renewal.
+    reject-success: <prefix> You have <red>rejected the proposed terms</red> for region
+        <yellow><region>.</yellow>
+    withdraw-success: <prefix> You have <red>withdrawn your proposal</red> for region
+        <yellow><region>.</yellow>
+    no-pending-proposal: <prefix> Region <yellow><region></yellow> has no pending modification
+        proposal.
+    not-tenant-proposal: <prefix> There is no tenant proposal awaiting your decision
+        on region <yellow><region>.</yellow>
+    not-proposer: <prefix> You did not make the pending proposal for region <yellow><region>.</yellow>
+    inbox-header: <prefix> Modification Inbox
+    inbox-entry: ' <dark_grey>-</dark_grey> <blue><player></blue> proposed <changes>
+        for <yellow><region></yellow> <grey>(/realty modify accept|reject)</grey>'
+    inbox-none: <prefix> You have no proposals awaiting your decision. <red>:(
+    outbox-header: <prefix> Modification Outbox
+    outbox-entry: ' <dark_grey>-</dark_grey> <grey>[<status>]</grey> You proposed <changes>
+        for <yellow><region></yellow> '
+    outbox-none: <prefix> You have no pending proposals.
+    status-active: applies next renewal
+    status-awaiting: awaiting landlord
+    change-price: 'Price: <green>$<value></green>'
+    change-duration: 'Duration: <green><value></green>'
+    change-max-extensions: 'Max Extensions: <green><value></green>'
+    changes-none: <gray>no change</gray>
+terminate:
+    success: <prefix> You have <green>scheduled termination</green> of region <yellow><region></yellow>.
+        The lease ends <yellow><date></yellow>.
+    success-charged: <prefix> You have <green>scheduled termination</green> of region
+        <yellow><region></yellow>. The lease ends <yellow><date></yellow>. You were charged
+        <red>$<charged></red> to cover the notice period.
+    no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not a leasehold.
+    not-occupied: <prefix> Region <yellow><region></yellow> has no tenant to terminate.
+    already-terminating: <prefix> Region <yellow><region></yellow> is already scheduled
+        for termination.
+    not-authorized: <prefix> You are not the landlord or tenant of region <yellow><region>.</yellow>
+    now-no-permission: <prefix> You do not have permission to terminate <red>without
+        notice</red>.
+    insufficient-funds: '<prefix> You do not have enough funds to cover the notice period.
+        Your balance: <green>$<balance>.</green> Required: <red>$<price>.</red>'
+    payment-failed: '<prefix> Payment failed: <error>'
+    update-failed: <prefix> Failed to terminate region <yellow><region>.</yellow>
+    error: '<prefix> Failed to terminate region: <error>'
+    cancel-success: <prefix> You have <red>cancelled the scheduled termination</red>
+        of region <yellow><region>.</yellow>
+    cancel-no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not a
+        leasehold.
+    cancel-not-terminating: <prefix> Region <yellow><region></yellow> is not scheduled
+        for termination.
+    cancel-not-authorized: <prefix> Only the party that initiated the termination of
+        region <yellow><region></yellow> can cancel it.
+    cancel-update-failed: <prefix> Failed to cancel the termination of region <yellow><region>.</yellow>
+    cancel-error: '<prefix> Failed to cancel termination: <error>'
+unset:
+    no-permission: <prefix> You do not have permission to modify this region.
+    check-permissions-error: '<prefix> Failed to check permissions: <error>'
+subregion:
+    create-success: <prefix> You have created <yellow><region></yellow> as a subregion
+        of <green><parent>.</green>
+    create-error: '<prefix> Failed to create subregion: <error>'
+    region-exists: <prefix> A region named <yellow><region></yellow> already exists.
+    no-freehold: <prefix> Region <yellow><region></yellow> is not a freehold region.
+    not-titleholder: <prefix> You are not the titleholder of region <yellow><region>.</yellow>
+    wrong-world: <prefix> Your WorldEdit selection is in a different world than the
+        parent region.
+    incomplete-selection: <prefix> Your WorldEdit selection is incomplete. Select
+        both points first.
+    exceeds-bounds: <prefix> Your selection exceeds the bounds of region <yellow><region>.</yellow>
+    overlaps-sibling: <prefix> Your selection overlaps with existing subregion <yellow><sibling>.</yellow>
+    too-small: <prefix> Your selection is <red>too small (<volume> blocks).</red>
+        Minimum volume is <green><min-volume> blocks.</green>
+    tag-blacklisted: Region <region> has tag <tag> which prevents subregioning.
+    invalid-name: Region name <region> is invalid. Names must be alphanumeric only.
+    wand-given: <prefix> Right-click to add corners, left-click to undo, then run
+        /realty subregion confirm.
+    selection-cleared: <prefix> Selection cleared.
+    nothing-to-clear: <prefix> Nothing to clear.
+    selection-incomplete: <prefix> You need at least 2 corners first.
+    no-parent-candidates: <prefix> You need to be standing in a region you own.
+    hint-place: Right-click to place corners, left-click to undo
+    hint-ready: Run /realty subregion confirm when you're finished
+    parent-outside: <prefix> Your selection extends outside the region. Keep it fully
+        inside.
+    parent-not-freehold: <prefix> That region isn't set up for subletting.
+create:
+    leasehold-success: <prefix> Created region <green><region></green> and registered
+        it as a rental!
+    freehold-success: <prefix> Created region <green><region></green> and registered
+        it as freehold!
+    already-registered: <prefix> Region <red><region></red> is already registered
+        in Realty!
+    region-exists: <prefix> A region named <yellow><region></yellow> already exists!
+    incomplete-selection: <prefix> You must make a WorldEdit selection first!
+    error: '<prefix> Failed to create region: <error>'
+    invalid-name: Region name <region> is invalid. Names must be alphanumeric only.
+register-rental:
+    success: <prefix> Rental region registered successfully!
+    already-registered: <prefix> Region already registered!
+    error: 'Failed to register rental region: <error>'
+register-freehold:
+    success: <prefix> Freehold region registered successfully!
+    already-registered: <prefix> Region already registered!
+    error: '<prefix> Failed to register freehold region: <error>'
 tp:
-  success: "Teleported to region <region>."
-  no-safe-location: "Could not find a safe teleport location for region <region>."
-  error: "Failed to teleport: <error>"
-
-search:
-  header: "<gold>--- Search Results (<count> found) ---</gold>"
-  entry: "  <click:run_command:/realty info <region>><yellow><region></yellow></click> <gray>|</gray> <dark_green><type></dark_green> <gray>|</gray> <green>$<price></green>"
-  footer: "Page <page> of <total> <previous><next>"
-  previous: "<click:run_command:<command>><yellow>< Previous</yellow></click> "
-  next: " <click:run_command:<command>><yellow>Next ></yellow></click>"
-  no-results: "No regions match your search criteria."
-  invalid-page: "Page <page> does not exist. There are <total> page(s)."
-  invalid-type: "Invalid type: <type>. Use 'freehold' or 'leasehold'."
-  error: "Failed to search: <error>"
-
+    success: <prefix> You have teleported to region <green><region></green>
+    no-safe-location: <prefix> Could not find a safe teleport location for region
+        <region>.
+    error: '<prefix> Failed to teleport: <error>'
+set-maxextensions:
+    success: <prefix> Max extensions for region <yellow><region></yellow> set to <red><maxextensions>.</red>
+    no-leasehold-contract: <prefix>Region <yellow><region></yellow> is not a leasehold.
+    below-current: <prefix> Max extensions cannot be less than the current extensions
+        count <red>(<current>)</red> for region <yellow><region>.</yellow>
+    update-failed: <prefix> Failed to update max extensions for region <yellow><region>.</yellow>
+    error: '<prefix> Failed to set max extensions: <error>'
+toggle-offers:
+    success: <prefix> Offers on region <yellow><region></yellow> are now <state>.
+    not-sanctioned: <prefix> You are not authorized to toggle offers on region <yellow><region>.</yellow>
+    no-freehold-contract: <prefix> Region <yellow><region></yellow> is not a freehold.
+    update-failed: <prefix> Failed to update offer status on region <yellow><region>.</yellow>
+    error: '<prefix> Failed to toggle offers: <error>'
 cleanup-tags:
-  success: "Pruned <count> orphaned tag(s) from the database."
-  none: "No orphaned tags found. Nothing to clean up."
-  error: "Failed to clean up tags: <error>"
-
+    success: <prefix> Pruned <red><count></red> orphaned tag(s) from the database.
+    none: <prefix> No orphaned tags found. Nothing to clean up.
+    error: '<prefix> Failed to clean up tags: <error>'
 tag:
-  unknown: "<red>Unknown tag: <tag>"
-  add-success: "<green>Added tag <gold><tag></gold> to region <gold><region></gold>."
-  add-already-tagged: "<red>Region <region> already has the tag <tag>."
-  add-failed: "<red>Failed to add tag <tag> to region <region>."
-  remove-success: "<green>Removed tag <gold><tag></gold> from region <gold><region></gold>."
-  remove-not-found: "<red>Tag <tag> is not applied to region <region>."
-  list-header: "<gold>Available tags:"
-  list-entry: " <gray>- <gold><tag></gold>: <display>"
-  list-none: "<red>No tags available."
-  clear-success: "<green>Cleared <count> tag(s) from region <gold><region></gold>."
-  clear-none: "<red>Region <region> has no tags to clear."
-  error: "<red>Tag operation failed: <error>"
+    unknown: '<prefix> <red>Unknown tag: <tag>'
+    add-success: <prefix> Added tag <green><tag></green> to region <gold><region></gold>.
+    add-failed: <prefix> <red>Failed to add tag <tag> to region <region>. It may already
+        be applied.
+    remove-success: <prefix> Removed tag <red><tag></red> from region <gold><region></gold>.
+    remove-not-found: <prefix> <red>Tag <tag> is not applied to region <region>.
+    list-header: '<prefix> Available tags:'
+    list-entry: ' <gray>- <display>'
+    list-none: <prefix> <red>No tags available.
+    error: '<red>Tag operation failed: <error>'
+    add-already-tagged: <prefix> <red>Region <region> already has the tag <tag>.
+    clear-success: <prefix> Cleared <red><count> tag(s)</red> from region <gold><region></gold>.
+    clear-none: <prefix> <red>Region <region> has no tags to clear.
+search:
+    header: <prefix> Search Results <gray>(<count> found)</gray>
+    entry: ' <#00aaff><bold>»</bold></#00aaff> <click:run_command:''/realty info <region>''><white><region></white></click>
+        <gray>|</gray> <dark_green><type></dark_green> <gray>|</gray> <green>$<price></green>'
+    footer: <previous> Page <page> of <total> <next>
+    previous: '<click:run_command:<command>><yellow>«</yellow></click> '
+    next: ' <click:run_command:<command>><yellow>»</yellow></click>'
+    no-results: <prefix> No regions match your search criteria.
+    invalid-page: <prefix> Page <page> does not exist. There are <total> page(s).
+    invalid-type: 'Invalid type: <type>. Use ''freehold'' or ''leasehold''.'
+    error: '<prefix> Failed to search: <error>'
+transfer:
+    success: Region <region> transferred to <titleholder> and price cleared.
+    no-freehold-contract: Region <region> does not have a freehold contract.
+    update-failed: Failed to transfer region <region>.
+    error: 'Failed to transfer region: <error>'
+    no-permission: You do not have permission to transfer this region.

@@ -198,6 +198,184 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
     }
 
+    // --- Leasehold modifications ---
+
+    @Nested
+    @DisplayName("modifications")
+    class Modifications {
+
+        @Test
+        @DisplayName("a landlord proposal is active and applies on the tenant's next renewal")
+        void landlordProposalAppliesOnRenew() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+
+            RealtyBackend.ProposeModificationResult proposal = logic.proposeModification(
+                    regionId, WORLD_ID, PLAYER_A, false, 300.0, null, null);
+            RealtyBackend.ProposeModificationResult.Success success =
+                    Assertions.assertInstanceOf(RealtyBackend.ProposeModificationResult.Success.class, proposal);
+            Assertions.assertTrue(success.active(), "Landlord proposal should be active");
+
+            // Price is unchanged until the tenant renews.
+            Assertions.assertEquals(200.0, logic.getLeaseholdContract(regionId, WORLD_ID).price());
+
+            RealtyBackend.RenewLeaseholdResult renew = logic.renewLeasehold(regionId, WORLD_ID, PLAYER_B);
+            RealtyBackend.RenewLeaseholdResult.Success renewed =
+                    Assertions.assertInstanceOf(RealtyBackend.RenewLeaseholdResult.Success.class, renew);
+            Assertions.assertEquals(300.0, renewed.price(), "Renewal should charge the new price");
+            Assertions.assertEquals(300.0, logic.getLeaseholdContract(regionId, WORLD_ID).price());
+        }
+
+        @Test
+        @DisplayName("a tenant proposal only applies after the landlord accepts it")
+        void tenantProposalRequiresAccept() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+
+            RealtyBackend.ProposeModificationResult proposal = logic.proposeModification(
+                    regionId, WORLD_ID, PLAYER_B, false, 150.0, null, null);
+            RealtyBackend.ProposeModificationResult.Success success =
+                    Assertions.assertInstanceOf(RealtyBackend.ProposeModificationResult.Success.class, proposal);
+            Assertions.assertFalse(success.active(), "Tenant proposal must await the landlord");
+
+            // Renewing before acceptance keeps the old price.
+            RealtyBackend.RenewLeaseholdResult beforeAccept = logic.renewLeasehold(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertEquals(200.0,
+                    ((RealtyBackend.RenewLeaseholdResult.Success) beforeAccept).price());
+
+            Assertions.assertInstanceOf(RealtyBackend.ResolveModificationResult.Success.class,
+                    logic.acceptModification(regionId, WORLD_ID, PLAYER_A, false));
+
+            RealtyBackend.RenewLeaseholdResult afterAccept = logic.renewLeasehold(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertEquals(150.0,
+                    ((RealtyBackend.RenewLeaseholdResult.Success) afterAccept).price());
+        }
+
+        @Test
+        @DisplayName("inbox lists tenant proposals awaiting the landlord; outbox lists the proposer's own")
+        void inboxAndOutbox() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+            logic.proposeModification(regionId, WORLD_ID, PLAYER_B, false, 150.0, null, null);
+
+            // Landlord (PLAYER_A) sees it in their inbox; tenant (PLAYER_B) sees it in their outbox.
+            Assertions.assertEquals(1, logic.listModificationsAwaitingLandlord(PLAYER_A).size());
+            Assertions.assertEquals(1, logic.listPendingModificationsByProposer(PLAYER_B).size());
+            // The tenant has nothing awaiting them as a landlord; the landlord proposed nothing.
+            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(PLAYER_B).isEmpty());
+            Assertions.assertTrue(logic.listPendingModificationsByProposer(PLAYER_A).isEmpty());
+
+            // Once the landlord rejects it, both listings clear.
+            logic.rejectModification(regionId, WORLD_ID, PLAYER_A, false);
+            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(PLAYER_A).isEmpty());
+            Assertions.assertTrue(logic.listPendingModificationsByProposer(PLAYER_B).isEmpty());
+        }
+
+        @Test
+        @DisplayName("a stranger cannot propose a modification")
+        void strangerCannotPropose() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+
+            Assertions.assertInstanceOf(RealtyBackend.ProposeModificationResult.NotAuthorized.class,
+                    logic.proposeModification(regionId, WORLD_ID, PLAYER_C, false, 300.0, null, null));
+        }
+    }
+
+    // --- Termination ---
+
+    @Nested
+    @DisplayName("termination")
+    class Termination {
+
+        @Test
+        @DisplayName("scheduling a termination blocks extension and is honoured by the sweep")
+        void scheduleBlocksExtensionAndSweepEndsLease() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+
+            LocalDateTime effective = LocalDateTime.now().minusMinutes(1);
+            // endDate (newEndDate) half a period past the effective date → 50% refund of one period.
+            LocalDateTime newEndDate = effective.plusSeconds(1800);
+            RealtyBackend.TerminateLeaseholdResult terminate =
+                    logic.terminateLease(regionId, WORLD_ID, newEndDate, effective, "landlord");
+            Assertions.assertInstanceOf(RealtyBackend.TerminateLeaseholdResult.Success.class, terminate);
+
+            // Extension is blocked while a termination is pending.
+            Assertions.assertInstanceOf(RealtyBackend.RenewLeaseholdResult.Terminating.class,
+                    logic.renewLeasehold(regionId, WORLD_ID, PLAYER_B));
+
+            List<RealtyBackend.TerminatedLeasehold> swept = logic.clearTerminatedLeaseholds();
+            Assertions.assertEquals(1, swept.size());
+            RealtyBackend.TerminatedLeasehold ended = swept.get(0);
+            Assertions.assertEquals(PLAYER_B, ended.tenantId());
+            Assertions.assertEquals(100.0, ended.refund(), 0.5, "Refund should be half of one period");
+
+            // The tenant has been cleared.
+            Assertions.assertNull(logic.getLeaseholdContract(regionId, WORLD_ID).tenantId());
+        }
+
+        @Test
+        @DisplayName("cannot terminate a vacant lease")
+        void cannotTerminateVacant() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+
+            Assertions.assertInstanceOf(RealtyBackend.TerminateLeaseholdResult.NotOccupied.class,
+                    logic.terminateLease(regionId, WORLD_ID, LocalDateTime.now().plusDays(7),
+                            LocalDateTime.now().plusDays(7), "landlord"));
+        }
+    }
+
+    // --- Rentable ---
+
+    @Nested
+    @DisplayName("rentable")
+    class Rentable {
+
+        @Test
+        @DisplayName("a closed leasehold cannot be rented, and reopening restores it")
+        void closedBlocksRent() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+
+            // Landlord closes it to new tenants.
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.Success.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_A, false, false));
+            Assertions.assertFalse(logic.getLeaseholdContract(regionId, WORLD_ID).acceptingTenants());
+
+            Assertions.assertInstanceOf(RealtyBackend.RentResult.NotAcceptingTenants.class,
+                    logic.rentRegion(regionId, WORLD_ID, PLAYER_B));
+
+            // Reopening lets a tenant rent again.
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.Success.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_A, false, true));
+            Assertions.assertInstanceOf(RealtyBackend.RentResult.Success.class,
+                    logic.rentRegion(regionId, WORLD_ID, PLAYER_B));
+        }
+
+        @Test
+        @DisplayName("only the landlord (or an admin) can toggle rentable")
+        void onlyLandlordCanToggle() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.NotAuthorized.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_C, false, false));
+            // A no-op toggle reports NoChange (default is accepting).
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.NoChange.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_A, false, true));
+            // Admin bypass can toggle regardless of who they are.
+            Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.Success.class,
+                    logic.setRentable(regionId, WORLD_ID, PLAYER_C, true, false));
+        }
+    }
+
     // --- DeleteRegion ---
 
     @Nested

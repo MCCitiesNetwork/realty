@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import org.jetbrains.annotations.NotNull;
@@ -262,12 +263,30 @@ public interface RealtyBackend {
         record Success(double price, long durationSeconds, @NotNull UUID landlordId) implements RentResult {}
         record NoLeaseholdContract() implements RentResult {}
         record AlreadyOccupied() implements RentResult {}
+        record NotAcceptingTenants() implements RentResult {}
         record UpdateFailed() implements RentResult {}
     }
 
     @NotNull RentResult rentRegion(@NotNull String worldGuardRegionId,
                                    @NotNull UUID worldId,
                                    @NotNull UUID tenantId);
+
+    // --- Set Rentable (accepting new tenants) ---
+
+    sealed interface SetRentableResult {
+        record Success(boolean acceptingTenants) implements SetRentableResult {}
+        record NoLeaseholdContract() implements SetRentableResult {}
+        record NotAuthorized() implements SetRentableResult {}
+        record NoChange(boolean acceptingTenants) implements SetRentableResult {}
+        record UpdateFailed() implements SetRentableResult {}
+    }
+
+    /** Sets whether a leasehold accepts new tenants. Only the landlord, or an admin via {@code bypassAuth}, may. */
+    @NotNull SetRentableResult setRentable(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId,
+                                           @NotNull UUID actorId,
+                                           boolean bypassAuth,
+                                           boolean accepting);
 
     void rollbackRent(@NotNull String worldGuardRegionId,
                       @NotNull UUID worldId);
@@ -290,6 +309,8 @@ public interface RealtyBackend {
         record Success(double price, @NotNull UUID landlordId) implements RenewLeaseholdResult {}
         record NoLeaseholdContract() implements RenewLeaseholdResult {}
         record NoExtensionsRemaining() implements RenewLeaseholdResult {}
+        /** The lease is scheduled for termination and can no longer be extended. */
+        record Terminating() implements RenewLeaseholdResult {}
         record UpdateFailed() implements RenewLeaseholdResult {}
     }
 
@@ -300,6 +321,107 @@ public interface RealtyBackend {
     void rollbackRenewLeasehold(@NotNull String worldGuardRegionId,
                                 @NotNull UUID worldId,
                                 @NotNull UUID tenantId);
+
+    // --- Leasehold Modifications (pending term changes) ---
+
+    sealed interface ProposeModificationResult {
+        /** {@code active} is {@code true} for a landlord proposal (applies on next renewal), false when awaiting the landlord. */
+        record Success(int modificationId, @NotNull String proposerRole, boolean active,
+                       @NotNull UUID landlordId, @NotNull UUID tenantId) implements ProposeModificationResult {}
+        record NoLeaseholdContract() implements ProposeModificationResult {}
+        record NotOccupied() implements ProposeModificationResult {}
+        record Terminating() implements ProposeModificationResult {}
+        record NotAuthorized() implements ProposeModificationResult {}
+        record UpdateFailed() implements ProposeModificationResult {}
+    }
+
+    /**
+     * Proposes a change to a leasehold's terms ({@code null} fields are left unchanged and merge with any
+     * existing same-role proposal). The proposer's role is derived from {@code actorId}: the landlord's
+     * proposal becomes {@code ACTIVE} (applies on the tenant's next renewal); the tenant's becomes
+     * {@code AWAITING_LANDLORD}. {@code bypassAuth} (admin) acts as the landlord.
+     */
+    @NotNull ProposeModificationResult proposeModification(@NotNull String worldGuardRegionId,
+                                                           @NotNull UUID worldId,
+                                                           @NotNull UUID actorId,
+                                                           boolean bypassAuth,
+                                                           @Nullable Double newPrice,
+                                                           @Nullable Long newDurationSeconds,
+                                                           @Nullable Integer newMaxExtensions);
+
+    sealed interface ResolveModificationResult {
+        record Success(int modificationId, @NotNull UUID tenantId, @NotNull UUID landlordId,
+                       @NotNull String proposerRole) implements ResolveModificationResult {}
+        record NoLeaseholdContract() implements ResolveModificationResult {}
+        record NoPendingProposal() implements ResolveModificationResult {}
+        /** The pending modification is not a tenant proposal awaiting the landlord (accept/reject only). */
+        record NotTenantProposal() implements ResolveModificationResult {}
+        /** The caller is not the landlord (accept/reject) or not the proposer (withdraw). */
+        record NotAuthorized() implements ResolveModificationResult {}
+        record UpdateFailed() implements ResolveModificationResult {}
+    }
+
+    /** Landlord (or admin via {@code bypassAuth}) accepts a tenant's pending proposal, promoting it to {@code ACTIVE}. */
+    @NotNull ResolveModificationResult acceptModification(@NotNull String worldGuardRegionId,
+                                                          @NotNull UUID worldId,
+                                                          @NotNull UUID actorId,
+                                                          boolean bypassAuth);
+
+    /** Landlord (or admin via {@code bypassAuth}) rejects a tenant's pending proposal. */
+    @NotNull ResolveModificationResult rejectModification(@NotNull String worldGuardRegionId,
+                                                          @NotNull UUID worldId,
+                                                          @NotNull UUID actorId,
+                                                          boolean bypassAuth);
+
+    /** The proposer (or an admin via {@code bypassAuth}) withdraws their own pending proposal. */
+    @NotNull ResolveModificationResult withdrawModification(@NotNull String worldGuardRegionId,
+                                                            @NotNull UUID worldId,
+                                                            @NotNull UUID actorId,
+                                                            boolean bypassAuth);
+
+    /** Tenant proposals awaiting the given landlord's decision (inbox). */
+    @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull UUID landlordId);
+
+    /** The given player's own non-terminal proposals (outbox). */
+    @NotNull List<LeaseholdModificationView> listPendingModificationsByProposer(@NotNull UUID proposerId);
+
+    // --- Terminate Leasehold (with notice) ---
+
+    sealed interface TerminateLeaseholdResult {
+        record Success(@NotNull UUID tenantId, @NotNull UUID landlordId) implements TerminateLeaseholdResult {}
+        record NoLeaseholdContract() implements TerminateLeaseholdResult {}
+        record NotOccupied() implements TerminateLeaseholdResult {}
+        record AlreadyTerminating() implements TerminateLeaseholdResult {}
+        record UpdateFailed() implements TerminateLeaseholdResult {}
+    }
+
+    /**
+     * Schedules an early termination. {@code newEndDate} (already &ge; {@code effectiveDate}) becomes the
+     * paid-through end so the regular expiry never fires first; the lease actually ends at
+     * {@code effectiveDate}. The caller (Paper layer) is responsible for charging any forced extensions
+     * before invoking this, under the per-region lock.
+     */
+    @NotNull TerminateLeaseholdResult terminateLease(@NotNull String worldGuardRegionId,
+                                                     @NotNull UUID worldId,
+                                                     @NotNull LocalDateTime newEndDate,
+                                                     @NotNull LocalDateTime effectiveDate,
+                                                     @NotNull String terminatedByRole);
+
+    sealed interface CancelTerminationResult {
+        record Success(@NotNull String terminatedByRole, @NotNull UUID landlordId,
+                       @NotNull UUID tenantId) implements CancelTerminationResult {}
+        record NoLeaseholdContract() implements CancelTerminationResult {}
+        record NotTerminating() implements CancelTerminationResult {}
+        /** The caller did not initiate the termination (and is not an admin). */
+        record NotAuthorized() implements CancelTerminationResult {}
+        record UpdateFailed() implements CancelTerminationResult {}
+    }
+
+    /** Cancels a scheduled termination; only the initiating party, or an admin via {@code bypassAuth}, may. */
+    @NotNull CancelTerminationResult cancelTermination(@NotNull String worldGuardRegionId,
+                                                       @NotNull UUID worldId,
+                                                       @NotNull UUID actorId,
+                                                       boolean bypassAuth);
 
     // --- Delete ---
 
@@ -544,6 +666,24 @@ public interface RealtyBackend {
     ) {}
 
     @NotNull List<ExpiredLeasehold> clearExpiredLeaseholds();
+
+    // --- Terminated Leaseholds (scheduled termination date elapsed) ---
+
+    record TerminatedLeasehold(
+            @NotNull UUID tenantId,
+            @NotNull UUID landlordId,
+            @NotNull String worldGuardRegionId,
+            @NotNull UUID worldId,
+            double refund,
+            @NotNull String terminatedByRole
+    ) {}
+
+    /**
+     * Ends leaseholds whose scheduled termination date has elapsed (clears the tenant, records history)
+     * and returns each with the prorated refund of prepaid-but-unused time. The economy refund itself
+     * (landlord &rarr; tenant) is performed by the Paper layer.
+     */
+    @NotNull List<TerminatedLeasehold> clearTerminatedLeaseholds();
 
     // --- Aggregate Statistics ---
 
