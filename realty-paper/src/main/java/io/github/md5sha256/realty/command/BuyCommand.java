@@ -1,19 +1,22 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.UUID;
 
 /**
  * Handles {@code /realty buy <region>}.
@@ -25,7 +28,6 @@ import org.jetbrains.annotations.NotNull;
  */
 public record BuyCommand(
         @NotNull RealtyPaperApi api,
-        @NotNull NotificationService notificationService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -51,6 +53,7 @@ public record BuyCommand(
             return;
         }
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         api.buy(region, sender.getUniqueId()).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.BuyResult.Success success -> {
@@ -58,11 +61,17 @@ public record BuyCommand(
                             Placeholder.unparsed("price", CurrencyFormatter.format(success.price())),
                             Placeholder.unparsed("region", success.regionId())));
                     if (success.previousTitleHolderId() != null) {
-                        notificationService.queueNotification(success.previousTitleHolderId(),
+                        Bukkit.getPluginManager().callEvent(new RegionBoughtEvent(
+                                success.previousTitleHolderId(),
                                 messages.messageFor(MessageKeys.NOTIFICATION_REGION_BOUGHT,
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("price", CurrencyFormatter.format(success.price())),
-                                        Placeholder.unparsed("region", success.regionId())));
+                                        Placeholder.unparsed("region", success.regionId())),
+                                success.regionId(),
+                                worldId,
+                                sender.getUniqueId(),
+                                sender.getName(),
+                                success.price()));
                     }
                 }
                 case RealtyPaperApi.BuyResult.NoFreeholdContract noContract ->

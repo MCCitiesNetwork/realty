@@ -1,19 +1,22 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.RegionUnrentedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.UUID;
 
 /**
  * Handles {@code /realty unrent [region]}.
@@ -24,7 +27,6 @@ import org.jetbrains.annotations.NotNull;
  */
 public record UnrentCommand(
         @NotNull RealtyPaperApi api,
-        @NotNull NotificationService notificationService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -50,6 +52,7 @@ public record UnrentCommand(
             return;
         }
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         if (!region.region().getOwners().contains(sender.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NOT_TENANT,
                     Placeholder.unparsed("region", regionId)));
@@ -61,11 +64,17 @@ public record UnrentCommand(
                     sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_SUCCESS,
                             Placeholder.unparsed("region", success.regionId()),
                             Placeholder.unparsed("refund", CurrencyFormatter.format(success.refund()))));
-                    notificationService.queueNotification(success.landlordId(),
+                    Bukkit.getPluginManager().callEvent(new RegionUnrentedEvent(
+                            success.landlordId(),
                             messages.messageFor(MessageKeys.NOTIFICATION_REGION_UNRENTED,
                                     Placeholder.unparsed("player", sender.getName()),
                                     Placeholder.unparsed("region", success.regionId()),
-                                    Placeholder.unparsed("refund", CurrencyFormatter.format(success.refund()))));
+                                    Placeholder.unparsed("refund", CurrencyFormatter.format(success.refund()))),
+                            success.regionId(),
+                            worldId,
+                            sender.getUniqueId(),
+                            sender.getName(),
+                            success.refund()));
                 }
                 case RealtyPaperApi.UnrentResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,
