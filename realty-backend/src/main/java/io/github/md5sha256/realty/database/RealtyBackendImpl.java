@@ -1543,7 +1543,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                 RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
                 paymentMapper.deleteByBidId(payment.bidId());
                 String regionName = region != null ? region.worldGuardRegionId() : "unknown";
-                refunds.add(new ExpiredBidPayment(payment.bidderId(), payment.currentPayment(), regionName));
+                UUID worldId = region != null ? region.worldId() : null;
+                refunds.add(new ExpiredBidPayment(payment.bidderId(), payment.currentPayment(), regionName, worldId));
                 FreeholdContractAuctionEntity auction = auctionMapper.selectById(payment.freeholdContractAuctionId());
                 if (auction != null) {
                     LocalDateTime nextDeadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
@@ -1574,7 +1575,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                 wrapper.freeholdContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
                 wrapper.session().commit();
                 String regionName = region != null ? region.worldGuardRegionId() : "unknown";
-                refunds.add(new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), regionName));
+                UUID worldId = region != null ? region.worldId() : null;
+                refunds.add(new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), regionName, worldId));
             }
         }
         return refunds;

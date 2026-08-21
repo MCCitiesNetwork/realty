@@ -11,7 +11,6 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -22,6 +21,12 @@ import io.github.md5sha256.realty.api.SignCache;
 import io.github.md5sha256.realty.api.SignProfile;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AuctionEndedNoBidsEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonEvent;
+import io.github.md5sha256.realty.api.event.BidPaymentExpiredEvent;
+import io.github.md5sha256.realty.api.event.LeaseholdExpiredEvent;
+import io.github.md5sha256.realty.api.event.LeaseholdExpiredLandlordEvent;
+import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
 import io.github.md5sha256.realty.command.AgentInviteCommand;
@@ -73,10 +78,8 @@ import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
-import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
-import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -84,6 +87,7 @@ import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.TreasuryEconomyProvider;
 import io.github.md5sha256.realty.economy.VaultEconomyProvider;
 import net.milkbowl.vault.economy.Economy;
+import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionDefault;
@@ -139,7 +143,6 @@ public final class Realty extends JavaPlugin {
     private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
     private DatabaseSettings databaseSettings;
-    private NotificationService notificationService;
     private Database database;
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApi paperApi;
@@ -260,13 +263,9 @@ public final class Realty extends JavaPlugin {
         }
         SafeLocationFinder safeLocationFinder;
         if (getServer().getPluginManager().isPluginEnabled("Essentials")) {
-            getLogger().info("Detected Essentials, using essentials as the mail service");
-            this.notificationService = new EssentialsNotificationService(this.executorState.mainThreadExec());
             getLogger().info("Using EssentialsX safe-block predicate for teleportation");
             safeLocationFinder = new SafeLocationFinder(new EssentialsSafeBlockPredicate());
         } else {
-            getLogger().info("Using the transient notification service");
-            this.notificationService = new TransientNotificationService(this.executorState.mainThreadExec());
             safeLocationFinder = new SafeLocationFinder();
         }
         this.signTextApplicator = new SignTextApplicator(
@@ -293,7 +292,6 @@ public final class Realty extends JavaPlugin {
         registerCommands(this.paperApi,
                 this.executorState,
                 this.messageContainer,
-                this.notificationService,
                 safeLocationFinder);
         getServer().getServicesManager()
                 .register(RealtyBackend.class, this.logic, this, ServicePriority.Normal);
@@ -380,28 +378,56 @@ public final class Realty extends JavaPlugin {
             }
             for (RealtyBackend.ExpiredBiddingAuction auction : this.logic.clearExpiredBiddingAuctions()) {
                 if (auction.winnerId() != null) {
-                    this.notificationService.queueNotification(auction.winnerId(),
+                    Bukkit.getPluginManager().callEvent(new AuctionWonEvent(
+                            auction.winnerId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
-                                    Placeholder.unparsed("region", auction.worldGuardRegionId())));
+                                    Placeholder.unparsed("region", auction.worldGuardRegionId())),
+                            auction.worldGuardRegionId(),
+                            auction.worldId(),
+                            auction.winnerId()));
                 } else {
-                    this.notificationService.queueNotification(auction.auctioneerId(),
+                    Bukkit.getPluginManager().callEvent(new AuctionEndedNoBidsEvent(
+                            auction.auctioneerId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
-                                    Placeholder.unparsed("region", auction.worldGuardRegionId())));
+                                    Placeholder.unparsed("region", auction.worldGuardRegionId())),
+                            auction.worldGuardRegionId(),
+                            auction.worldId(),
+                            auction.auctioneerId()));
                 }
             }
             for (RealtyBackend.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
-                this.notificationService.queueNotification(payment.bidderId(),
-                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
-                                Placeholder.unparsed("region", payment.regionId()),
-                                Placeholder.unparsed("amount",
-                                        CurrencyFormatter.format(payment.refundAmount()))));
+                if (payment.worldId() == null) {
+                    getLogger().warning("Skipping bid payment expiry notification for region "
+                            + payment.regionId() + ": world id unavailable");
+                } else {
+                    Bukkit.getPluginManager().callEvent(new BidPaymentExpiredEvent(
+                            payment.bidderId(),
+                            this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
+                                    Placeholder.unparsed("region", payment.regionId()),
+                                    Placeholder.unparsed("amount",
+                                            CurrencyFormatter.format(payment.refundAmount()))),
+                            payment.regionId(),
+                            payment.worldId(),
+                            payment.bidderId(),
+                            payment.refundAmount()));
+                }
             }
             for (RealtyBackend.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
-                this.notificationService.queueNotification(payment.offererId(),
-                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
-                                Placeholder.unparsed("region", payment.regionId()),
-                                Placeholder.unparsed("amount",
-                                        CurrencyFormatter.format(payment.refundAmount()))));
+                if (payment.worldId() == null) {
+                    getLogger().warning("Skipping offer payment expiry notification for region "
+                            + payment.regionId() + ": world id unavailable");
+                } else {
+                    Bukkit.getPluginManager().callEvent(new OfferPaymentExpiredEvent(
+                            payment.offererId(),
+                            this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
+                                    Placeholder.unparsed("region", payment.regionId()),
+                                    Placeholder.unparsed("amount",
+                                            CurrencyFormatter.format(payment.refundAmount()))),
+                            payment.regionId(),
+                            payment.worldId(),
+                            payment.offererId(),
+                            payment.refundAmount()));
+                }
             }
             List<RealtyBackend.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
             if (!expiredLeaseholds.isEmpty()) {
@@ -431,15 +457,25 @@ public final class Realty extends JavaPlugin {
                                 }
                             }
                         }
-                        this.notificationService.queueNotification(expired.tenantId(),
+                        Bukkit.getPluginManager().callEvent(new LeaseholdExpiredEvent(
+                                expired.tenantId(),
                                 this.messageContainer.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED,
                                         Placeholder.unparsed("region",
-                                                expired.worldGuardRegionId())));
-                        this.notificationService.queueNotification(expired.landlordId(),
+                                                expired.worldGuardRegionId())),
+                                expired.worldGuardRegionId(),
+                                expired.worldId(),
+                                expired.tenantId(),
+                                expired.landlordId()));
+                        Bukkit.getPluginManager().callEvent(new LeaseholdExpiredLandlordEvent(
+                                expired.landlordId(),
                                 this.messageContainer.messageFor(
                                         MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD,
                                         Placeholder.unparsed("region",
-                                                expired.worldGuardRegionId())));
+                                                expired.worldGuardRegionId())),
+                                expired.worldGuardRegionId(),
+                                expired.worldId(),
+                                expired.tenantId(),
+                                expired.landlordId()));
                     }
                 });
             }
@@ -617,7 +653,6 @@ public final class Realty extends JavaPlugin {
             @NotNull RealtyPaperApi paperApi,
             @NotNull ExecutorState executorState,
             @NotNull MessageContainer messageContainer,
-            @NotNull NotificationService notificationService,
             @NotNull SafeLocationFinder safeLocationFinder
     ) {
         String version = getPluginMeta().getVersion();

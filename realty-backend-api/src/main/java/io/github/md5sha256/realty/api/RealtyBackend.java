@@ -524,13 +524,15 @@ public interface RealtyBackend {
 
     // --- Expired Bid Payments ---
 
-    record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId) {}
+    record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId,
+                              @Nullable UUID worldId) {}
 
     @NotNull List<ExpiredBidPayment> clearExpiredBidPayments();
 
     // --- Expired Offer Payments ---
 
-    record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount, @NotNull String regionId) {}
+    record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount, @NotNull String regionId,
+                                @Nullable UUID worldId) {}
 
     @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments();
 
