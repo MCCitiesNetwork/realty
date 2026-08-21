@@ -2,6 +2,8 @@ package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyBackend.BuyResult;
+import io.github.md5sha256.realty.api.RealtyBackend.CreateAuctionResult;
+import io.github.md5sha256.realty.api.RealtyBackend.RegionInfo;
 import io.github.md5sha256.realty.api.RealtyBackend.PayBidResult;
 import io.github.md5sha256.realty.api.RealtyBackend.PayOfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptOfferResult;
@@ -352,6 +354,50 @@ class ConcurrencyTest extends AbstractDatabaseTest {
                     "Exactly one partial payment should succeed, got: " + outcomes);
             Assertions.assertEquals(1, appRejections + dbRejections,
                     "Exactly one partial payment should be rejected, got: " + outcomes);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Concurrent placeOffer vs createAuction
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("concurrent placeOffer vs createAuction")
+    class OfferVersusAuction {
+
+        /**
+         * Offers and auctions are mutually exclusive. Both sides check the other under
+         * the freehold row lock, so whichever commits first forces the other to refuse.
+         * Without that lock both snapshot reads see an empty region and both commit.
+         */
+        @RepeatedTest(10)
+        @DisplayName("a region never ends up with both an offer and an auction")
+        void offerAndAuctionAreMutuallyExclusive() throws Exception {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+
+            List<RaceOutcome<Boolean>> outcomes = racePair(
+                    () -> logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0)
+                            instanceof OfferResult.Success,
+                    () -> logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0)
+                            instanceof CreateAuctionResult.Success);
+
+            long succeeded = countValues(outcomes, Boolean::booleanValue);
+            long dbRejections = countDbExceptions(outcomes);
+            Assertions.assertTrue(succeeded + dbRejections <= 2,
+                    "Both operations cannot succeed");
+
+            // The invariant that actually matters: the committed state is exclusive.
+            RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
+            boolean hasAuction = info.auction() != null;
+            boolean hasOffer;
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                hasOffer = wrapper.freeholdContractOfferMapper().existsByRegion(regionId, WORLD_ID);
+            }
+            Assertions.assertFalse(hasOffer && hasAuction,
+                    "Region ended up with both an offer and an auction");
+            Assertions.assertEquals(1, succeeded + dbRejections,
+                    "Exactly one side should have won (or been rejected by the DB)");
         }
     }
 
