@@ -700,6 +700,12 @@ public final class Realty extends JavaPlugin {
                 getLogger().warning("Failed to extract bundled chat-adapter module: " + ex.getMessage());
             }
             this.moduleManager.start();
+            if (getServer().getPluginManager().isPluginEnabled("Essentials")
+                    && !this.moduleManager.getActiveModules().containsKey("essentials-adapter")) {
+                getLogger().warning("Essentials is enabled, but the essentials-adapter module is not loaded. "
+                        + "Offline players will not receive mail notifications and EssentialsX-based teleport "
+                        + "safety will not be applied. Place essentials-adapter.jar in " + moduleDir + " to enable it.");
+            }
         } catch (IOException ex) {
             // A broken module directory is not worth taking the whole plugin down for.
             getLogger().severe("Failed to load modules from " + moduleDir + ": " + ex.getMessage());
