@@ -646,13 +646,21 @@ public interface RealtyBackend {
 
     // --- Expired Bid Payments ---
 
-    record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId) {}
+    /**
+     * @param worldId null if the region row has already been deleted
+     */
+    record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId,
+                              @Nullable UUID worldId) {}
 
     @NotNull List<ExpiredBidPayment> clearExpiredBidPayments();
 
     // --- Expired Offer Payments ---
 
-    record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount, @NotNull String regionId) {}
+    /**
+     * @param worldId null if the region row has already been deleted
+     */
+    record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount, @NotNull String regionId,
+                                @Nullable UUID worldId) {}
 
     @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments();
 

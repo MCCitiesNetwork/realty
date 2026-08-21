@@ -20,14 +20,14 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.46.1.0") {
         isTransitive = false
     }
-    compileOnly("net.essentialsx:EssentialsX:2.21.2") {
-        exclude(group = "org.bukkit", module = "bukkit")
-        exclude(group = "org.spigotmc", module = "spigot-api")
-    }
     compileOnly("net.democracycraft:treasury-api:2.0.0")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.0-beta.10")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
+    // Shared module system, schema migrations and formatting helpers. Deliberately NOT relocated in
+    // shadowJar: module jars are compiled against these types and loaded into this plugin's class
+    // loader, so the names must match.
+    implementation("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     testImplementation("net.democracycraft:treasury-api:2.0.0")
@@ -65,6 +65,13 @@ tasks {
         relocate("org.enginehub.squirrelid", "${base}.org.enginehub.squirrelid")
         relocate("org.sqlite", "${base}.org.sqlite")
         mergeServiceFiles()
+
+        dependsOn(":realty-paper-adapters:chat-adapter:shadowJar")
+        from(project(":realty-paper-adapters:chat-adapter")
+                .tasks.named("shadowJar").map { it.outputs.files.singleFile }) {
+            into("modules")
+            rename { "chat-adapter.jar" }
+        }
     }
 
     processResources {
@@ -75,6 +82,20 @@ tasks {
     }
 
     runServer {
+        dependsOn(":realty-paper-adapters:chat-adapter:shadowJar")
+        // EssentialsX is downloaded below, so stage the adapter that pairs with it too — otherwise
+        // the spec's Essentials smoke test cannot be run as written.
+        dependsOn(":realty-paper-adapters:essentials-adapter:shadowJar")
+        doFirst {
+            val moduleDir = project.layout.projectDirectory.dir("run/plugins/Realty/modules").asFile
+            moduleDir.mkdirs()
+            val chatAdapterJar = project(":realty-paper-adapters:chat-adapter")
+                    .tasks.named("shadowJar").get().outputs.files.singleFile
+            chatAdapterJar.copyTo(moduleDir.resolve("chat-adapter.jar"), overwrite = true)
+            val essentialsAdapterJar = project(":realty-paper-adapters:essentials-adapter")
+                    .tasks.named("shadowJar").get().outputs.files.singleFile
+            essentialsAdapterJar.copyTo(moduleDir.resolve("essentials-adapter.jar"), overwrite = true)
+        }
         minecraftVersion("1.21.8")
         downloadPlugins {
             // WorldEdit 7.4.0

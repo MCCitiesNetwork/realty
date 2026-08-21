@@ -123,3 +123,5 @@ memory-bank
 .clinerules
 .claude
 CLAUDE.md
+# Superpowers scratch (agent workspace, not project content)
+.superpowers/

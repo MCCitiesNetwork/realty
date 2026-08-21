@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.command;
 
+import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
 import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
@@ -21,7 +22,6 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
-import io.github.md5sha256.realty.util.DateFormatter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -52,7 +52,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public record AuctionCommandGroup(
         @NotNull RealtyPaperApi api,
-        @NotNull NotificationService notificationService,
         @NotNull AtomicReference<Settings> settings,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
@@ -132,11 +131,11 @@ public record AuctionCommandGroup(
                 textBuilder.appendNewline()
                         .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
                                 Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
-                                Placeholder.unparsed("start_date", DateFormatter.format(settings.get(), auction.startDate())),
+                                Placeholder.unparsed("start_date", DateFormatter.format(settings.get().dateFormat(), auction.startDate())),
                                 Placeholder.unparsed("duration",
                                         DurationFormatter.format(Duration.ofSeconds(auction.biddingDurationSeconds()))),
-                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings.get(), biddingEndDate)),
-                                Placeholder.unparsed("deadline", DateFormatter.format(settings.get(), auction.paymentDeadline())),
+                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings.get().dateFormat(), biddingEndDate)),
+                                Placeholder.unparsed("deadline", DateFormatter.format(settings.get().dateFormat(), auction.paymentDeadline())),
                                 Placeholder.unparsed("min_bid", CurrencyFormatter.format(auction.minBid())),
                                 Placeholder.unparsed("min_step", CurrencyFormatter.format(auction.minStep())),
                                 Placeholder.unparsed("highest_bid_amount", highestBidAmount),
@@ -228,9 +227,9 @@ public record AuctionCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_SUCCESS,
                     Placeholder.unparsed("region", regionId)));
             for (UUID bidderId : result.bidderIds()) {
-                notificationService.queueNotification(bidderId,
+                events.fireSync(new RealtyNotificationEvent(List.of(bidderId),
                         messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
-                                Placeholder.unparsed("region", regionId)));
+                                Placeholder.unparsed("region", regionId)), region));
             }
             if (sender instanceof Player canceller) {
                 events.fireSync(new AuctionCancelledEvent(region, canceller.getUniqueId()));
@@ -269,10 +268,10 @@ public record AuctionCommandGroup(
                                     Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.previousBidderId() != null) {
-                                notificationService.queueNotification(success.previousBidderId(),
+                                events.fireSync(new RealtyNotificationEvent(List.of(success.previousBidderId()),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OUTBID,
                                                 Placeholder.unparsed("region", regionId),
-                                                Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))));
+                                                Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))), region));
                             }
                             events.fireSync(new AuctionBidPlacedEvent(region, sender.getUniqueId(), bidAmount));
                         }
@@ -323,10 +322,10 @@ public record AuctionCommandGroup(
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
                     if (fullyPaid.previousTitleHolderId() != null) {
-                        notificationService.queueNotification(fullyPaid.previousTitleHolderId(),
+                        events.fireSync(new RealtyNotificationEvent(List.of(fullyPaid.previousTitleHolderId()),
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
-                                        Placeholder.unparsed("region", fullyPaid.regionId())));
+                                        Placeholder.unparsed("region", fullyPaid.regionId())), region));
                     }
                     events.fireSync(new AuctionWonPurchaseEvent(region, sender.getUniqueId(),
                             fullyPaid.previousTitleHolderId(), fullyPaid.amount()));

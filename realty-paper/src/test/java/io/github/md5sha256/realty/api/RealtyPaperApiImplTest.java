@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api;
 
+import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.WorldGuard;
@@ -79,7 +80,8 @@ class RealtyPaperApiImplTest {
         signCache = new SignCache();
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
-                regionProfileService, signTextApplicator, signCache, () -> 604800);
+                regionProfileService, signTextApplicator, signCache, () -> 604800,
+                new SafeLocationFinder());
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
 

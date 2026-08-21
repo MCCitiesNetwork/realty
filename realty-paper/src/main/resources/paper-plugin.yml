@@ -207,6 +207,12 @@ permissions:
   realty.command.reload:
     description: Allows using /realty reload
     default: op
+  realty.command.module.list:
+    description: Allows using /realty module list
+    default: op
+  realty.command.module.reload:
+    description: Allows using /realty module reload
+    default: op
   realty.command.cleanup.tags:
     description: Allows using /realty cleanup tags
     default: op

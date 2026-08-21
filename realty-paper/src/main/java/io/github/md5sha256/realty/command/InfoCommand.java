@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -14,7 +15,6 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
 import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.Settings;
-import io.github.md5sha256.realty.util.DateFormatter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -204,10 +204,10 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                         Placeholder.unparsed("duration",
                                 DurationFormatter.format(Duration.ofSeconds(leasehold.durationSeconds()))),
                         Placeholder.unparsed("start_date", leasehold.startDate() != null
-                                ? DateFormatter.format(settings.get(), leasehold.startDate())
+                                ? DateFormatter.format(settings.get().dateFormat(), leasehold.startDate())
                                 : "N/A"),
                         Placeholder.unparsed("end_date", leasehold.endDate() != null
-                                ? DateFormatter.format(settings.get(), leasehold.endDate())
+                                ? DateFormatter.format(settings.get().dateFormat(), leasehold.endDate())
                                 : "N/A"),
                         Placeholder.unparsed("time_left", DurationFormatter.formatTimeLeft(leasehold.endDate())),
                         Placeholder.unparsed("extensions", extensions)));

@@ -13,6 +13,14 @@ repositories {
     mavenLocal()
     mavenCentral()
     maven {
+        name = "democracycraft-snapshots"
+        url = uri("https://maven.democracycraft.net/snapshots")
+    }
+    maven {
+        name = "democracycraft-releases"
+        url = uri("https://maven.democracycraft.net/releases")
+    }
+    maven {
         name = "papermc-repo"
         url = uri("https://repo.papermc.io/repository/maven-public/")
     }
