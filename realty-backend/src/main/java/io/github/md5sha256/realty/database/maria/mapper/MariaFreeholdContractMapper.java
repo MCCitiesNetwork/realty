@@ -103,6 +103,26 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
                                                     @Param("worldId") @NotNull UUID worldId);
 
     @Override
+    @Select("""
+            SELECT fc.freeholdContractId, fc.authorityId, fc.titleHolderId, fc.price, fc.acceptingOffers
+            FROM FreeholdContract fc
+            INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            FOR UPDATE
+            """)
+    @ConstructorArgs({
+            @Arg(column = "freeholdContractId", javaType = int.class),
+            @Arg(column = "authorityId", javaType = UUID.class),
+            @Arg(column = "titleHolderId", javaType = UUID.class),
+            @Arg(column = "price", javaType = Double.class),
+            @Arg(column = "acceptingOffers", javaType = boolean.class)
+    })
+    @Nullable FreeholdContractEntity selectByRegionForUpdate(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                                             @Param("worldId") @NotNull UUID worldId);
+
+    @Override
     @Update("""
             UPDATE FreeholdContract fc
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'

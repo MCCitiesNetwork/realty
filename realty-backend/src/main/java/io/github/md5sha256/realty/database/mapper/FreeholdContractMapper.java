@@ -75,6 +75,23 @@ public interface FreeholdContractMapper {
     @Nullable FreeholdContractEntity selectByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     /**
+     * Selects and row-locks ({@code FOR UPDATE}) the freehold contract associated with a
+     * WorldGuard region, joining through the {@code RealtyRegion} and {@code Contract} tables.
+     *
+     * <p>This is the cross-process serialization point for the region's offer lifecycle
+     * (place / accept / pay / finalize / reject / withdraw): every such read-modify-write holds
+     * this lock for its transaction, so they cannot interleave with one another even when one
+     * originates in another process (e.g. the web/REST API). Plain {@code UPDATE}/{@code DELETE}
+     * statements on the same row block behind the holder. Acquire this before any auction-row
+     * lock to respect the region &rarr; contract &rarr; auction lock order.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @return the freehold contract, or {@code null} if none exists (no lock taken)
+     */
+    @Nullable FreeholdContractEntity selectByRegionForUpdate(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    /**
      * Updates the price and title holder on the freehold contract associated with a
      * WorldGuard region, joining through the {@code RealtyRegion} and {@code Contract} tables.
      *
