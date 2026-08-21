@@ -1,12 +1,16 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
+import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
+import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
+import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
+import io.github.md5sha256.realty.api.event.OwnershipTransferredEvent;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -45,7 +49,6 @@ import java.util.concurrent.CompletableFuture;
  */
 public record OfferCommandGroup(
         @NotNull RealtyPaperApi api,
-        @NotNull NotificationService notificationService,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
 
@@ -131,7 +134,8 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.placeOffer(regionId, region.world().getUID(), sender.getUniqueId(), price)
+        UUID worldId = region.world().getUID();
+        api.placeOffer(regionId, worldId, sender.getUniqueId(), price)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.OfferResult.Success success -> {
@@ -139,11 +143,17 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.titleHolderId() != null) {
-                                notificationService.queueNotification(success.titleHolderId(),
+                                Bukkit.getPluginManager().callEvent(new OfferPlacedEvent(
+                                        success.titleHolderId(),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_PLACED,
                                                 Placeholder.unparsed("player", sender.getName()),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(price)),
-                                                Placeholder.unparsed("region", regionId)));
+                                                Placeholder.unparsed("region", regionId)),
+                                        regionId,
+                                        worldId,
+                                        sender.getUniqueId(),
+                                        sender.getName(),
+                                        price));
                             }
                         }
                         case RealtyBackend.OfferResult.NoFreeholdContract ignored ->
@@ -280,16 +290,21 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.acceptOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
+        UUID worldId = region.world().getUID();
+        api.acceptOffer(regionId, worldId, sender.getUniqueId(), target.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.AcceptOfferResult.Success ignored -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
-                            notificationService.queueNotification(target.getUniqueId(),
+                            Bukkit.getPluginManager().callEvent(new OfferAcceptedEvent(
+                                    target.getUniqueId(),
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
-                                            Placeholder.unparsed("region", regionId)));
+                                            Placeholder.unparsed("region", regionId)),
+                                    regionId,
+                                    worldId,
+                                    target.getUniqueId()));
                         }
                         case RealtyBackend.AcceptOfferResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_NOT_SANCTIONED,
@@ -330,6 +345,7 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         api.payOffer(region, sender.getUniqueId(), amount).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.PayOfferResult.Success success ->
@@ -342,10 +358,15 @@ public record OfferCommandGroup(
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
                     if (fullyPaid.previousTitleHolderId() != null) {
-                        notificationService.queueNotification(fullyPaid.previousTitleHolderId(),
+                        Bukkit.getPluginManager().callEvent(new OwnershipTransferredEvent(
+                                fullyPaid.previousTitleHolderId(),
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
-                                        Placeholder.unparsed("region", fullyPaid.regionId())));
+                                        Placeholder.unparsed("region", fullyPaid.regionId())),
+                                fullyPaid.regionId(),
+                                worldId,
+                                sender.getUniqueId(),
+                                sender.getName()));
                     }
                 }
                 case RealtyPaperApi.PayOfferResult.NoPaymentRecord noPayment ->
@@ -385,17 +406,23 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.withdrawOffer(regionId, region.world().getUID(), sender.getUniqueId())
+        UUID worldId = region.world().getUID();
+        api.withdrawOffer(regionId, worldId, sender.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.WithdrawOfferResult.Success(var titleHolderId) -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                             if (titleHolderId != null) {
-                                notificationService.queueNotification(titleHolderId,
+                                Bukkit.getPluginManager().callEvent(new OfferWithdrawnEvent(
+                                        titleHolderId,
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_WITHDRAWN,
                                                 Placeholder.unparsed("player", sender.getName()),
-                                                Placeholder.unparsed("region", regionId)));
+                                                Placeholder.unparsed("region", regionId)),
+                                        regionId,
+                                        worldId,
+                                        sender.getUniqueId(),
+                                        sender.getName()));
                             }
                         }
                         case RealtyBackend.WithdrawOfferResult.NoOffer() ->
@@ -434,16 +461,20 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.rejectOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
+        UUID worldId = region.world().getUID();
+        api.rejectOffer(regionId, worldId, sender.getUniqueId(), target.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.RejectOfferResult.Success ignored -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
-                            notificationService.queueNotification(target.getUniqueId(),
+                            Bukkit.getPluginManager().callEvent(new OfferRejectedEvent(
+                                    List.of(target.getUniqueId()),
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
-                                            Placeholder.unparsed("region", regionId)));
+                                            Placeholder.unparsed("region", regionId)),
+                                    regionId,
+                                    worldId));
                         }
                         case RealtyBackend.RejectOfferResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,
@@ -477,18 +508,20 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.rejectAllOffers(regionId, region.world().getUID(), sender.getUniqueId())
+        UUID worldId = region.world().getUID();
+        api.rejectAllOffers(regionId, worldId, sender.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.RejectAllOffersResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ALL_SUCCESS,
                                     Placeholder.unparsed("count", String.valueOf(success.offererIds().size())),
                                     Placeholder.unparsed("region", regionId)));
-                            Component notification = messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
-                                    Placeholder.unparsed("region", regionId));
-                            for (UUID offererId : success.offererIds()) {
-                                notificationService.queueNotification(offererId, notification);
-                            }
+                            Bukkit.getPluginManager().callEvent(new OfferRejectedEvent(
+                                    success.offererIds(),
+                                    messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
+                                            Placeholder.unparsed("region", regionId)),
+                                    regionId,
+                                    worldId));
                         }
                         case RealtyBackend.RejectAllOffersResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,

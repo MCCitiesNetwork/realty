@@ -3,13 +3,15 @@ package io.github.md5sha256.realty.command;
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.OutbidEvent;
+import io.github.md5sha256.realty.api.event.OwnershipTransferredEvent;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -45,7 +47,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public record AuctionCommandGroup(
         @NotNull RealtyPaperApi api,
-        @NotNull NotificationService notificationService,
         @NotNull AtomicReference<Settings> settings,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean {
@@ -204,17 +205,25 @@ public record AuctionCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.cancelAuction(regionId, region.world().getUID()).thenAccept(result -> {
+        UUID worldId = region.world().getUID();
+        api.cancelAuction(regionId, worldId).thenAccept(result -> {
             if (result.deleted() == 0) {
                 sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_NO_AUCTION));
                 return;
             }
             sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_SUCCESS,
                     Placeholder.unparsed("region", regionId)));
+            // Console/command-block cancellations have no player UUID; fall back to the nil UUID
+            // sentinel rather than fabricate an actor identity.
+            UUID actorId = sender instanceof Player player ? player.getUniqueId() : new UUID(0L, 0L);
             for (UUID bidderId : result.bidderIds()) {
-                notificationService.queueNotification(bidderId,
+                Bukkit.getPluginManager().callEvent(new AuctionCancelledEvent(
+                        bidderId,
                         messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
-                                Placeholder.unparsed("region", regionId)));
+                                Placeholder.unparsed("region", regionId)),
+                        regionId,
+                        worldId,
+                        actorId));
             }
         }).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_ERROR,
@@ -238,7 +247,8 @@ public record AuctionCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.performBid(regionId, region.world().getUID(), sender.getUniqueId(), bidAmount)
+        UUID worldId = region.world().getUID();
+        api.performBid(regionId, worldId, sender.getUniqueId(), bidAmount)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.BidResult.Success success -> {
@@ -246,10 +256,15 @@ public record AuctionCommandGroup(
                                     Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.previousBidderId() != null) {
-                                notificationService.queueNotification(success.previousBidderId(),
+                                Bukkit.getPluginManager().callEvent(new OutbidEvent(
+                                        success.previousBidderId(),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OUTBID,
                                                 Placeholder.unparsed("region", regionId),
-                                                Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))));
+                                                Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))),
+                                        regionId,
+                                        worldId,
+                                        sender.getUniqueId(),
+                                        bidAmount));
                             }
                         }
                         case RealtyBackend.BidResult.NoAuction ignored ->
@@ -287,6 +302,7 @@ public record AuctionCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         api.payBid(region, sender.getUniqueId(), amount).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.PayBidResult.Success success ->
@@ -299,10 +315,15 @@ public record AuctionCommandGroup(
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
                     if (fullyPaid.previousTitleHolderId() != null) {
-                        notificationService.queueNotification(fullyPaid.previousTitleHolderId(),
+                        Bukkit.getPluginManager().callEvent(new OwnershipTransferredEvent(
+                                fullyPaid.previousTitleHolderId(),
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
-                                        Placeholder.unparsed("region", fullyPaid.regionId())));
+                                        Placeholder.unparsed("region", fullyPaid.regionId())),
+                                fullyPaid.regionId(),
+                                worldId,
+                                sender.getUniqueId(),
+                                sender.getName()));
                     }
                 }
                 case RealtyPaperApi.PayBidResult.NoPaymentRecord noPayment ->
