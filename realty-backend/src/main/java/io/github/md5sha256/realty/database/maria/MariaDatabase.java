@@ -47,12 +47,38 @@ public class MariaDatabase implements Database {
 
     public MariaDatabase(@NotNull DatabaseSettings settings, @NotNull Logger logger) {
         this.settings = settings;
-        this.dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", "jdbc:" + settings.url(), settings.username(), settings.password());
+        this.dataSource = new PooledDataSource("org.mariadb.jdbc.Driver", jdbcUrl(settings), settings.username(), settings.password());
         this.dataSource.setPoolPingEnabled(true);
         this.dataSource.setPoolPingQuery("SELECT 1");
         this.dataSource.setPoolPingConnectionsNotUsedFor(600000);
         this.sessionFactory = buildSessionFactory(this.dataSource);
         this.logger = logger;
+    }
+
+    /**
+     * Builds the JDBC URL, pinning the connection's time zone to the JVM's default.
+     *
+     * <p>The codebase writes {@link java.time.LocalDateTime} values produced by the JVM into
+     * {@code DATETIME} columns and compares them in SQL against {@code NOW()}. If the database
+     * server's time zone differs from the JVM's, those two clocks disagree and every deadline
+     * sweep (terminations, expiring bid/offer payments, lease expiry) fires early or never.
+     * {@code connectionTimeZone=LOCAL} plus {@code forceConnectionTimeZoneToSession=true} makes
+     * the driver set the session {@code time_zone} to the JVM default, so {@code NOW()} agrees
+     * with {@code LocalDateTime.now()}.
+     *
+     * <p>An explicit {@code connectionTimeZone} in the configured URL is left untouched.
+     *
+     * @param settings the database settings holding the configured URL
+     * @return the JDBC URL to connect with
+     */
+    @NotNull
+    private static String jdbcUrl(@NotNull DatabaseSettings settings) {
+        String url = "jdbc:" + settings.url();
+        if (url.contains("connectionTimeZone=")) {
+            return url;
+        }
+        String separator = url.contains("?") ? "&" : "?";
+        return url + separator + "connectionTimeZone=LOCAL&forceConnectionTimeZoneToSession=true";
     }
 
     @Override
@@ -88,7 +114,7 @@ public class MariaDatabase implements Database {
 
     @Override
     public void initializeSchema(@NotNull Path schemaFilesDirectory) throws IOException, SQLException {
-        MariaSchemaMigrator.migrate("jdbc:" + this.settings.url(), this.settings.username(), this.settings.password(),
+        MariaSchemaMigrator.migrate(jdbcUrl(this.settings), this.settings.username(), this.settings.password(),
                 schemaFilesDirectory, MariaSchemaMigrator.defaultMigrations(), this.logger);
     }
 
