@@ -396,31 +396,21 @@ public final class Realty extends JavaPlugin {
                 // Resolve WorldGuard regions and fire notifications/post-events on the main thread.
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.ExpiredBiddingAuction auction : endedAuctions) {
-                        World world = getServer().getWorld(auction.worldId());
-                        if (world == null) {
-                            continue;
+                        WorldGuardRegion wgRegion = resolveRegion(auction.worldId(), auction.worldGuardRegionId());
+                        if (auction.winnerId() != null) {
+                            this.eventDispatch.fireSync(new RealtyNotificationEvent(
+                                    List.of(auction.winnerId()),
+                                    this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
+                                            Placeholder.unparsed("region", auction.worldGuardRegionId())),
+                                    wgRegion));
+                        } else {
+                            this.eventDispatch.fireSync(new RealtyNotificationEvent(
+                                    List.of(auction.auctioneerId()),
+                                    this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
+                                            Placeholder.unparsed("region", auction.worldGuardRegionId())),
+                                    wgRegion));
                         }
-                        RegionManager regionManager = WorldGuard.getInstance().getPlatform()
-                                .getRegionContainer().get(BukkitAdapter.adapt(world));
-                        if (regionManager == null) {
-                            continue;
-                        }
-                        ProtectedRegion protectedRegion = regionManager.getRegion(auction.worldGuardRegionId());
-                        if (protectedRegion != null) {
-                            WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                            if (auction.winnerId() != null) {
-                                this.eventDispatch.fireSync(new RealtyNotificationEvent(
-                                        List.of(auction.winnerId()),
-                                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
-                                                Placeholder.unparsed("region", auction.worldGuardRegionId())),
-                                        wgRegion));
-                            } else {
-                                this.eventDispatch.fireSync(new RealtyNotificationEvent(
-                                        List.of(auction.auctioneerId()),
-                                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
-                                                Placeholder.unparsed("region", auction.worldGuardRegionId())),
-                                        wgRegion));
-                            }
+                        if (wgRegion != null) {
                             this.eventDispatch.fireSync(new AuctionEndedEvent(
                                     wgRegion, auction.winnerId(), auction.auctioneerId()));
                         }
