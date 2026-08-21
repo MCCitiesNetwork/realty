@@ -1533,7 +1533,12 @@ public class RealtyBackendImpl implements RealtyBackend {
                                                      boolean acceptingOffers,
                                                      boolean bypassAuth) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            // Lock the freehold row (the per-region serialization point) so this
+            // read-authorize-write cannot interleave with placeOffer, which reads
+            // acceptingOffers under the same lock. The UPDATE alone would block behind a
+            // holder, but that does not protect this method's own check-then-act.
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegionForUpdate(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new ToggleOffersResult.NoFreeholdContract();
             }
