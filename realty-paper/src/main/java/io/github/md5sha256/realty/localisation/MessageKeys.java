@@ -70,6 +70,7 @@ public final class MessageKeys {
     public static final String AUCTION_SUCCESS = "auction.success";
     public static final String AUCTION_NOT_SANCTIONED = "auction.not-sanctioned";
     public static final String AUCTION_NO_FREEHOLD_CONTRACT = "auction.no-freehold-contract";
+    public static final String AUCTION_OFFERS_EXIST = "auction.offers-exist";
     public static final String AUCTION_ERROR = "auction.error";
 
     // auction-info

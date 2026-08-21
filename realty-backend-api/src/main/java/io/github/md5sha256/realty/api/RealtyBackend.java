@@ -77,6 +77,8 @@ public interface RealtyBackend {
         record Success() implements CreateAuctionResult {}
         record NotSanctioned() implements CreateAuctionResult {}
         record NoFreeholdContract() implements CreateAuctionResult {}
+        /** The region already has at least one offer; offers and auctions are mutually exclusive. */
+        record OffersExist() implements CreateAuctionResult {}
     }
 
     @NotNull CreateAuctionResult createAuction(@NotNull String worldGuardRegionId,

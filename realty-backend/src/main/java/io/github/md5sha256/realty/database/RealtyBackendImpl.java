@@ -204,9 +204,17 @@ public class RealtyBackendImpl implements RealtyBackend {
                               double minBidStep) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
+            // Lock the freehold row (the per-region serialization point) so the
+            // offers-exist check cannot race a concurrent placeOffer, which performs the
+            // mirror check under the same lock. Without it both sides pass their snapshot
+            // read and commit, leaving the region with an offer and an auction at once.
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegionForUpdate(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new CreateAuctionResult.NoFreeholdContract();
+            }
+            if (wrapper.freeholdContractOfferMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new CreateAuctionResult.OffersExist();
             }
             if (!auctioneerId.equals(freehold.authorityId())
                     && !auctioneerId.equals(freehold.titleHolderId())

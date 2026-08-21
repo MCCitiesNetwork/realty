@@ -27,6 +27,15 @@ public interface FreeholdContractOfferMapper {
 
     int deleteOtherOffers(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID excludedOffererId);
 
+    /**
+     * Checks whether the region has any offer at all, regardless of offerer.
+     *
+     * @param worldGuardRegionId the WorldGuard region identifier
+     * @param worldId            UUID of the world containing the region
+     * @return {@code true} if at least one offer exists on the region
+     */
+    boolean existsByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
     boolean existsByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);
 
     @Nullable FreeholdContractOfferEntity selectByOfferer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId);

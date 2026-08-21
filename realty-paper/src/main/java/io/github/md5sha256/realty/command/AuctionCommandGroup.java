@@ -199,6 +199,9 @@ public record AuctionCommandGroup(
                 case RealtyBackend.CreateAuctionResult.NoFreeholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.CreateAuctionResult.OffersExist ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_OFFERS_EXIST,
+                                Placeholder.unparsed("region", regionId)));
             }
         }).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_ERROR,

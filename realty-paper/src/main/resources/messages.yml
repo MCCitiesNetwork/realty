@@ -60,6 +60,8 @@ auction:
         <gold><region>.</gold>
     no-freehold-contract: <prefix> You cannot auction region <gold><region></gold>
         as it is for leasehold.
+    offers-exist: <prefix> An auction cannot be started while <gold><region></gold>
+        has pending offers. Reject them first.
     error: '<prefix> Failed to create auction: <error>'
 buy:
     success: <prefix> You bought region <yellow><region></yellow> for <price>.

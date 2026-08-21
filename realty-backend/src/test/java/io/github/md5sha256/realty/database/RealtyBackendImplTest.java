@@ -585,6 +585,23 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("cannot auction a region that already has an offer")
+        void cannotAuctionWithExistingOffer() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            Assertions.assertInstanceOf(OfferResult.Success.class,
+                    logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0));
+
+            // Offers and auctions are mutually exclusive: placeOffer already refuses when an
+            // auction exists, so createAuction must refuse the mirror case.
+            Assertions.assertInstanceOf(CreateAuctionResult.OffersExist.class,
+                    logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0));
+
+            RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
+            Assertions.assertNull(info.auction(), "No auction should have been created");
+        }
+
+        @Test
         @DisplayName("cancelAuction returns 1 when active auction exists")
         void cancelExisting() {
             String regionId = uniqueRegionId();

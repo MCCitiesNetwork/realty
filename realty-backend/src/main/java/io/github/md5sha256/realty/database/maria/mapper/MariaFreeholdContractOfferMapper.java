@@ -99,6 +99,17 @@ public interface MariaFreeholdContractOfferMapper extends FreeholdContractOfferM
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            """)
+    boolean existsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                           @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Select("""
+            SELECT COUNT(*) > 0
+            FROM FreeholdContractOffer sco
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
             AND sco.offererId = #{offererId}
             """)
     boolean existsByOfferer(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
