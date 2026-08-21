@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
@@ -13,7 +14,6 @@ import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
-import io.github.md5sha256.realty.util.DateFormatter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -156,7 +156,7 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                 String messageKey = resolveEventMessageKey(freehold.eventType());
                                 builder.append(
                                         messages.messageFor(messageKey,
-                                                Placeholder.unparsed("time", DateFormatter.format(settings.get(), freehold.eventTime())),
+                                                Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), freehold.eventTime())),
                                                 Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
                                                 Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
@@ -165,7 +165,7 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                 String messageKey = resolveEventMessageKey(agent.eventType());
                                 builder.append(
                                         messages.messageFor(messageKey,
-                                                Placeholder.unparsed("time", DateFormatter.format(settings.get(), agent.eventTime())),
+                                                Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), agent.eventTime())),
                                                 Placeholder.unparsed("agent", resolveName(agent.agentId())),
                                                 Placeholder.unparsed("actor", resolveName(agent.actorId()))));
                             }
@@ -173,7 +173,7 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                 String messageKey = resolveLeaseholdEventMessageKey(lease.eventType());
                                 builder.append(
                                         messages.messageFor(messageKey,
-                                                Placeholder.unparsed("time", DateFormatter.format(settings.get(), lease.eventTime())),
+                                                Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), lease.eventTime())),
                                                 Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
                                                 Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
                                                 Placeholder.unparsed("price",
