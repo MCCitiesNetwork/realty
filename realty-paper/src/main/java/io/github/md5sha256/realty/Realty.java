@@ -11,7 +11,6 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -25,6 +24,7 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.AuctionEndedEvent;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
+import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
 import io.github.md5sha256.realty.command.AgentInviteCommand;
@@ -85,10 +85,8 @@ import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
-import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
-import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -131,6 +129,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -152,7 +151,6 @@ public final class Realty extends JavaPlugin {
     private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
     private DatabaseSettings databaseSettings;
-    private NotificationService notificationService;
     private Database database;
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApi paperApi;
@@ -275,13 +273,9 @@ public final class Realty extends JavaPlugin {
         }
         SafeLocationFinder safeLocationFinder;
         if (getServer().getPluginManager().isPluginEnabled("Essentials")) {
-            getLogger().info("Detected Essentials, using essentials as the mail service");
-            this.notificationService = new EssentialsNotificationService(this.executorState.mainThreadExec());
             getLogger().info("Using EssentialsX safe-block predicate for teleportation");
             safeLocationFinder = new SafeLocationFinder(new EssentialsSafeBlockPredicate());
         } else {
-            getLogger().info("Using the transient notification service");
-            this.notificationService = new TransientNotificationService(this.executorState.mainThreadExec());
             safeLocationFinder = new SafeLocationFinder();
         }
         this.signTextApplicator = new SignTextApplicator(
@@ -313,7 +307,6 @@ public final class Realty extends JavaPlugin {
         registerCommands(this.paperApi,
                 this.executorState,
                 this.messageContainer,
-                this.notificationService,
                 safeLocationFinder);
         getServer().getServicesManager()
                 .register(RealtyBackend.class, this.logic, this, ServicePriority.Normal);
@@ -399,19 +392,8 @@ public final class Realty extends JavaPlugin {
                 return;
             }
             List<RealtyBackend.ExpiredBiddingAuction> endedAuctions = this.logic.clearExpiredBiddingAuctions();
-            for (RealtyBackend.ExpiredBiddingAuction auction : endedAuctions) {
-                if (auction.winnerId() != null) {
-                    this.notificationService.queueNotification(auction.winnerId(),
-                            this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
-                                    Placeholder.unparsed("region", auction.worldGuardRegionId())));
-                } else {
-                    this.notificationService.queueNotification(auction.auctioneerId(),
-                            this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
-                                    Placeholder.unparsed("region", auction.worldGuardRegionId())));
-                }
-            }
             if (!endedAuctions.isEmpty()) {
-                // Resolve WorldGuard regions and fire post-events on the main thread.
+                // Resolve WorldGuard regions and fire notifications/post-events on the main thread.
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.ExpiredBiddingAuction auction : endedAuctions) {
                         World world = getServer().getWorld(auction.worldId());
@@ -425,26 +407,55 @@ public final class Realty extends JavaPlugin {
                         }
                         ProtectedRegion protectedRegion = regionManager.getRegion(auction.worldGuardRegionId());
                         if (protectedRegion != null) {
+                            WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
+                            if (auction.winnerId() != null) {
+                                this.eventDispatch.fireSync(new RealtyNotificationEvent(
+                                        List.of(auction.winnerId()),
+                                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
+                                                Placeholder.unparsed("region", auction.worldGuardRegionId())),
+                                        wgRegion));
+                            } else {
+                                this.eventDispatch.fireSync(new RealtyNotificationEvent(
+                                        List.of(auction.auctioneerId()),
+                                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
+                                                Placeholder.unparsed("region", auction.worldGuardRegionId())),
+                                        wgRegion));
+                            }
                             this.eventDispatch.fireSync(new AuctionEndedEvent(
-                                    new WorldGuardRegion(protectedRegion, world),
-                                    auction.winnerId(), auction.auctioneerId()));
+                                    wgRegion, auction.winnerId(), auction.auctioneerId()));
                         }
                     }
                 });
             }
-            for (RealtyBackend.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
-                this.notificationService.queueNotification(payment.bidderId(),
-                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
-                                Placeholder.unparsed("region", payment.regionId()),
-                                Placeholder.unparsed("amount",
-                                        CurrencyFormatter.format(payment.refundAmount()))));
+            List<RealtyBackend.ExpiredBidPayment> expiredBidPayments = this.logic.clearExpiredBidPayments();
+            if (!expiredBidPayments.isEmpty()) {
+                scheduler.runTask(this, () -> {
+                    for (RealtyBackend.ExpiredBidPayment payment : expiredBidPayments) {
+                        WorldGuardRegion wgRegion = resolveRegion(payment.worldId(), payment.regionId());
+                        this.eventDispatch.fireSync(new RealtyNotificationEvent(
+                                List.of(payment.bidderId()),
+                                this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
+                                        Placeholder.unparsed("region", payment.regionId()),
+                                        Placeholder.unparsed("amount",
+                                                CurrencyFormatter.format(payment.refundAmount()))),
+                                wgRegion));
+                    }
+                });
             }
-            for (RealtyBackend.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
-                this.notificationService.queueNotification(payment.offererId(),
-                        this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
-                                Placeholder.unparsed("region", payment.regionId()),
-                                Placeholder.unparsed("amount",
-                                        CurrencyFormatter.format(payment.refundAmount()))));
+            List<RealtyBackend.ExpiredOfferPayment> expiredOfferPayments = this.logic.clearExpiredOfferPayments();
+            if (!expiredOfferPayments.isEmpty()) {
+                scheduler.runTask(this, () -> {
+                    for (RealtyBackend.ExpiredOfferPayment payment : expiredOfferPayments) {
+                        WorldGuardRegion wgRegion = resolveRegion(payment.worldId(), payment.regionId());
+                        this.eventDispatch.fireSync(new RealtyNotificationEvent(
+                                List.of(payment.offererId()),
+                                this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
+                                        Placeholder.unparsed("region", payment.regionId()),
+                                        Placeholder.unparsed("amount",
+                                                CurrencyFormatter.format(payment.refundAmount()))),
+                                wgRegion));
+                    }
+                });
             }
             List<RealtyBackend.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
             if (!expiredLeaseholds.isEmpty()) {
@@ -521,6 +532,32 @@ public final class Realty extends JavaPlugin {
                 });
             }
         }, intervalTicks, intervalTicks);
+    }
+
+    /**
+     * Resolves a {@link WorldGuardRegion} for a sweep-produced payment record, returning
+     * {@code null} when the world id is unknown or either the world or the WorldGuard region
+     * itself cannot be resolved (e.g. the region row has already been deleted). Must be called
+     * on the main thread.
+     */
+    private @Nullable WorldGuardRegion resolveRegion(@Nullable UUID worldId, @NotNull String worldGuardRegionId) {
+        if (worldId == null) {
+            return null;
+        }
+        World world = getServer().getWorld(worldId);
+        if (world == null) {
+            return null;
+        }
+        RegionManager regionManager = WorldGuard.getInstance().getPlatform()
+                .getRegionContainer().get(BukkitAdapter.adapt(world));
+        if (regionManager == null) {
+            return null;
+        }
+        ProtectedRegion protectedRegion = regionManager.getRegion(worldGuardRegionId);
+        if (protectedRegion == null) {
+            return null;
+        }
+        return new WorldGuardRegion(protectedRegion, world);
     }
 
     private void initDataFolder() throws IOException {
@@ -694,7 +731,6 @@ public final class Realty extends JavaPlugin {
             @NotNull RealtyPaperApi paperApi,
             @NotNull ExecutorState executorState,
             @NotNull MessageContainer messageContainer,
-            @NotNull NotificationService notificationService,
             @NotNull SafeLocationFinder safeLocationFinder
     ) {
         String version = getPluginMeta().getVersion();
@@ -710,7 +746,7 @@ public final class Realty extends JavaPlugin {
                 new SubregionWandListener(this, subregionWand, subregionWandManager,
                         messageContainer), this);
         pluginManager.registerEvents(
-                new RegionNotificationListener(notificationService, messageContainer), this);
+                new RegionNotificationListener(this.eventDispatch, messageContainer), this);
 
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
