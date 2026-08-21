@@ -4,7 +4,7 @@
 
 **Goal:** On top of `origin/main`'s existing event system, make every Realty notification a fired `RealtyNotificationEvent` carrying pre-rendered text, delete `NotificationService` entirely, and move delivery into two adapter module jars.
 
-**Architecture:** One new standalone `RealtyNotificationEvent extends Event` in `realty-paper-api`, with its own `HandlerList`, carrying `List<UUID> targets`, a rendered `Component`, and a nullable `WorldGuardRegion`. Every notification fire site renders as it does today and fires this event **alongside** the domain post-event it already fires. Upstream's 47 event classes are not modified. `NotificationService`, both implementations, `RegionNotificationListener` and the Essentials/transient branch in `onEnable` are deleted; `realty-paper-adapters/chat-adapter` and `.../essentials-adapter` deliver.
+**Architecture:** One new standalone `RealtyNotificationEvent extends Event` in `realty-paper-api`, with its own `HandlerList`, carrying `List<UUID> targets`, a rendered `Component`, and a nullable `WorldGuardRegion`. Every notification fire site renders as it does today and fires this event **alongside** the domain post-event it already fires. Upstream's 47 event classes are not modified. `NotificationService`, both implementations, and the Essentials/transient branch in `onEnable` are deleted; `RegionNotificationListener` is kept and converted to fire notification events instead of delivering; `realty-paper-adapters/chat-adapter` and `.../essentials-adapter` deliver.
 
 **Tech Stack:** Java 21, Gradle Kotlin DSL, PaperMC 1.21.8, Adventure, Incendo Cloud, `com.minecraftcitiesnetwork:plugin-infrastructure`, EssentialsX 2.21.2 (adapter only), JUnit 5, Mockito.
 
@@ -348,29 +348,38 @@ git commit -m "refactor: fire notification events from the command call sites"
 - Delete: `realty-paper-api/src/main/java/io/github/md5sha256/realty/api/NotificationService.java`
 - Delete: `realty-paper/src/main/java/io/github/md5sha256/realty/util/TransientNotificationService.java`
 - Delete: `realty-paper/src/main/java/io/github/md5sha256/realty/util/EssentialsNotificationService.java`
-- Delete: `realty-paper/src/main/java/io/github/md5sha256/realty/listener/RegionNotificationListener.java`
+- Modify: `realty-paper/src/main/java/io/github/md5sha256/realty/listener/RegionNotificationListener.java` (**keep it** — see below)
 
 **Interfaces:**
 - Consumes: `RealtyNotificationEvent`, the Task 3 records.
 - Produces: a core with no notification delivery at all. `EssentialsSafeBlockPredicate` still exists in `util/` — Task 7 moves it.
 
-`RegionNotificationListener` renders and delivers nine events' worth of notifications. Its handlers move back to their fire sites as `RealtyNotificationEvent` fires. For each of its nine handlers, find where the corresponding domain event is fired and fire the notification there instead, carrying the same `MessageKeys` constant and the same placeholders. Its private `resolveName(UUID)` helper is needed wherever a name is interpolated — move it to the fire site's class or a shared utility rather than duplicating it.
+**`RegionNotificationListener` is kept, not deleted.** It already does the right thing: it renders
+notifications from domain events, which is precisely the model this plan is completing. Its only
+problem is that it *delivers* through `NotificationService`. Change each of its nine handlers to fire
+a `RealtyNotificationEvent` instead of calling `notificationService.queueNotification(...)`, keeping
+every `MessageKeys` constant, placeholder and target exactly as they are. Its constructor loses the
+`NotificationService` parameter and gains `RealtyEventDispatch`. Its `resolveName(UUID)` helper stays
+where it is.
+
+Each handler has the event's `WorldGuardRegion` available via `event.getRegion()` — pass it as the
+notification's region. Where a handler notifies two parties with *different* text (lease expiry,
+lease terminated), that is two `RealtyNotificationEvent` fires, not one event with two targets.
 
 `Realty.scheduleTasks()` also calls `queueNotification` directly for auction end, expired bid payments, and expired offer payments. Migrate those too. For the two payment sweeps, build the `WorldGuardRegion` only if `payment.worldId()` is non-null and the world and WG region both resolve; otherwise pass `null` for the region. **The refund must not become conditional on any of that.**
 
 The leasehold-expiry sweep already hops to the main thread with `scheduler.runTask` because it calls `regionProfileService.applyFlags`. Keep that hop and fire from inside it.
 
-Then delete the four files, the `notificationService` field, the Essentials/transient selection branch in `onEnable` (leaving `SafeLocationFinder safeLocationFinder = new SafeLocationFinder();` — but **keep** the `EssentialsSafeBlockPredicate` line for now; Task 7 removes it), the `registerEvents(new RegionNotificationListener(...))` registration, and every `NotificationService` import and parameter.
+Then delete the four files, the `notificationService` field, the Essentials/transient selection branch in `onEnable` (leaving `SafeLocationFinder safeLocationFinder = new SafeLocationFinder();` — but **keep** the `EssentialsSafeBlockPredicate` line for now; Task 7 removes it), and every `NotificationService` import and parameter.
 
-- [ ] **Step 1: Move the nine `RegionNotificationListener` handlers to their fire sites**
+- [ ] **Step 1: Convert `RegionNotificationListener`'s nine handlers to fire notification events**
 - [ ] **Step 2: Migrate the three `scheduleTasks()` call sites**
-- [ ] **Step 3: Delete the four files and strip the wiring**
+- [ ] **Step 3: Delete the three files and strip the wiring**
 
 ```bash
 git rm realty-paper-api/src/main/java/io/github/md5sha256/realty/api/NotificationService.java
 git rm realty-paper/src/main/java/io/github/md5sha256/realty/util/TransientNotificationService.java
 git rm realty-paper/src/main/java/io/github/md5sha256/realty/util/EssentialsNotificationService.java
-git rm realty-paper/src/main/java/io/github/md5sha256/realty/listener/RegionNotificationListener.java
 ```
 
 - [ ] **Step 4: Verify**
@@ -385,8 +394,8 @@ Run: `./gradlew test` — expected BUILD SUCCESSFUL.
 git add -A
 git commit -m "refactor!: delete NotificationService; notifications are events only
 
-Removes a published realty-paper-api type and RegionNotificationListener;
-its nine handlers move back to their fire sites as notification events."
+Removes a published realty-paper-api type. RegionNotificationListener is
+kept and now fires notification events instead of delivering directly."
 ```
 
 ---
