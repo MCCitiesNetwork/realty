@@ -1,14 +1,15 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AgentInviteAcceptedEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -25,7 +26,6 @@ import java.util.UUID;
  * <p>Permission: {@code realty.command.agent.invite.accept}.</p>
  */
 public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
-                                        @NotNull NotificationService notificationService,
                                         @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
@@ -60,10 +60,16 @@ public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
                 case RealtyBackend.AcceptAgentInviteResult.Success(UUID inviterId) -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_SUCCESS,
                             Placeholder.unparsed("region", regionId)));
-                    notificationService.queueNotification(inviterId,
+                    Bukkit.getPluginManager().callEvent(new AgentInviteAcceptedEvent(
+                            inviterId,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_ACCEPTED,
                                     Placeholder.unparsed("player", player.getName()),
-                                    Placeholder.unparsed("region", regionId)));
+                                    Placeholder.unparsed("region", regionId)),
+                            regionId,
+                            worldId,
+                            inviterId,
+                            player.getUniqueId(),
+                            player.getName()));
                 }
                 case RealtyBackend.AcceptAgentInviteResult.NotFound() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_NOT_FOUND,

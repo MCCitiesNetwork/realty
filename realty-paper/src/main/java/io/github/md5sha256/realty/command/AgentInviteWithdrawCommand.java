@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
+import io.github.md5sha256.realty.api.event.AgentInviteWithdrawnEvent;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -27,7 +27,6 @@ import java.util.UUID;
  * <p>Permission: {@code realty.command.agent.invite.withdraw}.</p>
  */
 public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
-                                          @NotNull NotificationService notificationService,
                                           @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
@@ -71,10 +70,16 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_SUCCESS,
                             Placeholder.unparsed("player", inviteeName),
                             Placeholder.unparsed("region", regionId)));
-                    notificationService.queueNotification(inviteeId,
+                    Bukkit.getPluginManager().callEvent(new AgentInviteWithdrawnEvent(
+                            inviteeId,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
                                     Placeholder.unparsed("player", resolveName(player.getUniqueId())),
-                                    Placeholder.unparsed("region", regionId)));
+                                    Placeholder.unparsed("region", regionId)),
+                            regionId,
+                            worldId,
+                            player.getUniqueId(),
+                            resolveName(player.getUniqueId()),
+                            inviteeId));
                 }
                 case RealtyBackend.WithdrawAgentInviteResult.NotFound() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_NOT_FOUND,

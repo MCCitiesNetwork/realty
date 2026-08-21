@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
+import io.github.md5sha256.realty.api.event.AgentInvitedEvent;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -28,7 +28,6 @@ import java.util.UUID;
  * <p>Permission: {@code realty.command.agent.invite}.</p>
  */
 public record AgentInviteCommand(@NotNull RealtyPaperApi api,
-                                  @NotNull NotificationService notificationService,
                                   @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
@@ -70,10 +69,16 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_SUCCESS,
                             Placeholder.unparsed("player", inviteeName),
                             Placeholder.unparsed("region", regionId)));
-                    notificationService.queueNotification(inviteeId,
+                    Bukkit.getPluginManager().callEvent(new AgentInvitedEvent(
+                            inviteeId,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITED,
                                     Placeholder.unparsed("player", player.getName()),
-                                    Placeholder.unparsed("region", regionId)));
+                                    Placeholder.unparsed("region", regionId)),
+                            regionId,
+                            worldId,
+                            player.getUniqueId(),
+                            player.getName(),
+                            inviteeId));
                 }
                 case RealtyBackend.InviteAgentResult.NoFreeholdContract() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NO_FREEHOLD,
