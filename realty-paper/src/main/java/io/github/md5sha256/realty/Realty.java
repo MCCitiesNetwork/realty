@@ -624,6 +624,13 @@ public final class Realty extends JavaPlugin {
         Path moduleDir = getDataFolder().toPath().resolve("modules");
         try {
             Files.createDirectories(moduleDir);
+            try {
+                BundledModuleExtractor.extract(moduleDir.resolve("chat-adapter.jar"),
+                        () -> getClass().getClassLoader().getResourceAsStream("modules/chat-adapter.jar"));
+            } catch (IOException ex) {
+                // No chat adapter means no chat notifications — a degradation, not a reason to fail enable.
+                getLogger().warning("Failed to extract the bundled chat-adapter module: " + ex.getMessage());
+            }
             this.moduleManager.start();
         } catch (IOException ex) {
             // A broken module directory is not worth taking the whole plugin down for.

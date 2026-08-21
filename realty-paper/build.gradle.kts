@@ -65,6 +65,13 @@ tasks {
         relocate("org.enginehub.squirrelid", "${base}.org.enginehub.squirrelid")
         relocate("org.sqlite", "${base}.org.sqlite")
         mergeServiceFiles()
+
+        dependsOn(":realty-paper-adapters:chat-adapter:shadowJar")
+        from(project(":realty-paper-adapters:chat-adapter")
+                .tasks.named("shadowJar").map { it.outputs.files.singleFile }) {
+            into("modules")
+            rename { "chat-adapter.jar" }
+        }
     }
 
     processResources {
@@ -75,6 +82,14 @@ tasks {
     }
 
     runServer {
+        dependsOn(":realty-paper-adapters:chat-adapter:shadowJar")
+        doFirst {
+            val moduleDir = project.layout.projectDirectory.dir("run/plugins/Realty/modules").asFile
+            moduleDir.mkdirs()
+            val chatAdapterJar = project(":realty-paper-adapters:chat-adapter")
+                    .tasks.named("shadowJar").get().outputs.files.singleFile
+            chatAdapterJar.copyTo(moduleDir.resolve("chat-adapter.jar"), overwrite = true)
+        }
         minecraftVersion("1.21.8")
         downloadPlugins {
             // WorldEdit 7.4.0
