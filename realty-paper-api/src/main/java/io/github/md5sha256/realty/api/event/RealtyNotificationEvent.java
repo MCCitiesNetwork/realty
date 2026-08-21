@@ -68,7 +68,7 @@ public abstract class RealtyNotificationEvent extends Event {
     }
 
     @Override
-    public @NotNull HandlerList getHandlers() {
+    public final @NotNull HandlerList getHandlers() {
         return HANDLERS;
     }
 
