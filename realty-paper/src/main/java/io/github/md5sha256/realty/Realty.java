@@ -182,6 +182,14 @@ public final class Realty extends JavaPlugin {
         return this.settings.get();
     }
 
+    public ExecutorState executorState() {
+        return this.executorState;
+    }
+
+    public RealtyPaperApi paperApi() {
+        return this.paperApi;
+    }
+
     public RegionProfileSettings regionFlagSettings() {
         return this.regionFlagSettings.get();
     }
@@ -294,7 +302,7 @@ public final class Realty extends JavaPlugin {
         this.paperApi = new RealtyPaperApiImpl(
                 this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
-                () -> this.settings.get().terminationNoticeSeconds());
+                () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder);
         this.eventDispatch = new RealtyEventDispatch(
                 getServer(),
                 this.executorState.mainThreadExec(),

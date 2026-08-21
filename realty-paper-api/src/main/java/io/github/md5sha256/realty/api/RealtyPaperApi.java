@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
+import org.bukkit.block.Block;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,8 +16,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 
 public interface RealtyPaperApi {
+
+    /**
+     * Replaces the safe-teleport-location predicate used when finding a safe
+     * block to teleport a player to. Adapter modules (e.g. an EssentialsX
+     * integration) call this once during their own startup.
+     *
+     * @param predicate predicate that tests the feet-level block; returns
+     *                  {@code true} if safe to teleport to
+     */
+    void setSafeBlockPredicate(@NotNull Predicate<Block> predicate);
 
     // ═══════════════════════════════════════════════════
     // COMPLEX OPERATIONS (economy + WG + signs/flags)
