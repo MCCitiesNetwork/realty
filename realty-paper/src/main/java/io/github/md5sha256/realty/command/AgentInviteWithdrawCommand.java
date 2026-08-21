@@ -1,11 +1,11 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.AgentInviteWithdrawnEvent;
+import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -19,6 +19,7 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -29,7 +30,6 @@ import java.util.UUID;
  * <p>Permission: {@code realty.command.agent.invite.withdraw}.</p>
  */
 public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
-                                          @NotNull NotificationService notificationService,
                                           @NotNull MessageContainer messages,
                                           @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
 
@@ -74,10 +74,10 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_SUCCESS,
                             Placeholder.unparsed("player", inviteeName),
                             Placeholder.unparsed("region", regionId)));
-                    notificationService.queueNotification(inviteeId,
+                    events.fireSync(new RealtyNotificationEvent(List.of(inviteeId),
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
                                     Placeholder.unparsed("player", resolveName(player.getUniqueId())),
-                                    Placeholder.unparsed("region", regionId)));
+                                    Placeholder.unparsed("region", regionId)), region));
                     events.fireSync(new AgentInviteWithdrawnEvent(region, player.getUniqueId(), inviteeId));
                 }
                 case RealtyBackend.WithdrawAgentInviteResult.NotFound() ->

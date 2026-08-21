@@ -1,8 +1,10 @@
 package io.github.md5sha256.realty.event;
 
+import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import org.bukkit.Server;
 import org.bukkit.event.Cancellable;
+import org.bukkit.event.Event;
 import org.bukkit.plugin.PluginManager;
 import org.jetbrains.annotations.NotNull;
 
@@ -57,6 +59,20 @@ public final class RealtyEventDispatch {
     }
 
     /**
+     * Fires a synchronous {@link RealtyNotificationEvent}, hopping to the main
+     * thread if the caller is not already on it. Notification events are never
+     * cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull RealtyNotificationEvent event) {
+        if (event.isAsynchronous()) {
+            throw new IllegalArgumentException(
+                    "fireSync requires a synchronous event; use fireAsync for " + event.getEventName());
+        }
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "Cancellable synchronous events must be fired from the main thread: ");
+    }
+
+    /**
      * Fires an asynchronous Realty event, hopping off the main thread if the
      * caller is on it.
      *
@@ -84,7 +100,7 @@ public final class RealtyEventDispatch {
      * cancellable event that would require such a hop throws, since its
      * cancellation verdict could not be reported on return.
      */
-    private boolean fireOrHop(@NotNull RealtyRegionEvent event,
+    private boolean fireOrHop(@NotNull Event event,
                               boolean onRequiredThread,
                               @NotNull Executor targetExecutor,
                               @NotNull String cancellableHopError) {
@@ -99,7 +115,7 @@ public final class RealtyEventDispatch {
         return true;
     }
 
-    private static boolean cancelled(@NotNull RealtyRegionEvent event) {
+    private static boolean cancelled(@NotNull Event event) {
         return event instanceof Cancellable c && c.isCancelled();
     }
 }

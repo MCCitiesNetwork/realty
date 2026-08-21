@@ -2,7 +2,6 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
-import io.github.md5sha256.realty.api.NotificationService;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.ParseBounds;
@@ -14,6 +13,7 @@ import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
 import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
 import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
+import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
@@ -53,7 +53,6 @@ import java.util.concurrent.CompletableFuture;
  */
 public record OfferCommandGroup(
         @NotNull RealtyPaperApi api,
-        @NotNull NotificationService notificationService,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
@@ -150,11 +149,11 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.titleHolderId() != null) {
-                                notificationService.queueNotification(success.titleHolderId(),
+                                events.fireSync(new RealtyNotificationEvent(List.of(success.titleHolderId()),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_PLACED,
                                                 Placeholder.unparsed("player", sender.getName()),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(price)),
-                                                Placeholder.unparsed("region", regionId)));
+                                                Placeholder.unparsed("region", regionId)), region));
                             }
                             events.fireSync(new OfferPlacedEvent(region, sender.getUniqueId(),
                                     success.titleHolderId(), price));
@@ -304,9 +303,9 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
-                            notificationService.queueNotification(target.getUniqueId(),
+                            events.fireSync(new RealtyNotificationEvent(List.of(target.getUniqueId()),
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
-                                            Placeholder.unparsed("region", regionId)));
+                                            Placeholder.unparsed("region", regionId)), region));
                             events.fireSync(new OfferAcceptedEvent(region, sender.getUniqueId(),
                                     target.getUniqueId()));
                         }
@@ -361,10 +360,10 @@ public record OfferCommandGroup(
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
                     if (fullyPaid.previousTitleHolderId() != null) {
-                        notificationService.queueNotification(fullyPaid.previousTitleHolderId(),
+                        events.fireSync(new RealtyNotificationEvent(List.of(fullyPaid.previousTitleHolderId()),
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
-                                        Placeholder.unparsed("region", fullyPaid.regionId())));
+                                        Placeholder.unparsed("region", fullyPaid.regionId())), region));
                     }
                     events.fireSync(new OfferPurchaseCompletedEvent(region, sender.getUniqueId(),
                             fullyPaid.previousTitleHolderId(), fullyPaid.amount()));
@@ -413,10 +412,10 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                             if (titleHolderId != null) {
-                                notificationService.queueNotification(titleHolderId,
+                                events.fireSync(new RealtyNotificationEvent(List.of(titleHolderId),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_WITHDRAWN,
                                                 Placeholder.unparsed("player", sender.getName()),
-                                                Placeholder.unparsed("region", regionId)));
+                                                Placeholder.unparsed("region", regionId)), region));
                             }
                             events.fireSync(new OfferWithdrawnEvent(region, sender.getUniqueId(), titleHolderId));
                         }
@@ -463,9 +462,9 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
-                            notificationService.queueNotification(target.getUniqueId(),
+                            events.fireSync(new RealtyNotificationEvent(List.of(target.getUniqueId()),
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
-                                            Placeholder.unparsed("region", regionId)));
+                                            Placeholder.unparsed("region", regionId)), region));
                             events.fireSync(new OfferRejectedEvent(region, sender.getUniqueId(),
                                     target.getUniqueId()));
                         }
@@ -508,10 +507,12 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ALL_SUCCESS,
                                     Placeholder.unparsed("count", String.valueOf(success.offererIds().size())),
                                     Placeholder.unparsed("region", regionId)));
-                            Component notification = messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
-                                    Placeholder.unparsed("region", regionId));
+                            if (!success.offererIds().isEmpty()) {
+                                events.fireSync(new RealtyNotificationEvent(List.copyOf(success.offererIds()),
+                                        messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
+                                                Placeholder.unparsed("region", regionId)), region));
+                            }
                             for (UUID offererId : success.offererIds()) {
-                                notificationService.queueNotification(offererId, notification);
                                 events.fireSync(new OfferRejectedEvent(region, sender.getUniqueId(), offererId));
                             }
                         }
