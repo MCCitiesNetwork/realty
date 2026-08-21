@@ -20,10 +20,6 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.46.1.0") {
         isTransitive = false
     }
-    compileOnly("net.essentialsx:EssentialsX:2.21.2") {
-        exclude(group = "org.bukkit", module = "bukkit")
-        exclude(group = "org.spigotmc", module = "spigot-api")
-    }
     compileOnly("net.democracycraft:treasury-api:2.0.0")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.0-beta.10")

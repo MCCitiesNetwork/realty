@@ -78,7 +78,6 @@ import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
-import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
@@ -269,13 +268,7 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        SafeLocationFinder safeLocationFinder;
-        if (getServer().getPluginManager().isPluginEnabled("Essentials")) {
-            getLogger().info("Using EssentialsX safe-block predicate for teleportation");
-            safeLocationFinder = new SafeLocationFinder(new EssentialsSafeBlockPredicate());
-        } else {
-            safeLocationFinder = new SafeLocationFinder();
-        }
+        SafeLocationFinder safeLocationFinder = new SafeLocationFinder();
         this.signTextApplicator = new SignTextApplicator(
                 this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
         this.profileApplicator = new ProfileApplicator(
