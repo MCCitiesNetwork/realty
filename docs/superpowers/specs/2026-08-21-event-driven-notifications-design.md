@@ -150,12 +150,32 @@ The `MessageContainer.messageFor(...)` call that builds `component` stays exactl
 `Realty.java` loses the `notificationService` field (`:142`), the Essentials branch (`:262-270`),
 and the parameter threading through `registerCommands` (`:620-653`).
 
-Because the events are async, firing from inside `CompletableFuture.thenAccept` and from the
-asynchronous one-minute sweep in `scheduleTasks()` is legal without a thread hop. The one place
-that already marshals to the main thread — leasehold expiry, which calls
-`regionProfileService.applyFlags` at `Realty.java:434-441` — keeps its `scheduler.runTask` hop for
-the WorldGuard work and fires its events from inside it; an async event fired on the main thread is
-still valid, and the alternative would reorder flag application against notification.
+**Threading constraint.** Bukkit throws `IllegalStateException` from
+`PluginManager.callEvent` when an *asynchronous* event is fired from the primary server thread. An
+async event fired on the main thread is **not** valid. This bites in more places than it looks:
+`RealtyPaperApiImpl.buy()`, `rent()`, `unrent()`, `payBid()` and `payOffer()` all terminate in
+`.thenComposeAsync(..., executorState.mainThreadExec())`, so a plain `.thenAccept(...)` in the
+calling command runs on the *main* thread; and leasehold expiry fires from inside a
+`scheduler.runTask` lambda, which is the main thread by definition.
+
+Rather than a thread check at each of the twenty-three fire sites, every event is fired through
+`io.github.md5sha256.realty.NotificationDispatcher.fire(event)` in `realty-paper`. It calls
+`PluginManager.callEvent` directly when already off the primary thread, and otherwise hops onto
+`ExecutorState.networkExec()` — a thread-per-task executor whose `ThreadFactory` installs the plugin
+class loader as the thread context class loader, which module classes loaded by the module
+`URLClassLoader` depend on. `dbExec()` is deliberately not used: it is a fixed pool of four and
+blocking it on listener work risks starving database calls.
+
+The dispatcher holds its executor in a `static volatile` field, written only by
+`Realty.onEnable` (before commands are registered) and cleared by `onDisable`; the fire sites are
+`record` command beans that hold neither the plugin nor its `ExecutorState`, and threading a new
+constructor parameter through all of them buys nothing over a contained single-writer static. A fire
+that finds no executor — an aborted enable, or a race with shutdown — is dropped with a warning
+rather than throwing.
+
+Leasehold expiry keeps its `scheduler.runTask` hop for the WorldGuard work and fires its events from
+inside it, since the alternative would reorder flag application against notification; the dispatcher
+makes that safe.
 
 ### 3. `realty-paper-adapters/chat-adapter`
 

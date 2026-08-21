@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.NotificationDispatcher;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -11,7 +12,6 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -61,7 +61,7 @@ public record RentCommand(
                             Placeholder.unparsed("price", CurrencyFormatter.format(success.price())),
                             Placeholder.unparsed("duration",
                                     DurationFormatter.format(Duration.ofSeconds(success.durationSeconds())))));
-                    Bukkit.getPluginManager().callEvent(new RegionRentedEvent(
+                    NotificationDispatcher.fire(new RegionRentedEvent(
                             success.landlordId(),
                             messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
                                     Placeholder.unparsed("player", sender.getName()),

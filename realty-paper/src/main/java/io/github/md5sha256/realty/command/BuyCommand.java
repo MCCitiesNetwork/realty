@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.NotificationDispatcher;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -10,7 +11,6 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -61,7 +61,7 @@ public record BuyCommand(
                             Placeholder.unparsed("price", CurrencyFormatter.format(success.price())),
                             Placeholder.unparsed("region", success.regionId())));
                     if (success.previousTitleHolderId() != null) {
-                        Bukkit.getPluginManager().callEvent(new RegionBoughtEvent(
+                        NotificationDispatcher.fire(new RegionBoughtEvent(
                                 success.previousTitleHolderId(),
                                 messages.messageFor(MessageKeys.NOTIFICATION_REGION_BOUGHT,
                                         Placeholder.unparsed("player", sender.getName()),

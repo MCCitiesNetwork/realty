@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.NotificationDispatcher;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.event.AgentInviteWithdrawnEvent;
@@ -70,7 +71,7 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_SUCCESS,
                             Placeholder.unparsed("player", inviteeName),
                             Placeholder.unparsed("region", regionId)));
-                    Bukkit.getPluginManager().callEvent(new AgentInviteWithdrawnEvent(
+                    NotificationDispatcher.fire(new AgentInviteWithdrawnEvent(
                             inviteeId,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
                                     Placeholder.unparsed("player", resolveName(player.getUniqueId())),

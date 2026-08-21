@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
+import io.github.md5sha256.realty.NotificationDispatcher;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -215,7 +216,7 @@ public record AuctionCommandGroup(
                     Placeholder.unparsed("region", regionId)));
             UUID cancelledById = sender instanceof Player player ? player.getUniqueId() : null;
             for (UUID bidderId : result.bidderIds()) {
-                Bukkit.getPluginManager().callEvent(new AuctionCancelledEvent(
+                NotificationDispatcher.fire(new AuctionCancelledEvent(
                         bidderId,
                         messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
                                 Placeholder.unparsed("region", regionId)),
@@ -254,7 +255,7 @@ public record AuctionCommandGroup(
                                     Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.previousBidderId() != null) {
-                                Bukkit.getPluginManager().callEvent(new OutbidEvent(
+                                NotificationDispatcher.fire(new OutbidEvent(
                                         success.previousBidderId(),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OUTBID,
                                                 Placeholder.unparsed("region", regionId),
@@ -313,7 +314,7 @@ public record AuctionCommandGroup(
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
                     if (fullyPaid.previousTitleHolderId() != null) {
-                        Bukkit.getPluginManager().callEvent(new OwnershipTransferredEvent(
+                        NotificationDispatcher.fire(new OwnershipTransferredEvent(
                                 fullyPaid.previousTitleHolderId(),
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),

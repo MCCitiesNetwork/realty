@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.NotificationDispatcher;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.event.AgentInvitedEvent;
@@ -69,7 +70,7 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_SUCCESS,
                             Placeholder.unparsed("player", inviteeName),
                             Placeholder.unparsed("region", regionId)));
-                    Bukkit.getPluginManager().callEvent(new AgentInvitedEvent(
+                    NotificationDispatcher.fire(new AgentInvitedEvent(
                             inviteeId,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITED,
                                     Placeholder.unparsed("player", player.getName()),

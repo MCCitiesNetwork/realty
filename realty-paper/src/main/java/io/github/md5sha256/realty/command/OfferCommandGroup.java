@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.NotificationDispatcher;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -143,7 +144,7 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId)));
                             if (success.titleHolderId() != null) {
-                                Bukkit.getPluginManager().callEvent(new OfferPlacedEvent(
+                                NotificationDispatcher.fire(new OfferPlacedEvent(
                                         success.titleHolderId(),
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_PLACED,
                                                 Placeholder.unparsed("player", sender.getName()),
@@ -298,7 +299,7 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
-                            Bukkit.getPluginManager().callEvent(new OfferAcceptedEvent(
+                            NotificationDispatcher.fire(new OfferAcceptedEvent(
                                     target.getUniqueId(),
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
                                             Placeholder.unparsed("region", regionId)),
@@ -358,7 +359,7 @@ public record OfferCommandGroup(
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
                     if (fullyPaid.previousTitleHolderId() != null) {
-                        Bukkit.getPluginManager().callEvent(new OwnershipTransferredEvent(
+                        NotificationDispatcher.fire(new OwnershipTransferredEvent(
                                 fullyPaid.previousTitleHolderId(),
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
@@ -414,7 +415,7 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.WITHDRAW_OFFER_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
                             if (titleHolderId != null) {
-                                Bukkit.getPluginManager().callEvent(new OfferWithdrawnEvent(
+                                NotificationDispatcher.fire(new OfferWithdrawnEvent(
                                         titleHolderId,
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_WITHDRAWN,
                                                 Placeholder.unparsed("player", sender.getName()),
@@ -469,7 +470,7 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_SUCCESS,
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
-                            Bukkit.getPluginManager().callEvent(new OfferRejectedEvent(
+                            NotificationDispatcher.fire(new OfferRejectedEvent(
                                     List.of(target.getUniqueId()),
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                             Placeholder.unparsed("region", regionId)),
@@ -516,12 +517,16 @@ public record OfferCommandGroup(
                             sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_ALL_SUCCESS,
                                     Placeholder.unparsed("count", String.valueOf(success.offererIds().size())),
                                     Placeholder.unparsed("region", regionId)));
-                            Bukkit.getPluginManager().callEvent(new OfferRejectedEvent(
-                                    success.offererIds(),
-                                    messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
-                                            Placeholder.unparsed("region", regionId)),
-                                    regionId,
-                                    worldId));
+                            if (!success.offererIds().isEmpty()) {
+                                // rejectAll on a region with no pending offers succeeds with an
+                                // empty list; the event's targets must never be empty.
+                                NotificationDispatcher.fire(new OfferRejectedEvent(
+                                        success.offererIds(),
+                                        messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
+                                                Placeholder.unparsed("region", regionId)),
+                                        regionId,
+                                        worldId));
+                            }
                         }
                         case RealtyBackend.RejectAllOffersResult.NotSanctioned ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.REJECT_OFFER_NOT_SANCTIONED,

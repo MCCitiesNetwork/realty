@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.NotificationDispatcher;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.event.AgentRemovedEvent;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
@@ -68,7 +69,7 @@ public record AgentRemoveCommand(@NotNull RealtyPaperApi api,
                 sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_SUCCESS,
                         Placeholder.unparsed("player", targetName),
                         Placeholder.unparsed("region", regionId)));
-                Bukkit.getPluginManager().callEvent(new AgentRemovedEvent(
+                NotificationDispatcher.fire(new AgentRemovedEvent(
                         targetId,
                         messages.messageFor(MessageKeys.NOTIFICATION_AGENT_REMOVED,
                                 Placeholder.unparsed("player", player.getName()),

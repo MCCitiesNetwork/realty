@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.NotificationDispatcher;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -9,7 +10,6 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -60,7 +60,7 @@ public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
                 case RealtyBackend.AcceptAgentInviteResult.Success(UUID inviterId) -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_SUCCESS,
                             Placeholder.unparsed("region", regionId)));
-                    Bukkit.getPluginManager().callEvent(new AgentInviteAcceptedEvent(
+                    NotificationDispatcher.fire(new AgentInviteAcceptedEvent(
                             inviterId,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_ACCEPTED,
                                     Placeholder.unparsed("player", player.getName()),

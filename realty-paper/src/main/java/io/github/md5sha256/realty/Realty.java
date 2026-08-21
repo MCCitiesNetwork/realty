@@ -238,6 +238,8 @@ public final class Realty extends JavaPlugin {
                 .getMainThreadExecutor(this),
                 Executors.newFixedThreadPool(4, threadFactory),
                 Executors.newThreadPerTaskExecutor(threadFactory));
+        // Must happen before commands, listeners or the sweep task can fire a notification event.
+        NotificationDispatcher.initialize(this.executorState.networkExec());
         try {
             this.nameResolver = new SquirrelIdUsernameResolver(
                     new File(getDataFolder(), "profiles.sqlite"),
@@ -309,6 +311,8 @@ public final class Realty extends JavaPlugin {
     @Override
     public void onDisable() {
         // Plugin shutdown logic
+        // Stop hopping fires onto an executor that is about to be shut down.
+        NotificationDispatcher.shutdown();
         if (this.moduleManager != null) {
             // Shut modules down first: they may still be using the executors and database below.
             this.moduleManager.stop();
@@ -380,7 +384,7 @@ public final class Realty extends JavaPlugin {
             }
             for (RealtyBackend.ExpiredBiddingAuction auction : this.logic.clearExpiredBiddingAuctions()) {
                 if (auction.winnerId() != null) {
-                    Bukkit.getPluginManager().callEvent(new AuctionWonEvent(
+                    NotificationDispatcher.fire(new AuctionWonEvent(
                             auction.winnerId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
                                     Placeholder.unparsed("region", auction.worldGuardRegionId())),
@@ -388,7 +392,7 @@ public final class Realty extends JavaPlugin {
                             auction.worldId(),
                             auction.winnerId()));
                 } else {
-                    Bukkit.getPluginManager().callEvent(new AuctionEndedNoBidsEvent(
+                    NotificationDispatcher.fire(new AuctionEndedNoBidsEvent(
                             auction.auctioneerId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
                                     Placeholder.unparsed("region", auction.worldGuardRegionId())),
@@ -402,7 +406,7 @@ public final class Realty extends JavaPlugin {
                     getLogger().warning("Skipping bid payment expiry notification for region "
                             + payment.regionId() + ": world id unavailable");
                 } else {
-                    Bukkit.getPluginManager().callEvent(new BidPaymentExpiredEvent(
+                    NotificationDispatcher.fire(new BidPaymentExpiredEvent(
                             payment.bidderId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
                                     Placeholder.unparsed("region", payment.regionId()),
@@ -419,7 +423,7 @@ public final class Realty extends JavaPlugin {
                     getLogger().warning("Skipping offer payment expiry notification for region "
                             + payment.regionId() + ": world id unavailable");
                 } else {
-                    Bukkit.getPluginManager().callEvent(new OfferPaymentExpiredEvent(
+                    NotificationDispatcher.fire(new OfferPaymentExpiredEvent(
                             payment.offererId(),
                             this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
                                     Placeholder.unparsed("region", payment.regionId()),
@@ -459,7 +463,7 @@ public final class Realty extends JavaPlugin {
                                 }
                             }
                         }
-                        Bukkit.getPluginManager().callEvent(new LeaseholdExpiredEvent(
+                        NotificationDispatcher.fire(new LeaseholdExpiredEvent(
                                 expired.tenantId(),
                                 this.messageContainer.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED,
                                         Placeholder.unparsed("region",
@@ -468,7 +472,7 @@ public final class Realty extends JavaPlugin {
                                 expired.worldId(),
                                 expired.tenantId(),
                                 expired.landlordId()));
-                        Bukkit.getPluginManager().callEvent(new LeaseholdExpiredLandlordEvent(
+                        NotificationDispatcher.fire(new LeaseholdExpiredLandlordEvent(
                                 expired.landlordId(),
                                 this.messageContainer.messageFor(
                                         MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD,
@@ -620,6 +624,8 @@ public final class Realty extends JavaPlugin {
         reloadModules();
     }
 
+    private static final String ESSENTIALS_ADAPTER_MODULE = "essentials-adapter";
+
     private void startModules() {
         Path moduleDir = getDataFolder().toPath().resolve("modules");
         try {
@@ -632,10 +638,32 @@ public final class Realty extends JavaPlugin {
                 getLogger().warning("Failed to extract the bundled chat-adapter module: " + ex.getMessage());
             }
             this.moduleManager.start();
+            warnAboutMissingEssentialsAdapter();
         } catch (IOException ex) {
             // A broken module directory is not worth taking the whole plugin down for.
             getLogger().severe("Failed to load modules from " + moduleDir + ": " + ex.getMessage());
         }
+    }
+
+    /**
+     * Essentials support (offline mail delivery and the EssentialsX teleport-safety predicate) now
+     * lives in the {@code essentials-adapter} module, which is not bundled. Without this warning an
+     * existing Essentials install would silently lose both on upgrade. Deliberately keyed off the
+     * module name rather than a {@code com.earth2me} import, so core stays decoupled.
+     */
+    private void warnAboutMissingEssentialsAdapter() {
+        if (!getServer().getPluginManager().isPluginEnabled("Essentials")) {
+            return;
+        }
+        if (this.moduleManager.getActiveModules().containsKey(ESSENTIALS_ADAPTER_MODULE)) {
+            getLogger().info("Detected Essentials, the essentials-adapter module is handling mail delivery");
+            return;
+        }
+        getLogger().warning("Detected Essentials, but the '" + ESSENTIALS_ADAPTER_MODULE
+                + "' module is not loaded. Offline players will not receive Realty notifications as"
+                + " mail, and the EssentialsX teleport-safety check is unavailable. Drop"
+                + " essentials-adapter.jar into " + getDataFolder().toPath().resolve("modules")
+                + " to restore both.");
     }
 
     /**
