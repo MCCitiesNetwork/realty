@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.api.event;
 
 import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -11,18 +12,22 @@ import java.util.UUID;
  */
 public final class AuctionCancelledEvent extends RealtyNotificationEvent {
 
-    private final UUID auctioneerId;
+    private final UUID cancelledById;
 
     public AuctionCancelledEvent(@NotNull UUID targetId,
                                  @NotNull Component message,
                                  @NotNull String regionId,
                                  @NotNull UUID worldId,
-                                 @NotNull UUID auctioneerId) {
+                                 @Nullable UUID cancelledById) {
         super(targetId, message, regionId, worldId);
-        this.auctioneerId = auctioneerId;
+        this.cancelledById = cancelledById;
     }
 
-    public @NotNull UUID auctioneerId() {
-        return this.auctioneerId;
+    /**
+     * The player who ran the cancel command, or {@code null} when it was run from
+     * console or a command block.
+     */
+    public @Nullable UUID cancelledById() {
+        return this.cancelledById;
     }
 }

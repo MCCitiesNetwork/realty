@@ -213,9 +213,7 @@ public record AuctionCommandGroup(
             }
             sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_SUCCESS,
                     Placeholder.unparsed("region", regionId)));
-            // Console/command-block cancellations have no player UUID; fall back to the nil UUID
-            // sentinel rather than fabricate an actor identity.
-            UUID actorId = sender instanceof Player player ? player.getUniqueId() : new UUID(0L, 0L);
+            UUID cancelledById = sender instanceof Player player ? player.getUniqueId() : null;
             for (UUID bidderId : result.bidderIds()) {
                 Bukkit.getPluginManager().callEvent(new AuctionCancelledEvent(
                         bidderId,
@@ -223,7 +221,7 @@ public record AuctionCommandGroup(
                                 Placeholder.unparsed("region", regionId)),
                         regionId,
                         worldId,
-                        actorId));
+                        cancelledById));
             }
         }).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_ERROR,
