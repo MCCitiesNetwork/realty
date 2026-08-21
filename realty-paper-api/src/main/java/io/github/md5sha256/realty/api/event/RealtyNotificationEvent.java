@@ -6,6 +6,7 @@ import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -16,7 +17,9 @@ import java.util.UUID;
  * {@code RealtyNotificationEvent} receives every subclass.</p>
  *
  * <p>These events are always asynchronous. A listener that touches the Bukkit API must marshal
- * onto the main thread itself.</p>
+ * onto the main thread itself. Because Bukkit refuses to dispatch an asynchronous event from the
+ * primary server thread, Realty fires every one of these through its internal
+ * {@code NotificationDispatcher}, which hops off the main thread when it has to.</p>
  */
 public abstract class RealtyNotificationEvent extends Event {
 
@@ -32,10 +35,15 @@ public abstract class RealtyNotificationEvent extends Event {
                                       @NotNull String regionId,
                                       @NotNull UUID worldId) {
         super(true);
-        this.targetIds = List.copyOf(targetIds);
-        this.message = message;
-        this.regionId = regionId;
-        this.worldId = worldId;
+        this.targetIds = List.copyOf(Objects.requireNonNull(targetIds, "targetIds"));
+        if (this.targetIds.isEmpty()) {
+            // Enforced here so an empty fan-out fails at the fire site rather than reaching a
+            // third-party listener that trusts the documented "never empty" invariant.
+            throw new IllegalArgumentException("A notification event must have at least one target");
+        }
+        this.message = Objects.requireNonNull(message, "message");
+        this.regionId = Objects.requireNonNull(regionId, "regionId");
+        this.worldId = Objects.requireNonNull(worldId, "worldId");
     }
 
     protected RealtyNotificationEvent(@NotNull UUID targetId,
@@ -46,7 +54,8 @@ public abstract class RealtyNotificationEvent extends Event {
     }
 
     /**
-     * The players this notification is addressed to. Never empty, never mutable.
+     * The players this notification is addressed to. Never empty, never mutable — the constructor
+     * rejects an empty list.
      */
     public @NotNull List<UUID> targetIds() {
         return this.targetIds;

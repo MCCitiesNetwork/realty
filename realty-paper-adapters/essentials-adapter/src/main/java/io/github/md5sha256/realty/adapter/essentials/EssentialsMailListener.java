@@ -17,7 +17,12 @@ import java.util.logging.Logger;
 
 /**
  * Sends Realty notifications to offline targets as Essentials mail. Online targets are left to
- * the chat adapter, so nobody gets the same notification twice.
+ * the chat adapter, so on a best-effort basis nobody gets the same notification twice.
+ *
+ * <p><b>Known race, accepted.</b> This listener and the chat adapter's listener each resolve a
+ * target's online-ness independently, inside their own main-thread task. A player who logs in or
+ * out between those two tasks can therefore receive both a chat message and a mail, or neither.
+ * The de-duplication below is best-effort, not a guarantee.</p>
  *
  * <p>Mail is a legacy-section format, so the Component is flattened on the way out — RGB and
  * hover/click data do not survive.</p>
@@ -29,9 +34,10 @@ public final class EssentialsMailListener implements Listener {
     private final Predicate<UUID> isOnline;
     private final Logger logger;
 
-    public EssentialsMailListener(@NotNull Executor mainThreadExec,
-                                  @NotNull BiConsumer<UUID, String> mailSender,
-                                  @NotNull Predicate<UUID> isOnline) {
+    /** Package-private: exists only so tests can omit the logger. */
+    EssentialsMailListener(@NotNull Executor mainThreadExec,
+                           @NotNull BiConsumer<UUID, String> mailSender,
+                           @NotNull Predicate<UUID> isOnline) {
         this(mainThreadExec, mailSender, isOnline, Logger.getLogger(EssentialsMailListener.class.getName()));
     }
 

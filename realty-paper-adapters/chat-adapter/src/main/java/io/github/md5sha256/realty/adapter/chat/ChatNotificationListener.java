@@ -19,6 +19,13 @@ import java.util.function.Function;
  *
  * <p>This is the baseline every server gets. Adapters that can reach offline players — the
  * Essentials mail adapter, for one — listen at a higher priority and handle that case.</p>
+ *
+ * <p><b>Known race, accepted.</b> This listener and the Essentials mail listener each resolve a
+ * target's online-ness independently, inside their own main-thread task. A player who logs in or
+ * out between those two tasks can therefore receive both a chat message and a mail, or neither.
+ * Splitting the notification is a deliberate cost of keeping the adapters independent of one
+ * another; the window is a tick or two and the failure mode is a duplicate or a missed courtesy
+ * message, never a lost transaction.</p>
  */
 public final class ChatNotificationListener implements Listener {
 

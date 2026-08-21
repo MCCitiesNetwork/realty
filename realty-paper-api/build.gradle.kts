@@ -15,6 +15,14 @@ dependencies {
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
 }
 
+tasks {
+    // Retains constructor parameter names in the class files so EventBindingTest can map each
+    // notification event's accessors back to the constructor position they were assigned from.
+    withType(JavaCompile::class) {
+        options.compilerArgs.add("-parameters")
+    }
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {

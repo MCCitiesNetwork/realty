@@ -6,8 +6,12 @@ import org.jetbrains.annotations.NotNull;
 import java.util.UUID;
 
 /**
- * Fired at the auctioneer when an auction on their region concludes with a winning bidder.
+ * Fired at the winning bidder when an auction they were leading concludes.
  * Renders {@code notification.auction-won}.
+ *
+ * <p>The winning bid amount is deliberately not carried: the backing
+ * {@code RealtyBackend.ExpiredBiddingAuction} record holds no such value, so there is nothing
+ * truthful to put here. Its absence is intentional, not an oversight.</p>
  */
 public final class AuctionWonEvent extends RealtyNotificationEvent {
 

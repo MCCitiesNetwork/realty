@@ -83,12 +83,18 @@ tasks {
 
     runServer {
         dependsOn(":realty-paper-adapters:chat-adapter:shadowJar")
+        // EssentialsX is downloaded below, so stage the adapter that pairs with it too — otherwise
+        // the spec's Essentials smoke test cannot be run as written.
+        dependsOn(":realty-paper-adapters:essentials-adapter:shadowJar")
         doFirst {
             val moduleDir = project.layout.projectDirectory.dir("run/plugins/Realty/modules").asFile
             moduleDir.mkdirs()
             val chatAdapterJar = project(":realty-paper-adapters:chat-adapter")
                     .tasks.named("shadowJar").get().outputs.files.singleFile
             chatAdapterJar.copyTo(moduleDir.resolve("chat-adapter.jar"), overwrite = true)
+            val essentialsAdapterJar = project(":realty-paper-adapters:essentials-adapter")
+                    .tasks.named("shadowJar").get().outputs.files.singleFile
+            essentialsAdapterJar.copyTo(moduleDir.resolve("essentials-adapter.jar"), overwrite = true)
         }
         minecraftVersion("1.21.8")
         downloadPlugins {
