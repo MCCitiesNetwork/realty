@@ -28,6 +28,10 @@ dependencies {
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.0-beta.10")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
+    // Shared module system, schema migrations and formatting helpers. Deliberately NOT relocated in
+    // shadowJar: module jars are compiled against these types and loaded into this plugin's class
+    // loader, so the names must match.
+    implementation("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     testImplementation("net.democracycraft:treasury-api:2.0.0")

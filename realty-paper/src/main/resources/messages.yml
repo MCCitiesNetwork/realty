@@ -333,6 +333,13 @@ reload:
   success: "Settings and messages reloaded successfully."
   error: "Failed to reload messages: <error>"
 
+module:
+  list-header: "Active modules (<count>):"
+  list-entry: "- <module> by <author> (reloadable: <reloadable>)"
+  list-empty: "No modules are currently loaded."
+  reload-success: "Reloaded module <module>."
+  reload-error: "Failed to reload module <module>: <error>"
+
 remove:
   check-permissions-error: "Failed to check permissions: <error>"
   no-permission: "You do not have permission to remove players from this region!"

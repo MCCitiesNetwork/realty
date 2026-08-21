@@ -1,5 +1,10 @@
 package io.github.md5sha256.realty;
 
+import com.minecraftcitiesnetwork.pluginInfrastructure.configurate.ComponentSerializer;
+import com.minecraftcitiesnetwork.pluginInfrastructure.configurate.SimpleDateFormatSerializer;
+import com.minecraftcitiesnetwork.pluginInfrastructure.modules.ModuleLifecycleManager;
+import com.minecraftcitiesnetwork.pluginInfrastructure.modules.ModuleLoader;
+import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
@@ -36,6 +41,7 @@ import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
 import io.github.md5sha256.realty.command.RegisterCommand;
+import io.github.md5sha256.realty.command.ModuleCommandGroup;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
 import io.github.md5sha256.realty.command.RentCommand;
@@ -67,11 +73,8 @@ import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
-import io.github.md5sha256.realty.util.ComponentSerializer;
-import io.github.md5sha256.realty.util.DateFormatter;
 import io.github.md5sha256.realty.util.EssentialsNotificationService;
 import io.github.md5sha256.realty.util.EssentialsSafeBlockPredicate;
-import io.github.md5sha256.realty.util.SimpleDateFormatSerializer;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
 import io.github.md5sha256.realty.util.TransientNotificationService;
 import io.papermc.paper.util.Tick;
@@ -140,6 +143,7 @@ public final class Realty extends JavaPlugin {
     private Database database;
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApi paperApi;
+    private ModuleLifecycleManager<Realty> moduleManager;
     private boolean failedLoad = false;
 
     private static @NotNull PermissionDefault toBukkitPermission(@NotNull ConfigRegionTag tag) {
@@ -246,7 +250,7 @@ public final class Realty extends JavaPlugin {
         }
         this.logic = new RealtyBackendImpl(mariaDatabase,
                 this.nameResolver::getUsername,
-                dateTime -> DateFormatter.format(this.settings.get(), dateTime),
+                dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
         EconomyProvider economyProvider = resolveEconomyProvider();
         if (economyProvider == null) {
@@ -281,6 +285,10 @@ public final class Realty extends JavaPlugin {
         this.paperApi = new RealtyPaperApiImpl(
                 this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache);
+        this.moduleManager = new ModuleLifecycleManager<>(this,
+                new ModuleLoader(getDataFolder().toPath().resolve("modules")),
+                Realty.class.getName(),
+                getLogger());
         scheduleTasks();
         registerCommands(this.paperApi,
                 this.executorState,
@@ -292,12 +300,19 @@ public final class Realty extends JavaPlugin {
         getServer().getServicesManager()
                 .register(RealtyPaperApi.class, this.paperApi, this, ServicePriority.Normal);
         warnOrphanedTags();
+        // Modules start last so that everything they might reach for — the API services, commands
+        // and listeners — is already in place.
+        startModules();
         getLogger().info("Plugin enabled successfully");
     }
 
     @Override
     public void onDisable() {
         // Plugin shutdown logic
+        if (this.moduleManager != null) {
+            // Shut modules down first: they may still be using the executors and database below.
+            this.moduleManager.stop();
+        }
         if (this.profileApplicator != null) {
             this.profileApplicator.cancel();
         }
@@ -564,6 +579,38 @@ public final class Realty extends JavaPlugin {
         this.taxSettings.set(loadTaxSettings());
         reloadMessages();
         warnOrphanedTags();
+        reloadModules();
+    }
+
+    private void startModules() {
+        Path moduleDir = getDataFolder().toPath().resolve("modules");
+        try {
+            Files.createDirectories(moduleDir);
+            this.moduleManager.start();
+        } catch (IOException ex) {
+            // A broken module directory is not worth taking the whole plugin down for.
+            getLogger().severe("Failed to load modules from " + moduleDir + ": " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Asks every reloadable module to refresh its configuration. Called from {@code /realty reload},
+     * which runs off the main thread, so the manager access is marshalled back onto it.
+     */
+    private void reloadModules() {
+        if (this.moduleManager == null) {
+            return;
+        }
+        this.executorState.mainThreadExec().execute(() -> {
+            for (String moduleName : this.moduleManager.getActiveModules().keySet()) {
+                this.moduleManager.reloadAsync(moduleName).exceptionally(error -> {
+                    // A module that declares itself non-reloadable fails here by design.
+                    getLogger().warning("Failed to reload module " + moduleName + ": "
+                            + error.getMessage());
+                    return null;
+                });
+            }
+        });
     }
 
     private void registerCommands(
@@ -607,6 +654,7 @@ public final class Realty extends JavaPlugin {
                 new SetCommandGroup(paperApi, messageContainer),
                 new TransferCommand(paperApi, messageContainer),
                 new UnsetCommandGroup(paperApi, messageContainer),
+                new ModuleCommandGroup(this.moduleManager, executorState, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();
                     return null;

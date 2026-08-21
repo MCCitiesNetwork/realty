@@ -254,6 +254,13 @@ public final class MessageKeys {
     public static final String RELOAD_SUCCESS = "reload.success";
     public static final String RELOAD_ERROR = "reload.error";
 
+    // module
+    public static final String MODULE_LIST_HEADER = "module.list-header";
+    public static final String MODULE_LIST_ENTRY = "module.list-entry";
+    public static final String MODULE_LIST_EMPTY = "module.list-empty";
+    public static final String MODULE_RELOAD_SUCCESS = "module.reload-success";
+    public static final String MODULE_RELOAD_ERROR = "module.reload-error";
+
     // remove
     public static final String REMOVE_CHECK_PERMISSIONS_ERROR = "remove.check-permissions-error";
     public static final String REMOVE_NO_PERMISSION = "remove.no-permission";

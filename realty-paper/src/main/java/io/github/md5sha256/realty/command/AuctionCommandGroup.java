@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.NotificationService;
@@ -14,7 +15,6 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
-import io.github.md5sha256.realty.util.DateFormatter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -124,11 +124,11 @@ public record AuctionCommandGroup(
                 textBuilder.appendNewline()
                         .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
                                 Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
-                                Placeholder.unparsed("start_date", DateFormatter.format(settings.get(), auction.startDate())),
+                                Placeholder.unparsed("start_date", DateFormatter.format(settings.get().dateFormat(), auction.startDate())),
                                 Placeholder.unparsed("duration",
                                         DurationFormatter.format(Duration.ofSeconds(auction.biddingDurationSeconds()))),
-                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings.get(), biddingEndDate)),
-                                Placeholder.unparsed("deadline", DateFormatter.format(settings.get(), auction.paymentDeadline())),
+                                Placeholder.unparsed("bidding_end_date", DateFormatter.format(settings.get().dateFormat(), biddingEndDate)),
+                                Placeholder.unparsed("deadline", DateFormatter.format(settings.get().dateFormat(), auction.paymentDeadline())),
                                 Placeholder.unparsed("min_bid", CurrencyFormatter.format(auction.minBid())),
                                 Placeholder.unparsed("min_step", CurrencyFormatter.format(auction.minStep())),
                                 Placeholder.unparsed("highest_bid_amount", highestBidAmount),

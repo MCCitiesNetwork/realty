@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "io.github.md5sha256"
-version = "1.3.2"
+version = "1.4.0"
 
 val targetJavaVersion = 21
 
@@ -12,6 +12,14 @@ java.toolchain.languageVersion.set(JavaLanguageVersion.of(targetJavaVersion))
 repositories {
     mavenLocal()
     mavenCentral()
+    maven {
+        name = "democracycraft-snapshots"
+        url = uri("https://maven.democracycraft.net/snapshots")
+    }
+    maven {
+        name = "democracycraft-releases"
+        url = uri("https://maven.democracycraft.net/releases")
+    }
     maven {
         name = "papermc-repo"
         url = uri("https://repo.papermc.io/repository/maven-public/")
