@@ -18,6 +18,7 @@ class NotificationKeyCoverageTest {
 
     @Test
     void everyNotificationKeyHasAnEventClass() throws IllegalAccessException {
+        List<String> discovered = new ArrayList<>();
         List<String> missing = new ArrayList<>();
         for (Field field : MessageKeys.class.getDeclaredFields()) {
             if (!Modifier.isStatic(field.getModifiers())
@@ -25,6 +26,7 @@ class NotificationKeyCoverageTest {
                 continue;
             }
             String key = (String) field.get(null);
+            discovered.add(key);
             String className = EXCEPTIONS.getOrDefault(key, deriveClassName(key));
             try {
                 Class.forName(EVENT_PACKAGE + className);
@@ -32,6 +34,8 @@ class NotificationKeyCoverageTest {
                 missing.add(key + " -> " + className);
             }
         }
+        Assertions.assertFalse(discovered.isEmpty(),
+                "No NOTIFICATION_* constants found in MessageKeys — the reflection filter is broken");
         Assertions.assertEquals(List.of(), missing,
                 "Every notification.* key needs a matching event class");
     }
