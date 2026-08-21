@@ -16,12 +16,17 @@ import java.util.logging.Logger;
 
 /**
  * Sends Realty notifications to offline targets as Essentials mail. Online targets are left to
- * the chat adapter, so on a best-effort basis nobody gets the same notification twice.
+ * the chat adapter, so every target receives exactly one of a chat message or a mail.
  *
- * <p><b>Known race, accepted.</b> This listener and the chat adapter's listener each resolve a
- * target's online-ness independently. A player who logs in or out between those two checks can
- * therefore receive both a chat message and a mail, or neither. The de-duplication below is
- * best-effort, not a guarantee.</p>
+ * <p><b>Exactly-once delivery per target.</b> This listener and the chat adapter's listener each
+ * resolve a target's online-ness independently, but never disagree in a way that causes a
+ * duplicate or a miss. That holds because {@link RealtyNotificationEvent} is dispatched
+ * synchronously: both handlers run inside a single {@code PluginManager.callEvent} on the main
+ * thread, the chat listener at {@link EventPriority#NORMAL} and this one at {@link
+ * EventPriority#HIGH}, with no yield between them; online-ness only ever changes on that same
+ * main thread (player join/quit), so it cannot change mid-dispatch. This guarantee depends on the
+ * event staying synchronous — if it were ever made asynchronous, the two online-ness checks would
+ * run independently and could race, reintroducing duplicate or missed delivery.</p>
  *
  * <p>Mail is a legacy-section format, so the Component is flattened on the way out via
  * {@link LegacyComponentSerializer#legacySection()} — RGB and hover/click data do not survive.</p>

@@ -40,11 +40,15 @@ public final class EssentialsAdapterModule extends SimplePluginModule<Realty> {
             throw new IllegalStateException(
                     "EssentialsX is not installed or not enabled — essentials-adapter cannot start");
         }
+        // All fallible work must happen before the listener is registered: if anything after
+        // registerListener throws, ModuleLifecycleManager closes the class loader without calling
+        // shutdown(), so the listener would never be unregistered and would remain live on a dead
+        // class loader.
+        plugin.paperApi().setSafeBlockPredicate(new EssentialsSafeBlockPredicate(essentials));
         registerListener(new EssentialsMailListener(
                 (uuid, text) -> sendMail(essentials, uuid, text),
                 uuid -> Bukkit.getPlayer(uuid) != null,
                 plugin.getLogger()));
-        plugin.paperApi().setSafeBlockPredicate(new EssentialsSafeBlockPredicate(essentials));
     }
 
     @Override

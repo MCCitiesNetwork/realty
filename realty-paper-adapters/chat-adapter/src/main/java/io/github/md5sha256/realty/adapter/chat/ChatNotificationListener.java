@@ -19,11 +19,16 @@ import java.util.function.Function;
  * <p>This is the baseline every server gets. Adapters that can reach offline players — the
  * Essentials mail adapter, for one — listen at a higher priority and handle that case.</p>
  *
- * <p><b>Known race, accepted.</b> This listener and the Essentials mail listener each resolve a
- * target's online-ness independently. A player who logs in or out between those two checks can
- * therefore receive both a chat message and a mail, or neither. Splitting the notification is a
- * deliberate cost of keeping the adapters independent of one another; the window is a tick or two
- * and the failure mode is a duplicate or a missed courtesy message, never a lost transaction.</p>
+ * <p><b>Exactly-once delivery per target.</b> This listener and the Essentials mail listener each
+ * resolve a target's online-ness independently, but every target still receives exactly one of a
+ * chat message or a mail, never both and never neither. That holds because {@link
+ * RealtyNotificationEvent} is dispatched synchronously: both handlers run inside a single {@code
+ * PluginManager.callEvent} on the main thread, this one at {@link EventPriority#NORMAL} and the
+ * mail listener at {@link EventPriority#HIGH}, with no yield between them; online-ness only ever
+ * changes on that same main thread (player join/quit), so it cannot change mid-dispatch. This
+ * guarantee depends on the event staying synchronous — if it were ever made asynchronous, the two
+ * online-ness checks would run independently and could race, reintroducing duplicate or missed
+ * delivery.</p>
  *
  * <p>{@link RealtyNotificationEvent} is fired synchronously through {@code
  * RealtyEventDispatch.fireSync}, so this handler already runs on the main thread and does not need

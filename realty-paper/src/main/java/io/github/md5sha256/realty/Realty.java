@@ -700,6 +700,15 @@ public final class Realty extends JavaPlugin {
                 getLogger().warning("Failed to extract bundled chat-adapter module: " + ex.getMessage());
             }
             this.moduleManager.start();
+            if (this.moduleManager.getActiveModules().isEmpty()) {
+                getLogger().warning("No notification delivery module is loaded. Realty fires notification "
+                        + "events but delivers nothing on its own; every notification (sale, lease, offer, "
+                        + "auction, etc.) will reach nobody. Place chat-adapter.jar in " + moduleDir
+                        + " to enable it.");
+            } else if (!this.moduleManager.getActiveModules().containsKey("chat-adapter")) {
+                getLogger().warning("The chat-adapter module is not loaded. Online players will not receive "
+                        + "chat notifications. Place chat-adapter.jar in " + moduleDir + " to enable it.");
+            }
             if (getServer().getPluginManager().isPluginEnabled("Essentials")
                     && !this.moduleManager.getActiveModules().containsKey("essentials-adapter")) {
                 getLogger().warning("Essentials is enabled, but the essentials-adapter module is not loaded. "
@@ -721,14 +730,18 @@ public final class Realty extends JavaPlugin {
             return;
         }
         this.executorState.mainThreadExec().execute(() -> {
-            for (String moduleName : this.moduleManager.getActiveModules().keySet()) {
+            this.moduleManager.getActiveModules().forEach((moduleName, loadedModule) -> {
+                if (!loadedModule.manifest().reloadable()) {
+                    // Skip modules that declare themselves non-reloadable; reloading them would
+                    // fail by design and only produce a warning operators are trained to ignore.
+                    return;
+                }
                 this.moduleManager.reloadAsync(moduleName).exceptionally(error -> {
-                    // A module that declares itself non-reloadable fails here by design.
                     getLogger().warning("Failed to reload module " + moduleName + ": "
                             + error.getMessage());
                     return null;
                 });
-            }
+            });
         });
     }
 

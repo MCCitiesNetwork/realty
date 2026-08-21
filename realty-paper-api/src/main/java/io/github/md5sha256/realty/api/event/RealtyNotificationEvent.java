@@ -55,6 +55,13 @@ public final class RealtyNotificationEvent extends Event {
         return this.message;
     }
 
+    /**
+     * The region this notification concerns, or {@code null} when it cannot be resolved.
+     *
+     * <p>A null region is routine, not pathological: payment-expiry sweeps announce a refund
+     * after the region itself has already been deleted, so no {@link WorldGuardRegion} exists to
+     * report at that point.</p>
+     */
     public @Nullable WorldGuardRegion getRegion() {
         return this.region;
     }

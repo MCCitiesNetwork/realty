@@ -23,8 +23,9 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Handles {@code /realty module list} and {@code /realty module reload <module>}.
  *
- * <p>{@link ModuleLifecycleManager} is not thread-safe, so both handlers hop onto the main thread
- * before touching it.</p>
+ * <p>{@link ModuleLifecycleManager} is not thread-safe, so every handler that touches it —
+ * including the {@code reload} argument's suggestion provider, which Cloud resolves off the main
+ * thread — hops onto the main thread first.</p>
  *
  * <p>Permissions: {@code realty.command.module.list}, {@code realty.command.module.reload}.</p>
  */
@@ -53,11 +54,16 @@ public record ModuleCommandGroup(
     }
 
     private @NotNull SuggestionProvider<Source> moduleSuggestions() {
-        return (ctx, input) -> CompletableFuture.completedFuture(
-                moduleManager.getActiveModules().keySet().stream()
+        return (ctx, input) -> {
+            CompletableFuture<List<Suggestion>> future = new CompletableFuture<>();
+            executorState.mainThreadExec().execute(() -> {
+                List<Suggestion> suggestions = moduleManager.getActiveModules().keySet().stream()
                         .map(Suggestion::suggestion)
-                        .toList()
-        );
+                        .toList();
+                future.complete(suggestions);
+            });
+            return future;
+        };
     }
 
     private void executeList(@NotNull CommandContext<Source> ctx) {
