@@ -185,6 +185,14 @@ public final class Realty extends JavaPlugin {
         return this.taxSettings.get();
     }
 
+    public ExecutorState executorState() {
+        return this.executorState;
+    }
+
+    public RealtyPaperApi paperApi() {
+        return this.paperApi;
+    }
+
     @Override
     public void onLoad() {
         try {
@@ -283,7 +291,8 @@ public final class Realty extends JavaPlugin {
         }
         this.paperApi = new RealtyPaperApiImpl(
                 this.logic, economyProvider, this.executorState, this.database,
-                this.regionProfileService, this.signTextApplicator, this.signCache);
+                this.regionProfileService, this.signTextApplicator, this.signCache,
+                safeLocationFinder);
         this.moduleManager = new ModuleLifecycleManager<>(this,
                 new ModuleLoader(getDataFolder().toPath().resolve("modules")),
                 Realty.class.getName(),

@@ -51,7 +51,7 @@ public final class SafeLocationFinder {
             Material.MAGMA_BLOCK
     );
 
-    private final Predicate<Block> safetyPredicate;
+    private volatile Predicate<Block> safetyPredicate;
 
     /**
      * Creates a finder with a custom safety predicate.
@@ -78,6 +78,19 @@ public final class SafeLocationFinder {
      */
     public static @NotNull Predicate<Block> defaultPredicate() {
         return SafeLocationFinder::defaultIsSafe;
+    }
+
+    /**
+     * Replaces the safety predicate on this live instance. Adapter modules call this through
+     * {@link io.github.md5sha256.realty.api.RealtyPaperApi#setSafeBlockPredicate(Predicate)} —
+     * they start after commands are registered, so the finder is already in use by then.
+     */
+    public void setSafetyPredicate(@NotNull Predicate<Block> safetyPredicate) {
+        this.safetyPredicate = safetyPredicate;
+    }
+
+    public @NotNull Predicate<Block> safetyPredicate() {
+        return this.safetyPredicate;
     }
 
     /**

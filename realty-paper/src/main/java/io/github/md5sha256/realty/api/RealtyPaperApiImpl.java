@@ -20,10 +20,12 @@ import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,6 +38,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class RealtyPaperApiImpl implements RealtyPaperApi {
@@ -47,6 +50,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final RegionProfileService regionProfileService;
     private final SignTextApplicator signTextApplicator;
     private final SignCache signCache;
+    private final SafeLocationFinder safeLocationFinder;
 
     /**
      * Per-region serialisation chains. Each entry is the tail of a queue of
@@ -62,7 +66,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull Database database,
                               @NotNull RegionProfileService regionProfileService,
                               @NotNull SignTextApplicator signTextApplicator,
-                              @NotNull SignCache signCache) {
+                              @NotNull SignCache signCache,
+                              @NotNull SafeLocationFinder safeLocationFinder) {
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
         this.executorState = executorState;
@@ -70,6 +75,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.regionProfileService = regionProfileService;
         this.signTextApplicator = signTextApplicator;
         this.signCache = signCache;
+        this.safeLocationFinder = safeLocationFinder;
+    }
+
+    @Override
+    public void setSafeBlockPredicate(@NotNull Predicate<Block> predicate) {
+        this.safeLocationFinder.setSafetyPredicate(predicate);
     }
 
     /**

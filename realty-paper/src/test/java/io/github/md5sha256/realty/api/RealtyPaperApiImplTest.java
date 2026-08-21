@@ -7,6 +7,7 @@ import com.sk89q.worldguard.internal.platform.WorldGuardPlatform;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
+import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
@@ -77,7 +78,7 @@ class RealtyPaperApiImplTest {
         signCache = new SignCache();
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
-                regionProfileService, signTextApplicator, signCache);
+                regionProfileService, signTextApplicator, signCache, new SafeLocationFinder());
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
 

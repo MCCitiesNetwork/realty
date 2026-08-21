@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
+import org.bukkit.block.Block;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 
 public interface RealtyPaperApi {
 
@@ -386,4 +388,13 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<@NotNull List<String>> getRegionIdsByTag(@NotNull String tagId);
 
     @NotNull CompletableFuture<Integer> countRegionsByTag(@NotNull String tagId);
+
+    // --- Teleport Safety ---
+
+    /**
+     * Replaces the predicate used to decide whether a player can safely stand on a block when
+     * teleporting to a region. Adapter modules call this from {@code initialize} and reset it
+     * from {@code shutdown}.
+     */
+    void setSafeBlockPredicate(@NotNull Predicate<Block> predicate);
 }
