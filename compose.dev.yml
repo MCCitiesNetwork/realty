@@ -1,0 +1,40 @@
+# Development MariaDB for the local `./gradlew runServer` test server.
+#
+# Managed by the startDevDb / stopDevDb / resetDevDb Gradle tasks in
+# realty-paper/build.gradle.kts; runServer depends on startDevDb, so a plain
+# `./gradlew runServer` brings this up first and points the plugin at it.
+#
+# This is a DEVELOPMENT database. The credentials are deliberately trivial and
+# the port is published to localhost — do not reuse this file for anything
+# reachable from outside your machine.
+services:
+  mariadb:
+    # Pinned to the same image the Testcontainers-backed tests use
+    # (realty-backend AbstractDatabaseTest) so dev and test run one engine.
+    image: mariadb:11.7
+    container_name: realty-dev-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: realty
+      MARIADB_USER: realty
+      MARIADB_PASSWORD: realty
+      MARIADB_ROOT_PASSWORD: root
+    ports:
+      # Matches the url in the generated run/plugins/Realty/database.yml.
+      - "3306:3306"
+    volumes:
+      # Named volume, so regions/contracts/auctions survive a restart.
+      # `./gradlew resetDevDb` drops it for a clean schema.
+      - realty-dev-db:/var/lib/mysql
+    healthcheck:
+      # Ships with the mariadb image. `--connect` alone returns healthy before
+      # InnoDB has finished recovery, which lets the server race a DB that
+      # cannot yet serve queries.
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  realty-dev-db:

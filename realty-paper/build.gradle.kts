@@ -41,6 +41,98 @@ dependencies {
     }
 }
 
+// --- Development database (see compose.dev.yml) ---------------------------------
+//
+// Everything the task actions touch is resolved HERE, at configuration time, and
+// captured as plain Files/Strings so the tasks stay configuration-cache clean.
+
+val devComposeFile = rootProject.layout.projectDirectory.file("compose.dev.yml").asFile
+val devDbConfigFile = layout.projectDirectory.file("run/plugins/Realty/database.yml").asFile
+val devDbUrl = "mariadb://localhost:3306/realty"
+val devDbUser = "realty"
+val devDbPassword = "realty"
+
+// Builds a `docker compose` command line. Deliberately a PURE function returning a
+// list: a task action defined inside a script-level function captures the script
+// itself, which the configuration cache cannot serialize. Each task registers its
+// own doLast below, capturing only local values.
+fun dockerCompose(vararg args: String): List<String> =
+        listOf("docker", "compose", "-f", devComposeFile.absolutePath) + args
+
+// Message used when the compose invocation fails, so the cause is obvious rather
+// than a bare non-zero exit code.
+val dockerHint = "Is Docker installed and running? " +
+        "The dev server needs it for the MariaDB in ${devComposeFile.name}."
+
+val startDevDb = tasks.register<Exec>("startDevDb") {
+    group = "realty dev"
+    description = "Starts the development MariaDB and points run/plugins/Realty/database.yml at it."
+    // --wait blocks until the healthcheck passes, so the server never races a
+    // MariaDB whose port is open but which cannot yet serve queries.
+    commandLine(dockerCompose("up", "-d", "--wait"))
+    isIgnoreExitValue = true
+    val result = executionResult
+    val hint = dockerHint
+    val configFile = devDbConfigFile
+    val url = devDbUrl
+    val user = devDbUser
+    val password = devDbPassword
+    doLast {
+        val exit = result.get().exitValue
+        if (exit != 0) {
+            throw GradleException("`docker compose up` exited with $exit. $hint")
+        }
+        // Only fill in a missing or blank config. Never clobber real credentials
+        // someone has pointed at their own database.
+        val existing = if (configFile.isFile) configFile.readText() else ""
+        val hasUrl = Regex("""^\s*url:\s*(?!['"]?\s*$).+""", RegexOption.MULTILINE).containsMatchIn(existing)
+        if (hasUrl) {
+            logger.lifecycle("Dev database up; leaving existing ${configFile.name} untouched.")
+        } else {
+            configFile.parentFile.mkdirs()
+            configFile.writeText(
+                    """
+                    url: '$url'
+                    username: '$user'
+                    password: '$password'
+                    """.trimIndent() + System.lineSeparator()
+            )
+            logger.lifecycle("Dev database up; wrote ${configFile.name} pointing at $url")
+        }
+    }
+}
+
+tasks.register<Exec>("stopDevDb") {
+    group = "realty dev"
+    description = "Stops the development MariaDB, keeping its data."
+    commandLine(dockerCompose("down"))
+    isIgnoreExitValue = true
+    val result = executionResult
+    val hint = dockerHint
+    doLast {
+        val exit = result.get().exitValue
+        if (exit != 0) {
+            throw GradleException("`docker compose down` exited with $exit. $hint")
+        }
+    }
+}
+
+tasks.register<Exec>("resetDevDb") {
+    group = "realty dev"
+    description = "Stops the development MariaDB and DELETES its data volume."
+    // Realty re-runs its migrations on enable, so the next start rebuilds the schema.
+    commandLine(dockerCompose("down", "-v"))
+    isIgnoreExitValue = true
+    val result = executionResult
+    val hint = dockerHint
+    doLast {
+        val exit = result.get().exitValue
+        if (exit != 0) {
+            throw GradleException("`docker compose down -v` exited with $exit. $hint")
+        }
+    }
+}
+
 tasks {
 
     test {
@@ -82,6 +174,8 @@ tasks {
     }
 
     runServer {
+        // Bring up (and wait for) the dev MariaDB before the server starts.
+        dependsOn(startDevDb)
         // Resolve everything the doFirst needs at CONFIGURATION time. Reaching for
         // `project(...)` or `project.layout` inside the action is what made this task
         // incompatible with the configuration cache; Providers and Files serialize fine.
