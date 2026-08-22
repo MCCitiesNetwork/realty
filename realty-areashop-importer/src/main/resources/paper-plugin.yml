@@ -1,7 +1,7 @@
 name: RealtyAreaShopImporter
 version: "${version}"
 main: io.github.md5sha256.realty.importer.RealtyAreaShopImportPlugin
-api-version: "1.21.8"
+api-version: "26.1.2"
 authors: [ md5sha256 ]
 permissions:
   realty.import:

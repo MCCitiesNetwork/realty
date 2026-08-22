@@ -7,7 +7,7 @@ plugins {
 dependencies {
     compileOnly(project(":realty-paper"))
     compileOnly(project(":realty-paper-api"))
-    compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.1.2.+")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     compileOnly("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
     compileOnly("net.essentialsx:EssentialsX:2.21.2") {
@@ -16,5 +16,5 @@ dependencies {
     }
 
     testImplementation(project(":realty-paper-api"))
-    testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:26.1.2.+")
 }

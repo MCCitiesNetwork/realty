@@ -5,13 +5,13 @@ plugins {
 
 dependencies {
     api(project(":realty-backend"))
-    compileOnlyApi("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
-    compileOnlyApi("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
+    compileOnlyApi("io.papermc.paper:paper-api:26.1.2.+")
+    compileOnlyApi("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     compileOnlyApi("org.jetbrains:annotations:26.0.2-1")
     api("org.spongepowered:configurate-yaml:4.2.0")
-    testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:26.1.2.+")
 }
 
 publishing {
