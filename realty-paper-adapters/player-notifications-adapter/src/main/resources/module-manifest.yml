@@ -1,0 +1,5 @@
+module-name: player-notifications-adapter
+entry-class: io.github.md5sha256.realty.adapter.playernotifications.PlayerNotificationsAdapterModule
+author: md5sha256
+expected-plugin-class: io.github.md5sha256.realty.Realty
+reloadable: true

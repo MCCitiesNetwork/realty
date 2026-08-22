@@ -69,7 +69,7 @@ immutable: republishing a version that already exists fails with a 409, so bump 
 | `realty-areashop-importer` | Optional AreaShop migration helper |
 | `realty-paper-adapters/chat-adapter` | Notification delivery to online players via chat |
 | `realty-paper-adapters/essentials-adapter` | Notification delivery via EssentialsX mail |
-| `realty-paper-adapters/pn-adapter` | Notification delivery via [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) |
+| `realty-paper-adapters/player-notifications-adapter` | Notification delivery via [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) |
 
 The adapter modules are **not bundled in the plugin jar**. Each is published as its own jar; install
 the ones you want by placing them in `plugins/Realty/modules` and restarting the server. Realty

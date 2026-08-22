@@ -44,6 +44,10 @@ repositories {
         name = "paradaux-snapshots"
         url = uri("https://repo.paradaux.io/snapshots")
     }
+    maven {
+        name = "mccities-releases"
+        url = uri("https://maven.minecraftcitiesnetwork.com/releases")
+    }
 }
 
 dependencies {
