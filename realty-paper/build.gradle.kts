@@ -161,6 +161,10 @@ tasks {
 
     processResources {
         val projectVersion = version
+        // Declared as an input so a version bump invalidates the task. Without this Gradle only
+        // hashes paper-plugin.yml itself, finds it unchanged, and reuses the previously-expanded
+        // output -- shipping a jar whose manifest announces the *previous* version.
+        inputs.property("version", projectVersion)
         filesMatching("paper-plugin.yml") {
             expand("version" to projectVersion)
         }
