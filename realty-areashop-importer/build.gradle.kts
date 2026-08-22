@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.1.2.+")
+    compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
     compileOnly("com.github.md5sha256.AreaShop:areashop:cc3a0b32a4") {
         exclude(group = "org.bukkit")
         exclude(group = "org.spigotmc")

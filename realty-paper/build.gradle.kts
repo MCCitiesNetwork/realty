@@ -7,7 +7,7 @@ plugins {
 
 dependencies {
     api(project(":realty-paper-api"))
-    compileOnly("io.papermc.paper:paper-api:26.1.2.+")
+    compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
@@ -29,7 +29,7 @@ dependencies {
     // loader, so the names must match.
     implementation("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
 
-    testImplementation("io.papermc.paper:paper-api:26.1.2.+")
+    testImplementation("io.papermc.paper:paper-api:26.1.2.build.74-stable")
     testImplementation("net.democracycraft:treasury-api:2.0.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
