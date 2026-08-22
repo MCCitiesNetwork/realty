@@ -82,19 +82,24 @@ tasks {
     }
 
     runServer {
-        dependsOn(":realty-paper-adapters:chat-adapter:shadowJar")
+        // Resolve everything the doFirst needs at CONFIGURATION time. Reaching for
+        // `project(...)` or `project.layout` inside the action is what made this task
+        // incompatible with the configuration cache; Providers and Files serialize fine.
+        val chatAdapterJar = project(":realty-paper-adapters:chat-adapter")
+                .tasks.named("shadowJar", AbstractArchiveTask::class).flatMap { it.archiveFile }
         // EssentialsX is downloaded below, so stage the adapter that pairs with it too — otherwise
         // the spec's Essentials smoke test cannot be run as written.
-        dependsOn(":realty-paper-adapters:essentials-adapter:shadowJar")
+        val essentialsAdapterJar = project(":realty-paper-adapters:essentials-adapter")
+                .tasks.named("shadowJar", AbstractArchiveTask::class).flatMap { it.archiveFile }
+        val moduleDir = layout.projectDirectory.dir("run/plugins/Realty/modules").asFile
+        // The archiveFile providers carry their producing task as a dependency, so the
+        // explicit dependsOn declarations they replace are no longer needed.
+        inputs.files(chatAdapterJar, essentialsAdapterJar)
         doFirst {
-            val moduleDir = project.layout.projectDirectory.dir("run/plugins/Realty/modules").asFile
             moduleDir.mkdirs()
-            val chatAdapterJar = project(":realty-paper-adapters:chat-adapter")
-                    .tasks.named("shadowJar").get().outputs.files.singleFile
-            chatAdapterJar.copyTo(moduleDir.resolve("chat-adapter.jar"), overwrite = true)
-            val essentialsAdapterJar = project(":realty-paper-adapters:essentials-adapter")
-                    .tasks.named("shadowJar").get().outputs.files.singleFile
-            essentialsAdapterJar.copyTo(moduleDir.resolve("essentials-adapter.jar"), overwrite = true)
+            chatAdapterJar.get().asFile.copyTo(moduleDir.resolve("chat-adapter.jar"), overwrite = true)
+            essentialsAdapterJar.get().asFile
+                    .copyTo(moduleDir.resolve("essentials-adapter.jar"), overwrite = true)
         }
         minecraftVersion("26.1.2")
         downloadPlugins {
