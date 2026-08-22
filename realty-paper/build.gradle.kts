@@ -22,7 +22,7 @@ dependencies {
     }
     compileOnly("net.democracycraft:treasury-api:2.0.0")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
-    implementation("org.incendo:cloud-paper:2.0.0-beta.10")
+    implementation("org.incendo:cloud-paper:2.0.0")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
     // Shared module system, schema migrations and formatting helpers. Deliberately NOT relocated in
     // shadowJar: module jars are compiled against these types and loaded into this plugin's class
