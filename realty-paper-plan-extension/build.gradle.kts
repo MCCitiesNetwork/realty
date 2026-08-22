@@ -6,7 +6,7 @@ plugins {
 
 dependencies {
     compileOnly(project(":realty-backend"))
-    compileOnly("io.papermc.paper:paper-api:26.1.2.+")
+    compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
     compileOnly("com.github.plan-player-analytics:Plan:5.7.3306")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
 
