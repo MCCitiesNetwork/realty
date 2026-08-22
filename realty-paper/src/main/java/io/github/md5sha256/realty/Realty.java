@@ -700,10 +700,10 @@ public final class Realty extends JavaPlugin {
                 getLogger().warning("No notification delivery module is installed. Realty fires notification "
                         + "events but delivers nothing on its own; every notification (sale, lease, offer, "
                         + "auction, etc.) will reach nobody. Install a delivery module by placing "
-                        + "chat-adapter.jar or pn-adapter.jar in " + moduleDir + ".");
+                        + "chat-adapter.jar or player-notifications-adapter.jar in " + moduleDir + ".");
             } else if (!this.moduleManager.getActiveModules().containsKey("chat-adapter")
-                    && !this.moduleManager.getActiveModules().containsKey("pn-adapter")) {
-                // pn-adapter is a deliberate alternative to chat delivery, so stay quiet when it
+                    && !this.moduleManager.getActiveModules().containsKey("player-notifications-adapter")) {
+                // player-notifications-adapter is a deliberate alternative to chat delivery, so stay quiet when it
                 // is installed rather than nagging a PN-only server at every startup.
                 getLogger().warning("The chat-adapter module is not installed. Online players will not "
                         + "receive chat notifications. Install it by placing chat-adapter.jar in "
