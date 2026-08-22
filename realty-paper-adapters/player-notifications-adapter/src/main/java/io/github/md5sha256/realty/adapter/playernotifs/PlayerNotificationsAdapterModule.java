@@ -4,7 +4,6 @@ import com.minecraftcitiesnetwork.pluginInfrastructure.modules.SimplePluginModul
 import io.github.md5sha256.playernotifications.api.NotificationService;
 import io.github.md5sha256.realty.Realty;
 import org.bukkit.Bukkit;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
@@ -12,14 +11,12 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * Delivers Realty notifications through the PlayerNotifications plugin, so players get per-category
@@ -28,10 +25,15 @@ import java.util.Objects;
  */
 public final class PlayerNotificationsAdapterModule extends SimplePluginModule<Realty> {
 
-    private static final String CATEGORIES_FILE = "categories.yml";
-    private static final int DEFAULT_EXPIRY_DAYS = 30;
+    private static final String CATEGORIES_FILE = CategoriesConfig.CATEGORIES_FILE;
 
     private @Nullable NotificationService service;
+    /**
+     * The mapper the live registrations were made from — never re-read on shutdown. See
+     * {@link RealtyDataTypes}: tearing down with a mapper built from a newer {@code categories.yml}
+     * would orphan any data type the operator removed in between.
+     */
+    private @Nullable NotificationCategoryMapper registeredMapper;
 
     /**
      * {@inheritDoc}
@@ -49,8 +51,9 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
      * narrow a throws clause. The lifecycle manager catches
      * {@code ModuleInitializationException | RuntimeException} identically.</p>
      *
-     * @throws IllegalStateException if PlayerNotifications is absent, disabled, or has not
-     *                               registered its service
+     * @throws IllegalStateException    if PlayerNotifications is absent, disabled, or has not
+     *                                  registered its service
+     * @throws IllegalArgumentException if {@code categories.yml} is not a usable category set
      */
     @Override
     public void initialize(@NotNull Realty plugin, @NotNull Path dataFolder) {
@@ -71,14 +74,17 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
                             + "player-notifications-adapter cannot start");
         }
 
-        // 2. Load the message-key -> dataType mapping from the module's data folder.
+        // 2. Load the operator's category set. This decides which data types exist, not just how
+        //    message keys route between them.
         YamlConfiguration config = loadCategoriesConfig(dataFolder);
-        NotificationCategoryMapper categoryMapper = readMapper(config);
-        Duration expiry = Duration.ofDays(config.getLong("expiry-days", DEFAULT_EXPIRY_DAYS));
+        NotificationCategoryMapper categoryMapper = CategoriesConfig.readMapper(config);
+        Duration expiry = CategoriesConfig.readExpiry(config);
 
         // 3. Register payload types, renderers and categories.
-        RealtyDataTypes.registerAll(notificationService, new RealtyNotificationRenderer(categoryMapper));
+        RealtyDataTypes.registerAll(
+                notificationService, categoryMapper, new RealtyNotificationRenderer(categoryMapper));
         this.service = notificationService;
+        this.registeredMapper = categoryMapper;
 
         // 4. Only now, with nothing left that can throw, does a live listener appear.
         registerListener(new PlayerNotificationsListener(
@@ -92,12 +98,14 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
     public void shutdown(@NotNull Realty plugin) {
         unregisterListeners();
         NotificationService notificationService = this.service;
-        if (notificationService != null) {
-            // All five, never a subset — see RealtyDataTypes for why a partial unregister silently
-            // corrupts the registry for the data types left behind.
-            RealtyDataTypes.unregisterAll(notificationService.dataTypeRegistry());
-            RealtyDataTypes.unclaimAll(notificationService.categoryRegistry());
+        NotificationCategoryMapper mapper = this.registeredMapper;
+        if (notificationService != null && mapper != null) {
+            // The whole set, never a subset — see RealtyDataTypes for why a partial unregister
+            // silently corrupts the registry for the data types left behind.
+            RealtyDataTypes.unregisterAll(notificationService.dataTypeRegistry(), mapper);
+            RealtyDataTypes.unclaimAll(notificationService.categoryRegistry(), mapper);
             this.service = null;
+            this.registeredMapper = null;
         }
         super.shutdown(plugin);
     }
@@ -121,44 +129,11 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
                     Files.copy(defaults, file, StandardCopyOption.REPLACE_EXISTING);
                 }
             }
-            return YamlConfiguration.loadConfiguration(Files.newBufferedReader(file));
+            try (Reader reader = Files.newBufferedReader(file)) {
+                return CategoriesConfig.load(reader);
+            }
         } catch (IOException ex) {
             throw new UncheckedIOException("Failed to read " + CATEGORIES_FILE, ex);
         }
-    }
-
-    /**
-     * Builds the mapper from a loaded {@code categories.yml}.
-     */
-    static @NotNull NotificationCategoryMapper readMapper(@NotNull YamlConfiguration config) {
-        Objects.requireNonNull(config, "config");
-        return new NotificationCategoryMapper(
-                readStrings(config.getConfigurationSection("categories")),
-                readStrings(config.getConfigurationSection("titles")),
-                readStrings(config.getConfigurationSection("title-overrides")),
-                readInts(config.getConfigurationSection("priorities")));
-    }
-
-    private static @NotNull Map<String, String> readStrings(@Nullable ConfigurationSection section) {
-        Map<String, String> values = new HashMap<>();
-        if (section != null) {
-            for (String key : section.getKeys(false)) {
-                String value = section.getString(key);
-                if (value != null && !value.isBlank()) {
-                    values.put(key, value);
-                }
-            }
-        }
-        return values;
-    }
-
-    private static @NotNull Map<String, Integer> readInts(@Nullable ConfigurationSection section) {
-        Map<String, Integer> values = new HashMap<>();
-        if (section != null) {
-            for (String key : section.getKeys(false)) {
-                values.put(key, section.getInt(key, 0));
-            }
-        }
-        return values;
     }
 }

@@ -16,11 +16,12 @@ import java.util.logging.Logger;
 class PlayerNotificationsListenerTest {
 
     private static final NotificationCategoryMapper MAPPER = new NotificationCategoryMapper(
-            Map.of("notification.outbid", "realty.auction",
-                    "notification.region-bought", "realty.general"),
-            Map.of("realty.auction", "Realty — Auction"),
+            List.of(new CategoryDefinition("realty.auction", "Realty auctions", "",
+                            "Realty — Auction", 3, List.of("notification.outbid")),
+                    new CategoryDefinition("realty.general", "Realty", "", "Realty", 0,
+                            List.of("notification.region-bought"))),
             Map.of(),
-            Map.of("realty.auction", 3));
+            "realty.general");
 
     private static PlayerNotificationsListener listener(
             List<TypedNotification<RealtyNotificationPayload>> enqueued,

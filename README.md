@@ -76,6 +76,20 @@ the ones you want by placing them in `plugins/Realty/modules` and restarting the
 delivers no notifications until at least one delivery module is installed, and logs a warning at
 startup while none is.
 
+### Notification categories
+
+`player-notifications-adapter` writes a `categories.yml` into its data folder
+(`plugins/Realty/modules/player-notifications-adapter/`) on first start. Every category declared there is
+registered with PlayerNotifications as a data type: the unit players switch on and off in
+`/notifications preferences`. Each carries its own player-facing label and description, the title shown on the
+notification, a delivery priority, and the Realty message keys routed to it.
+
+The category set is read from that file rather than compiled in, so you can rename a category, split one into
+several, or add your own without a new build of the adapter. A message key may belong to exactly one category,
+and `fallback-category` must name one of the declared categories — the adapter refuses to start otherwise
+instead of enqueueing notifications nobody can receive. A key you list nowhere routes to the fallback and is
+never dropped.
+
 ## Documentation
 
 ### Getting Started
