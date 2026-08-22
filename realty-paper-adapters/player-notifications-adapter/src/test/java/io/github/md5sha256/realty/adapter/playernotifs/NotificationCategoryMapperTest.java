@@ -1,4 +1,4 @@
-package io.github.md5sha256.realty.adapter.playernotifications;
+package io.github.md5sha256.realty.adapter.playernotifs;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

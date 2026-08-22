@@ -1,4 +1,4 @@
-package io.github.md5sha256.realty.adapter.playernotifications;
+package io.github.md5sha256.realty.adapter.playernotifs;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
