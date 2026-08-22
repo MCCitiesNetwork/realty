@@ -5,7 +5,7 @@ plugins {
 group = "io.github.md5sha256"
 version = "1.4.0"
 
-val targetJavaVersion = 21
+val targetJavaVersion = 25
 
 java.toolchain.languageVersion.set(JavaLanguageVersion.of(targetJavaVersion))
 

@@ -7,11 +7,11 @@ plugins {
 
 dependencies {
     api(project(":realty-paper-api"))
-    compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.1.2.+")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
+    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     implementation("org.enginehub:squirrelid:0.3.2") {
@@ -29,14 +29,14 @@ dependencies {
     // loader, so the names must match.
     implementation("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
 
-    testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:26.1.2.+")
     testImplementation("net.democracycraft:treasury-api:2.0.0")
-    testImplementation("org.mockito:mockito-core:5.15.2")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.15.2")
+    testImplementation("org.mockito:mockito-core:5.23.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
     testImplementation("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.15") {
+    testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
 }
@@ -96,14 +96,14 @@ tasks {
                     .tasks.named("shadowJar").get().outputs.files.singleFile
             essentialsAdapterJar.copyTo(moduleDir.resolve("essentials-adapter.jar"), overwrite = true)
         }
-        minecraftVersion("1.21.8")
+        minecraftVersion("26.1.2")
         downloadPlugins {
-            // WorldEdit 7.4.0
-            url("https://mediafilez.forgecdn.net/files/7479/274/worldedit-bukkit-7.4.0.jar")
-            // WorldGuard 7.0.14
-            url("https://mediafilez.forgecdn.net/files/6643/567/worldguard-bukkit-7.0.14-dist.jar")
-            // EssX
-            url("https://ci.ender.zone/job/EssentialsX/1774/artifact/jars/EssentialsX-2.22.0-dev+74-d7452bf.jar")
+            // WorldEdit 7.4.5 (supports 1.21.4-26.2)
+            url("https://cdn.modrinth.com/data/1u6JkXh5/versions/F5ea2ov3/worldedit-bukkit-7.4.5.jar")
+            // WorldGuard 7.0.18 (supports 26.1-26.2) -- matches the compileOnly version
+            url("https://cdn.modrinth.com/data/DKY9btbd/versions/btHBavWa/worldguard-bukkit-7.0.18.jar")
+            // EssX 2.22.0 release (the previous dev build fails to enable on 26.x)
+            url("https://cdn.modrinth.com/data/hXiIvTyT/versions/nY6VN1XH/EssentialsX-2.22.0.jar")
             // Vault
             url("https://mediafilez.forgecdn.net/files/3007/470/Vault.jar")
         }
