@@ -1,4 +1,4 @@
-package io.github.md5sha256.realty.adapter.playernotifications;
+package io.github.md5sha256.realty.adapter.playernotifs;
 
 import com.minecraftcitiesnetwork.pluginInfrastructure.modules.SimplePluginModule;
 import io.github.md5sha256.playernotifications.api.NotificationService;
