@@ -9,13 +9,7 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 
 /**
@@ -24,8 +18,6 @@ import java.time.Duration;
  * chat delivery {@code chat-adapter} provides.
  */
 public final class PlayerNotificationsAdapterModule extends SimplePluginModule<Realty> {
-
-    private static final String CATEGORIES_FILE = CategoriesConfig.CATEGORIES_FILE;
 
     private @Nullable NotificationService service;
     /**
@@ -76,7 +68,7 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
 
         // 2. Load the operator's category set. This decides which data types exist, not just how
         //    message keys route between them.
-        YamlConfiguration config = loadCategoriesConfig(dataFolder);
+        YamlConfiguration config = CategoriesConfig.read(dataFolder);
         NotificationCategoryMapper categoryMapper = CategoriesConfig.readMapper(config);
         Duration expiry = CategoriesConfig.readExpiry(config);
 
@@ -108,32 +100,5 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
             this.registeredMapper = null;
         }
         super.shutdown(plugin);
-    }
-
-    /**
-     * Reads {@code categories.yml} from the module's data folder, writing the bundled default there
-     * first if the operator has none.
-     */
-    private static @NotNull YamlConfiguration loadCategoriesConfig(@NotNull Path dataFolder) {
-        Path file = dataFolder.resolve(CATEGORIES_FILE);
-        try {
-            if (!Files.exists(file)) {
-                Files.createDirectories(dataFolder);
-                try (InputStream defaults = PlayerNotificationsAdapterModule.class
-                        .getClassLoader()
-                        .getResourceAsStream(CATEGORIES_FILE)) {
-                    if (defaults == null) {
-                        throw new IllegalStateException(
-                                "player-notifications-adapter jar is missing its bundled " + CATEGORIES_FILE);
-                    }
-                    Files.copy(defaults, file, StandardCopyOption.REPLACE_EXISTING);
-                }
-            }
-            try (Reader reader = Files.newBufferedReader(file)) {
-                return CategoriesConfig.load(reader);
-            }
-        } catch (IOException ex) {
-            throw new UncheckedIOException("Failed to read " + CATEGORIES_FILE, ex);
-        }
     }
 }
