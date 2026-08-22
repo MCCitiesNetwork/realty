@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -22,6 +23,8 @@ import java.util.UUID;
  * a government account) therefore both receive income into and pay refunds out
  * of their government treasury, while ordinary players resolve to their
  * personal balance rather than a firm BUSINESS account they happen to own.
+ * Balance reads follow the same preference, so an affordability check always
+ * inspects the account the subsequent transfer would actually touch.
  */
 public final class TreasuryEconomyProvider implements EconomyProvider {
 
@@ -35,10 +38,16 @@ public final class TreasuryEconomyProvider implements EconomyProvider {
 
     @Override
     public double getBalance(@NotNull UUID playerId) {
-        if (!treasuryApi.hasAccountByOwnerUuid(playerId)) {
+        // Read the same account transfer() would debit, not whichever one
+        // getBalanceByOwnerUuid happens to pick -- otherwise a government
+        // entity is checked for affordability against its personal balance.
+        // A read must not open an account, so there is no create-if-missing
+        // fallback here: no accounts means no funds.
+        Account account = preferredAccount(treasuryApi.getAccountsByOwner(playerId)).orElse(null);
+        if (account == null) {
             return 0.0;
         }
-        BigDecimal balance = treasuryApi.getBalanceByOwnerUuid(playerId);
+        BigDecimal balance = treasuryApi.getBalanceByAccountId(account.getAccountId());
         return balance != null ? balance.doubleValue() : 0.0;
     }
 
@@ -101,19 +110,30 @@ public final class TreasuryEconomyProvider implements EconomyProvider {
      * account.
      */
     private @NotNull Account resolveAccount(@NotNull UUID ownerUuid) {
-        List<Account> accounts = treasuryApi.getAccountsByOwner(ownerUuid);
-        if (!accounts.isEmpty()) {
-            return accounts.stream()
-                    .filter(a -> a.getAccountType() == AccountType.GOVERNMENT)
-                    .findFirst()
-                    .or(() -> accounts.stream()
-                            .filter(a -> a.getAccountType() == AccountType.PERSONAL)
-                            .findFirst())
-                    .or(() -> accounts.stream()
-                            .filter(a -> a.getAccountType() == AccountType.BUSINESS)
-                            .findFirst())
-                    .orElse(accounts.get(0));
+        return preferredAccount(treasuryApi.getAccountsByOwner(ownerUuid))
+                .orElseGet(() -> treasuryApi.resolveOrCreatePersonal(ownerUuid));
+    }
+
+    /**
+     * Applies the GOVERNMENT &gt; PERSONAL &gt; BUSINESS &gt; first-available
+     * preference to an already-fetched account list, or empty when the party
+     * holds no accounts at all. Shared by {@link #resolveAccount(UUID)} and
+     * {@link #getBalance(UUID)} so a balance check and the transfer it gates
+     * can never disagree about which account is in play.
+     */
+    private @NotNull Optional<Account> preferredAccount(@NotNull List<Account> accounts) {
+        if (accounts.isEmpty()) {
+            return Optional.empty();
         }
-        return treasuryApi.resolveOrCreatePersonal(ownerUuid);
+        return Optional.of(accounts.stream()
+                .filter(a -> a.getAccountType() == AccountType.GOVERNMENT)
+                .findFirst()
+                .or(() -> accounts.stream()
+                        .filter(a -> a.getAccountType() == AccountType.PERSONAL)
+                        .findFirst())
+                .or(() -> accounts.stream()
+                        .filter(a -> a.getAccountType() == AccountType.BUSINESS)
+                        .findFirst())
+                .orElse(accounts.get(0)));
     }
 }

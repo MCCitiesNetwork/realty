@@ -18,6 +18,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -156,5 +157,48 @@ class TreasuryEconomyProviderTest {
                 .thenReturn(account(88, AccountType.PERSONAL, newPayer));
 
         assertEquals(88, capturedSource(newPayer));
+    }
+
+    @Test
+    void governmentBalance_readsTheGovernmentAccountNotPersonal() {
+        UUID government = UUID.randomUUID();
+        when(treasuryApi.getAccountsByOwner(government)).thenReturn(List.of(
+                account(13, AccountType.PERSONAL, government),
+                account(9, AccountType.GOVERNMENT, government)));
+        when(treasuryApi.getBalanceByAccountId(9)).thenReturn(new BigDecimal("250.00"));
+
+        assertEquals(250.0, provider.getBalance(government),
+                "a government entity's balance must be read from the account it transacts with");
+    }
+
+    @Test
+    void firmProprietorBalance_readsPersonalNotBusiness() {
+        UUID proprietor = UUID.randomUUID();
+        when(treasuryApi.getAccountsByOwner(proprietor)).thenReturn(List.of(
+                account(500, AccountType.BUSINESS, proprietor),
+                account(42, AccountType.PERSONAL, proprietor)));
+        when(treasuryApi.getBalanceByAccountId(42)).thenReturn(new BigDecimal("10.50"));
+
+        assertEquals(10.50, provider.getBalance(proprietor));
+    }
+
+    @Test
+    void balanceWithNoAccounts_isZeroAndCreatesNothing() {
+        UUID stranger = UUID.randomUUID();
+        when(treasuryApi.getAccountsByOwner(stranger)).thenReturn(List.of());
+
+        assertEquals(0.0, provider.getBalance(stranger));
+        // A balance read must never have the side effect of opening an account.
+        verify(treasuryApi, never()).resolveOrCreatePersonal(stranger);
+    }
+
+    @Test
+    void balanceOfNull_isZero() {
+        UUID owner = UUID.randomUUID();
+        when(treasuryApi.getAccountsByOwner(owner)).thenReturn(List.of(
+                account(42, AccountType.PERSONAL, owner)));
+        when(treasuryApi.getBalanceByAccountId(42)).thenReturn(null);
+
+        assertEquals(0.0, provider.getBalance(owner));
     }
 }
