@@ -231,6 +231,7 @@ public record AuctionCommandGroup(
                     Placeholder.unparsed("region", regionId)));
             for (UUID bidderId : result.bidderIds()) {
                 events.fireSync(new RealtyNotificationEvent(List.of(bidderId),
+                        MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
                         messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
                                 Placeholder.unparsed("region", regionId)), region));
             }
@@ -272,6 +273,7 @@ public record AuctionCommandGroup(
                                     Placeholder.unparsed("region", regionId)));
                             if (success.previousBidderId() != null) {
                                 events.fireSync(new RealtyNotificationEvent(List.of(success.previousBidderId()),
+                                        MessageKeys.NOTIFICATION_OUTBID,
                                         messages.messageFor(MessageKeys.NOTIFICATION_OUTBID,
                                                 Placeholder.unparsed("region", regionId),
                                                 Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))), region));
@@ -326,6 +328,7 @@ public record AuctionCommandGroup(
                             Placeholder.unparsed("region", fullyPaid.regionId())));
                     if (fullyPaid.previousTitleHolderId() != null) {
                         events.fireSync(new RealtyNotificationEvent(List.of(fullyPaid.previousTitleHolderId()),
+                                MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("region", fullyPaid.regionId())), region));

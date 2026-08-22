@@ -73,6 +73,7 @@ public record AgentRemoveCommand(@NotNull RealtyPaperApi api,
                         Placeholder.unparsed("player", targetName),
                         Placeholder.unparsed("region", regionId)));
                 events.fireSync(new RealtyNotificationEvent(List.of(targetId),
+                        MessageKeys.NOTIFICATION_AGENT_REMOVED,
                         messages.messageFor(MessageKeys.NOTIFICATION_AGENT_REMOVED,
                                 Placeholder.unparsed("player", player.getName()),
                                 Placeholder.unparsed("region", regionId)), region));

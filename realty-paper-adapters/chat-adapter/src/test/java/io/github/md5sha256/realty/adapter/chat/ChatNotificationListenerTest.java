@@ -14,6 +14,8 @@ import java.util.UUID;
 
 class ChatNotificationListenerTest {
 
+    private static final String KEY = "notification.offer.rejected";
+
     @Test
     void sendsToOnlineTargets() {
         UUID online = UUID.randomUUID();
@@ -23,7 +25,7 @@ class ChatNotificationListenerTest {
 
         ChatNotificationListener listener = new ChatNotificationListener(players::get);
         RealtyNotificationEvent event =
-                new RealtyNotificationEvent(List.of(online), Component.text("rejected"), null);
+                new RealtyNotificationEvent(List.of(online), KEY, Component.text("rejected"), null);
 
         listener.onNotification(event);
 
@@ -34,7 +36,7 @@ class ChatNotificationListenerTest {
     void offlineTargetIsSkippedWithoutThrowing() {
         ChatNotificationListener listener = new ChatNotificationListener(uuid -> null);
         RealtyNotificationEvent event = new RealtyNotificationEvent(
-                List.of(UUID.randomUUID()), Component.text("rejected"), null);
+                List.of(UUID.randomUUID()), KEY, Component.text("rejected"), null);
 
         Assertions.assertDoesNotThrow(() -> listener.onNotification(event));
     }
@@ -51,7 +53,7 @@ class ChatNotificationListenerTest {
 
         ChatNotificationListener listener = new ChatNotificationListener(players::get);
         RealtyNotificationEvent event = new RealtyNotificationEvent(
-                List.of(first, second, offline), Component.text("rejected"), null);
+                List.of(first, second, offline), KEY, Component.text("rejected"), null);
 
         listener.onNotification(event);
 
