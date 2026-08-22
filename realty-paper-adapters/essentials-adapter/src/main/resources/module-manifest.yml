@@ -1,5 +1,5 @@
-moduleName: essentials-adapter
-entryClass: io.github.md5sha256.realty.adapter.essentials.EssentialsAdapterModule
+module-name: essentials-adapter
+entry-class: io.github.md5sha256.realty.adapter.essentials.EssentialsAdapterModule
 author: md5sha256
-expectedPluginClass: io.github.md5sha256.realty.Realty
+expected-plugin-class: io.github.md5sha256.realty.Realty
 reloadable: false
