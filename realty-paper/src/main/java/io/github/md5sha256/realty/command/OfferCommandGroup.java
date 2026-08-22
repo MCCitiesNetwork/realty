@@ -150,6 +150,7 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("region", regionId)));
                             if (success.titleHolderId() != null) {
                                 events.fireSync(new RealtyNotificationEvent(List.of(success.titleHolderId()),
+                                        MessageKeys.NOTIFICATION_OFFER_PLACED,
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_PLACED,
                                                 Placeholder.unparsed("player", sender.getName()),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(price)),
@@ -304,6 +305,7 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
                             events.fireSync(new RealtyNotificationEvent(List.of(target.getUniqueId()),
+                                    MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
                                             Placeholder.unparsed("region", regionId)), region));
                             events.fireSync(new OfferAcceptedEvent(region, sender.getUniqueId(),
@@ -361,6 +363,7 @@ public record OfferCommandGroup(
                             Placeholder.unparsed("region", fullyPaid.regionId())));
                     if (fullyPaid.previousTitleHolderId() != null) {
                         events.fireSync(new RealtyNotificationEvent(List.of(fullyPaid.previousTitleHolderId()),
+                                MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("region", fullyPaid.regionId())), region));
@@ -413,6 +416,7 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("region", regionId)));
                             if (titleHolderId != null) {
                                 events.fireSync(new RealtyNotificationEvent(List.of(titleHolderId),
+                                        MessageKeys.NOTIFICATION_OFFER_WITHDRAWN,
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_WITHDRAWN,
                                                 Placeholder.unparsed("player", sender.getName()),
                                                 Placeholder.unparsed("region", regionId)), region));
@@ -463,6 +467,7 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("player", playerName),
                                     Placeholder.unparsed("region", regionId)));
                             events.fireSync(new RealtyNotificationEvent(List.of(target.getUniqueId()),
+                                    MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                     messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                             Placeholder.unparsed("region", regionId)), region));
                             events.fireSync(new OfferRejectedEvent(region, sender.getUniqueId(),
@@ -509,6 +514,7 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("region", regionId)));
                             if (!success.offererIds().isEmpty()) {
                                 events.fireSync(new RealtyNotificationEvent(List.copyOf(success.offererIds()),
+                                        MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                         messages.messageFor(MessageKeys.NOTIFICATION_OFFER_REJECTED,
                                                 Placeholder.unparsed("region", regionId)), region));
                             }

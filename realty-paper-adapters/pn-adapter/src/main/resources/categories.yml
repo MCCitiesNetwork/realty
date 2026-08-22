@@ -1,0 +1,73 @@
+# Maps a Realty message key (the messages.yml path the notification was rendered from) to the
+# PlayerNotifications dataType it is enqueued under. The dataType is what PN groups by in its
+# preference dialogs, so this is how an operator decides how finely players may opt in and out.
+#
+# A key that is absent here routes to realty.general and is logged at FINE — never dropped.
+# Adding a key that is not one of Realty's own is harmless; it simply never matches.
+categories:
+  # realty.agent — agent invites and removals
+  notification.agent-invited: realty.agent
+  notification.agent-invite-accepted: realty.agent
+  notification.agent-invite-rejected: realty.agent
+  notification.agent-invite-withdrawn: realty.agent
+  notification.agent-removed: realty.agent
+
+  # realty.auction — bidding, auction outcomes, bid payment expiry
+  notification.outbid: realty.auction
+  notification.auction-cancelled: realty.auction
+  notification.auction-won: realty.auction
+  notification.auction-ended-no-bids: realty.auction
+  notification.bid-payment-expired: realty.auction
+
+  # realty.offer — offers and offer payment expiry
+  notification.offer-placed: realty.offer
+  notification.offer-accepted: realty.offer
+  notification.offer-rejected: realty.offer
+  notification.offer-withdrawn: realty.offer
+  notification.offer-payment-expired: realty.offer
+
+  # realty.lease — leasehold lifecycle, modification proposals, terminations
+  notification.region-rented: realty.lease
+  notification.region-unrented: realty.lease
+  notification.leasehold-expired: realty.lease
+  notification.leasehold-expired-landlord: realty.lease
+  notification.modify-proposed-landlord: realty.lease
+  notification.modify-proposed-tenant: realty.lease
+  notification.modify-accepted: realty.lease
+  notification.modify-rejected: realty.lease
+  notification.modify-withdrawn: realty.lease
+  notification.termination-scheduled-tenant: realty.lease
+  notification.termination-scheduled-landlord: realty.lease
+  notification.termination-cancelled: realty.lease
+  notification.leasehold-terminated-tenant: realty.lease
+  notification.leasehold-terminated-landlord: realty.lease
+
+  # realty.general — freehold sales, and the fallback for anything unmapped
+  notification.region-bought: realty.general
+  notification.ownership-transferred: realty.general
+
+# Display titles, keyed by dataType, with an optional per-message-key override below.
+# Titles are plain text: non-Minecraft sinks flatten components, so they must not depend on
+# click or hover events to make sense.
+titles:
+  realty.agent: "Realty — Agents"
+  realty.auction: "Realty — Auction"
+  realty.offer: "Realty — Offer"
+  realty.lease: "Realty — Lease"
+  realty.general: "Realty"
+
+# Per-message-key title overrides. Beats the dataType title above.
+title-overrides:
+  notification.auction-won: "Realty — Auction won"
+  notification.outbid: "Realty — You were outbid"
+
+# Per-dataType delivery priority. Higher sorts first in the inbox.
+priorities:
+  realty.agent: 0
+  realty.auction: 1
+  realty.offer: 1
+  realty.lease: 1
+  realty.general: 0
+
+# How long an enqueued notification stays in the inbox before PN expires it.
+expiry-days: 30

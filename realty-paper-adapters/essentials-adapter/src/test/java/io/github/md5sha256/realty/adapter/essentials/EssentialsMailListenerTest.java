@@ -15,6 +15,8 @@ import java.util.UUID;
 
 class EssentialsMailListenerTest {
 
+    private static final String KEY = "notification.offer.rejected";
+
     @Test
     void mailsOfflineTargets() {
         UUID offline = UUID.randomUUID();
@@ -24,7 +26,7 @@ class EssentialsMailListenerTest {
                 (uuid, text) -> sent.add(Map.entry(uuid, text)),
                 uuid -> false);
         RealtyNotificationEvent event = new RealtyNotificationEvent(
-                List.of(offline), Component.text("rejected"), null);
+                List.of(offline), KEY, Component.text("rejected"), null);
 
         listener.onNotification(event);
 
@@ -41,7 +43,7 @@ class EssentialsMailListenerTest {
                 (uuid, text) -> sent.add(Map.entry(uuid, text)),
                 uuid -> true);
         RealtyNotificationEvent event = new RealtyNotificationEvent(
-                List.of(UUID.randomUUID()), Component.text("rejected"), null);
+                List.of(UUID.randomUUID()), KEY, Component.text("rejected"), null);
 
         listener.onNotification(event);
 
@@ -56,7 +58,7 @@ class EssentialsMailListenerTest {
                 (uuid, text) -> sent.add(Map.entry(uuid, text)),
                 uuid -> false);
         RealtyNotificationEvent event = new RealtyNotificationEvent(
-                List.of(UUID.randomUUID()), Component.text("sold", NamedTextColor.RED), null);
+                List.of(UUID.randomUUID()), KEY, Component.text("sold", NamedTextColor.RED), null);
 
         listener.onNotification(event);
 
@@ -78,7 +80,7 @@ class EssentialsMailListenerTest {
                 },
                 uuid -> false);
         RealtyNotificationEvent event = new RealtyNotificationEvent(
-                List.of(first, second), Component.text("rejected"), null);
+                List.of(first, second), KEY, Component.text("rejected"), null);
 
         listener.onNotification(event);
 

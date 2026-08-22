@@ -67,6 +67,14 @@ immutable: republishing a version that already exists fails with a 409, so bump 
 | `realty-paper` | Main Paper plugin |
 | `realty-paper-plan-extension` | Optional [Plan](https://github.com/plan-player-analytics/Plan) integration |
 | `realty-areashop-importer` | Optional AreaShop migration helper |
+| `realty-paper-adapters/chat-adapter` | Notification delivery to online players via chat |
+| `realty-paper-adapters/essentials-adapter` | Notification delivery via EssentialsX mail |
+| `realty-paper-adapters/pn-adapter` | Notification delivery via [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) |
+
+The adapter modules are **not bundled in the plugin jar**. Each is published as its own jar; install
+the ones you want by placing them in `plugins/Realty/modules` and restarting the server. Realty
+delivers no notifications until at least one delivery module is installed, and logs a warning at
+startup while none is.
 
 ## Documentation
 

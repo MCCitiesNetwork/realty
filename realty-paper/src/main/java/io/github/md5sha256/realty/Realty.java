@@ -401,12 +401,14 @@ public final class Realty extends JavaPlugin {
                         if (auction.winnerId() != null) {
                             this.eventDispatch.fireSync(new RealtyNotificationEvent(
                                     List.of(auction.winnerId()),
+                                    MessageKeys.NOTIFICATION_AUCTION_WON,
                                     this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
                                             Placeholder.unparsed("region", auction.worldGuardRegionId())),
                                     wgRegion));
                         } else {
                             this.eventDispatch.fireSync(new RealtyNotificationEvent(
                                     List.of(auction.auctioneerId()),
+                                    MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
                                     this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_ENDED_NO_BIDS,
                                             Placeholder.unparsed("region", auction.worldGuardRegionId())),
                                     wgRegion));
@@ -425,6 +427,7 @@ public final class Realty extends JavaPlugin {
                         WorldGuardRegion wgRegion = resolveRegion(payment.worldId(), payment.regionId());
                         this.eventDispatch.fireSync(new RealtyNotificationEvent(
                                 List.of(payment.bidderId()),
+                                MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
                                 this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
                                         Placeholder.unparsed("region", payment.regionId()),
                                         Placeholder.unparsed("amount",
@@ -440,6 +443,7 @@ public final class Realty extends JavaPlugin {
                         WorldGuardRegion wgRegion = resolveRegion(payment.worldId(), payment.regionId());
                         this.eventDispatch.fireSync(new RealtyNotificationEvent(
                                 List.of(payment.offererId()),
+                                MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
                                 this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
                                         Placeholder.unparsed("region", payment.regionId()),
                                         Placeholder.unparsed("amount",
@@ -691,23 +695,19 @@ public final class Realty extends JavaPlugin {
         Path moduleDir = getDataFolder().toPath().resolve("modules");
         try {
             Files.createDirectories(moduleDir);
-            try {
-                BundledModuleExtractor.extract(moduleDir.resolve("chat-adapter.jar"),
-                        () -> getClass().getClassLoader().getResourceAsStream("modules/chat-adapter.jar"));
-            } catch (IOException ex) {
-                // No chat adapter means no chat notifications, a degradation, not a fault worth
-                // taking the plugin down for.
-                getLogger().warning("Failed to extract bundled chat-adapter module: " + ex.getMessage());
-            }
             this.moduleManager.start();
             if (this.moduleManager.getActiveModules().isEmpty()) {
-                getLogger().warning("No notification delivery module is loaded. Realty fires notification "
+                getLogger().warning("No notification delivery module is installed. Realty fires notification "
                         + "events but delivers nothing on its own; every notification (sale, lease, offer, "
-                        + "auction, etc.) will reach nobody. Place chat-adapter.jar in " + moduleDir
-                        + " to enable it.");
-            } else if (!this.moduleManager.getActiveModules().containsKey("chat-adapter")) {
-                getLogger().warning("The chat-adapter module is not loaded. Online players will not receive "
-                        + "chat notifications. Place chat-adapter.jar in " + moduleDir + " to enable it.");
+                        + "auction, etc.) will reach nobody. Install a delivery module by placing "
+                        + "chat-adapter.jar or pn-adapter.jar in " + moduleDir + ".");
+            } else if (!this.moduleManager.getActiveModules().containsKey("chat-adapter")
+                    && !this.moduleManager.getActiveModules().containsKey("pn-adapter")) {
+                // pn-adapter is a deliberate alternative to chat delivery, so stay quiet when it
+                // is installed rather than nagging a PN-only server at every startup.
+                getLogger().warning("The chat-adapter module is not installed. Online players will not "
+                        + "receive chat notifications. Install it by placing chat-adapter.jar in "
+                        + moduleDir + ".");
             }
             if (getServer().getPluginManager().isPluginEnabled("Essentials")
                     && !this.moduleManager.getActiveModules().containsKey("essentials-adapter")) {
