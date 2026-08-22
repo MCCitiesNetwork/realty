@@ -185,15 +185,27 @@ tasks {
         // the spec's Essentials smoke test cannot be run as written.
         val essentialsAdapterJar = project(":realty-paper-adapters:essentials-adapter")
                 .tasks.named("shadowJar", AbstractArchiveTask::class).flatMap { it.archiveFile }
+        // Plan is downloaded below, so stage the extension that pairs with it. Staging it
+        // here rather than leaving a hand-copied jar in run/plugins is what stops it going
+        // stale: the copy that lived there was built before RealtyApi became RealtyBackend
+        // and failed every startup with NoClassDefFoundError.
+        val planExtensionJar = project(":realty-paper-plan-extension")
+                .tasks.named("shadowJar", AbstractArchiveTask::class).flatMap { it.archiveFile }
         val moduleDir = layout.projectDirectory.dir("run/plugins/Realty/modules").asFile
+        val pluginsDir = layout.projectDirectory.dir("run/plugins").asFile
         // The archiveFile providers carry their producing task as a dependency, so the
         // explicit dependsOn declarations they replace are no longer needed.
-        inputs.files(chatAdapterJar, essentialsAdapterJar)
+        inputs.files(chatAdapterJar, essentialsAdapterJar, planExtensionJar)
         doFirst {
             moduleDir.mkdirs()
             chatAdapterJar.get().asFile.copyTo(moduleDir.resolve("chat-adapter.jar"), overwrite = true)
             essentialsAdapterJar.get().asFile
                     .copyTo(moduleDir.resolve("essentials-adapter.jar"), overwrite = true)
+            // Fixed filename, so a rebuild replaces the jar instead of leaving the previous
+            // version behind as a second, duplicate plugin.
+            pluginsDir.mkdirs()
+            planExtensionJar.get().asFile
+                    .copyTo(pluginsDir.resolve("realty-paper-plan-extension.jar"), overwrite = true)
         }
         minecraftVersion("26.1.2")
         downloadPlugins {
