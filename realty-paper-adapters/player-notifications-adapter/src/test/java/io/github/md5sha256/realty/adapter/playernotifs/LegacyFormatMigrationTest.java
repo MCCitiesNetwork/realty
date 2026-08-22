@@ -13,7 +13,7 @@ import java.nio.file.Path;
 import java.util.logging.Logger;
 
 /**
- * Covers the replacement of a pre-1.4.2 {@code categories.yml}.
+ * Covers the replacement of a pre-1.5.0 {@code categories.yml}.
  *
  * <p>An operator upgrading has one on disk, and it would otherwise fail the parse and take the whole
  * module down on start.</p>

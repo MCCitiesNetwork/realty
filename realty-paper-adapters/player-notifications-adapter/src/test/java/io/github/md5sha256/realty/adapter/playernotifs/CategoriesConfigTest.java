@@ -118,7 +118,7 @@ class CategoriesConfigTest {
     }
 
     /**
-     * The pre-1.4.2 file mapped a message key straight to a category name. Parsing that as the new
+     * The pre-1.5.0 file mapped a message key straight to a category name. Parsing that as the new
      * shape would silently produce categories named after message keys, so it is rejected with a
      * message that names the format change.
      */
@@ -132,6 +132,6 @@ class CategoriesConfigTest {
                         """));
 
         Assertions.assertTrue(thrown.getMessage().contains("notification.outbid"), thrown.getMessage());
-        Assertions.assertTrue(thrown.getMessage().contains("pre-1.4.2"), thrown.getMessage());
+        Assertions.assertTrue(thrown.getMessage().contains("pre-1.5.0"), thrown.getMessage());
     }
 }

@@ -39,7 +39,7 @@ public final class CategoriesConfig {
      */
     static final String DEFAULTS_DIR = "defaults";
     static final String REFERENCE_FILE = "default-categories.yml";
-    static final String LEGACY_BACKUP_SUFFIX = ".pre-1.4.2.bak";
+    static final String LEGACY_BACKUP_SUFFIX = ".pre-1.5.0.bak";
     private static final String DEFAULT_FALLBACK = "realty.general";
     private static final int DEFAULT_EXPIRY_DAYS = 30;
 
@@ -77,7 +77,7 @@ public final class CategoriesConfig {
 
     /**
      * Reads the operator's {@code categories.yml}, writing the bundled default there first if they
-     * have none, refreshing the reference copy beside it either way, and replacing a pre-1.4.2 file
+     * have none, refreshing the reference copy beside it either way, and replacing a pre-1.5.0 file
      * with the current default.
      */
     public static @NotNull YamlConfiguration read(@NotNull Path dataFolder, @NotNull Logger logger) {
@@ -102,7 +102,7 @@ public final class CategoriesConfig {
     }
 
     /**
-     * Whether this is a pre-1.4.2 file, which mapped each message key straight to a category name
+     * Whether this is a pre-1.5.0 file, which mapped each message key straight to a category name
      * instead of declaring categories as sections.
      *
      * <p>Detected structurally — any direct child of {@code categories} that is not itself a section
@@ -123,7 +123,7 @@ public final class CategoriesConfig {
     }
 
     /**
-     * Backs up a pre-1.4.2 file and puts the current default in its place.
+     * Backs up a pre-1.5.0 file and puts the current default in its place.
      *
      * <p>Replaced rather than converted, and this loses the operator nothing: the old format never
      * worked. Bukkit splits configuration keys on {@code '.'} as it loads, and every key in that
@@ -138,7 +138,7 @@ public final class CategoriesConfig {
         Files.move(file, backup, StandardCopyOption.REPLACE_EXISTING);
         copyBundled(file);
         logger.log(Level.WARNING,
-                "{0} was in the pre-1.4.2 format, which never took effect — Bukkit split its dotted "
+                "{0} was in the pre-1.5.0 format, which never took effect — Bukkit split its dotted "
                         + "keys on load, so every notification fell through to the fallback category. "
                         + "It has been backed up as {1} and replaced with the current default. Re-apply "
                         + "any routing you intended; {2} shows the current format.",
@@ -199,9 +199,9 @@ public final class CategoriesConfig {
             ConfigurationSection entry = section.getConfigurationSection(key);
             if (entry == null) {
                 throw new IllegalArgumentException(
-                        "Category '" + key + "' in " + CATEGORIES_FILE + " is not a section. Since 1.4.2 a "
+                        "Category '" + key + "' in " + CATEGORIES_FILE + " is not a section. Since 1.5.0 a "
                                 + "category declares its own label, description and keys; a bare "
-                                + "'message-key: category' line is the pre-1.4.2 format.");
+                                + "'message-key: category' line is the pre-1.5.0 format.");
             }
             categories.add(new CategoryDefinition(
                     key,
