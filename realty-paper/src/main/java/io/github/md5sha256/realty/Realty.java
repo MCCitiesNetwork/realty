@@ -205,10 +205,16 @@ public final class Realty extends JavaPlugin {
     public void onLoad() {
         try {
             initDataFolder();
+            // Every operator-editable config gets a reference copy under defaults/, rewritten on
+            // every load so it always shows what a current, fully-populated file looks like. The
+            // live files themselves are seeded once by copyDefaultsYaml and then left alone, so
+            // this is the only way an operator can see what an upgrade added.
             copyResourceTemplate("messages.yml", "defaults/default-messages.yml");
             copyResourceTemplate("settings.yml", "defaults/default-settings.yml");
             copyResourceTemplate("profiles.yml", "defaults/default-profiles.yml");
             copyResourceTemplate("taxes.yml", "defaults/default-taxes.yml");
+            copyResourceTemplate("database.yml", "defaults/default-database.yml");
+            copyResourceTemplate("region-tags.yml", "defaults/default-region-tags.yml");
             reloadMessages();
             this.databaseSettings = loadDatabaseSettings();
             this.settings.set(loadSettings());

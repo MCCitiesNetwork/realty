@@ -7,8 +7,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,6 +31,12 @@ import java.util.Objects;
 public final class CategoriesConfig {
 
     static final String CATEGORIES_FILE = "categories.yml";
+    /**
+     * Where the always-current reference copy is written, mirroring the {@code defaults/} folder
+     * {@code Realty} itself writes for {@code messages.yml} and friends.
+     */
+    static final String DEFAULTS_DIR = "defaults";
+    static final String REFERENCE_FILE = "default-categories.yml";
     private static final String DEFAULT_FALLBACK = "realty.general";
     private static final int DEFAULT_EXPIRY_DAYS = 30;
 
@@ -60,6 +70,53 @@ public final class CategoriesConfig {
             throw new UncheckedIOException("Failed to read " + CATEGORIES_FILE, ex);
         }
         return config;
+    }
+
+    /**
+     * Reads the operator's {@code categories.yml}, writing the bundled default there first if they
+     * have none, and refreshing the reference copy beside it either way.
+     */
+    public static @NotNull YamlConfiguration read(@NotNull Path dataFolder) {
+        Objects.requireNonNull(dataFolder, "dataFolder");
+        Path file = dataFolder.resolve(CATEGORIES_FILE);
+        try {
+            Files.createDirectories(dataFolder);
+            if (!Files.exists(file)) {
+                copyBundled(file);
+            }
+            writeReferenceCopy(dataFolder);
+            try (Reader reader = Files.newBufferedReader(file)) {
+                return load(reader);
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException("Failed to read " + CATEGORIES_FILE, ex);
+        }
+    }
+
+    /**
+     * Writes {@code defaults/default-categories.yml}, overwriting any previous copy.
+     *
+     * <p>Rewritten on every start rather than only when absent: its whole purpose is to show what a
+     * current, fully-populated file looks like, so an operator can diff their own against it after
+     * an upgrade. A copy left over from an older version would answer that question wrongly, which
+     * is worse than not being there at all. Nothing ever reads it back — only {@link
+     * #CATEGORIES_FILE} is loaded — so editing it has no effect and clobbering it loses nothing.</p>
+     */
+    public static void writeReferenceCopy(@NotNull Path dataFolder) throws IOException {
+        Path defaults = dataFolder.resolve(DEFAULTS_DIR);
+        Files.createDirectories(defaults);
+        copyBundled(defaults.resolve(REFERENCE_FILE));
+    }
+
+    private static void copyBundled(@NotNull Path target) throws IOException {
+        try (InputStream bundled = CategoriesConfig.class.getClassLoader()
+                .getResourceAsStream(CATEGORIES_FILE)) {
+            if (bundled == null) {
+                throw new IllegalStateException(
+                        "player-notifications-adapter jar is missing its bundled " + CATEGORIES_FILE);
+            }
+            Files.copy(bundled, target, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     /**
