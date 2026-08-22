@@ -90,6 +90,13 @@ and `fallback-category` must name one of the declared categories — the adapter
 instead of enqueueing notifications nobody can receive. A key you list nowhere routes to the fallback and is
 never dropped.
 
+### Turning off EssentialsX mail delivery
+
+`essentials-adapter` writes a `config.yml` into its data folder. Setting `notifications-enabled: false`
+stops Realty notifications being delivered as EssentialsX mail — useful when another delivery module
+already covers offline players and you do not want the same notification arriving twice. The module's
+teleport-safety integration is not affected by the setting and always applies.
+
 ## Documentation
 
 ### Getting Started

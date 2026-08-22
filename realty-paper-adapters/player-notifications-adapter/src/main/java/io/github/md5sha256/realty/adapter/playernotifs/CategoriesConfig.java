@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Parses the module's {@code categories.yml} into a {@link NotificationCategoryMapper}.
@@ -37,6 +39,7 @@ public final class CategoriesConfig {
      */
     static final String DEFAULTS_DIR = "defaults";
     static final String REFERENCE_FILE = "default-categories.yml";
+    static final String LEGACY_BACKUP_SUFFIX = ".pre-1.4.2.bak";
     private static final String DEFAULT_FALLBACK = "realty.general";
     private static final int DEFAULT_EXPIRY_DAYS = 30;
 
@@ -74,10 +77,12 @@ public final class CategoriesConfig {
 
     /**
      * Reads the operator's {@code categories.yml}, writing the bundled default there first if they
-     * have none, and refreshing the reference copy beside it either way.
+     * have none, refreshing the reference copy beside it either way, and replacing a pre-1.4.2 file
+     * with the current default.
      */
-    public static @NotNull YamlConfiguration read(@NotNull Path dataFolder) {
+    public static @NotNull YamlConfiguration read(@NotNull Path dataFolder, @NotNull Logger logger) {
         Objects.requireNonNull(dataFolder, "dataFolder");
+        Objects.requireNonNull(logger, "logger");
         Path file = dataFolder.resolve(CATEGORIES_FILE);
         try {
             Files.createDirectories(dataFolder);
@@ -85,11 +90,65 @@ public final class CategoriesConfig {
                 copyBundled(file);
             }
             writeReferenceCopy(dataFolder);
-            try (Reader reader = Files.newBufferedReader(file)) {
-                return load(reader);
+            YamlConfiguration config = loadFile(file);
+            if (isLegacyFormat(config)) {
+                replaceLegacyFile(file, logger);
+                config = loadFile(file);
             }
+            return config;
         } catch (IOException ex) {
             throw new UncheckedIOException("Failed to read " + CATEGORIES_FILE, ex);
+        }
+    }
+
+    /**
+     * Whether this is a pre-1.4.2 file, which mapped each message key straight to a category name
+     * instead of declaring categories as sections.
+     *
+     * <p>Detected structurally — any direct child of {@code categories} that is not itself a section
+     * — rather than by catching the parse failure, so the decision to rewrite an operator's file is
+     * never made from an exception that a different mistake could also produce.</p>
+     */
+    static boolean isLegacyFormat(@NotNull YamlConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("categories");
+        if (section == null) {
+            return false;
+        }
+        for (String key : section.getKeys(false)) {
+            if (!section.isConfigurationSection(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Backs up a pre-1.4.2 file and puts the current default in its place.
+     *
+     * <p>Replaced rather than converted, and this loses the operator nothing: the old format never
+     * worked. Bukkit splits configuration keys on {@code '.'} as it loads, and every key in that
+     * file contained a dot, so the routing map always parsed empty and every notification fell
+     * through to the fallback category no matter what the file said. There is no working
+     * configuration in it to preserve — only the operator's intent, which the backup keeps
+     * readable.</p>
+     */
+    private static void replaceLegacyFile(@NotNull Path file, @NotNull Logger logger)
+            throws IOException {
+        Path backup = file.resolveSibling(CATEGORIES_FILE + LEGACY_BACKUP_SUFFIX);
+        Files.move(file, backup, StandardCopyOption.REPLACE_EXISTING);
+        copyBundled(file);
+        logger.log(Level.WARNING,
+                "{0} was in the pre-1.4.2 format, which never took effect — Bukkit split its dotted "
+                        + "keys on load, so every notification fell through to the fallback category. "
+                        + "It has been backed up as {1} and replaced with the current default. Re-apply "
+                        + "any routing you intended; {2} shows the current format.",
+                new Object[]{CATEGORIES_FILE, backup.getFileName(),
+                        DEFAULTS_DIR + "/" + REFERENCE_FILE});
+    }
+
+    private static @NotNull YamlConfiguration loadFile(@NotNull Path file) throws IOException {
+        try (Reader reader = Files.newBufferedReader(file)) {
+            return load(reader);
         }
     }
 

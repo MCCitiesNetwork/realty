@@ -1,0 +1,13 @@
+# essentials-adapter
+#
+# This module does two separate things. Only the first is switchable here.
+#
+# 1. Notification delivery: Realty notifications for players who are offline are sent as EssentialsX
+#    mail, so they are waiting at next login instead of being lost.
+# 2. Teleport safety: Realty uses EssentialsX's own block checks when looking for a safe location.
+#    That is a correctness fix rather than a delivery channel, so it always applies and this file
+#    has no setting for it.
+#
+# Turn notifications off if another delivery module already covers offline players and you do not
+# want the same notification arriving twice.
+notifications-enabled: true

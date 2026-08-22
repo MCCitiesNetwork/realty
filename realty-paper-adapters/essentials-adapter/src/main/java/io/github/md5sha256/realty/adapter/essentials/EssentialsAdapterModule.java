@@ -40,11 +40,20 @@ public final class EssentialsAdapterModule extends SimplePluginModule<Realty> {
             throw new IllegalStateException(
                     "EssentialsX is not installed or not enabled — essentials-adapter cannot start");
         }
+        EssentialsAdapterConfig config = EssentialsAdapterConfig.read(dataFolder);
         // All fallible work must happen before the listener is registered: if anything after
         // registerListener throws, ModuleLifecycleManager closes the class loader without calling
         // shutdown(), so the listener would never be unregistered and would remain live on a dead
         // class loader.
         plugin.paperApi().setSafeBlockPredicate(new EssentialsSafeBlockPredicate(essentials));
+        if (!config.notificationsEnabled()) {
+            // Teleport safety above still applies — only mail delivery is switchable. Logged so an
+            // operator wondering where their mail went is not left guessing.
+            plugin.getLogger().info(
+                    "essentials-adapter: notifications-enabled is false, so Realty notifications will "
+                            + "not be delivered as EssentialsX mail. Teleport safety is unaffected.");
+            return;
+        }
         registerListener(new EssentialsMailListener(
                 (uuid, text) -> sendMail(essentials, uuid, text),
                 uuid -> Bukkit.getPlayer(uuid) != null,

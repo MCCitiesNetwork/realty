@@ -9,6 +9,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.logging.Logger;
 
 /**
  * Covers the reference copy every config file must ship: a regenerated {@code defaults/} copy an
@@ -16,13 +17,15 @@ import java.nio.file.Path;
  */
 class ReferenceCopyTest {
 
+    private static final Logger LOGGER = Logger.getLogger(ReferenceCopyTest.class.getName());
+
     private static Path reference(Path dataFolder) {
         return dataFolder.resolve(CategoriesConfig.DEFAULTS_DIR).resolve(CategoriesConfig.REFERENCE_FILE);
     }
 
     @Test
     void aFirstStartWritesBothTheLiveFileAndTheReferenceCopy(@TempDir Path dataFolder) {
-        CategoriesConfig.read(dataFolder);
+        CategoriesConfig.read(dataFolder, LOGGER);
 
         Assertions.assertTrue(Files.isRegularFile(dataFolder.resolve(CategoriesConfig.CATEGORIES_FILE)));
         Assertions.assertTrue(Files.isRegularFile(reference(dataFolder)));
@@ -33,13 +36,13 @@ class ReferenceCopyTest {
      */
     @Test
     void aLaterStartLeavesTheOperatorsFileAlone(@TempDir Path dataFolder) throws IOException {
-        CategoriesConfig.read(dataFolder);
+        CategoriesConfig.read(dataFolder, LOGGER);
         Path live = dataFolder.resolve(CategoriesConfig.CATEGORIES_FILE);
         String edited = Files.readString(live, StandardCharsets.UTF_8)
                 .replace("Realty auctions", "Auction stuff");
         Files.writeString(live, edited, StandardCharsets.UTF_8);
 
-        CategoriesConfig.read(dataFolder);
+        CategoriesConfig.read(dataFolder, LOGGER);
 
         Assertions.assertEquals(edited, Files.readString(live, StandardCharsets.UTF_8));
     }
@@ -50,11 +53,11 @@ class ReferenceCopyTest {
      */
     @Test
     void aStaleReferenceCopyIsOverwrittenOnEveryStart(@TempDir Path dataFolder) throws IOException {
-        CategoriesConfig.read(dataFolder);
+        CategoriesConfig.read(dataFolder, LOGGER);
         Files.writeString(reference(dataFolder), "# left over from an older version\n",
                 StandardCharsets.UTF_8);
 
-        CategoriesConfig.read(dataFolder);
+        CategoriesConfig.read(dataFolder, LOGGER);
 
         String refreshed = Files.readString(reference(dataFolder), StandardCharsets.UTF_8);
         Assertions.assertFalse(refreshed.contains("left over"));
@@ -64,7 +67,7 @@ class ReferenceCopyTest {
     /** The shipped reference must itself be loadable, or it documents a file that would not start. */
     @Test
     void theReferenceCopyParses(@TempDir Path dataFolder) throws IOException {
-        CategoriesConfig.read(dataFolder);
+        CategoriesConfig.read(dataFolder, LOGGER);
 
         try (Reader reader = Files.newBufferedReader(reference(dataFolder))) {
             NotificationCategoryMapper mapper = CategoriesConfig.readMapper(CategoriesConfig.load(reader));
@@ -82,7 +85,7 @@ class ReferenceCopyTest {
                     label: "Realty"
                 """, StandardCharsets.UTF_8);
 
-        CategoriesConfig.read(dataFolder);
+        CategoriesConfig.read(dataFolder, LOGGER);
 
         Assertions.assertTrue(Files.isRegularFile(reference(dataFolder)));
     }

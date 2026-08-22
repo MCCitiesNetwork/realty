@@ -68,7 +68,7 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
 
         // 2. Load the operator's category set. This decides which data types exist, not just how
         //    message keys route between them.
-        YamlConfiguration config = CategoriesConfig.read(dataFolder);
+        YamlConfiguration config = CategoriesConfig.read(dataFolder, plugin.getLogger());
         NotificationCategoryMapper categoryMapper = CategoriesConfig.readMapper(config);
         Duration expiry = CategoriesConfig.readExpiry(config);
 
