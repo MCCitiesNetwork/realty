@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -16,13 +17,14 @@ import java.util.UUID;
  * each transfer is recorded with a human-readable message that appears
  * in the player's Treasury transaction history.
  * <p>
- * Account resolution: the payer is always resolved as a personal account
- * (created with starting balance if missing). The recipient is resolved by
- * preferring its GOVERNMENT account, then PERSONAL, then BUSINESS — so
- * government landlords (legacy DCGovernment-style real UUIDs that own both a
- * personal and a government account) route income to their government
- * treasury, while ordinary landlords still get their personal balance rather
- * than a firm BUSINESS account they happen to own.
+ * Account resolution is the same on both sides of a transfer: prefer the
+ * party's GOVERNMENT account, then PERSONAL, then BUSINESS. Government
+ * entities (legacy DCGovernment-style real UUIDs that own both a personal and
+ * a government account) therefore both receive income into and pay refunds out
+ * of their government treasury, while ordinary players resolve to their
+ * personal balance rather than a firm BUSINESS account they happen to own.
+ * Balance reads follow the same preference, so an affordability check always
+ * inspects the account the subsequent transfer would actually touch.
  */
 public final class TreasuryEconomyProvider implements EconomyProvider {
 
@@ -36,10 +38,16 @@ public final class TreasuryEconomyProvider implements EconomyProvider {
 
     @Override
     public double getBalance(@NotNull UUID playerId) {
-        if (!treasuryApi.hasAccountByOwnerUuid(playerId)) {
+        // Read the same account transfer() would debit, not whichever one
+        // getBalanceByOwnerUuid happens to pick -- otherwise a government
+        // entity is checked for affordability against its personal balance.
+        // A read must not open an account, so there is no create-if-missing
+        // fallback here: no accounts means no funds.
+        Account account = preferredAccount(treasuryApi.getAccountsByOwner(playerId)).orElse(null);
+        if (account == null) {
             return 0.0;
         }
-        BigDecimal balance = treasuryApi.getBalanceByOwnerUuid(playerId);
+        BigDecimal balance = treasuryApi.getBalanceByAccountId(account.getAccountId());
         return balance != null ? balance.doubleValue() : 0.0;
     }
 
@@ -47,8 +55,10 @@ public final class TreasuryEconomyProvider implements EconomyProvider {
     public @NotNull PaymentResult transfer(@NotNull UUID fromId, @NotNull UUID toId,
                                             double amount, @NotNull String ledgerMessage) {
         try {
-            Account payer = treasuryApi.resolveOrCreatePersonal(fromId);
-            Account recipient = resolveRecipientAccount(toId);
+            // Both sides resolve identically: a refund from a government landlord
+            // must leave the same account the rent was paid into.
+            Account payer = resolveAccount(fromId);
+            Account recipient = resolveAccount(toId);
             // Treasury rejects amounts with more than 2 decimal places. Amounts
             // derived from arithmetic (e.g. pro-rata refunds: price * remaining /
             // total) can carry extra precision, so normalise to 2 decimals here.
@@ -80,37 +90,50 @@ public final class TreasuryEconomyProvider implements EconomyProvider {
     }
 
     /**
-     * Resolves the recipient's Treasury account, preferring
+     * Resolves a party's Treasury account, preferring
      * GOVERNMENT &gt; PERSONAL &gt; BUSINESS &gt; first-available.
      * <p>
      * GOVERNMENT wins first because legacy government entities (e.g.
      * DCGovernment) are real Minecraft accounts whose UUID owns <em>both</em> a
      * personal and a government account; their leasehold income must land in
-     * the government treasury, not the player's personal balance.
+     * the government treasury, not the player's personal balance — and, on the
+     * paying side, a lease-termination refund must be debited from that same
+     * treasury rather than the entity's personal balance.
      * <p>
-     * Ordinary landlords have no government account, so PERSONAL is chosen next:
+     * Ordinary players have no government account, so PERSONAL is chosen next:
      * rental/sale income belongs to them personally, never a firm BUSINESS
      * account they happen to own (firm accounts are owned by the proprietor's
      * own UUID, which is how such funds previously leaked into business
      * accounts).
      * <p>
-     * When the recipient has no account at all, resolve-or-create their personal
+     * When the party has no account at all, resolve-or-create their personal
      * account.
      */
-    private @NotNull Account resolveRecipientAccount(@NotNull UUID ownerUuid) {
-        List<Account> accounts = treasuryApi.getAccountsByOwner(ownerUuid);
-        if (!accounts.isEmpty()) {
-            return accounts.stream()
-                    .filter(a -> a.getAccountType() == AccountType.GOVERNMENT)
-                    .findFirst()
-                    .or(() -> accounts.stream()
-                            .filter(a -> a.getAccountType() == AccountType.PERSONAL)
-                            .findFirst())
-                    .or(() -> accounts.stream()
-                            .filter(a -> a.getAccountType() == AccountType.BUSINESS)
-                            .findFirst())
-                    .orElse(accounts.get(0));
+    private @NotNull Account resolveAccount(@NotNull UUID ownerUuid) {
+        return preferredAccount(treasuryApi.getAccountsByOwner(ownerUuid))
+                .orElseGet(() -> treasuryApi.resolveOrCreatePersonal(ownerUuid));
+    }
+
+    /**
+     * Applies the GOVERNMENT &gt; PERSONAL &gt; BUSINESS &gt; first-available
+     * preference to an already-fetched account list, or empty when the party
+     * holds no accounts at all. Shared by {@link #resolveAccount(UUID)} and
+     * {@link #getBalance(UUID)} so a balance check and the transfer it gates
+     * can never disagree about which account is in play.
+     */
+    private @NotNull Optional<Account> preferredAccount(@NotNull List<Account> accounts) {
+        if (accounts.isEmpty()) {
+            return Optional.empty();
         }
-        return treasuryApi.resolveOrCreatePersonal(ownerUuid);
+        return Optional.of(accounts.stream()
+                .filter(a -> a.getAccountType() == AccountType.GOVERNMENT)
+                .findFirst()
+                .or(() -> accounts.stream()
+                        .filter(a -> a.getAccountType() == AccountType.PERSONAL)
+                        .findFirst())
+                .or(() -> accounts.stream()
+                        .filter(a -> a.getAccountType() == AccountType.BUSINESS)
+                        .findFirst())
+                .orElse(accounts.get(0)));
     }
 }
