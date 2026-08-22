@@ -373,7 +373,7 @@ reload:
     error: '<prefix> Failed to reload messages: <error>'
 module:
     list-header: '<prefix> Active modules (<count>):'
-    list-entry: <prefix> <yellow><module></yellow> by <author> (reloadable: <reloadable>)
+    list-entry: '<prefix> <yellow><module></yellow> by <author> (reloadable: <reloadable>)'
     list-empty: <prefix> No modules are currently loaded.
     reload-success: <prefix> Reloaded module <yellow><module>.</yellow>
     reload-error: '<prefix> Failed to reload module <module>: <error>'
