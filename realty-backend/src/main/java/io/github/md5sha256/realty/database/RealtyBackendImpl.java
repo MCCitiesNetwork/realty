@@ -859,7 +859,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                 // Re-read so the cap check, history and returned price reflect the new terms.
                 lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             }
-            if (lease.maxExtensions() != null && lease.currentMaxExtensions() >= lease.maxExtensions()) {
+            // A null count alongside a non-null cap is a broken row (see V15); read it as zero
+            // extensions used rather than failing the renewal on an unboxing NPE.
+            int extensionsUsed = lease.currentMaxExtensions() == null ? 0 : lease.currentMaxExtensions();
+            if (lease.maxExtensions() != null && extensionsUsed >= lease.maxExtensions()) {
                 return new RenewLeaseholdResult.NoExtensionsRemaining();
             }
             int updated = leaseholdMapper.renewLeasehold(worldGuardRegionId, worldId, tenantId);
@@ -868,7 +871,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             Integer extensionsRemaining = null;
             if (lease.maxExtensions() != null) {
-                extensionsRemaining = lease.maxExtensions() - (lease.currentMaxExtensions() + 1);
+                extensionsRemaining = lease.maxExtensions() - (extensionsUsed + 1);
             }
             if (modificationApplied) {
                 wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
@@ -1220,7 +1223,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             placeholders.put("end_date", lease.endDate() != null ? dateFormatter.apply(lease.endDate()) : "N/A");
             placeholders.put("time_left", DurationFormatter.formatTimeLeft(lease.endDate()));
             if (lease.maxExtensions() != null) {
-                placeholders.put("extensions", lease.currentMaxExtensions() + "/" + lease.maxExtensions());
+                placeholders.put("extensions",
+                        (lease.currentMaxExtensions() == null ? 0 : lease.currentMaxExtensions())
+                                + "/" + lease.maxExtensions());
             } else {
                 placeholders.put("extensions", "unlimited");
             }

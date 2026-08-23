@@ -190,7 +190,8 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
         String tenant = leasehold.tenantId() != null ? resolveName(leasehold.tenantId()) : "N/A";
         String extensions;
         if (leasehold.maxExtensions() != null) {
-            extensions = leasehold.currentMaxExtensions() + "/" + leasehold.maxExtensions();
+            extensions = (leasehold.currentMaxExtensions() == null ? 0 : leasehold.currentMaxExtensions())
+                    + "/" + leasehold.maxExtensions();
         } else {
             extensions = "unlimited";
         }

@@ -52,7 +52,8 @@ public final class MariaSchemaMigrator {
             new MigrationStep(11, "leasehold set price history", "V11__leasehold_set_price_history.sql"),
             new MigrationStep(12, "region tags", "V12__region_tags.sql"),
             new MigrationStep(13, "lease lifecycle", "V13__lease_lifecycle.sql"),
-            new MigrationStep(14, "leasehold accepting tenants", "V14__leasehold_accepting_tenants.sql")
+            new MigrationStep(14, "leasehold accepting tenants", "V14__leasehold_accepting_tenants.sql"),
+            new MigrationStep(15, "repair null extension counts", "V15__repair_null_extension_counts.sql")
     );
 
     private MariaSchemaMigrator() {

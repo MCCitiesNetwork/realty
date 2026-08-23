@@ -93,7 +93,10 @@ public interface LeaseholdContractMapper {
     /**
      * Applies non-null modification terms to the contract ({@code COALESCE} per field, so {@code null}
      * leaves a field unchanged). When a new (smaller) extension cap is applied, {@code currentMaxExtensions}
-     * is clamped down so the contract's extension invariant holds.
+     * is clamped down so the contract's extension invariant holds; when a cap is applied to a
+     * previously uncapped contract it is seeded to {@code 0}, since a {@code null} count alongside a
+     * non-null cap breaks that invariant (the table's {@code chk_extensions} CHECK does not catch it,
+     * as MariaDB does not evaluate CHECK constraints for multi-table UPDATE).
      */
     int applyModificationTerms(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,

@@ -343,9 +343,9 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
                 lc.durationSeconds = COALESCE(#{newDurationSeconds}, lc.durationSeconds),
                 lc.maxExtensions = COALESCE(#{newMaxExtensions}, lc.maxExtensions),
                 lc.currentMaxExtensions = CASE
-                    WHEN #{newMaxExtensions} IS NOT NULL AND lc.currentMaxExtensions IS NOT NULL
-                        THEN LEAST(lc.currentMaxExtensions, #{newMaxExtensions})
-                    ELSE lc.currentMaxExtensions
+                    WHEN #{newMaxExtensions} IS NULL THEN lc.currentMaxExtensions
+                    WHEN lc.currentMaxExtensions IS NULL THEN 0
+                    ELSE LEAST(lc.currentMaxExtensions, #{newMaxExtensions})
                 END
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}

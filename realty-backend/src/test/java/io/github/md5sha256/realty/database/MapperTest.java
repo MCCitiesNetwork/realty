@@ -490,6 +490,26 @@ class MapperTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("applyModificationTerms seeds the extension count when capping an uncapped lease")
+        void applyModificationTermsSeedsExtensionCount() {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, -1, AUTHORITY));
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
+
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                wrapper.leaseholdContractMapper()
+                        .applyModificationTerms(regionId, WORLD_ID, null, null, 3);
+                session.commit();
+
+                LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
+                        .selectByRegion(regionId, WORLD_ID);
+                Assertions.assertEquals(3, entity.maxExtensions());
+                Assertions.assertEquals(0, entity.currentMaxExtensions());
+            }
+        }
+
+        @Test
         @DisplayName("renewLeasehold returns 0 for wrong tenant")
         void renewLeaseholdWrongTenant() {
             String regionId = uniqueRegionId();
