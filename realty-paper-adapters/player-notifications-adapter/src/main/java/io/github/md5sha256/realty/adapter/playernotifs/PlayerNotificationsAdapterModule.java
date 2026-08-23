@@ -66,13 +66,15 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
                             + "player-notifications-adapter cannot start");
         }
 
-        // 2. Read expiry. The category set is compiled in, so nothing about it can fail here.
+        // 2. Read expiry and the operator's row titles. The category set is compiled in, so nothing
+        //    about it can fail here.
         AdapterConfig config = AdapterConfig.read(dataFolder);
+        TitleConfig titles = TitleConfig.read(dataFolder);
         warnAboutObsoleteCategoriesFile(plugin, dataFolder);
 
         // 3. Register payload types, renderers and categories. PN's registry notifies its own
         //    change listener, so registering this late still reaches the preference dialogs.
-        RealtyDataTypes.registerAll(notificationService, new RealtyNotificationRenderer());
+        RealtyDataTypes.registerAll(notificationService, new RealtyNotificationRenderer(titles));
         this.service = notificationService;
 
         // 4. Only now, with nothing left that can throw, does a live listener appear.

@@ -1,18 +1,23 @@
 package io.github.md5sha256.realty.adapter.playernotifs;
 
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -163,5 +168,43 @@ class RealtyCategoryTest {
             }
         }
         Assertions.assertEquals(Set.of(), stale, "these claimed keys are not in messages.yml");
+    }
+
+    /**
+     * The bundled {@code titles.yml} lists exactly the keys the enum claims, at exactly the titles it
+     * compiles in.
+     *
+     * <p>The file is the operator's whole starting point, so a key missing from it is a title they
+     * cannot discover, and a key it lists that no category claims is a row they can edit to no effect.
+     * Divergent text is worse than either: the file would document a title the plugin does not use
+     * until they edit the line, which is the one thing a shipped default must never do.</p>
+     */
+    @Test
+    void theBundledTitlesFileMatchesTheCompiledTable() throws IOException {
+        Map<String, String> compiled = new HashMap<>();
+        for (RealtyCategory category : RealtyCategory.values()) {
+            compiled.putAll(category.titlesByMessageKey());
+        }
+
+        TitleConfig bundled;
+        try (Reader reader = new InputStreamReader(
+                Objects.requireNonNull(
+                        RealtyCategoryTest.class.getClassLoader()
+                                .getResourceAsStream(TitleConfig.TITLES_FILE),
+                        "the jar ships no " + TitleConfig.TITLES_FILE),
+                StandardCharsets.UTF_8)) {
+            bundled = TitleConfig.load(reader);
+        }
+
+        Set<String> listed = new TreeSet<>(bundled.overriddenKeys());
+        Assertions.assertEquals(new TreeSet<>(compiled.keySet()), listed,
+                "the bundled titles.yml and RealtyCategory claim different message keys");
+
+        for (Map.Entry<String, String> entry : compiled.entrySet()) {
+            Assertions.assertEquals(entry.getValue(),
+                    PlainTextComponentSerializer.plainText()
+                            .serialize(bundled.titleFor(entry.getKey())),
+                    "titles.yml documents a different title for " + entry.getKey());
+        }
     }
 }

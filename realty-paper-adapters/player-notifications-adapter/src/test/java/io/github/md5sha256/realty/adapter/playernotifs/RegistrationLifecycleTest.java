@@ -23,7 +23,7 @@ import java.util.UUID;
 class RegistrationLifecycleTest {
 
     private static final NotificationRenderer<RealtyNotificationPayload> RENDERER =
-            new RealtyNotificationRenderer();
+            new RealtyNotificationRenderer(TitleConfig.compiled());
 
     /**
      * Stands in for the reflective JSON serializer {@code registerJsonRenderable} installs; only its

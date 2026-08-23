@@ -6,6 +6,9 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
 import java.util.UUID;
 
 /**
@@ -14,7 +17,8 @@ import java.util.UUID;
  */
 class RealtyNotificationRendererTest {
 
-    private static final RealtyNotificationRenderer RENDERER = new RealtyNotificationRenderer();
+    private static final RealtyNotificationRenderer RENDERER =
+            new RealtyNotificationRenderer(TitleConfig.compiled());
     private static final UUID TARGET = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     private static String titleOf(RealtyNotificationPayload payload) {
@@ -65,6 +69,42 @@ class RealtyNotificationRendererTest {
     void anUnclaimedKeyFallsBackToTheCategoryLabel() {
         Assertions.assertEquals(RealtyCategory.GENERAL.label() + " — plot42",
                 titleOf(payload("notification.some-future-key", "plot42")));
+    }
+
+    /** An operator's override replaces the compiled summary; the region suffix is untouched by it. */
+    @Test
+    void anOperatorOverrideReplacesTheSummary() throws IOException {
+        RealtyNotificationRenderer renderer;
+        try (Reader reader = new StringReader("""
+                titles:
+                  notification.leasehold-expired: Your lease ran out
+                """)) {
+            renderer = new RealtyNotificationRenderer(TitleConfig.load(reader));
+        }
+
+        RenderableNotification rendered =
+                renderer.render(payload("notification.leasehold-expired", "plot42"), TARGET);
+
+        Assertions.assertEquals("Your lease ran out — plot42",
+                PlainTextComponentSerializer.plainText().serialize(rendered.title()));
+    }
+
+    /** An override's colour survives into the rendered title, region suffix and all. */
+    @Test
+    void anOverridesColourSurvivesTheRegionSuffix() throws IOException {
+        RealtyNotificationRenderer renderer;
+        try (Reader reader = new StringReader("""
+                titles:
+                  notification.outbid: "<red>Outbid</red>"
+                """)) {
+            renderer = new RealtyNotificationRenderer(TitleConfig.load(reader));
+        }
+
+        RenderableNotification rendered =
+                renderer.render(payload("notification.outbid", "plot42"), TARGET);
+
+        Assertions.assertEquals("Outbid — plot42",
+                PlainTextComponentSerializer.plainText().serialize(rendered.title()));
     }
 
     /** The body is the payload's component verbatim; the title change must not have touched it. */

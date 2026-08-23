@@ -5,6 +5,7 @@ import io.github.md5sha256.playernotifications.api.render.RenderableNotification
 import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -18,9 +19,13 @@ import java.util.UUID;
  * row by its rendered title alone and reveals the body only when the row is opened, so a title that is
  * constant per category gives a player a screen of identical rows — fourteen lease notifications all
  * reading "Realty leases" — with no way to tell a rent payment from an eviction without opening each.
- * The title is therefore {@link RealtyCategory#titleFor} (the message key's own summary) suffixed with
- * the region when the payload names one, which is what makes two notifications of the <em>same</em>
- * kind distinguishable from each other.</p>
+ * The title is therefore the message key's own summary suffixed with the region when the payload
+ * names one, which is what makes two notifications of the <em>same</em> kind distinguishable from
+ * each other.</p>
+ *
+ * <p>Where that summary comes from is the operator's call: {@link TitleConfig} answers with their
+ * {@code titles.yml} override if they wrote one and {@link RealtyCategory#titleFor} otherwise, so
+ * this class never needs to know which.</p>
  *
  * <p>The region is appended as its raw WorldGuard id. That is what the body already shows and what the
  * player types into commands; resolving a friendlier name would need a live region the payload
@@ -35,14 +40,20 @@ import java.util.UUID;
  */
 public final class RealtyNotificationRenderer implements NotificationRenderer<RealtyNotificationPayload> {
 
+    private final TitleConfig titles;
+
+    public RealtyNotificationRenderer(@NotNull TitleConfig titles) {
+        this.titles = Objects.requireNonNull(titles, "titles");
+    }
+
     @Override
     public @NotNull RenderableNotification render(@NotNull RealtyNotificationPayload payload,
                                                   @NotNull UUID target) {
-        String summary = RealtyCategory.titleFor(payload.messageKey());
+        Component summary = this.titles.titleFor(payload.messageKey());
         String regionId = payload.regionId();
-        Component title = Component.text(regionId == null || regionId.isBlank()
+        Component title = regionId == null || regionId.isBlank()
                 ? summary
-                : summary + " — " + regionId);
+                : summary.append(Component.text(" — " + regionId));
         return new RenderableNotification(title, payload.bodyComponent());
     }
 }
