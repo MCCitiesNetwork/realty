@@ -1,5 +1,9 @@
 # Enable or disable daily property tax collection.
 # Requires the Treasury plugin to be installed and its DAILY cycle to be enabled.
+#
+# This is the off-switch. Emptying `rules` below does NOT disable the tax: missing
+# and empty keys are refilled from the plugin's shipped defaults on startup, so the
+# default rule would come back on the next restart.
 enabled: true
 
 # Name of the Treasury GOVERNMENT account that receives property tax proceeds.
@@ -11,30 +15,72 @@ government-account: "DCGovernment"
 # Useful for authority, government, or server-owned accounts.
 exempt-uuids: []
 
-# Owners holding this many freehold plots or fewer pay no property tax at all.
-# The Taxation Act exempts owners of 7 or fewer plots. Set to 0 to tax everyone.
-exempt-plot-threshold: 7
-
 # ---------------------------------------------------------------------------
-# Property tax follows the Taxation Act: `default-formula` gives an owner's TOTAL
-# daily tax as a function of <plots> (their freehold plot count). It is evaluated
-# ONCE per owner — NOT per property — and the result is rounded DOWN to the cent.
-# Owners at or below `exempt-plot-threshold` plots pay nothing.
+# THE PROPERTY TAX IS THIS LIST. There is no tax outside it: a plot matching no
+# rule is untaxed and counted nowhere. To stop collection entirely set
+# `enabled: false` above — an emptied list is refilled from the defaults on
+# startup, whereas edited rules are kept as written.
 #
-#   <plots> = the owner's freehold plot count
-#   operators + - * /, exponentiation ^ (e.g. 1.16^<plots>, <plots>^2),
-#   parentheses, and decimals are supported.
+# Each plot is assigned to the FIRST rule whose tags it matches. That rule's
+# `formula` is then evaluated ONCE per owner, with <plots> bound to how many of
+# that owner's plots landed in THAT rule — not their total holdings. Every
+# rule's charge is summed and the total rounded DOWN to the cent.
 #
-# `rules` below are OPTIONAL local-government overrides ("unless otherwise provided
-# by Local Governments where the plot is located"). A plot whose tags match a rule
-# is taxed per-property by that rule instead of counting toward the federal formula.
-# They are OFF by default — leave `rules` empty to apply the Act uniformly.
+# Keys per rule:
 #
-# Rule match syntax (first match wins, tags case-insensitive from region-tags.yml):
-#   all: [a, b]   -> region must carry every listed tag
-#   any: [a, b]   -> region must carry at least one listed tag
+#   match             Which plots the rule covers. Omit it to match every plot.
+#     all: [a, b]     plot must carry EVERY listed tag
+#     any: [a, b]     plot must carry AT LEAST ONE listed tag
+#     both together   all(...) AND any(...)
+#     Tag ids come from region-tags.yml and are matched case-insensitively.
+#     A tag id that no region actually carries simply matches nothing.
+#
+#   formula           Total daily tax for an owner with <plots> plots in this
+#                     rule. Supports + - * /, exponentiation ^ (so <plots>^2 and
+#                     1.16^<plots>), parentheses and decimals. Multiplication
+#                     must be explicit: `2.7 * (<plots> - 2)`, never
+#                     `2.7(<plots> - 2)`. Omitted or unparseable means no charge.
+#
+#   exempt-threshold  Owners with this many plots OR FEWER in this rule pay
+#                     nothing for it. Counted per rule, not across holdings.
+#                     Defaults to 0 (no exemption).
+#
+# ORDER MATTERS. A plot goes to the first matching rule only, so put narrow
+# rules above broad ones — a rule with no `match` placed first would swallow
+# every plot and leave the rest of the list dead.
+#
+# A rule whose formula fails to parse is dropped with a warning and its plots
+# fall through to the next matching rule, so a typo under-charges rather than
+# charging something unintended.
+#
+# Worked examples, using the tags shipped in region-tags.yml:
+#
+#   Flat $12/day per commercial or industrial plot, first 2 free:
+#     - match:
+#         any: [commercial, industrial]
+#       formula: "12 * <plots>"
+#       exempt-threshold: 2
+#
+#   Land that is BOTH commercial and industrial, on a steeper curve, taxed
+#   ahead of the plain commercial rule below it:
+#     - match:
+#         all: [commercial, industrial]
+#       formula: "0.5 * <plots>^2 + 20 * <plots>"
+#
+#   Residential land, exempt entirely (an explicit rule beats relying on the
+#   ordering of a later catch-all):
+#     - match:
+#         any: [residential]
+#       formula: "0"
+#
+# If your region-tags.yml defines district or city tags as well as zoning tags,
+# combine them: `all: [<district>]` with `any: [commercial, industrial]` taxes
+# that district's commercial and industrial land and nothing else.
 # ---------------------------------------------------------------------------
-rules: []
-
-# The Taxation Act's federal property-tax formula (total daily tax for <plots> plots).
-default-formula: "0.25 * 1.16^<plots> + 0.3 * <plots>^2 + 2.5 * <plots> - 25"
+rules:
+  # Server-wide: no `match`, so every plot falls here and <plots> is the owner's
+  # whole holding. Owners of 2 plots or fewer pay nothing.
+  #   y = 2.7(x-2) + 2.87(x-2)^2 + 0.0462(x-2)^3
+  # Roughly: 3 plots -> $5.61/day, 5 -> $35.17, 10 -> $228.93, 20 -> $1247.91.
+  - formula: "2.7 * (<plots> - 2) + 2.87 * (<plots> - 2)^2 + 0.0462 * (<plots> - 2)^3"
+    exempt-threshold: 2
