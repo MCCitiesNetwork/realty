@@ -7,6 +7,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Renders a stored {@link RealtyNotificationPayload} back into the medium-neutral title/body form
@@ -27,6 +28,12 @@ import java.util.UUID;
  * {@code titles.yml} override if they wrote one and {@link RealtyCategory#titleFor} otherwise, so
  * this class never needs to know which.</p>
  *
+ * <p>That config is held in an {@link AtomicReference} so {@code /realty reload} can swap it under a
+ * renderer PlayerNotifications already holds a reference to. Re-registering the renderer instead
+ * would mean an {@code unregisterAll}/{@code registerAll} cycle on PN's registry, which
+ * {@link RealtyDataTypes} documents as a sharp edge; swapping the field avoids touching the registry
+ * at all. A render racing the swap reads either the old or the new config, never a torn one.</p>
+ *
  * <p>The region is appended as its raw WorldGuard id. That is what the body already shows and what the
  * player types into commands; resolving a friendlier name would need a live region the payload
  * deliberately does not hold — it routinely outlives the region it describes.</p>
@@ -40,16 +47,26 @@ import java.util.UUID;
  */
 public final class RealtyNotificationRenderer implements NotificationRenderer<RealtyNotificationPayload> {
 
-    private final TitleConfig titles;
+    private final AtomicReference<TitleConfig> titles;
 
     public RealtyNotificationRenderer(@NotNull TitleConfig titles) {
-        this.titles = Objects.requireNonNull(titles, "titles");
+        this.titles = new AtomicReference<>(Objects.requireNonNull(titles, "titles"));
+    }
+
+    /**
+     * Replaces the row titles used by every subsequent render, including of notifications already
+     * sitting in a player's inbox — PlayerNotifications renders a stored payload at display time.
+     *
+     * @param titles the freshly read {@code titles.yml}
+     */
+    public void setTitles(@NotNull TitleConfig titles) {
+        this.titles.set(Objects.requireNonNull(titles, "titles"));
     }
 
     @Override
     public @NotNull RenderableNotification render(@NotNull RealtyNotificationPayload payload,
                                                   @NotNull UUID target) {
-        Component summary = this.titles.titleFor(payload.messageKey());
+        Component summary = this.titles.get().titleFor(payload.messageKey());
         String regionId = payload.regionId();
         Component title = regionId == null || regionId.isBlank()
                 ? summary

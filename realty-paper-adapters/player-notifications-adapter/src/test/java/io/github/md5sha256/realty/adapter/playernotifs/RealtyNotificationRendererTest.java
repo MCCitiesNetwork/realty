@@ -107,6 +107,30 @@ class RealtyNotificationRendererTest {
                 PlainTextComponentSerializer.plainText().serialize(rendered.title()));
     }
 
+    /**
+     * The reload path: {@code /realty reload} swaps the title config on the renderer instance
+     * PlayerNotifications already holds, so the very next render — of a payload stored long before
+     * the edit — uses the new title.
+     */
+    @Test
+    void swappingTheTitlesChangesSubsequentRenders() throws IOException {
+        RealtyNotificationRenderer renderer =
+                new RealtyNotificationRenderer(TitleConfig.compiled());
+        RealtyNotificationPayload payload = payload("notification.leasehold-expired", "plot42");
+        Assertions.assertEquals("Lease expired — plot42", PlainTextComponentSerializer.plainText()
+                .serialize(renderer.render(payload, TARGET).title()));
+
+        try (Reader reader = new StringReader("""
+                titles:
+                  notification.leasehold-expired: Your lease ran out
+                """)) {
+            renderer.setTitles(TitleConfig.load(reader));
+        }
+
+        Assertions.assertEquals("Your lease ran out — plot42", PlainTextComponentSerializer
+                .plainText().serialize(renderer.render(payload, TARGET).title()));
+    }
+
     /** The body is the payload's component verbatim; the title change must not have touched it. */
     @Test
     void theBodyIsThePayloadComponentVerbatim() {

@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -38,7 +39,12 @@ public final class PlayerNotificationsListener implements Listener {
     private static final int PRIORITY = 0;
 
     private final NotificationEnqueuer enqueuer;
-    private final Duration expiry;
+
+    /**
+     * Held in an {@link AtomicReference} so {@code /realty reload} can swap it while this listener
+     * stays registered; a handler racing the swap reads either the old or the new duration.
+     */
+    private final AtomicReference<Duration> expiry;
     private final Logger logger;
 
     /**
@@ -50,8 +56,18 @@ public final class PlayerNotificationsListener implements Listener {
                                        @NotNull Duration expiry,
                                        @NotNull Logger logger) {
         this.enqueuer = Objects.requireNonNull(enqueuer, "enqueuer");
-        this.expiry = Objects.requireNonNull(expiry, "expiry");
+        this.expiry = new AtomicReference<>(Objects.requireNonNull(expiry, "expiry"));
         this.logger = Objects.requireNonNull(logger, "logger");
+    }
+
+    /**
+     * Replaces the expiry applied to every subsequent notification. Notifications already enqueued
+     * keep the expiry they were given — PlayerNotifications stored it as an absolute instant.
+     *
+     * @param expiry the freshly read {@code expiry-days}
+     */
+    public void setExpiry(@NotNull Duration expiry) {
+        this.expiry.set(Objects.requireNonNull(expiry, "expiry"));
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
@@ -76,7 +92,7 @@ public final class PlayerNotificationsListener implements Listener {
         TypedNotification<RealtyNotificationPayload> notification = new TypedNotification<>(
                 UUID.randomUUID().toString(),
                 Instant.now(),
-                Instant.now().plus(this.expiry),
+                Instant.now().plus(this.expiry.get()),
                 new NotificationTarget(event.getTargets()),
                 dataType,
                 payload,
