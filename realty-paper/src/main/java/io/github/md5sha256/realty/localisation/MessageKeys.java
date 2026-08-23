@@ -285,6 +285,7 @@ public final class MessageKeys {
     public static final String UNRENT_SUCCESS = "unrent.success";
     public static final String UNRENT_NO_LEASEHOLD_CONTRACT = "unrent.no-leasehold-contract";
     public static final String UNRENT_NOT_TENANT = "unrent.not-tenant";
+    public static final String UNRENT_TERMINATING = "unrent.terminating";
     public static final String UNRENT_UPDATE_FAILED = "unrent.update-failed";
     public static final String UNRENT_REFUND_FAILED = "unrent.refund-failed";
     public static final String UNRENT_ERROR = "unrent.error";

@@ -74,6 +74,9 @@ public record UnrentCommand(
                 case RealtyPaperApi.UnrentResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));
+                case RealtyPaperApi.UnrentResult.Terminating terminating ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_TERMINATING,
+                                Placeholder.unparsed("region", terminating.regionId())));
                 case RealtyPaperApi.UnrentResult.RefundFailed failed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_REFUND_FAILED,
                                 Placeholder.unparsed("error", failed.error())));

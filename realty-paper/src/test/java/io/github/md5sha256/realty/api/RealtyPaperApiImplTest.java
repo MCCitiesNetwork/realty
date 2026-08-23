@@ -388,6 +388,21 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
+        @DisplayName("returns Terminating and leaves the region alone while an eviction is pending")
+        void terminating() {
+            when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID))
+                    .thenReturn(new RealtyBackend.UnrentResult.Terminating());
+
+            protectedRegion.getOwners().addPlayer(TENANT_ID);
+
+            RealtyPaperApi.UnrentResult result = api.unrent(wgRegion, TENANT_ID).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.UnrentResult.Terminating.class, result);
+            Assertions.assertEquals(1, protectedRegion.getOwners().size());
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
         @DisplayName("success clears owners and applies FOR_LEASE flags")
         void success() {
             when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID))
