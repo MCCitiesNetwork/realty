@@ -25,6 +25,14 @@ repositories {
         url = uri("https://repo.papermc.io/repository/maven-public/")
     }
     maven {
+        name = "mccities-releases"
+        url = uri("https://maven.minecraftcitiesnetwork.com/releases")
+    }
+    maven {
+        name = "mccities-snapshots"
+        url = uri("https://maven.minecraftcitiesnetwork.com/snapshots")
+    }
+    maven {
         name = "jitpack"
         url = uri("https://jitpack.io")
     }
@@ -43,10 +51,6 @@ repositories {
     maven {
         name = "paradaux-snapshots"
         url = uri("https://repo.paradaux.io/snapshots")
-    }
-    maven {
-        name = "mccities-releases"
-        url = uri("https://maven.minecraftcitiesnetwork.com/releases")
     }
 }
 
