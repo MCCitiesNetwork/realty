@@ -1,0 +1,13 @@
+# player-notifications-adapter configuration.
+#
+# Notification *categories* are not configured here. Since 1.5.0 this adapter registers its
+# categories with PlayerNotifications in code; PlayerNotifications writes them into its own
+# generated `categories-defaults.yml`, and you customise labels, descriptions and grouping by
+# copying the blocks you care about into PlayerNotifications' `categories.yml`. That is the one
+# place notification categories are managed.
+#
+# What is left here is the one setting PlayerNotifications cannot infer.
+
+# How long an enqueued notification stays in a player's inbox before PlayerNotifications expires
+# it. Applies at enqueue time, so changing it affects new notifications only.
+expiry-days: 30

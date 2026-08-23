@@ -1,0 +1,63 @@
+# player-notifications-adapter -- notification row titles.
+#
+# PlayerNotifications lists an inbox row by its *title* alone and shows the message body only once
+# the row is opened. This file is what those rows say.
+#
+# Every message key Realty can fire is listed below at the title the plugin compiles in, so you can
+# see the whole set and edit the ones you care about in place.
+#
+# How it is read:
+#
+#   * A key present here wins. A key absent falls back to the title compiled into the plugin -- so a
+#     key a newer Realty adds after you last touched this file keeps working, at its new default,
+#     until you choose otherwise. Deleting a line is how you go back to the default.
+#   * Values are MiniMessage, so "<gold>Auction won</gold>" colours the row. Plain text is fine.
+#   * A blank value falls back rather than rendering an unreadable empty row.
+#   * The region the notification is about, when it names one, is appended after the title -- do not
+#     write it into the title yourself.
+#
+# This file is yours: it is written once, on first start, and never rewritten. See
+# defaults/default-titles.yml for a current copy regenerated on every start -- diff it against this
+# file after an upgrade to see what is new.
+
+titles:
+  # Realty agents (realty.agent) -- agent invitations and removals
+  notification.agent-invited:          Agent invitation
+  notification.agent-invite-accepted:  Agent invite accepted
+  notification.agent-invite-rejected:  Agent invite rejected
+  notification.agent-invite-withdrawn: Agent invite withdrawn
+  notification.agent-removed:          Removed as agent
+
+  # Realty auctions (realty.auction) -- bids, auction outcomes and bid payment deadlines
+  notification.outbid:                Outbid
+  notification.auction-cancelled:     Auction cancelled
+  notification.auction-won:           Auction won
+  notification.auction-ended-no-bids: Auction ended without bids
+  notification.bid-payment-expired:   Bid payment expired
+
+  # Realty offers (realty.offer) -- offers on your regions and offer payment deadlines
+  notification.offer-placed:          Offer received
+  notification.offer-accepted:        Offer accepted
+  notification.offer-rejected:        Offer rejected
+  notification.offer-withdrawn:       Offer withdrawn
+  notification.offer-payment-expired: Offer payment expired
+
+  # Realty leases (realty.lease) -- rent, lease expiry, terminations and modification proposals
+  notification.region-rented:                  Region rented
+  notification.region-unrented:                Region unrented
+  notification.leasehold-expired:              Lease expired
+  notification.leasehold-expired-landlord:     Tenant's lease expired
+  notification.modify-proposed-landlord:       New lease terms proposed
+  notification.modify-proposed-tenant:         New lease terms requested
+  notification.modify-accepted:                Lease terms accepted
+  notification.modify-rejected:                Lease terms rejected
+  notification.modify-withdrawn:               Lease proposal withdrawn
+  notification.termination-scheduled-tenant:   Lease termination scheduled
+  notification.termination-scheduled-landlord: Tenant scheduled termination
+  notification.termination-cancelled:          Termination cancelled
+  notification.leasehold-terminated-tenant:    Lease ended
+  notification.leasehold-terminated-landlord:  Tenant's lease ended
+
+  # Realty (realty.general) -- purchases, ownership transfers and anything uncategorised
+  notification.region-bought:         Region sold
+  notification.ownership-transferred: Ownership transferred

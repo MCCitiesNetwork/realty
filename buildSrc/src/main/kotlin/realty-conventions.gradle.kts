@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "io.github.md5sha256"
-version = "1.4.2"
+version = "1.5.0"
 
 val targetJavaVersion = 25
 
@@ -23,6 +23,14 @@ repositories {
     maven {
         name = "papermc-repo"
         url = uri("https://repo.papermc.io/repository/maven-public/")
+    }
+    maven {
+        name = "mccities-releases"
+        url = uri("https://maven.minecraftcitiesnetwork.com/releases")
+    }
+    maven {
+        name = "mccities-snapshots"
+        url = uri("https://maven.minecraftcitiesnetwork.com/snapshots")
     }
     maven {
         name = "jitpack"
