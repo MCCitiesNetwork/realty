@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.adapter.playernotifs;
 
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -96,5 +97,64 @@ class ReferenceCopyTest {
                 StandardCharsets.UTF_8);
 
         Assertions.assertEquals(Duration.ofDays(30), AdapterConfig.read(dataFolder).expiry());
+    }
+
+    private static Path titlesReference(Path dataFolder) {
+        return dataFolder.resolve(AdapterConfig.DEFAULTS_DIR)
+                .resolve(TitleConfig.REFERENCE_FILE);
+    }
+
+    @Test
+    void aFirstStartWritesBothTheLiveTitlesFileAndItsReferenceCopy(@TempDir Path dataFolder) {
+        TitleConfig.read(dataFolder);
+
+        Assertions.assertTrue(Files.isRegularFile(dataFolder.resolve(TitleConfig.TITLES_FILE)));
+        Assertions.assertTrue(Files.isRegularFile(titlesReference(dataFolder)));
+    }
+
+    /** The operator's titles are theirs — seeded once, never rewritten. */
+    @Test
+    void aLaterStartLeavesTheOperatorsTitlesAlone(@TempDir Path dataFolder) throws IOException {
+        TitleConfig.read(dataFolder);
+        Path live = dataFolder.resolve(TitleConfig.TITLES_FILE);
+        String edited = Files.readString(live, StandardCharsets.UTF_8)
+                .replace("Lease expired", "Your lease ran out");
+        Files.writeString(live, edited, StandardCharsets.UTF_8);
+
+        TitleConfig titles = TitleConfig.read(dataFolder);
+
+        Assertions.assertEquals(edited, Files.readString(live, StandardCharsets.UTF_8));
+        Assertions.assertEquals("Your lease ran out", PlainTextComponentSerializer.plainText()
+                .serialize(titles.titleFor("notification.leasehold-expired")));
+    }
+
+    @Test
+    void aStaleTitlesReferenceCopyIsOverwrittenOnEveryStart(@TempDir Path dataFolder)
+            throws IOException {
+        TitleConfig.read(dataFolder);
+        Files.writeString(titlesReference(dataFolder), "# left over from an older version\n",
+                StandardCharsets.UTF_8);
+
+        TitleConfig.read(dataFolder);
+
+        String refreshed = Files.readString(titlesReference(dataFolder), StandardCharsets.UTF_8);
+        Assertions.assertFalse(refreshed.contains("left over"));
+        Assertions.assertTrue(refreshed.contains("notification.leasehold-expired"));
+    }
+
+    /**
+     * The shipped reference must itself load, and must load to the titles it documents — a reference
+     * copy whose keys were nested by the path separator would describe a file that overrides nothing.
+     */
+    @Test
+    void theTitlesReferenceCopyParsesToTheCompiledTitles(@TempDir Path dataFolder)
+            throws IOException {
+        TitleConfig.read(dataFolder);
+
+        try (Reader reader = Files.newBufferedReader(titlesReference(dataFolder))) {
+            TitleConfig titles = TitleConfig.load(reader);
+            Assertions.assertEquals("Lease expired", PlainTextComponentSerializer.plainText()
+                    .serialize(titles.titleFor("notification.leasehold-expired")));
+        }
     }
 }
