@@ -83,7 +83,6 @@ public final class PropertyTaxListener implements Listener {
         }
 
         Set<UUID> exempt = new HashSet<>(settings.exemptUuids());
-        int threshold = settings.exemptPlotThreshold();
         Instant periodStart = event.getPeriodStart();
 
         // Resolve the configured destination account once for the whole batch.
@@ -93,20 +92,19 @@ public final class PropertyTaxListener implements Listener {
         for (Map.Entry<UUID, Map<String, Set<String>>> ownerEntry : regionsByOwner.entrySet()) {
             UUID owner = ownerEntry.getKey();
             Map<String, Set<String>> regions = ownerEntry.getValue();
-            int plots = regions.size();
 
             if (exempt.contains(owner)) {
                 continue;
             }
 
-            // The Act's property tax is a single function of plot count, charged once
-            // per owner. The policy applies the exemption threshold and any optional
-            // local per-property overrides; with no rules configured it is exactly
-            // floor(default-formula(plots)).
-            BigDecimal taxAmount = policy.taxForOwner(new ArrayList<>(regions.values()), threshold);
+            // Each tax rule is charged once per owner, on the number of that owner's
+            // plots which fell to it. Plots matching no rule are untaxed.
+            List<Set<String>> plotTagSets = new ArrayList<>(regions.values());
+            BigDecimal taxAmount = policy.taxForOwner(plotTagSets);
             if (taxAmount.signum() <= 0) {
                 continue;
             }
+            int plots = policy.taxablePlotCount(plotTagSets);
 
             int accountId = resolvePersonalAccountId(owner);
             if (accountId == -1) {
