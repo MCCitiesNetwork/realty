@@ -12,6 +12,7 @@ import io.github.md5sha256.realty.api.RealtyBackend.PayBidResult;
 import io.github.md5sha256.realty.api.RealtyBackend.PayOfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RegionInfo;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
@@ -318,6 +319,30 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
 
             // The tenant has been cleared.
             Assertions.assertNull(logic.getLeaseholdContract(regionId, WORLD_ID).tenantId());
+        }
+
+        @Test
+        @DisplayName("a tenant under eviction cannot unrent their way out and re-rent")
+        void unrentBlockedWhileTerminating() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+
+            LocalDateTime effective = LocalDateTime.now().plusDays(7);
+            Assertions.assertInstanceOf(RealtyBackend.TerminateLeaseholdResult.Success.class,
+                    logic.terminateLease(regionId, WORLD_ID, effective, effective, "landlord"));
+
+            // Pre-fix this succeeded, clearing the termination along with the tenant.
+            Assertions.assertInstanceOf(RealtyBackend.UnrentResult.Terminating.class,
+                    logic.unrentRegion(regionId, WORLD_ID, PLAYER_B));
+
+            LeaseholdContractEntity lease = logic.getLeaseholdContract(regionId, WORLD_ID);
+            Assertions.assertEquals(PLAYER_B, lease.tenantId(), "Tenant must still be on the lease");
+            Assertions.assertNotNull(lease.terminationEffectiveDate(), "Eviction must still be pending");
+
+            // ...so the region is still occupied and cannot be re-rented.
+            Assertions.assertInstanceOf(RealtyBackend.RentResult.AlreadyOccupied.class,
+                    logic.rentRegion(regionId, WORLD_ID, PLAYER_B));
         }
 
         @Test

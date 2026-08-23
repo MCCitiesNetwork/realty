@@ -75,6 +75,8 @@ public interface RealtyPaperApi {
         record Success(double refund, @NotNull String regionId,
                        @NotNull UUID landlordId) implements UnrentResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements UnrentResult {}
+        /** The lease is scheduled for termination and can only end on the effective date. */
+        record Terminating(@NotNull String regionId) implements UnrentResult {}
         record RefundFailed(@NotNull String error) implements UnrentResult {}
         record UpdateFailed(@NotNull String regionId) implements UnrentResult {}
         record Error(@NotNull String message) implements UnrentResult {}

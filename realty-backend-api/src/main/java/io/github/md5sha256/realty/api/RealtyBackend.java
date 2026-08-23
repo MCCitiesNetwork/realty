@@ -298,6 +298,8 @@ public interface RealtyBackend {
     sealed interface UnrentResult {
         record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId) implements UnrentResult {}
         record NoLeaseholdContract() implements UnrentResult {}
+        /** The lease is scheduled for termination; it can only end via the sweep on the effective date. */
+        record Terminating() implements UnrentResult {}
         record UpdateFailed() implements UnrentResult {}
     }
 
