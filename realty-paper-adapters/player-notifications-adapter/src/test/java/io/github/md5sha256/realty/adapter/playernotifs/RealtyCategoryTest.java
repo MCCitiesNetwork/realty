@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -59,6 +60,34 @@ class RealtyCategoryTest {
             Assertions.assertFalse(category.description().isBlank(), category.name());
             Assertions.assertTrue(dataTypes.add(category.dataType()), category.dataType());
         }
+    }
+
+    /**
+     * Every claimed key carries its own title, and no category reuses one across two of its keys.
+     *
+     * <p>A blank or duplicated title puts the row back where this table started: PN's inbox lists rows
+     * by title alone, so two keys in one category sharing a title are two rows a player cannot tell
+     * apart. Across categories a repeat is harmless — those rows differ by category anyway.</p>
+     */
+    @Test
+    void everyClaimedKeyHasItsOwnTitleWithinItsCategory() {
+        for (RealtyCategory category : RealtyCategory.values()) {
+            Set<String> titles = new HashSet<>();
+            for (Map.Entry<String, String> entry : category.titlesByMessageKey().entrySet()) {
+                Assertions.assertFalse(entry.getValue().isBlank(), entry.getKey());
+                Assertions.assertTrue(titles.add(entry.getValue()),
+                        category.name() + " reuses the title '" + entry.getValue() + "'");
+            }
+        }
+    }
+
+    /** A claimed key renders its own summary; an unclaimed one falls back to the category label. */
+    @Test
+    void titleForFallsBackToTheCategoryLabel() {
+        Assertions.assertEquals("Lease expired",
+                RealtyCategory.titleFor("notification.leasehold-expired"));
+        Assertions.assertEquals(RealtyCategory.GENERAL.label(),
+                RealtyCategory.titleFor("notification.some-future-key"));
     }
 
     /**

@@ -12,14 +12,19 @@ import java.util.UUID;
  * PlayerNotifications fans out to whichever sinks the recipient prefers.
  *
  * <p>The body is the payload's component deserialized verbatim — Realty already rendered the text at
- * the fire site, so there is nothing left to decide here. The title is the message key's category
- * label.</p>
+ * the fire site, so there is nothing left to decide here.</p>
  *
- * <p><b>The title is the registered label, not the operator's.</b> An operator who renames a category
- * in PlayerNotifications' {@code categories.yml} changes what the preference dialogs show, but not
- * this title: the merged label lives in PN's core and is not on the API this module compiles against.
- * Presenting the operator's name here is PlayerNotifications' problem to solve, and when it does this
- * renderer follows it rather than growing a title config of its own.</p>
+ * <p><b>The title must identify the individual notification, not its category.</b> PN's inbox lists a
+ * row by its rendered title alone and reveals the body only when the row is opened, so a title that is
+ * constant per category gives a player a screen of identical rows — fourteen lease notifications all
+ * reading "Realty leases" — with no way to tell a rent payment from an eviction without opening each.
+ * The title is therefore {@link RealtyCategory#titleFor} (the message key's own summary) suffixed with
+ * the region when the payload names one, which is what makes two notifications of the <em>same</em>
+ * kind distinguishable from each other.</p>
+ *
+ * <p>The region is appended as its raw WorldGuard id. That is what the body already shows and what the
+ * player types into commands; resolving a friendlier name would need a live region the payload
+ * deliberately does not hold — it routinely outlives the region it describes.</p>
  *
  * <p>Rendering ignores the target: Realty's messages are already per-target (several targets means
  * several people get the <em>same</em> text), so there is nothing to personalise.</p>
@@ -33,7 +38,11 @@ public final class RealtyNotificationRenderer implements NotificationRenderer<Re
     @Override
     public @NotNull RenderableNotification render(@NotNull RealtyNotificationPayload payload,
                                                   @NotNull UUID target) {
-        Component title = Component.text(RealtyCategory.forMessageKey(payload.messageKey()).label());
+        String summary = RealtyCategory.titleFor(payload.messageKey());
+        String regionId = payload.regionId();
+        Component title = Component.text(regionId == null || regionId.isBlank()
+                ? summary
+                : summary + " — " + regionId);
         return new RenderableNotification(title, payload.bodyComponent());
     }
 }
