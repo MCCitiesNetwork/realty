@@ -210,6 +210,7 @@ class RegistrationLifecycleTest {
         RenderableNotification rendered = RENDERER.render(payload, UUID.randomUUID());
 
         Assertions.assertEquals(message.compact(), rendered.body().compact());
-        Assertions.assertEquals(Component.text(RealtyCategory.AUCTION.label()), rendered.title());
+        // The message key's own summary, not the category label — see RealtyNotificationRendererTest.
+        Assertions.assertEquals(Component.text("Outbid"), rendered.title());
     }
 }
