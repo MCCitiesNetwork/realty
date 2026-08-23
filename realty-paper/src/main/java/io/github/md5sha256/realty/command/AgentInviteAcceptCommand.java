@@ -64,6 +64,7 @@ public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_SUCCESS,
                             Placeholder.unparsed("region", regionId)));
                     events.fireSync(new RealtyNotificationEvent(List.of(inviterId),
+                            MessageKeys.NOTIFICATION_AGENT_INVITE_ACCEPTED,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_ACCEPTED,
                                     Placeholder.unparsed("player", player.getName()),
                                     Placeholder.unparsed("region", regionId)), region));

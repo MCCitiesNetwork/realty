@@ -33,6 +33,9 @@ tasks {
 
     processResources {
         val projectVersion = version
+        // See realty-paper: without this the task is up-to-date across a version bump and the
+        // manifest keeps announcing the previous version.
+        inputs.property("version", projectVersion)
         filesMatching("paper-plugin.yml") {
             expand("version" to projectVersion)
         }

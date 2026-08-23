@@ -157,17 +157,14 @@ tasks {
         relocate("org.enginehub.squirrelid", "${base}.org.enginehub.squirrelid")
         relocate("org.sqlite", "${base}.org.sqlite")
         mergeServiceFiles()
-
-        dependsOn(":realty-paper-adapters:chat-adapter:shadowJar")
-        from(project(":realty-paper-adapters:chat-adapter")
-                .tasks.named("shadowJar").map { it.outputs.files.singleFile }) {
-            into("modules")
-            rename { "chat-adapter.jar" }
-        }
     }
 
     processResources {
         val projectVersion = version
+        // Declared as an input so a version bump invalidates the task. Without this Gradle only
+        // hashes paper-plugin.yml itself, finds it unchanged, and reuses the previously-expanded
+        // output -- shipping a jar whose manifest announces the *previous* version.
+        inputs.property("version", projectVersion)
         filesMatching("paper-plugin.yml") {
             expand("version" to projectVersion)
         }
@@ -185,6 +182,11 @@ tasks {
         // the spec's Essentials smoke test cannot be run as written.
         val essentialsAdapterJar = project(":realty-paper-adapters:essentials-adapter")
                 .tasks.named("shadowJar", AbstractArchiveTask::class).flatMap { it.archiveFile }
+        // PlayerNotifications is not downloaded by runServer, so player-notifications-adapter will fail to
+        // initialize there with its "PlayerNotifications is not installed" error. Staging it
+        // anyway keeps the jar fresh for a server that does have PN dropped in by hand.
+        val playerNotificationsAdapterJar = project(":realty-paper-adapters:player-notifications-adapter")
+                .tasks.named("shadowJar", AbstractArchiveTask::class).flatMap { it.archiveFile }
         // Plan is downloaded below, so stage the extension that pairs with it. Staging it
         // here rather than leaving a hand-copied jar in run/plugins is what stops it going
         // stale: the copy that lived there was built before RealtyApi became RealtyBackend
@@ -195,12 +197,13 @@ tasks {
         val pluginsDir = layout.projectDirectory.dir("run/plugins").asFile
         // The archiveFile providers carry their producing task as a dependency, so the
         // explicit dependsOn declarations they replace are no longer needed.
-        inputs.files(chatAdapterJar, essentialsAdapterJar, planExtensionJar)
+        inputs.files(chatAdapterJar, essentialsAdapterJar, playerNotificationsAdapterJar, planExtensionJar)
         doFirst {
             moduleDir.mkdirs()
             chatAdapterJar.get().asFile.copyTo(moduleDir.resolve("chat-adapter.jar"), overwrite = true)
             essentialsAdapterJar.get().asFile
                     .copyTo(moduleDir.resolve("essentials-adapter.jar"), overwrite = true)
+            playerNotificationsAdapterJar.get().asFile.copyTo(moduleDir.resolve("player-notifications-adapter.jar"), overwrite = true)
             // Fixed filename, so a rebuild replaces the jar instead of leaving the previous
             // version behind as a second, duplicate plugin.
             pluginsDir.mkdirs()

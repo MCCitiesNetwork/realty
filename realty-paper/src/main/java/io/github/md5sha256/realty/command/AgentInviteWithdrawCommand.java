@@ -75,6 +75,7 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                             Placeholder.unparsed("player", inviteeName),
                             Placeholder.unparsed("region", regionId)));
                     events.fireSync(new RealtyNotificationEvent(List.of(inviteeId),
+                            MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
                                     Placeholder.unparsed("player", resolveName(player.getUniqueId())),
                                     Placeholder.unparsed("region", regionId)), region));

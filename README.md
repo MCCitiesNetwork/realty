@@ -67,6 +67,41 @@ immutable: republishing a version that already exists fails with a 409, so bump 
 | `realty-paper` | Main Paper plugin |
 | `realty-paper-plan-extension` | Optional [Plan](https://github.com/plan-player-analytics/Plan) integration |
 | `realty-areashop-importer` | Optional AreaShop migration helper |
+| `realty-paper-adapters/chat-adapter` | Notification delivery to online players via chat |
+| `realty-paper-adapters/essentials-adapter` | Notification delivery via EssentialsX mail |
+| `realty-paper-adapters/player-notifications-adapter` | Notification delivery via [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) |
+
+The adapter modules are **not bundled in the plugin jar**. Each is published as its own jar; install
+the ones you want by placing them in `plugins/Realty/modules` and restarting the server. Realty
+delivers no notifications until at least one delivery module is installed, and logs a warning at
+startup while none is.
+
+### Notification categories
+
+`player-notifications-adapter` registers five notification categories with PlayerNotifications —
+agents, auctions, offers, leases, and a general catch-all — each one a data type players switch on and
+off in `/notifications preferences`.
+
+**You configure them in PlayerNotifications, not here.** PlayerNotifications writes every category a
+module registered into its generated `categories-defaults.yml`; copy the blocks you care about into its
+`categories.yml` and edit them there. That is where a label, a description, or a regrouping of Realty's
+data types into categories of your own takes effect.
+
+The adapter's own `config.yml`
+(`plugins/Realty/modules/player-notifications-adapter/config.yml`) holds one setting, `expiry-days`:
+how long an enqueued notification stays in a player's inbox before PlayerNotifications expires it.
+
+Realty also supplies a display name for each of its data types; rename one in PlayerNotifications'
+`type-names.yml` if you want something different.
+
+A Realty message key that no category claims still reaches players, routed to the general category.
+
+### Turning off EssentialsX mail delivery
+
+`essentials-adapter` writes a `config.yml` into its data folder. Setting `notifications-enabled: false`
+stops Realty notifications being delivered as EssentialsX mail — useful when another delivery module
+already covers offline players and you do not want the same notification arriving twice. The module's
+teleport-safety integration is not affected by the setting and always applies.
 
 ## Documentation
 
