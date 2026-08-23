@@ -1,4 +1,4 @@
-package io.github.md5sha256.realty.adapter.essentials;
+package io.github.md5sha256.realty.adapter.playernotifs;
 
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.jetbrains.annotations.NotNull;
@@ -10,46 +10,49 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Duration;
 import java.util.Objects;
 
 /**
  * Reads the module's {@code config.yml}.
  *
- * <p>Kept out of {@link EssentialsAdapterModule} so it can be tested directly: the module extends
- * {@code SimplePluginModule}, and reaching it from a test would drag {@code plugin-infrastructure} —
- * a {@code compileOnly} dependency — onto the test classpath.</p>
+ * <p>All this file holds is {@code expiry-days}. Categories used to live beside it in a
+ * {@code categories.yml}; they are now registered in code and presented from PlayerNotifications' own
+ * {@code categories.yml} — see {@link RealtyCategory}. Expiry stays here because it is neither a
+ * category nor something PlayerNotifications can infer: it is this adapter's choice of how long a
+ * Realty notification is worth keeping.</p>
+ *
+ * <p>Kept out of {@link PlayerNotificationsAdapterModule} so it can be tested directly: the module
+ * extends {@code SimplePluginModule}, and reaching it from a test would drag
+ * {@code plugin-infrastructure} — a {@code compileOnly} dependency — onto the test classpath. Only
+ * Bukkit's own config classes are needed here, and those run without a server.</p>
  */
-public final class EssentialsAdapterConfig {
+public final class AdapterConfig {
 
     static final String CONFIG_FILE = "config.yml";
     /** See the project config rules: every operator config ships a regenerated reference copy. */
     static final String DEFAULTS_DIR = "defaults";
     static final String REFERENCE_FILE = "default-config.yml";
 
-    private static final String NOTIFICATIONS_ENABLED = "notifications-enabled";
+    private static final String EXPIRY_DAYS = "expiry-days";
+    private static final int DEFAULT_EXPIRY_DAYS = 30;
 
-    private final boolean notificationsEnabled;
+    private final Duration expiry;
 
-    EssentialsAdapterConfig(boolean notificationsEnabled) {
-        this.notificationsEnabled = notificationsEnabled;
+    AdapterConfig(@NotNull Duration expiry) {
+        this.expiry = Objects.requireNonNull(expiry, "expiry");
     }
 
-    /**
-     * Whether Realty notifications are delivered as EssentialsX mail.
-     *
-     * <p>Only mail delivery is switchable. The teleport-safety integration this module also installs
-     * is not affected: it is a correctness fix rather than a delivery channel, and a server running
-     * EssentialsX wants EssentialsX's own block checks whatever it does about notifications.</p>
-     */
-    public boolean notificationsEnabled() {
-        return this.notificationsEnabled;
+    /** How long an enqueued notification survives before PlayerNotifications expires it. */
+    public @NotNull Duration expiry() {
+        return this.expiry;
     }
 
     /**
      * Reads the operator's {@code config.yml}, writing the bundled default there first if they have
      * none, and refreshing the reference copy beside it either way.
      */
-    public static @NotNull EssentialsAdapterConfig read(@NotNull Path dataFolder) {
+    public static @NotNull AdapterConfig read(@NotNull Path dataFolder) {
         Objects.requireNonNull(dataFolder, "dataFolder");
         Path file = dataFolder.resolve(CONFIG_FILE);
         try {
@@ -67,14 +70,13 @@ public final class EssentialsAdapterConfig {
     }
 
     /**
-     * Builds the settings from a loaded {@code config.yml}.
-     *
-     * <p>Defaults to enabled, so an operator whose file predates this setting keeps the behaviour
-     * they already had rather than silently losing mail delivery on upgrade.</p>
+     * Builds the settings from a loaded {@code config.yml}, defaulting {@code expiry-days} so a file
+     * predating this setting — or an operator's file that never had it — still starts.
      */
-    static @NotNull EssentialsAdapterConfig from(@NotNull YamlConfiguration config) {
+    static @NotNull AdapterConfig from(@NotNull YamlConfiguration config) {
         Objects.requireNonNull(config, "config");
-        return new EssentialsAdapterConfig(config.getBoolean(NOTIFICATIONS_ENABLED, true));
+        return new AdapterConfig(
+                Duration.ofDays(config.getLong(EXPIRY_DAYS, DEFAULT_EXPIRY_DAYS)));
     }
 
     /**
@@ -88,11 +90,11 @@ public final class EssentialsAdapterConfig {
     }
 
     private static void copyBundled(@NotNull Path target) throws IOException {
-        try (InputStream bundled = EssentialsAdapterConfig.class.getClassLoader()
+        try (InputStream bundled = AdapterConfig.class.getClassLoader()
                 .getResourceAsStream(CONFIG_FILE)) {
             if (bundled == null) {
                 throw new IllegalStateException(
-                        "essentials-adapter jar is missing its bundled " + CONFIG_FILE);
+                        "player-notifications-adapter jar is missing its bundled " + CONFIG_FILE);
             }
             Files.copy(bundled, target, StandardCopyOption.REPLACE_EXISTING);
         }

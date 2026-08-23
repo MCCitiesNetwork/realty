@@ -19,7 +19,7 @@ import java.util.logging.Logger;
 
 /**
  * Turns each Realty notification into exactly one PlayerNotifications notification, routed to the
- * data type its message key maps to.
+ * data type its message key's {@link RealtyCategory} maps to.
  *
  * <p>Unlike the chat adapter, nothing here checks whether a target is online: handing the
  * notification to PN is the whole job, and PN decides per recipient which sinks it reaches and
@@ -30,23 +30,26 @@ import java.util.logging.Logger;
  */
 public final class PlayerNotificationsListener implements Listener {
 
+    /**
+     * Every Realty notification is enqueued at the same priority. Ordering the inbox by category was
+     * dropped along with the module's own category config: PlayerNotifications is where a server
+     * decides how a category is presented, and a per-category priority set here would fight that.
+     */
+    private static final int PRIORITY = 0;
+
     private final NotificationEnqueuer enqueuer;
-    private final NotificationCategoryMapper categoryMapper;
     private final Duration expiry;
     private final Logger logger;
 
     /**
-     * @param enqueuer       hands the built notification to PlayerNotifications
-     * @param categoryMapper resolves data type and priority from the event's message key
-     * @param expiry         how long an enqueued notification survives before PN expires it
-     * @param logger         used only for the FINE unmapped-key trace
+     * @param enqueuer hands the built notification to PlayerNotifications
+     * @param expiry   how long an enqueued notification survives before PN expires it
+     * @param logger   used only for the FINE unclaimed-key trace
      */
     public PlayerNotificationsListener(@NotNull NotificationEnqueuer enqueuer,
-                                       @NotNull NotificationCategoryMapper categoryMapper,
                                        @NotNull Duration expiry,
                                        @NotNull Logger logger) {
         this.enqueuer = Objects.requireNonNull(enqueuer, "enqueuer");
-        this.categoryMapper = Objects.requireNonNull(categoryMapper, "categoryMapper");
         this.expiry = Objects.requireNonNull(expiry, "expiry");
         this.logger = Objects.requireNonNull(logger, "logger");
     }
@@ -54,12 +57,12 @@ public final class PlayerNotificationsListener implements Listener {
     @EventHandler(priority = EventPriority.NORMAL)
     public void onNotification(@NotNull RealtyNotificationEvent event) {
         String messageKey = event.getMessageKey();
-        String dataType = this.categoryMapper.dataTypeFor(messageKey);
-        if (!this.categoryMapper.isMapped(messageKey)) {
+        String dataType = RealtyCategory.forMessageKey(messageKey).dataType();
+        if (!RealtyCategory.isClaimed(messageKey)) {
             // Never dropped: an unknown key is far more likely to be a Realty key newer than this
-            // module's categories.yml than a mistake, and a player still wants to be told.
+            // module's category table than a mistake, and a player still wants to be told.
             this.logger.log(Level.FINE,
-                    "Unmapped Realty message key {0}; routing to {1}",
+                    "Unclaimed Realty message key {0}; routing to {1}",
                     new Object[]{messageKey, dataType});
         }
 
@@ -77,7 +80,7 @@ public final class PlayerNotificationsListener implements Listener {
                 new NotificationTarget(event.getTargets()),
                 dataType,
                 payload,
-                this.categoryMapper.priorityFor(messageKey));
+                PRIORITY);
 
         // overwriteAllowed is false: every Realty notification is a distinct event — a second
         // outbid is a second thing that happened, not a correction of the first — so none of them
