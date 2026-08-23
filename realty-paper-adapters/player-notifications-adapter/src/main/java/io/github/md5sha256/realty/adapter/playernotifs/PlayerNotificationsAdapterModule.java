@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.adapter.playernotifs;
 
+import com.minecraftcitiesnetwork.pluginInfrastructure.modules.PluginModule;
 import com.minecraftcitiesnetwork.pluginInfrastructure.modules.SimplePluginModule;
 import io.github.md5sha256.playernotifications.api.NotificationService;
 import io.github.md5sha256.realty.Realty;
@@ -10,6 +11,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 
 /**
@@ -27,6 +29,8 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
     static final String OBSOLETE_CATEGORIES_FILE = "categories.yml";
 
     private @Nullable NotificationService service;
+    private @Nullable RealtyNotificationRenderer renderer;
+    private @Nullable PlayerNotificationsListener listener;
 
     /**
      * {@inheritDoc}
@@ -74,12 +78,52 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
 
         // 3. Register payload types, renderers and categories. PN's registry notifies its own
         //    change listener, so registering this late still reaches the preference dialogs.
-        RealtyDataTypes.registerAll(notificationService, new RealtyNotificationRenderer(titles));
+        RealtyNotificationRenderer notificationRenderer = new RealtyNotificationRenderer(titles);
+        RealtyDataTypes.registerAll(notificationService, notificationRenderer);
         this.service = notificationService;
+        this.renderer = notificationRenderer;
 
         // 4. Only now, with nothing left that can throw, does a live listener appear.
-        registerListener(new PlayerNotificationsListener(
-                notificationService::enqueueNotification, config.expiry(), plugin.getLogger()));
+        PlayerNotificationsListener notificationListener = new PlayerNotificationsListener(
+                notificationService::enqueueNotification, config.expiry(), plugin.getLogger());
+        registerListener(notificationListener);
+        this.listener = notificationListener;
+    }
+
+    /**
+     * Re-reads {@code config.yml} and {@code titles.yml} and pushes them into the running renderer
+     * and listener.
+     *
+     * <p>Without this override {@code /realty reload} did nothing here: the manifest's
+     * {@code reloadable: true} only permits a reload, and {@link PluginModule#reload}
+     * defaults to a no-op, so both files were read once in {@link #initialize} and never again.</p>
+     *
+     * <p>Nothing is re-registered with PlayerNotifications. The renderer instance PN holds and the
+     * listener Bukkit holds both stay exactly as they are; only the config each reads is swapped.
+     * Re-registering would mean an {@code unregisterAll}/{@code registerAll} cycle on PN's registry,
+     * which {@link RealtyDataTypes} documents as corrupting the registry if it is ever partial —
+     * a risk this refresh has no reason to take.</p>
+     *
+     * <p>The reads happen on the calling thread rather than being pushed onto a background one:
+     * {@code /realty reload} already runs off the main thread, and two small YAML files are not
+     * worth a thread hop that would only add a race against a concurrent shutdown.</p>
+     */
+    @Override
+    public @NotNull CompletableFuture<Void> reload(@NotNull Realty plugin) {
+        RealtyNotificationRenderer notificationRenderer = this.renderer;
+        PlayerNotificationsListener notificationListener = this.listener;
+        if (notificationRenderer == null || notificationListener == null) {
+            // Not initialized, or already shut down: nothing live to refresh.
+            return CompletableFuture.completedFuture(null);
+        }
+        try {
+            notificationRenderer.setTitles(TitleConfig.read(dataFolder()));
+            notificationListener.setExpiry(AdapterConfig.read(dataFolder()).expiry());
+        } catch (RuntimeException e) {
+            // The module keeps running on its previous config; a broken edit must not take it down.
+            return CompletableFuture.failedFuture(e);
+        }
+        return CompletableFuture.completedFuture(null);
     }
 
     /**
@@ -114,6 +158,8 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
             RealtyDataTypes.unclaimAll(notificationService.categoryRegistry());
             this.service = null;
         }
+        this.renderer = null;
+        this.listener = null;
         super.shutdown(plugin);
     }
 }
