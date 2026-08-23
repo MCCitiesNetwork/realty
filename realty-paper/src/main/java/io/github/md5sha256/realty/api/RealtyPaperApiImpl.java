@@ -313,6 +313,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             case RealtyBackend.UnrentResult.NoLeaseholdContract ignored ->
                     CompletableFuture.completedFuture(
                             (UnrentResult) new UnrentResult.NoLeaseholdContract(regionId));
+            case RealtyBackend.UnrentResult.Terminating ignored ->
+                    CompletableFuture.completedFuture(
+                            (UnrentResult) new UnrentResult.Terminating(regionId));
             case RealtyBackend.UnrentResult.UpdateFailed ignored ->
                     CompletableFuture.completedFuture(
                             (UnrentResult) new UnrentResult.UpdateFailed(regionId));

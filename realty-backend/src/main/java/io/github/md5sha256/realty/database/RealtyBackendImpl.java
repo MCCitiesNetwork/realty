@@ -807,6 +807,12 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease == null) {
                 return new UnrentResult.NoLeaseholdContract();
             }
+            // A scheduled termination — an eviction in particular — must run its notice period out.
+            // Without this guard the tenant could unrent (which clears terminationEffectiveDate along
+            // with the tenant) and immediately re-rent, unilaterally cancelling their own eviction.
+            if (lease.terminationEffectiveDate() != null) {
+                return new UnrentResult.Terminating();
+            }
             long totalSeconds = lease.durationSeconds();
             // Pro-rata refund of the UNUSED portion of the current period. Renewals push
             // endDate out by another durationSeconds each (see renewLeasehold) but are not
