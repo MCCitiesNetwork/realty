@@ -7,12 +7,7 @@ import io.github.md5sha256.playernotifications.api.render.NotificationRenderer;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Registers and unregisters the PlayerNotifications data types {@code categories.yml} declares.
- *
- * <p>Every method takes the {@link NotificationCategoryMapper} the data types came from, and no
- * method holds a list of its own. That is what makes the category set operator-configurable: adding
- * a category to the file adds it here, with its configured label and description, without a code
- * change.</p>
+ * Registers and unregisters the PlayerNotifications data types {@link RealtyCategory} declares.
  *
  * <p><b>The shared payload class footgun.</b> All data types share one payload class,
  * {@link RealtyNotificationPayload}. {@code NotificationDataTypeRegistry} keys serializers and
@@ -24,17 +19,14 @@ import org.jetbrains.annotations.NotNull;
  *
  * <p>Unregistering the whole set is therefore not a tidiness preference, it is the only correct
  * sequence: partially unregistering is what corrupts the registry. {@link
- * #unregisterAll(NotificationDataTypeRegistry, NotificationCategoryMapper)} exists so no call site
- * can get that wrong, and {@code RegistrationLifecycleTest} asserts the hazard so it stays
- * documented executably. This is a sharp edge in the PlayerNotifications API, not in this
- * module.</p>
+ * #unregisterAll(NotificationDataTypeRegistry)} exists so no call site can get that wrong, and
+ * {@code RegistrationLifecycleTest} asserts the hazard so it stays documented executably. This is a
+ * sharp edge in the PlayerNotifications API, not in this module.</p>
  *
- * <p><b>Reloads must unregister the mapper they registered.</b> Because the set is now read from
- * config, a reload that removes or renames a category produces a mapper that no longer knows about
- * the data types actually in the registry. Passing the <em>new</em> mapper to
- * {@code unregisterAll} would leave those orphaned and mapped to a dead class loader's renderer.
- * {@code PlayerNotificationsAdapterModule} keeps the mapper it registered with and tears down with
- * that one.</p>
+ * <p><b>Registering late is fine.</b> A module starts from Realty's {@code onEnable}, well after
+ * PlayerNotifications has built its merged category snapshot. PN's registry fires
+ * {@code addChangeListener} on every mutation and PN rebuilds, so these categories reach the
+ * preference dialogs without this module having to know it was late.</p>
  */
 public final class RealtyDataTypes {
 
@@ -42,8 +34,19 @@ public final class RealtyDataTypes {
     }
 
     /**
-     * Binds every declared data type to {@link RealtyNotificationPayload} and claims it under a
-     * category carrying its configured label and description.
+     * Binds every category's data type to {@link RealtyNotificationPayload}, names it, and registers
+     * the category with its default label and description.
+     *
+     * <p>The category claims exactly one data type — its own — so a player toggling a category in
+     * {@code /notifications preferences} toggles precisely the Realty notifications it routes. An
+     * operator who wants a different grouping regroups these data types in PlayerNotifications'
+     * {@code categories.yml}; nothing here needs to change for that.</p>
+     *
+     * <p>The display name is the category's label, registered with the data type rather than left to
+     * PlayerNotifications to guess: without one PN title-cases the registry key, and
+     * {@code realty.auction} title-cases to "Realty.auction". Like the label, it is a default — an
+     * operator's entry in PN's {@code type-names.yml} wins, and may carry MiniMessage colour these
+     * plain labels do not.</p>
      *
      * <p>Uses {@code registerJsonRenderable}, never {@code registerJsonPayload}: an explicit
      * processor wins dispatch precedence and bypasses preferences and sinks entirely, which would
@@ -53,26 +56,27 @@ public final class RealtyDataTypes {
      * what makes this module safe to declare {@code reloadable: true}.</p>
      */
     public static void registerAll(@NotNull NotificationService service,
-                                   @NotNull NotificationCategoryMapper mapper,
                                    @NotNull NotificationRenderer<RealtyNotificationPayload> renderer) {
         NotificationCategoryRegistry categories = service.categoryRegistry();
-        for (String dataType : mapper.dataTypes()) {
+        for (RealtyCategory category : RealtyCategory.values()) {
+            String dataType = category.dataType();
             service.registerJsonRenderable(dataType, RealtyNotificationPayload.class, renderer);
-            categories.registerCategory(dataType,
-                    mapper.labelFor(dataType),
-                    mapper.descriptionFor(dataType));
+            service.dataTypeRegistry().registerDisplayName(dataType, category.label());
+            categories.registerCategory(dataType, category.label(), category.description());
             categories.claimDataType(dataType, dataType);
         }
     }
 
     /**
-     * Unregisters <em>every</em> data type the given mapper declares. See the class javadoc: doing
-     * this partially corrupts the registry for the data types left behind.
+     * Unregisters <em>every</em> data type. See the class javadoc: doing this partially corrupts the
+     * registry for the data types left behind.
      */
-    public static void unregisterAll(@NotNull NotificationDataTypeRegistry registry,
-                                     @NotNull NotificationCategoryMapper mapper) {
-        for (String dataType : mapper.dataTypes()) {
-            registry.unregisterPayloadMapping(dataType);
+    public static void unregisterAll(@NotNull NotificationDataTypeRegistry registry) {
+        for (RealtyCategory category : RealtyCategory.values()) {
+            registry.unregisterPayloadMapping(category.dataType());
+            // Not part of the payload-mapping cascade: a display name is keyed by data type, not by
+            // payload class, so dropping the mapping leaves the name behind unless it is said here.
+            registry.unregisterDisplayName(category.dataType());
         }
         // The cascade above already removed the shared serializer and renderer, but say so
         // explicitly: if a future data type were ever given its own payload class, the loop alone
@@ -84,10 +88,9 @@ public final class RealtyDataTypes {
     /**
      * Releases each category's claim on its data type.
      */
-    public static void unclaimAll(@NotNull NotificationCategoryRegistry categories,
-                                  @NotNull NotificationCategoryMapper mapper) {
-        for (String dataType : mapper.dataTypes()) {
-            categories.unclaimDataType(dataType, dataType);
+    public static void unclaimAll(@NotNull NotificationCategoryRegistry categories) {
+        for (RealtyCategory category : RealtyCategory.values()) {
+            categories.unclaimDataType(category.dataType(), category.dataType());
         }
     }
 }

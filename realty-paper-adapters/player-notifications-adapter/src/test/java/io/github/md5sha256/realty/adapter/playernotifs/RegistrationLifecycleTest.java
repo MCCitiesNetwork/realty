@@ -1,6 +1,8 @@
 package io.github.md5sha256.realty.adapter.playernotifs;
 
 import io.github.md5sha256.playernotifications.api.NotificationDataTypeRegistry;
+import io.github.md5sha256.playernotifications.api.category.DefaultNotificationCategoryRegistry;
+import io.github.md5sha256.playernotifications.api.category.NotificationCategoryRegistry;
 import io.github.md5sha256.playernotifications.api.render.NotificationRenderer;
 import io.github.md5sha256.playernotifications.api.render.RenderableNotification;
 import io.github.md5sha256.playernotifications.api.serialize.PayloadSerializer;
@@ -9,20 +11,19 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * Exercises registration and unregistration against a real {@link NotificationDataTypeRegistry} —
- * it is a plain concrete class with no Bukkit dependency, so no server is needed.
+ * Exercises registration and unregistration against a real {@link NotificationDataTypeRegistry} and
+ * {@link DefaultNotificationCategoryRegistry} — both are plain concrete classes with no Bukkit
+ * dependency, so no server is needed.
  */
 class RegistrationLifecycleTest {
 
-    private static final NotificationCategoryMapper MAPPER = TestCategories.defaults();
-
     private static final NotificationRenderer<RealtyNotificationPayload> RENDERER =
-            new RealtyNotificationRenderer(MAPPER);
+            new RealtyNotificationRenderer();
 
     /**
      * Stands in for the reflective JSON serializer {@code registerJsonRenderable} installs; only its
@@ -45,59 +46,92 @@ class RegistrationLifecycleTest {
      * Mirrors what {@code NotificationService.registerJsonRenderable} does to the registry: bind the
      * data type to the payload class, and register a serializer and renderer for that class.
      */
-    private static NotificationDataTypeRegistry registerAll(NotificationCategoryMapper mapper) {
+    private static NotificationDataTypeRegistry registerAll() {
         NotificationDataTypeRegistry registry = new NotificationDataTypeRegistry();
-        for (String dataType : mapper.dataTypes()) {
-            registry.registerPayloadMapping(dataType, RealtyNotificationPayload.class);
+        for (RealtyCategory category : RealtyCategory.values()) {
+            registry.registerPayloadMapping(category.dataType(), RealtyNotificationPayload.class);
             registry.registerSerializer(RealtyNotificationPayload.class, SERIALIZER);
             registry.registerRenderer(RealtyNotificationPayload.class, RENDERER);
+            registry.registerDisplayName(category.dataType(), category.label());
         }
         return registry;
     }
 
     @Test
     void everyDeclaredDataTypeRegisters() {
-        NotificationDataTypeRegistry registry = registerAll(MAPPER);
+        NotificationDataTypeRegistry registry = registerAll();
 
-        for (String dataType : MAPPER.dataTypes()) {
+        for (RealtyCategory category : RealtyCategory.values()) {
+            String dataType = category.dataType();
             Assertions.assertTrue(registry.dataTypes().contains(dataType), dataType);
             Assertions.assertTrue(registry.getSerializer(dataType).isPresent(), dataType);
             Assertions.assertTrue(registry.getRenderer(dataType).isPresent(), dataType);
         }
-        Assertions.assertEquals(MAPPER.dataTypes().size(), registry.dataTypes().size());
+        Assertions.assertEquals(RealtyCategory.values().length, registry.dataTypes().size());
+    }
+
+    /**
+     * Every data type carries a name, so the preference screens never fall through to PN title-casing
+     * the registry key — which would read "Realty.auction".
+     */
+    @Test
+    void everyDataTypeIsRegisteredWithADisplayName() {
+        NotificationDataTypeRegistry registry = registerAll();
+
+        for (RealtyCategory category : RealtyCategory.values()) {
+            Assertions.assertEquals(Optional.of(category.label()),
+                    registry.displayName(category.dataType()), category.dataType());
+        }
+    }
+
+    /**
+     * A display name is keyed by data type while the serializer and renderer are keyed by payload
+     * class, so it is not swept up by the payload-mapping cascade — teardown must drop it explicitly
+     * or a reloaded module leaves its names behind.
+     */
+    @Test
+    void unregisteringDropsTheDisplayNamesToo() {
+        NotificationDataTypeRegistry registry = registerAll();
+
+        RealtyDataTypes.unregisterAll(registry);
+
+        for (RealtyCategory category : RealtyCategory.values()) {
+            Assertions.assertTrue(registry.displayName(category.dataType()).isEmpty(),
+                    category.dataType());
+        }
     }
 
     @Test
     void unregisteringTheWholeSetLeavesTheRegistryClean() {
-        NotificationDataTypeRegistry registry = registerAll(MAPPER);
+        NotificationDataTypeRegistry registry = registerAll();
 
-        RealtyDataTypes.unregisterAll(registry, MAPPER);
+        RealtyDataTypes.unregisterAll(registry);
 
-        Assertions.assertEquals(Map.of().keySet(), registry.dataTypes());
+        Assertions.assertTrue(registry.dataTypes().isEmpty());
         Assertions.assertTrue(registry.getSerializer(RealtyNotificationPayload.class).isEmpty());
         Assertions.assertTrue(registry.getRenderer(RealtyNotificationPayload.class).isEmpty());
     }
 
     @Test
     void unregisteringTheWholeSetIsIdempotent() {
-        NotificationDataTypeRegistry registry = registerAll(MAPPER);
+        NotificationDataTypeRegistry registry = registerAll();
 
-        RealtyDataTypes.unregisterAll(registry, MAPPER);
-        RealtyDataTypes.unregisterAll(registry, MAPPER);
+        RealtyDataTypes.unregisterAll(registry);
+        RealtyDataTypes.unregisterAll(registry);
 
         Assertions.assertTrue(registry.dataTypes().isEmpty());
     }
 
     @Test
     void reRegisteringOverAnExistingRegistrationIsIdempotent() {
-        NotificationDataTypeRegistry registry = registerAll(MAPPER);
+        NotificationDataTypeRegistry registry = registerAll();
 
-        for (String dataType : MAPPER.dataTypes()) {
-            registry.registerPayloadMapping(dataType, RealtyNotificationPayload.class);
+        for (RealtyCategory category : RealtyCategory.values()) {
+            registry.registerPayloadMapping(category.dataType(), RealtyNotificationPayload.class);
         }
 
         // Plain map puts, which is what makes `reloadable: true` safe for this module.
-        Assertions.assertEquals(MAPPER.dataTypes().size(), registry.dataTypes().size());
+        Assertions.assertEquals(RealtyCategory.values().length, registry.dataTypes().size());
         Assertions.assertTrue(registry.getRenderer("realty.auction").isPresent());
     }
 
@@ -110,13 +144,14 @@ class RegistrationLifecycleTest {
      */
     @Test
     void aPartialUnregisterSilentlyBreaksTheRemainingDataTypes() {
-        NotificationDataTypeRegistry registry = registerAll(MAPPER);
+        NotificationDataTypeRegistry registry = registerAll();
 
         registry.unregisterPayloadMapping("realty.auction");
 
         Assertions.assertFalse(registry.dataTypes().contains("realty.auction"));
-        Assertions.assertEquals(MAPPER.dataTypes().size() - 1, registry.dataTypes().size());
-        for (String survivor : MAPPER.dataTypes()) {
+        Assertions.assertEquals(RealtyCategory.values().length - 1, registry.dataTypes().size());
+        for (RealtyCategory category : RealtyCategory.values()) {
+            String survivor = category.dataType();
             if (survivor.equals("realty.auction")) {
                 continue;
             }
@@ -129,27 +164,41 @@ class RegistrationLifecycleTest {
     }
 
     /**
-     * The reload hazard the configurable category set introduces: if teardown used a mapper rebuilt
-     * from an edited {@code categories.yml}, a category the operator deleted would be left
-     * registered, mapped to a renderer on a class loader that is about to be closed. The module
-     * therefore keeps the mapper it registered with — which is what this asserts.
+     * Each category registers with its compiled default label and description and claims exactly its
+     * own data type — the blocks an operator then sees in the generated
+     * {@code categories-defaults.yml}.
      */
     @Test
-    void tearingDownWithANewerMapperOrphansARemovedCategory() {
-        NotificationDataTypeRegistry registry = registerAll(MAPPER);
-        NotificationCategoryMapper afterOperatorDeletedAuctions = new NotificationCategoryMapper(
-                List.of(TestCategories.category("realty.general", "Realty", "notification.region-bought")),
-                Map.of(),
-                "realty.general");
+    void categoriesRegisterWithTheirDefaultsAndClaimTheirOwnDataType() {
+        NotificationCategoryRegistry categories = new DefaultNotificationCategoryRegistry();
 
-        RealtyDataTypes.unregisterAll(registry, afterOperatorDeletedAuctions);
+        for (RealtyCategory category : RealtyCategory.values()) {
+            categories.registerCategory(
+                    category.dataType(), category.label(), category.description());
+            categories.claimDataType(category.dataType(), category.dataType());
+        }
 
-        Assertions.assertTrue(registry.dataTypes().contains("realty.auction"),
-                "realty.auction was registered but the newer mapper does not know to remove it");
+        for (RealtyCategory category : RealtyCategory.values()) {
+            String key = category.dataType();
+            Assertions.assertEquals(category.label(), categories.label(key));
+            Assertions.assertEquals(category.description(), categories.description(key));
+            Assertions.assertEquals(Set.of(key), categories.dataTypesFor(key));
+        }
+    }
 
-        // The mapper that registered them removes them all.
-        RealtyDataTypes.unregisterAll(registry, MAPPER);
-        Assertions.assertTrue(registry.dataTypes().isEmpty());
+    @Test
+    void unclaimingReleasesEveryCategoryClaim() {
+        NotificationCategoryRegistry categories = new DefaultNotificationCategoryRegistry();
+        for (RealtyCategory category : RealtyCategory.values()) {
+            categories.claimDataType(category.dataType(), category.dataType());
+        }
+
+        RealtyDataTypes.unclaimAll(categories);
+
+        for (RealtyCategory category : RealtyCategory.values()) {
+            Assertions.assertEquals(Set.of(), categories.dataTypesFor(category.dataType()),
+                    category.dataType());
+        }
     }
 
     @Test
@@ -161,6 +210,6 @@ class RegistrationLifecycleTest {
         RenderableNotification rendered = RENDERER.render(payload, UUID.randomUUID());
 
         Assertions.assertEquals(message.compact(), rendered.body().compact());
-        Assertions.assertEquals(Component.text("Realty — Auction"), rendered.title());
+        Assertions.assertEquals(Component.text(RealtyCategory.AUCTION.label()), rendered.title());
     }
 }

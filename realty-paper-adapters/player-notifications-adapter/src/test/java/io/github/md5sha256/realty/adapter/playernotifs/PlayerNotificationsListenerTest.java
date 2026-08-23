@@ -9,19 +9,10 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
 class PlayerNotificationsListenerTest {
-
-    private static final NotificationCategoryMapper MAPPER = new NotificationCategoryMapper(
-            List.of(new CategoryDefinition("realty.auction", "Realty auctions", "",
-                            "Realty — Auction", 3, List.of("notification.outbid")),
-                    new CategoryDefinition("realty.general", "Realty", "", "Realty", 0,
-                            List.of("notification.region-bought"))),
-            Map.of(),
-            "realty.general");
 
     private static PlayerNotificationsListener listener(
             List<TypedNotification<RealtyNotificationPayload>> enqueued,
@@ -31,7 +22,6 @@ class PlayerNotificationsListenerTest {
                     enqueued.add(notification);
                     overwriteFlags.add(overwriteAllowed);
                 },
-                MAPPER,
                 Duration.ofDays(30),
                 Logger.getLogger(PlayerNotificationsListenerTest.class.getName()));
     }
@@ -48,7 +38,8 @@ class PlayerNotificationsListenerTest {
         Assertions.assertEquals(1, enqueued.size());
         TypedNotification<RealtyNotificationPayload> notification = enqueued.get(0);
         Assertions.assertEquals("realty.auction", notification.notifPayloadType());
-        Assertions.assertEquals(3, notification.notifPriority());
+        // One priority for every Realty notification: ordering the inbox is PlayerNotifications' job.
+        Assertions.assertEquals(0, notification.notifPriority());
         Assertions.assertEquals("notification.outbid", notification.notifPayload().messageKey());
     }
 
@@ -109,7 +100,7 @@ class PlayerNotificationsListenerTest {
     }
 
     @Test
-    void anUnmappedKeyStillEnqueuesUnderGeneral() {
+    void anUnclaimedKeyStillEnqueuesUnderGeneral() {
         List<TypedNotification<RealtyNotificationPayload>> enqueued = new ArrayList<>();
         List<Boolean> overwriteFlags = new ArrayList<>();
 

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.adapter.playernotifs;
 
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -9,7 +10,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.logging.Logger;
+import java.time.Duration;
 
 /**
  * Covers the reference copy every config file must ship: a regenerated {@code defaults/} copy an
@@ -17,17 +18,15 @@ import java.util.logging.Logger;
  */
 class ReferenceCopyTest {
 
-    private static final Logger LOGGER = Logger.getLogger(ReferenceCopyTest.class.getName());
-
     private static Path reference(Path dataFolder) {
-        return dataFolder.resolve(CategoriesConfig.DEFAULTS_DIR).resolve(CategoriesConfig.REFERENCE_FILE);
+        return dataFolder.resolve(AdapterConfig.DEFAULTS_DIR).resolve(AdapterConfig.REFERENCE_FILE);
     }
 
     @Test
     void aFirstStartWritesBothTheLiveFileAndTheReferenceCopy(@TempDir Path dataFolder) {
-        CategoriesConfig.read(dataFolder, LOGGER);
+        AdapterConfig.read(dataFolder);
 
-        Assertions.assertTrue(Files.isRegularFile(dataFolder.resolve(CategoriesConfig.CATEGORIES_FILE)));
+        Assertions.assertTrue(Files.isRegularFile(dataFolder.resolve(AdapterConfig.CONFIG_FILE)));
         Assertions.assertTrue(Files.isRegularFile(reference(dataFolder)));
     }
 
@@ -36,15 +35,16 @@ class ReferenceCopyTest {
      */
     @Test
     void aLaterStartLeavesTheOperatorsFileAlone(@TempDir Path dataFolder) throws IOException {
-        CategoriesConfig.read(dataFolder, LOGGER);
-        Path live = dataFolder.resolve(CategoriesConfig.CATEGORIES_FILE);
+        AdapterConfig.read(dataFolder);
+        Path live = dataFolder.resolve(AdapterConfig.CONFIG_FILE);
         String edited = Files.readString(live, StandardCharsets.UTF_8)
-                .replace("Realty auctions", "Auction stuff");
+                .replace("expiry-days: 30", "expiry-days: 7");
         Files.writeString(live, edited, StandardCharsets.UTF_8);
 
-        CategoriesConfig.read(dataFolder, LOGGER);
+        AdapterConfig config = AdapterConfig.read(dataFolder);
 
         Assertions.assertEquals(edited, Files.readString(live, StandardCharsets.UTF_8));
+        Assertions.assertEquals(Duration.ofDays(7), config.expiry());
     }
 
     /**
@@ -53,25 +53,25 @@ class ReferenceCopyTest {
      */
     @Test
     void aStaleReferenceCopyIsOverwrittenOnEveryStart(@TempDir Path dataFolder) throws IOException {
-        CategoriesConfig.read(dataFolder, LOGGER);
+        AdapterConfig.read(dataFolder);
         Files.writeString(reference(dataFolder), "# left over from an older version\n",
                 StandardCharsets.UTF_8);
 
-        CategoriesConfig.read(dataFolder, LOGGER);
+        AdapterConfig.read(dataFolder);
 
         String refreshed = Files.readString(reference(dataFolder), StandardCharsets.UTF_8);
         Assertions.assertFalse(refreshed.contains("left over"));
-        Assertions.assertTrue(refreshed.contains("fallback-category"));
+        Assertions.assertTrue(refreshed.contains("expiry-days"));
     }
 
     /** The shipped reference must itself be loadable, or it documents a file that would not start. */
     @Test
     void theReferenceCopyParses(@TempDir Path dataFolder) throws IOException {
-        CategoriesConfig.read(dataFolder, LOGGER);
+        AdapterConfig.read(dataFolder);
 
         try (Reader reader = Files.newBufferedReader(reference(dataFolder))) {
-            NotificationCategoryMapper mapper = CategoriesConfig.readMapper(CategoriesConfig.load(reader));
-            Assertions.assertFalse(mapper.dataTypes().isEmpty());
+            AdapterConfig config = AdapterConfig.from(YamlConfiguration.loadConfiguration(reader));
+            Assertions.assertEquals(Duration.ofDays(30), config.expiry());
         }
     }
 
@@ -79,14 +79,22 @@ class ReferenceCopyTest {
     void theReferenceCopyIsWrittenEvenWhenTheOperatorAlreadyHasAFile(@TempDir Path dataFolder)
             throws IOException {
         Files.createDirectories(dataFolder);
-        Files.writeString(dataFolder.resolve(CategoriesConfig.CATEGORIES_FILE), """
-                categories:
-                  realty.general:
-                    label: "Realty"
-                """, StandardCharsets.UTF_8);
+        Files.writeString(dataFolder.resolve(AdapterConfig.CONFIG_FILE), "expiry-days: 1\n",
+                StandardCharsets.UTF_8);
 
-        CategoriesConfig.read(dataFolder, LOGGER);
+        AdapterConfig config = AdapterConfig.read(dataFolder);
 
         Assertions.assertTrue(Files.isRegularFile(reference(dataFolder)));
+        Assertions.assertEquals(Duration.ofDays(1), config.expiry());
+    }
+
+    /** A file predating {@code expiry-days} still starts, on the compiled-in default. */
+    @Test
+    void aMissingExpiryFallsBackToTheDefault(@TempDir Path dataFolder) throws IOException {
+        Files.createDirectories(dataFolder);
+        Files.writeString(dataFolder.resolve(AdapterConfig.CONFIG_FILE), "# nothing set\n",
+                StandardCharsets.UTF_8);
+
+        Assertions.assertEquals(Duration.ofDays(30), AdapterConfig.read(dataFolder).expiry());
     }
 }
