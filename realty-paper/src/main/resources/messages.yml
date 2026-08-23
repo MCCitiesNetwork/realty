@@ -619,6 +619,8 @@ unrent:
         <green>$<refund>.</green>'
     no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not a leasehold.
     not-tenant: <prefix> You are not the tenant of region <yellow><region></yellow>.
+    terminating: <prefix> Region <yellow><region></yellow> is scheduled for termination
+        and can no longer be unrented. It ends on the scheduled date.
     update-failed: <prefix> Failed to unrent region <yellow><region>.</yellow>
     refund-failed: '<prefix> Failed to process refund: <error>'
     error: '<prefix> Failed to unrent region: <error>'

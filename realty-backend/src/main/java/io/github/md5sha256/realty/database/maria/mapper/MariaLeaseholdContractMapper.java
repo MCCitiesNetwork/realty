@@ -257,6 +257,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             AND lc.tenantId = #{tenantId}
+            AND lc.terminationEffectiveDate IS NULL
             """)
     int unrentRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                      @Param("worldId") @NotNull UUID worldId,

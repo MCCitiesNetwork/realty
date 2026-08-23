@@ -57,6 +57,7 @@ public interface LeaseholdContractMapper {
     /** Leaseholds whose scheduled termination date has elapsed, due to be ended by the sweep. */
     @NotNull List<TerminatedLeaseholdView> selectTerminatedLeaseholds();
 
+    /** Clears the tenant, guarded on the caller still being the tenant and no termination pending. */
     int unrentRegion(@NotNull String worldGuardRegionId,
                      @NotNull UUID worldId,
                      @NotNull UUID tenantId);
