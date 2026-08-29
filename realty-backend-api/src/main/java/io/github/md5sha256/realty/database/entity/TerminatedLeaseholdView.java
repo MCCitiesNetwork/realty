@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database.entity;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -17,7 +18,7 @@ import java.util.UUID;
  * @param worldId                  World UUID
  * @param price                    Rent price of one period
  * @param durationSeconds          Length of one period in seconds
- * @param endDate                  Paid-through end of the current period
+ * @param endDate                  Paid-through end of the current period, or null if none was recorded
  * @param terminationEffectiveDate When the lease actually ends
  * @param terminatedByRole         {@code "landlord"} or {@code "tenant"}
  */
@@ -29,7 +30,7 @@ public record TerminatedLeaseholdView(
         @NotNull UUID worldId,
         double price,
         long durationSeconds,
-        @NotNull LocalDateTime endDate,
+        @Nullable LocalDateTime endDate,
         @NotNull LocalDateTime terminationEffectiveDate,
         @NotNull String terminatedByRole
 ) {

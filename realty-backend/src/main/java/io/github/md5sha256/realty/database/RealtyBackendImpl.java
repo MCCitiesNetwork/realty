@@ -1956,7 +1956,8 @@ public class RealtyBackendImpl implements RealtyBackend {
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 // Refund the prepaid-but-unused span (endDate − effectiveDate), clamped to one period —
                 // the same clamp the manual unrent uses so renew-then-terminate cannot over-refund.
-                long unusedSeconds = Math.max(0, Duration.between(
+                // A tenanted lease with no endDate has no prepaid span to refund.
+                long unusedSeconds = lease.endDate() == null ? 0 : Math.max(0, Duration.between(
                         lease.terminationEffectiveDate(), lease.endDate()).getSeconds());
                 long clampedSeconds = Math.min(unusedSeconds, lease.durationSeconds());
                 double refund = lease.durationSeconds() > 0
