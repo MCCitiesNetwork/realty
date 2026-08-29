@@ -27,6 +27,33 @@ public final class SubregionSelectionValidator {
     }
 
     /**
+     * The number of blocks the selection actually encloses -- the same measure WorldGuard uses for
+     * the region this selection becomes.
+     *
+     * <p>Not {@link Region#getVolume()}: for a {@link Polygonal2DRegion} that is the shoelace area
+     * of the vertices, which undercounts by the boundary blocks (a 4x5 footprint measures 12) and
+     * collapses to exactly zero when the corners were marked in an order that self-intersects --
+     * clicking a rectangle's corners in reading order does precisely that. Cuboids are already
+     * counted in blocks, so they pass straight through.</p>
+     */
+    public static long blockVolume(@NotNull Region selection) {
+        if (!(selection instanceof Polygonal2DRegion polygon)) {
+            return selection.getVolume();
+        }
+        BlockVector3 min = polygon.getMinimumPoint();
+        BlockVector3 max = polygon.getMaximumPoint();
+        long footprint = 0;
+        for (int x = min.x(); x <= max.x(); x++) {
+            for (int z = min.z(); z <= max.z(); z++) {
+                if (polygon.contains(BlockVector3.at(x, min.y(), z))) {
+                    footprint++;
+                }
+            }
+        }
+        return footprint * polygon.getHeight();
+    }
+
+    /**
      * The outcome of the geometry + ownership search for parent regions.
      *
      * @param candidates    regions that fully contain the selection and (unless {@code canBypass})

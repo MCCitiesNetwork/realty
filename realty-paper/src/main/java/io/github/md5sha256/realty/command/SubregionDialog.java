@@ -125,9 +125,10 @@ public final class SubregionDialog {
         World world = wandSelection.world();
 
         int minVolume = settings.get().subregionMinVolume();
-        if (selection.getVolume() < minVolume) {
+        long volume = SubregionSelectionValidator.blockVolume(selection);
+        if (volume < minVolume) {
             player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_TOO_SMALL,
-                    Placeholder.unparsed("volume", String.valueOf(selection.getVolume())),
+                    Placeholder.unparsed("volume", String.valueOf(volume)),
                     Placeholder.unparsed("min-volume", String.valueOf(minVolume))));
             return;
         }
