@@ -39,8 +39,34 @@ public final class RealtyRestServer {
             "/v1/health",
             "/v1/worlds",
             "/v1/regions",
-            "/v1/players/regions"
+            "/v1/players/regions",
+            "/v1/openapi.yaml",
+            "/v1/openapi.json",
+            "/v1/docs"
     );
+
+    private static final String SWAGGER_UI_PAGE = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <title>Realty REST API</title>
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+            </head>
+            <body>
+                <div id="swagger-ui"></div>
+                <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+                <script>
+                    window.onload = function () {
+                        window.ui = SwaggerUIBundle({
+                            url: "/v1/openapi.yaml",
+                            dom_id: "#swagger-ui"
+                        });
+                    };
+                </script>
+            </body>
+            </html>
+            """;
 
     private final RealtyBackend backend;
     private final Database database;
@@ -86,6 +112,13 @@ public final class RealtyRestServer {
         PlayerRegionsHandler playerRegionsHandler =
                 new PlayerRegionsHandler(this.backend, this.database, this.worldLookup, this.settings);
         this.javalin.get("/v1/players/regions", playerRegionsHandler::handle);
+
+        this.javalin.get("/v1/openapi.yaml", ctx -> ctx.contentType("application/yaml")
+                .result(OpenApiRoutes.rawDocument()));
+
+        this.javalin.get("/v1/openapi.json", ctx -> ctx.json(OpenApiRoutes.asParsedTree()));
+
+        this.javalin.get("/v1/docs", ctx -> ctx.contentType("text/html").result(SWAGGER_UI_PAGE));
 
         this.javalin.exception(ApiException.class, (ex, ctx) -> {
             ctx.attribute(HANDLED_ATTRIBUTE, true);
