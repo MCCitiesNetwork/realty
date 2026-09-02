@@ -15,7 +15,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -107,8 +110,12 @@ final class PlayerRegionsHandler {
     }
 
     private int parsePageSize(String raw) {
+        // The configured maximum is operator-controlled and could be misconfigured
+        // to <= 0; clamping the effective size to at least 1 keeps totalPages'
+        // division well-defined regardless.
+        int effectiveMax = Math.max(1, this.settings.maxPageSize());
         if (raw == null || raw.isBlank()) {
-            return Math.min(10, this.settings.maxPageSize());
+            return Math.min(10, effectiveMax);
         }
         int pageSize;
         try {
@@ -119,15 +126,16 @@ final class PlayerRegionsHandler {
         if (pageSize < 1) {
             throw ApiException.badRequest("INVALID_PAGE_SIZE", "Query parameter 'pageSize' must be >= 1");
         }
-        return Math.min(pageSize, this.settings.maxPageSize());
+        return Math.min(pageSize, effectiveMax);
     }
 
     private @NotNull PlayerRegionsResponse handleOwned(@NotNull PlayerRef player, @NotNull UUID playerId,
                                                          int page, int pageSize, int offset) {
         RealtyBackend.SingleCategoryResult result = this.backend.listOwnedRegions(playerId, pageSize, offset);
+        Map<UUID, WorldRef> worlds = resolveWorlds(regionWorldIds(result.regions()));
         List<Object> regions = new ArrayList<>();
         for (RealtyRegionEntity entity : result.regions()) {
-            regions.add(toRegionRef(entity));
+            regions.add(toRegionRef(entity, worlds));
         }
         return new PlayerRegionsResponse(
                 player, page, pageSize, result.totalCount(), totalPages(result.totalCount(), pageSize),
@@ -138,9 +146,10 @@ final class PlayerRegionsHandler {
                                                           int page, int pageSize, int offset) {
         RealtyBackend.SingleCategoryResult result = this.backend.listRentedRegions(playerId, pageSize, offset);
         List<RentedRegionView> views = selectRentedWithEndDate(playerId, pageSize, offset);
+        Map<UUID, WorldRef> worlds = resolveWorlds(rentedWorldIds(views));
         List<Object> regions = new ArrayList<>();
         for (RentedRegionView view : views) {
-            regions.add(toRentedRef(view));
+            regions.add(toRentedRef(view, worlds));
         }
         return new PlayerRegionsResponse(
                 player, page, pageSize, result.totalCount(), totalPages(result.totalCount(), pageSize),
@@ -151,15 +160,6 @@ final class PlayerRegionsHandler {
                                                        int page, int pageSize, int offset) {
         RealtyBackend.ListResult result = this.backend.listRegions(playerId, pageSize, offset);
 
-        List<PlayerRegionsResponse.RegionRef> owned = new ArrayList<>();
-        for (RealtyRegionEntity entity : result.owned()) {
-            owned.add(toRegionRef(entity));
-        }
-        List<PlayerRegionsResponse.RegionRef> landlord = new ArrayList<>();
-        for (RealtyRegionEntity entity : result.landlord()) {
-            landlord.add(toRegionRef(entity));
-        }
-
         // Mirror RealtyBackendImpl#listRegions' own pagination arithmetic so the
         // rented slice requested here lines up with the rented slice ListResult
         // already accounted for in its counts, without an N+1 lookup per region.
@@ -168,11 +168,27 @@ final class PlayerRegionsHandler {
         remaining -= result.landlord().size();
         rentedOffset = Math.max(0, rentedOffset - result.landlordCount());
 
+        List<RentedRegionView> rentedViews = remaining > 0
+                ? selectRentedWithEndDate(playerId, remaining, rentedOffset)
+                : List.of();
+
+        Set<UUID> worldIds = new HashSet<>();
+        worldIds.addAll(regionWorldIds(result.owned()));
+        worldIds.addAll(regionWorldIds(result.landlord()));
+        worldIds.addAll(rentedWorldIds(rentedViews));
+        Map<UUID, WorldRef> worlds = resolveWorlds(worldIds);
+
+        List<PlayerRegionsResponse.RegionRef> owned = new ArrayList<>();
+        for (RealtyRegionEntity entity : result.owned()) {
+            owned.add(toRegionRef(entity, worlds));
+        }
+        List<PlayerRegionsResponse.RegionRef> landlord = new ArrayList<>();
+        for (RealtyRegionEntity entity : result.landlord()) {
+            landlord.add(toRegionRef(entity, worlds));
+        }
         List<PlayerRegionsResponse.RentedRef> rented = new ArrayList<>();
-        if (remaining > 0) {
-            for (RentedRegionView view : selectRentedWithEndDate(playerId, remaining, rentedOffset)) {
-                rented.add(toRentedRef(view));
-            }
+        for (RentedRegionView view : rentedViews) {
+            rented.add(toRentedRef(view, worlds));
         }
 
         return new PlayerRegionsResponse(
@@ -186,13 +202,40 @@ final class PlayerRegionsHandler {
         }
     }
 
-    private @NotNull PlayerRegionsResponse.RegionRef toRegionRef(@NotNull RealtyRegionEntity entity) {
-        WorldRef world = this.worldLookup.refFor(entity.worldId());
+    /**
+     * Resolves every distinct world referenced by this request's regions in a
+     * single {@link WorldLookup#refsFor} call, so a response listing many regions
+     * still opens exactly one session for world resolution.
+     */
+    private @NotNull Map<UUID, WorldRef> resolveWorlds(@NotNull Set<UUID> worldIds) {
+        return this.worldLookup.refsFor(worldIds);
+    }
+
+    private static @NotNull Set<UUID> regionWorldIds(@NotNull List<RealtyRegionEntity> entities) {
+        Set<UUID> ids = new HashSet<>();
+        for (RealtyRegionEntity entity : entities) {
+            ids.add(entity.worldId());
+        }
+        return ids;
+    }
+
+    private static @NotNull Set<UUID> rentedWorldIds(@NotNull List<RentedRegionView> views) {
+        Set<UUID> ids = new HashSet<>();
+        for (RentedRegionView view : views) {
+            ids.add(view.worldId());
+        }
+        return ids;
+    }
+
+    private static @NotNull PlayerRegionsResponse.RegionRef toRegionRef(@NotNull RealtyRegionEntity entity,
+                                                                          @NotNull Map<UUID, WorldRef> worlds) {
+        WorldRef world = worlds.get(entity.worldId());
         return new PlayerRegionsResponse.RegionRef(entity.worldGuardRegionId(), world);
     }
 
-    private @NotNull PlayerRegionsResponse.RentedRef toRentedRef(@NotNull RentedRegionView view) {
-        WorldRef world = this.worldLookup.refFor(view.worldId());
+    private static @NotNull PlayerRegionsResponse.RentedRef toRentedRef(@NotNull RentedRegionView view,
+                                                                          @NotNull Map<UUID, WorldRef> worlds) {
+        WorldRef world = worlds.get(view.worldId());
         LocalDateTime endDate = view.endDate();
         String endDateStr = endDate == null ? null : IsoDates.format(endDate);
         Long secondsRemaining = null;

@@ -85,4 +85,43 @@ class PlayerRegionsEndpointTest {
                 Assertions.assertEquals(400,
                         client.get("/v1/players/regions?player=" + UUID_PARAM + "&page=0").code()));
     }
+
+    @Test
+    void categoryAllOmitsTheSingleCategoryRegionsField() {
+        RealtyRestServer server = TestServers.withPlayerHoldings();
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=all")
+                    .body().string();
+            Assertions.assertTrue(body.contains("\"owned\""));
+            Assertions.assertTrue(body.contains("\"landlord\""));
+            Assertions.assertTrue(body.contains("\"rented\""));
+            Assertions.assertFalse(body.contains("\"regions\""));
+        });
+    }
+
+    @Test
+    void categoryOwnedOmitsTheThreeCategoryFields() {
+        RealtyRestServer server = TestServers.withPlayerHoldings();
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=owned")
+                    .body().string();
+            Assertions.assertTrue(body.contains("\"regions\""));
+            Assertions.assertFalse(body.contains("\"owned\""));
+            Assertions.assertFalse(body.contains("\"landlord\""));
+            Assertions.assertFalse(body.contains("\"rented\""));
+        });
+    }
+
+    @Test
+    void categoryRentedOmitsTheThreeCategoryFields() {
+        RealtyRestServer server = TestServers.withPlayerHoldings();
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=rented")
+                    .body().string();
+            Assertions.assertTrue(body.contains("\"regions\""));
+            Assertions.assertFalse(body.contains("\"owned\""));
+            Assertions.assertFalse(body.contains("\"landlord\""));
+            Assertions.assertFalse(body.contains("\"rented\""));
+        });
+    }
 }
