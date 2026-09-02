@@ -87,6 +87,21 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
 
     @Override
     @Select("""
+            SELECT realtyRegionId, worldGuardRegionId, worldId
+            FROM RealtyRegion
+            ORDER BY worldGuardRegionId, worldId, realtyRegionId
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<RealtyRegionEntity> selectPage(@Param("limit") int limit,
+                                                 @Param("offset") int offset);
+
+    @Override
+    @Select("""
             SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
             FROM RealtyRegion rr
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'

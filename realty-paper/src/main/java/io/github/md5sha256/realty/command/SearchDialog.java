@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
+import io.github.md5sha256.realty.database.entity.SearchSort;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -325,8 +326,10 @@ public final class SearchDialog {
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 SearchMapper mapper = session.searchMapper();
+                // The in-game dialog searches every world and always orders by price
+                // descending; the world filter and sort choice exist for the REST API.
                 int totalCount = mapper.searchCount(includeFreehold, includeLeasehold,
-                        tagIds, excludedTagIds, minPrice, maxPrice, occupancy);
+                        null, tagIds, excludedTagIds, minPrice, maxPrice, occupancy);
 
                 if (totalCount == 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.SEARCH_NO_RESULTS));
@@ -343,7 +346,8 @@ public final class SearchDialog {
 
                 int offset = (page - 1) * PAGE_SIZE;
                 List<SearchResultEntity> results = mapper.search(includeFreehold, includeLeasehold,
-                        tagIds, excludedTagIds, minPrice, maxPrice, occupancy, PAGE_SIZE, offset);
+                        null, tagIds, excludedTagIds, minPrice, maxPrice, occupancy,
+                        SearchSort.PRICE_DESC, PAGE_SIZE, offset);
 
                 TextComponent.Builder builder = Component.text();
                 builder.append(messages.messageFor(MessageKeys.SEARCH_HEADER,
