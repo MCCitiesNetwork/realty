@@ -118,7 +118,7 @@ only where it does not fit.
 | `REALTY_DB_PASSWORD` | yes | — | Database password |
 | `REALTY_REST_HOST` | no | `0.0.0.0` | Bind address |
 | `REALTY_REST_PORT` | no | `8080` | Bind port |
-| `REALTY_REST_MAX_PAGE_SIZE` | no | `100` | Upper bound on `pageSize` |
+| `REALTY_REST_MAX_PAGE_SIZE` | no | `100` | Upper bound on `pageSize`, itself hard-capped at 100 |
 | `REALTY_REST_MODULE_URL` | no | — | `query-service` base URL; unset disables enrichment entirely |
 | `REALTY_REST_MODULE_SECRET` | no | — | Shared secret, sent as a header |
 | `REALTY_REST_MODULE_TIMEOUT_MS` | no | `1500` | Per-call timeout before degrading to null |
@@ -131,14 +131,25 @@ only where it does not fit.
 The plugin owns the schema. `realty-rest` **never** calls `initializeSchema` and
 never runs a migration.
 
-At startup it reads the applied schema version and refuses to boot if that
-version is newer than the version this build was compiled against. A service that
-silently serves columns it misunderstands is worse than one that does not start:
-the failure is loud, immediate, and points at the real cause, which is a plugin
-upgraded ahead of the API.
+At startup it reads the applied schema version and refuses to boot unless that
+version is **exactly** the version this build was compiled against. Both
+directions are rejected, for different reasons:
 
-The expected version is a constant in `realty-rest`, bumped deliberately whenever
-a migration lands that the API must understand.
+- A **newer** database may have changed the meaning of a column this build reads.
+  Serving columns it misunderstands is worse than not starting.
+- An **older** database may be missing tables this build depends on outright.
+  `RealtyWorld` arrives in V16; without it, `/v1/worlds` and every `?world=`
+  lookup fail at request time with a `500` and no indication of the real cause.
+
+Either way the failure is loud, immediate, and names which side is behind — the
+two messages give opposite instructions, because an operator who upgraded the
+plugin and one who forgot to need opposite things.
+
+The expected version is a constant in `realty-rest`, bumped whenever a migration
+lands, whether or not the API reads what it adds. The cost of exactness is that an
+irrelevant migration still forces a rebuild; that is accepted deliberately, because
+a gate that guesses which migrations matter is one that eventually guesses wrong,
+and its failure mode is a runtime `500` rather than a startup message.
 
 ## Read-only guarantee
 
@@ -154,15 +165,17 @@ recommendation, not a guarantee.
 
 The plugin's own `RealtyWorld` table maps world UUID to world name. Realty core
 writes it — on enable for every loaded world, and on Bukkit's `WorldLoadEvent`
-and `WorldUnloadEvent` thereafter. It is defined by a new migration file,
-registered in `MariaSchemaMigrator.DEFAULT_MIGRATIONS`.
+thereafter. It deliberately does not react to `WorldUnloadEvent`: rows are never
+deleted, because a region in an unloaded world must still be nameable by the API.
+It is defined by a new migration file, registered in
+`MariaSchemaMigrator.DEFAULT_MIGRATIONS`.
 
 This is the only projection in the design, and it is worth stating why it is not
 inconsistent with refusing to project geometry or player names. Geometry changes
 via `/rg redefine`, and WorldGuard fires no event that would let a projection stay
 correct. Player names are an unbounded, genuinely volatile set. Worlds are
-neither: a handful of rows, effectively immutable, and Bukkit *does* fire load and
-unload events, so the table maintains itself.
+neither: a handful of rows, effectively immutable, and Bukkit *does* fire a load
+event, so the table maintains itself without ever needing to shrink.
 
 The payoff is that the primary lookup path does not depend on the module at all.
 `?world=` resolves with a SQL join — no HTTP call, no cache, no TTL, no cold-start
@@ -207,7 +220,7 @@ they emit in query position.
 A `GET` with a request body was considered and rejected: `fetch()` throws on it,
 Swagger UI will not send one, and proxies strip it.
 
-### `GET /v1/regions?world={name|uuid}&region={id}`
+### `GET /v1/region?world={name|uuid}&region={id}`
 
 The `/realty info` payload. Backed by `RealtyBackend.getRegionInfo`,
 `getRegionState`, and `RegionTagMapper.selectTagIdsByRegionId`, then enriched with
@@ -260,6 +273,33 @@ which neither service has.
 
 Responses: `200`; `404` for an unknown world name or no such region.
 
+### `GET /v1/regions?page=&pageSize=`
+
+Every registered region, paged, identity only:
+
+```json
+{
+  "page": 1, "pageSize": 10, "totalCount": 42, "totalPages": 5,
+  "regions": [
+    { "worldGuardRegionId": "downtown_plot_14",
+      "world": { "id": "8f4d...", "name": "world_nether" } }
+  ]
+}
+```
+
+Backed by `RealtyRegionMapper.countAll` and a new `selectPage(limit, offset)`
+ordered by `worldGuardRegionId, worldId, realtyRegionId`. That triple is a **total**
+order over the table, which is the point: an unordered `LIMIT`/`OFFSET` lets the
+engine return rows in any order it likes, so a client paging through the table can
+see one row twice and never see another. The order is fixed in the SQL rather than
+chosen per request -- this endpoint answers "what exists", and a caller who wants a
+chosen order wants `/v1/regions/search`.
+
+The three region endpoints answer three different questions and none subsumes
+another: `/v1/region` is the state of one region, `/v1/regions` is what exists, and
+`/v1/regions/search` is what is on the market. A region carrying no contract appears
+only in the second.
+
 ### `GET /v1/players/regions?player={name|uuid}`
 
 The `/realty list` payload. Backed by `listRegions`, `listOwnedRegions` and
@@ -270,7 +310,7 @@ The `/realty list` payload. Backed by `listRegions`, `listOwnedRegions` and
 | `player` | — | Required. A player name or a UUID |
 | `category` | `all` | One of `all`, `owned`, `rented` |
 | `page` | `1` | 1-based page number |
-| `pageSize` | `10` | Clamped to `REALTY_REST_MAX_PAGE_SIZE` |
+| `pageSize` | `10` | Clamped to `REALTY_REST_MAX_PAGE_SIZE`, never above 100 |
 
 `category=all` returns three lists mirroring `ListResult`:
 

@@ -1,0 +1,20 @@
+# The image builds realty-rest from source, so the context needs the sources,
+# the Gradle wrapper and the build scripts -- and nothing else.
+#
+# Excluding every .gradle directory is not just about size: the Gradle daemon
+# holds an exclusive lock on files under buildSrc/.gradle while it is running,
+# and a running dev Minecraft server holds one on realty-paper/run/world/
+# session.lock. Docker's context sender aborts the whole build when it cannot
+# read a file, so anything either of them writes is excluded, at any depth.
+**/.gradle
+**/.kotlin
+**/build
+.git
+.gitignore
+.claude
+.idea
+**/run
+docs
+memory-bank
+*.md
+compose*.yml

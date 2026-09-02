@@ -1,0 +1,676 @@
+openapi: 3.0.3
+info:
+  title: Realty REST API
+  description: >-
+    Read-only HTTP surface over Realty's region economy data. This service never
+    migrates or writes -- every endpoint is backed by query methods only.
+  version: "1.0"
+servers:
+  - url: /
+paths:
+  /v1/health:
+    get:
+      summary: Liveness/readiness check
+      operationId: getHealth
+      description: >-
+        Reports whether the database is reachable. Intended for load-balancer and
+        orchestrator health probes, not for consumers of the data endpoints below.
+      responses:
+        "200":
+          description: The service is up and the database is reachable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ ok ]
+        "503":
+          description: The database could not be reached.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ degraded ]
+  /v1/worlds:
+    get:
+      summary: List every world known to Realty
+      operationId: listWorlds
+      description: >-
+        Returns every row of the RealtyWorld table. Always 200; an empty array
+        means no world has ever been registered.
+      responses:
+        "200":
+          description: The full list of known worlds.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorldRef"
+  /v1/region:
+    get:
+      summary: Look up a single region
+      operationId: getRegion
+      description: The HTTP form of the in-game `/realty info` command.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: >-
+            A world's UUID or its name. A world name is a folder name on disk and
+            may contain spaces or other characters requiring percent-encoding
+            (for example `My World` becomes `My%20World`, or `+` may be used in
+            place of a space) -- send the raw name percent-encoded, do not
+            pre-decode it.
+          schema:
+            type: string
+        - name: region
+          in: query
+          required: true
+          description: The WorldGuard region id, exactly as WorldGuard stores it.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The region's current state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegionResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER` when `world` or `region` is absent or blank.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: >-
+            `WORLD_NOT_FOUND` when `world` names no known world; `REGION_NOT_FOUND`
+            when the region does not exist in that world.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/regions:
+    get:
+      summary: List every registered region
+      operationId: listRegions
+      description: >-
+        A page of every region Realty has registered, whether or not it carries a
+        contract, in a fixed total order (WorldGuard region id, then world id,
+        then internal row id) so that paging cannot repeat or skip a row. Entries
+        are identity only -- use `/v1/region` for one region's full state, or
+        `/v1/regions/search` to browse what is actually on the market.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10 (or the configured maximum if it is
+            lower). A larger value is clamped rather than rejected.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: >-
+            The requested page. An empty `regions` array means no region is
+            registered, or the page lies beyond the last one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegionListResponse"
+        "400":
+          description: >-
+            `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a non-integer or
+            out-of-range value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/regions/search:
+    get:
+      summary: Search regions by type, world, price, tags and occupancy
+      operationId: searchRegions
+      description: >-
+        The bulk browse endpoint, backed by the same query as the in-game
+        `/realty search` dialog. Every filter is optional; with none given it
+        returns every region carrying a contract, most expensive first. A result
+        carries only identity, contract type and price -- fetch `/v1/regions` for
+        a single region's full state. No match is a 200 with an empty `results`
+        array, never a 404.
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: >-
+            `sale` for freehold contracts, `rent` for leasehold, `all` (the
+            default) for both.
+          schema:
+            type: string
+            enum: [ sale, rent, all ]
+            default: all
+        - name: world
+          in: query
+          required: false
+          description: >-
+            Restricts results to one world, given as a UUID or a name. A world
+            name is a folder name on disk and may contain spaces or other
+            characters requiring percent-encoding -- send the raw name
+            percent-encoded, do not pre-decode it. Omit to search every world.
+          schema:
+            type: string
+        - name: minPrice
+          in: query
+          required: false
+          description: Inclusive lower price bound. Defaults to no lower bound.
+          schema:
+            type: number
+            minimum: 0
+        - name: maxPrice
+          in: query
+          required: false
+          description: Inclusive upper price bound. Defaults to no upper bound.
+          schema:
+            type: number
+            minimum: 0
+        - name: tag
+          in: query
+          required: false
+          description: >-
+            Repeatable. A region matches when it carries at least one of the
+            given tags. Omit for no tag filter.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: occupancy
+          in: query
+          required: false
+          description: >-
+            `unoccupied` restricts to regions with no titleholder or tenant,
+            `occupied` to those with one, `any` (the default) does not filter.
+          schema:
+            type: string
+            enum: [ any, occupied, unoccupied ]
+            default: any
+        - name: sort
+          in: query
+          required: false
+          description: Result order. Defaults to most expensive first.
+          schema:
+            type: string
+            enum: [ price_desc, price_asc ]
+            default: price_desc
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10 (or the configured maximum if it is
+            lower). A larger value is clamped rather than rejected.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: >-
+            The requested page of matching regions. An empty `results` array
+            means nothing matched.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: >-
+            `INVALID_TYPE`, `INVALID_OCCUPANCY` or `INVALID_SORT` when that
+            parameter is present but not one of its listed values;
+            `INVALID_PRICE` when `minPrice` or `maxPrice` is not a finite number,
+            is negative, or `minPrice` exceeds `maxPrice`; `INVALID_PAGE` or
+            `INVALID_PAGE_SIZE` for a non-integer or out-of-range value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` when `world` names no known world."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/players/regions:
+    get:
+      summary: List a player's owned, landlorded and rented regions
+      operationId: listPlayerRegions
+      description: >-
+        The HTTP form of the in-game `/realty list` command. When `category` is
+        `all` (the default), the three category lists -- owned, landlord and
+        rented -- are paged against **one shared offset**, exactly as `/realty
+        list` does in-game: the page boundary can fall inside a category rather
+        than starting each category's own list at 1, so `owned`, `landlord` and
+        `rented` on a given page are the slice of the combined, concatenated
+        sequence that lands on that page, not independently-paged lists of their
+        own length. When `category` is `owned` or `rented`, that single category
+        is paged normally and returned under `regions` instead.
+      parameters:
+        - name: player
+          in: query
+          required: true
+          description: >-
+            A player's UUID or their name. A Floodgate (Bedrock) player's name is
+            a `.` followed by their Xbox gamertag, which may itself contain
+            spaces -- send it percent-encoded (for example `.Some Gamertag`
+            becomes `.Some%20Gamertag`). Passing a name currently always fails
+            with 502, because name resolution requires a query-service module
+            that does not exist yet; only a UUID is resolvable in this build.
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          description: One of `all` (default), `owned`, or `rented`.
+          schema:
+            type: string
+            enum: [ all, owned, rented ]
+            default: all
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10 (or the configured maximum if it is
+            lower). A larger value is clamped rather than rejected.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: The requested page of the player's regions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerRegionsResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER` when `player` is absent or blank; `MALFORMED_UUID`
+            when `player` looks UUID-shaped but does not parse; `INVALID_PAGE` or
+            `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`;
+            `INVALID_CATEGORY` when `category` is present but not one of
+            `all`, `owned`, `rented`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: >-
+            `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name rather than
+            a UUID; name resolution is not available until the query-service
+            module ships.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/openapi.yaml:
+    get:
+      summary: This document, as YAML
+      operationId: getOpenApiYaml
+      description: Serves the bundled openapi.yaml verbatim.
+      responses:
+        "200":
+          description: The OpenAPI document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /v1/openapi.json:
+    get:
+      summary: This document, as JSON
+      operationId: getOpenApiJson
+      description: >-
+        The same document as `/v1/openapi.yaml`, parsed and re-serialised as
+        JSON for tooling that prefers it.
+      responses:
+        "200":
+          description: The OpenAPI document.
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/docs:
+    get:
+      summary: Interactive API documentation
+      operationId: getDocs
+      description: >-
+        A self-contained Swagger UI page (assets loaded from a CDN) that renders
+        `/v1/openapi.yaml`.
+      responses:
+        "200":
+          description: The Swagger UI HTML page.
+          content:
+            text/html:
+              schema:
+                type: string
+components:
+  schemas:
+    WorldRef:
+      type: object
+      description: >-
+        A world identity. `id` is always present and stable; `name` is null for a
+        world id the RealtyWorld table has never seen.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+      required: [ id ]
+    PlayerRef:
+      type: object
+      description: >-
+        A player identity. `id` is always present; `name` is always null in this
+        build -- it is filled by a separate query-service module that does not
+        exist yet.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+      required: [ id ]
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: A stable, machine-readable error code (e.g. `WORLD_NOT_FOUND`).
+        message:
+          type: string
+          description: A human-readable message. Never the raw text of an internal exception.
+      required: [ error, message ]
+    RegionResponse:
+      type: object
+      description: The region payload, mirroring what `/realty info` renders.
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        state:
+          type: string
+          nullable: true
+        freehold:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/RegionResponse_Freehold"
+        leasehold:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/RegionResponse_Leasehold"
+        auction:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/RegionResponse_Auction"
+        dimensions:
+          nullable: true
+          description: >-
+            Always null in this build. Filled by a separate query-service module
+            that does not exist yet; present-and-null rather than absent so adding
+            it later is not a breaking change.
+        tags:
+          type: array
+          items:
+            type: string
+      required: [ worldGuardRegionId, world, tags ]
+    RegionResponse_Freehold:
+      type: object
+      properties:
+        titleHolder:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/PlayerRef"
+        authority:
+          $ref: "#/components/schemas/PlayerRef"
+        price:
+          type: number
+          nullable: true
+          description: Null means the region is not currently for sale.
+        lastSoldPrice:
+          type: number
+          nullable: true
+      required: [ authority ]
+    RegionResponse_Leasehold:
+      type: object
+      properties:
+        landlord:
+          $ref: "#/components/schemas/PlayerRef"
+        tenant:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/PlayerRef"
+        price:
+          type: number
+        durationSeconds:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date-time
+          nullable: true
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+        extensionsUsed:
+          type: integer
+          nullable: true
+        maxExtensions:
+          type: integer
+          nullable: true
+          description: Null means unlimited extensions.
+      required: [ landlord, price, durationSeconds ]
+    RegionResponse_Auction:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+        highestBid:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/RegionResponse_Bid"
+    RegionResponse_Bid:
+      type: object
+      properties:
+        bidder:
+          $ref: "#/components/schemas/PlayerRef"
+        amount:
+          type: number
+      required: [ bidder, amount ]
+    PlayerRegionsResponse:
+      type: object
+      description: >-
+        The response for GET /v1/players/regions. When category=owned or
+        category=rented was requested, `regions` carries that category's entries
+        and `owned`/`landlord`/`rented` are omitted (not serialised as null).
+        When category=all (the default), `owned`, `landlord` and `rented` are
+        populated instead and `regions` is omitted. See the endpoint description
+        for the shared-offset paging behaviour of category=all.
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        owned:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRegionsResponse_RegionRef"
+        landlord:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRegionsResponse_RegionRef"
+        rented:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRegionsResponse_RentedRef"
+        regions:
+          type: array
+          description: >-
+            Present only for a single-category request (category=owned or
+            category=rented); its entries are RegionRef or RentedRef shaped
+            per that category.
+          items: {}
+      required: [ player, page, pageSize, totalCount, totalPages ]
+    PlayerRegionsResponse_RegionRef:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+      required: [ worldGuardRegionId, world ]
+    PlayerRegionsResponse_RentedRef:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+        secondsRemaining:
+          type: integer
+          format: int64
+          nullable: true
+      required: [ worldGuardRegionId, world ]
+    SearchResponse:
+      type: object
+      description: >-
+        A page of search results. `results` is empty rather than absent when
+        nothing matched.
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResponse_Result"
+      required: [ page, pageSize, totalCount, totalPages, results ]
+    SearchResponse_Result:
+      type: object
+      description: >-
+        One matching region, as the search projection reports it. Deliberately
+        minimal -- a browse listing shows identity, type and price, and fetches
+        `/v1/regions` for the row a user opens.
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        contractType:
+          type: string
+          enum: [ freehold, leasehold ]
+        price:
+          type: number
+      required: [ worldGuardRegionId, world, contractType, price ]
+    RegionListResponse:
+      type: object
+      description: >-
+        A page of registered regions. Entries carry identity only; `/v1/region`
+        returns a single region's contracts, auction and tags.
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RegionListResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, regions ]
+    RegionListResponse_Entry:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+      required: [ worldGuardRegionId, world ]

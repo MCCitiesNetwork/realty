@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
+import io.github.md5sha256.realty.database.entity.SearchSort;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
@@ -28,6 +29,9 @@ public interface MariaSearchMapper extends SearchMapper {
                 WHERE fc.price IS NOT NULL
                     AND fc.price &gt;= #{minPrice}
                     AND fc.price &lt;= #{maxPrice}
+                    <if test="worldId != null">
+                    AND rr.worldId = #{worldId}
+                    </if>
                     <if test="occupancy.name() == 'OCCUPIED'">
                     AND fc.titleHolderId IS NOT NULL
                     </if>
@@ -65,6 +69,9 @@ public interface MariaSearchMapper extends SearchMapper {
                 INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
                 WHERE lc.price &gt;= #{minPrice}
                     AND lc.price &lt;= #{maxPrice}
+                    <if test="worldId != null">
+                    AND rr.worldId = #{worldId}
+                    </if>
                     <if test="occupancy.name() == 'OCCUPIED'">
                     AND lc.tenantId IS NOT NULL
                     </if>
@@ -93,7 +100,14 @@ public interface MariaSearchMapper extends SearchMapper {
                     </if>
                 </if>
             ) AS results
-            ORDER BY price DESC
+            <choose>
+                <when test="sort.name() == 'PRICE_ASC'">
+                ORDER BY price ASC
+                </when>
+                <otherwise>
+                ORDER BY price DESC
+                </otherwise>
+            </choose>
             LIMIT #{limit} OFFSET #{offset}
             </script>
             """)
@@ -105,11 +119,13 @@ public interface MariaSearchMapper extends SearchMapper {
     })
     @NotNull List<SearchResultEntity> search(@Param("includeFreehold") boolean includeFreehold,
                                              @Param("includeLeasehold") boolean includeLeasehold,
+                                             @Param("worldId") @Nullable UUID worldId,
                                              @Param("tagIds") @Nullable Collection<String> tagIds,
                                              @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
                                              @Param("minPrice") double minPrice,
                                              @Param("maxPrice") double maxPrice,
                                              @Param("occupancy") @NotNull OccupancyFilter occupancy,
+                                             @Param("sort") @NotNull SearchSort sort,
                                              @Param("limit") int limit,
                                              @Param("offset") int offset);
 
@@ -125,6 +141,9 @@ public interface MariaSearchMapper extends SearchMapper {
                 WHERE fc.price IS NOT NULL
                     AND fc.price &gt;= #{minPrice}
                     AND fc.price &lt;= #{maxPrice}
+                    <if test="worldId != null">
+                    AND rr.worldId = #{worldId}
+                    </if>
                     <if test="occupancy.name() == 'OCCUPIED'">
                     AND fc.titleHolderId IS NOT NULL
                     </if>
@@ -162,6 +181,9 @@ public interface MariaSearchMapper extends SearchMapper {
                 INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
                 WHERE lc.price &gt;= #{minPrice}
                     AND lc.price &lt;= #{maxPrice}
+                    <if test="worldId != null">
+                    AND rr.worldId = #{worldId}
+                    </if>
                     <if test="occupancy.name() == 'OCCUPIED'">
                     AND lc.tenantId IS NOT NULL
                     </if>
@@ -194,6 +216,7 @@ public interface MariaSearchMapper extends SearchMapper {
             """)
     int searchCount(@Param("includeFreehold") boolean includeFreehold,
                     @Param("includeLeasehold") boolean includeLeasehold,
+                    @Param("worldId") @Nullable UUID worldId,
                     @Param("tagIds") @Nullable Collection<String> tagIds,
                     @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
                     @Param("minPrice") double minPrice,
