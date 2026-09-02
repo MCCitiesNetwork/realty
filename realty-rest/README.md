@@ -183,10 +183,10 @@ itself never reads:
 
 | Variable | Rules | Meaning |
 |---|---|---|
-| `REALTY_REST_VERSION` | `required|string|max:32` | The released version to install, e.g. `1.5.1` (a leading `v` is accepted). |
+| `REALTY_REST_VERSION` | `required|string|max:32` | The released version to install, e.g. `1.5.1`. Tags carry no `v` prefix; typing one is tolerated. |
 
 The install step **downloads a prebuilt jar** from the matching GitHub Release —
-`https://github.com/MCCitiesNetwork/realty/releases/download/v<version>/realty-rest-<version>-all.jar`
+`https://github.com/MCCitiesNetwork/realty/releases/download/<version>/realty-rest-<version>-all.jar`
 — rather than cloning and compiling the project on the panel. Installs are therefore
 fast, need no JDK or Gradle on the node, and produce a byte-identical jar to everyone
 else running that version. The download is anonymous: release assets need no token,
@@ -215,13 +215,13 @@ is **published** (or via `workflow_dispatch` with an existing tag, to re-run a f
 upload).
 
 The **tag drives the version**: the workflow builds with
-`-PreleaseVersion=<tag without its leading v>`, so no version-bump commit is needed to
+`-PreleaseVersion=<tag>`, so no version-bump commit is needed to
 cut a release and the tag cannot disagree with the artifact. `realty-conventions.gradle.kts`
 keeps `1.5.1` as the default every local and CI build uses.
 
 ```bash
-git tag v1.6.0 && git push origin v1.6.0
-gh release create v1.6.0 --generate-notes    # publishing triggers the workflow
+git tag 1.6.0 && git push origin 1.6.0
+gh release create 1.6.0 --generate-notes    # publishing triggers the workflow
 ```
 
 The workflow fails loudly if the expected `realty-rest-<version>-all.jar` is not produced,

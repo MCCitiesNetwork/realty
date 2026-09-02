@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing release tag to build and upload to (e.g. v1.5.1)"
+        description: "Existing release tag to build and upload to (e.g. 1.5.1)"
         required: true
 
 concurrency:
@@ -41,8 +41,9 @@ jobs:
             echo "::error::No tag to build. A release trigger supplies one; workflow_dispatch requires the tag input."
             exit 1
           fi
-          # The tag drives the version. Strip a single leading "v" so both v1.5.1
-          # and 1.5.1 produce the same artifact name.
+          # The tag drives the version. This project's tags carry no v prefix
+          # (1.5.1, not v1.5.1); the strip below is tolerance for a tag that does,
+          # so one typed by hand still yields the right artifact name.
           VERSION="${TAG#v}"
           if [ -z "${VERSION}" ]; then
             echo "::error::Tag '${TAG}' has no version after stripping the leading v."
