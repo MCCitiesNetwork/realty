@@ -5,8 +5,12 @@ world and player data as JSON for consumers outside the Minecraft server -- dash
 bots, web front ends -- without granting them database access.
 
 `realty-rest` never runs migrations and never writes. It expects a database that
-`realty-paper` has already created and migrated; if the applied schema version is
-newer than this build understands, it refuses to start rather than misread it.
+`realty-paper` has already created and migrated, at **exactly** the schema version this
+build was compiled against. A newer schema may have changed the meaning of a column it
+reads; an older one may be missing a table it depends on. It refuses to start in either
+case rather than fail later at request time, and the message names which side is behind.
+
+In practice this means `realty-rest` and `realty-paper` are upgraded together.
 
 Configuration is **entirely** via environment variables. There is no config file and
 nothing is templated onto disk -- this is deliberate, since both deployment targets

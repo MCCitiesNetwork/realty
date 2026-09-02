@@ -131,14 +131,25 @@ only where it does not fit.
 The plugin owns the schema. `realty-rest` **never** calls `initializeSchema` and
 never runs a migration.
 
-At startup it reads the applied schema version and refuses to boot if that
-version is newer than the version this build was compiled against. A service that
-silently serves columns it misunderstands is worse than one that does not start:
-the failure is loud, immediate, and points at the real cause, which is a plugin
-upgraded ahead of the API.
+At startup it reads the applied schema version and refuses to boot unless that
+version is **exactly** the version this build was compiled against. Both
+directions are rejected, for different reasons:
 
-The expected version is a constant in `realty-rest`, bumped deliberately whenever
-a migration lands that the API must understand.
+- A **newer** database may have changed the meaning of a column this build reads.
+  Serving columns it misunderstands is worse than not starting.
+- An **older** database may be missing tables this build depends on outright.
+  `RealtyWorld` arrives in V16; without it, `/v1/worlds` and every `?world=`
+  lookup fail at request time with a `500` and no indication of the real cause.
+
+Either way the failure is loud, immediate, and names which side is behind — the
+two messages give opposite instructions, because an operator who upgraded the
+plugin and one who forgot to need opposite things.
+
+The expected version is a constant in `realty-rest`, bumped whenever a migration
+lands, whether or not the API reads what it adds. The cost of exactness is that an
+irrelevant migration still forces a rebuild; that is accepted deliberately, because
+a gate that guesses which migrations matter is one that eventually guesses wrong,
+and its failure mode is a runtime `500` rather than a startup message.
 
 ## Read-only guarantee
 
