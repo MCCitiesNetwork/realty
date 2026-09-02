@@ -35,8 +35,8 @@ final class RegionHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        String worldParam = QueryParams.plusAwareDecode(QueryParams.required(ctx, "world"));
-        String regionParam = QueryParams.plusAwareDecode(QueryParams.required(ctx, "region"));
+        String worldParam = QueryParams.required(ctx, "world");
+        String regionParam = QueryParams.required(ctx, "region");
 
         UUID worldId = this.worldLookup.resolve(worldParam);
 

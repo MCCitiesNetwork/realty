@@ -78,6 +78,20 @@ final class TestServers {
     }
 
     /**
+     * A single freehold region {@code plot_1} in a world with the given literal
+     * name -- for tests proving a name containing {@code +} or {@code %} survives
+     * the query-decoding path unmangled when requested percent-encoded.
+     */
+    static @NotNull RealtyRestServer withRegionInWorldNamed(@NotNull String worldName) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), worldName));
+        FreeholdContractEntity freehold = new FreeholdContractEntity(
+                1, UUID.randomUUID(), null, 1000.0, true);
+        RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
+        return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
+                new StubDatabase(false, worlds, false, List.of()), defaultSettings());
+    }
+
+    /**
      * A known world with no region matching any lookup -- every {@code RealtyBackend}
      * region query comes back empty/null.
      */
