@@ -98,8 +98,9 @@ class PterodactylEggTest {
 
         Assertions.assertTrue(script.contains("${REALTY_REST_VERSION"),
                 "the install script must take its version from REALTY_REST_VERSION");
-        Assertions.assertTrue(script.contains("releases/download/v${VERSION}/"),
-                "the download URL must address a release tag built from that version");
+        Assertions.assertTrue(script.contains("releases/download/${VERSION}/"),
+                "the download URL must address the release tag for that version, "
+                        + "which carries no v prefix");
         Assertions.assertTrue(script.contains("realty-rest-${VERSION}-all.jar"),
                 "the asset name must match what the release workflow uploads");
         Assertions.assertTrue(script.contains("MCCitiesNetwork/realty"),

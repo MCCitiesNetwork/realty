@@ -445,7 +445,7 @@ reinstall months later must reproduce the same jar rather than silently cross a
 schema boundary. The version the service never reads at runtime, so the egg
 conformance test tracks runtime and install-time variables as separate sets.
 
-A release workflow builds with `-PreleaseVersion=<tag without its leading v>`, making
+A release workflow builds with `-PreleaseVersion=<tag>` (tags carry no `v` prefix), making
 the tag the single source of truth for a published build, and fails if the expected
 `realty-rest-<version>-all.jar` is absent -- that name is the contract the egg's
 download URL is constructed from.
