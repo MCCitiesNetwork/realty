@@ -63,7 +63,7 @@
       "description": "Password for REALTY_DB_USERNAME.",
       "env_variable": "REALTY_DB_PASSWORD",
       "default_value": "",
-      "user_viewable": false,
+      "user_viewable": true,
       "user_editable": true,
       "rules": "required|string",
       "field_type": "text"
