@@ -31,8 +31,13 @@ public final class RealtyRestServer {
      * {@code PterodactylEggTest} asserts the two stay in step. Changing it here without
      * changing the egg leaves a panel waiting forever on a server that is already up,
      * so the test fails the build instead.</p>
+     *
+     * <p>Deliberately prefixed with the service's own name. Javalin logs its own
+     * {@code "Listening on http://..."} line at the same moment, and a marker that
+     * matched both would be ambiguous — and would silently start matching a
+     * third-party string that a Javalin upgrade is free to reword.</p>
      */
-    public static final String LISTENING_LOG_PREFIX = "Listening on http://";
+    public static final String LISTENING_LOG_PREFIX = "Realty REST listening on http://";
 
     /**
      * Context attribute set by the exception handlers below to mark a response as

@@ -1,0 +1,51 @@
+# Local test harness for realty-rest, pointed at the SAME MariaDB the dev
+# Minecraft server uses (the one compose.dev.yml manages, via the startDevDb /
+# stopDevDb / resetDevDb Gradle tasks).
+#
+# There are three compose files in this repo and they do different jobs:
+#
+#   compose.dev.yml    the development MariaDB for `./gradlew runServer`.
+#                      Owned by the Gradle tasks. Do not edit it for testing.
+#   compose.local.yml  THIS FILE. realty-rest only, against that dev database,
+#                      so the API can be exercised without a production stack.
+#   compose.yml        a production-shaped example: its own MariaDB plus the
+#                      API, as a starting point for a real deployment.
+#
+# Why this file has no database of its own: realty-rest never migrates and
+# requires the schema at exactly the version it was built against. A fresh,
+# empty MariaDB is therefore unusable by it -- only realty-paper creates and
+# migrates the schema. Reusing the already-migrated dev database is the
+# shortest path to a working local test, and it exercises the API against
+# realistic data rather than an empty schema.
+#
+# Prerequisites:
+#   1. ./gradlew startDevDb          (brings up compose.dev.yml)
+#   2. ./gradlew runServer  -- once  (lets the plugin run its migrations)
+#
+# Then:
+#   docker compose -f compose.local.yml up --build
+#   curl -s localhost:8080/v1/health
+services:
+  realty-rest:
+    build:
+      # The whole project: realty-rest depends on realty-backend through Gradle
+      # project references, so a context of realty-rest/ alone cannot build.
+      context: .
+      dockerfile: realty-rest/Dockerfile
+    container_name: realty-rest-local
+    restart: "no"
+    ports:
+      - "8080:8080"
+    environment:
+      # The dev MariaDB publishes 3306 on the host; host.docker.internal is how
+      # a container reaches it. No `jdbc:` prefix -- the application prepends it.
+      REALTY_DB_URL: "mariadb://host.docker.internal:3306/realty"
+      REALTY_DB_USERNAME: realty
+      REALTY_DB_PASSWORD: realty
+      REALTY_REST_HOST: "0.0.0.0"
+      REALTY_REST_PORT: "8080"
+      REALTY_REST_MAX_PAGE_SIZE: "100"
+    extra_hosts:
+      # Docker Desktop resolves host.docker.internal already; this line is what
+      # makes the same file work on plain Linux Docker.
+      - "host.docker.internal:host-gateway"

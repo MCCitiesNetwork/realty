@@ -16,7 +16,7 @@
     "startup": "java -jar realty-rest-all.jar",
     "config": {
         "files": "{}",
-        "startup": "{\"done\": \"Listening on http://\"}",
+        "startup": "{\"done\": \"Realty REST listening on http://\"}",
         "logs": "{}",
         "stop": "^C"
     },
