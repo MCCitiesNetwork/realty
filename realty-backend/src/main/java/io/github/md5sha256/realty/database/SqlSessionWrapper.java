@@ -18,6 +18,7 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractSanctionedAuct
 import io.github.md5sha256.realty.database.mapper.RealtySignMapper;
 import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
+import io.github.md5sha256.realty.database.mapper.RealtyWorldMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -62,6 +63,8 @@ public interface SqlSessionWrapper extends Closeable {
     @NotNull RegionTagMapper regionTagMapper();
 
     @NotNull SearchMapper searchMapper();
+
+    @NotNull RealtyWorldMapper realtyWorldMapper();
 
     @Override
     void close();
