@@ -1,12 +1,16 @@
 package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.api.RealtyBackend;
+import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
 import io.github.md5sha256.realty.database.mapper.RealtyWorldMapper;
+import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import org.apache.ibatis.session.ExecutorType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
@@ -48,6 +52,43 @@ final class TestServers {
     }
 
     /**
+     * A single freehold region, {@code downtown_plot_14} in world {@code world},
+     * for sale (no title holder, a price) and untagged.
+     */
+    static @NotNull RealtyRestServer withForSaleRegion() {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), "world"));
+        FreeholdContractEntity freehold = new FreeholdContractEntity(
+                1, UUID.randomUUID(), null, 25000.0, true);
+        RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
+        return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
+                new StubDatabase(false, worlds, false, List.of()), defaultSettings());
+    }
+
+    /**
+     * A single freehold region, {@code plot_1}, in a world named {@code My World} --
+     * for the world-name-with-spaces resolution tests.
+     */
+    static @NotNull RealtyRestServer withRegionInWorldNamedMyWorld() {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), "My World"));
+        FreeholdContractEntity freehold = new FreeholdContractEntity(
+                1, UUID.randomUUID(), null, 1000.0, true);
+        RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
+        return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
+                new StubDatabase(false, worlds, false, List.of()), defaultSettings());
+    }
+
+    /**
+     * A known world with no region matching any lookup -- every {@code RealtyBackend}
+     * region query comes back empty/null.
+     */
+    static @NotNull RealtyRestServer withWorldsButNoRegions() {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), "world"));
+        RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(null, null, null, null, null);
+        return new RealtyRestServer(regionBackend(info, null),
+                new StubDatabase(false, worlds, false, List.of()), defaultSettings());
+    }
+
+    /**
      * A {@link Database} backed by the given worlds, for tests that exercise
      * {@link WorldLookup} directly rather than through a {@link RealtyRestServer}.
      */
@@ -80,10 +121,20 @@ final class TestServers {
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
                                                             boolean failOnSelectByName) {
+        return stubSession(worlds, failOnSelectByName, List.of());
+    }
+
+    private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
+                                                            boolean failOnSelectByName,
+                                                            @NotNull List<String> regionTags) {
         RealtyWorldMapper realtyWorldMapper = worldMapperHandler(worlds, failOnSelectByName);
+        RegionTagMapper regionTagMapper = regionTagMapperHandler(regionTags);
         InvocationHandler handler = (proxy, method, args) -> {
             if ("realtyWorldMapper".equals(method.getName())) {
                 return realtyWorldMapper;
+            }
+            if ("regionTagMapper".equals(method.getName())) {
+                return regionTagMapper;
             }
             if ("close".equals(method.getName())) {
                 return null;
@@ -94,6 +145,43 @@ final class TestServers {
         return (SqlSessionWrapper) Proxy.newProxyInstance(
                 SqlSessionWrapper.class.getClassLoader(),
                 new Class<?>[]{SqlSessionWrapper.class},
+                handler);
+    }
+
+    private static @NotNull RegionTagMapper regionTagMapperHandler(@NotNull List<String> regionTags) {
+        InvocationHandler handler = (proxy, method, args) -> {
+            if ("selectTagIdsByRegionId".equals(method.getName())) {
+                return regionTags;
+            }
+            throw new UnsupportedOperationException(
+                    "RegionTagMapper#" + method.getName() + " is not stubbed for this test");
+        };
+        return (RegionTagMapper) Proxy.newProxyInstance(
+                RegionTagMapper.class.getClassLoader(),
+                new Class<?>[]{RegionTagMapper.class},
+                handler);
+    }
+
+    /**
+     * A {@link RealtyBackend} stubbing only {@code getRegionInfo} and
+     * {@code getRegionState} with fixed values, regardless of which region or world
+     * is asked for -- these tests only ever ask about the one region they set up.
+     */
+    private static @NotNull RealtyBackend regionBackend(@NotNull RealtyBackend.RegionInfo info,
+                                                          @Nullable RegionState state) {
+        InvocationHandler handler = (proxy, method, args) -> {
+            if ("getRegionInfo".equals(method.getName())) {
+                return info;
+            }
+            if ("getRegionState".equals(method.getName())) {
+                return state;
+            }
+            throw new UnsupportedOperationException(
+                    "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+        };
+        return (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
                 handler);
     }
 
@@ -140,6 +228,7 @@ final class TestServers {
         private final boolean failing;
         private final List<RealtyWorldEntity> worlds;
         private final boolean failOnSelectByName;
+        private final List<String> regionTags;
 
         private StubDatabase(boolean failing) {
             this(failing, List.of());
@@ -151,9 +240,15 @@ final class TestServers {
 
         private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
                               boolean failOnSelectByName) {
+            this(failing, worlds, failOnSelectByName, List.of());
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
+                              boolean failOnSelectByName, @NotNull List<String> regionTags) {
             this.failing = failing;
             this.worlds = worlds;
             this.failOnSelectByName = failOnSelectByName;
+            this.regionTags = regionTags;
         }
 
         @Override
@@ -166,7 +261,7 @@ final class TestServers {
             if (this.failing) {
                 throw new RuntimeException("stub database is unreachable");
             }
-            return stubSession(this.worlds, this.failOnSelectByName);
+            return stubSession(this.worlds, this.failOnSelectByName, this.regionTags);
         }
 
         @Override
