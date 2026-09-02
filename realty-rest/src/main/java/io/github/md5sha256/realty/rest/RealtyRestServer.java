@@ -29,13 +29,15 @@ public final class RealtyRestServer {
      * added here and to openapi.yaml together.
      */
     public static final List<String> ROUTES = List.of(
-            "/v1/health"
+            "/v1/health",
+            "/v1/worlds"
     );
 
     private final RealtyBackend backend;
     private final Database database;
     private final RestSettings settings;
     private final Javalin javalin;
+    private final WorldLookup worldLookup;
 
     public RealtyRestServer(@NotNull RealtyBackend backend,
                             @NotNull Database database,
@@ -43,6 +45,7 @@ public final class RealtyRestServer {
         this.backend = backend;
         this.database = database;
         this.settings = settings;
+        this.worldLookup = new WorldLookup(database);
         this.javalin = buildJavalin();
         registerRoutes();
     }
@@ -66,7 +69,8 @@ public final class RealtyRestServer {
             }
         });
 
-        // Task 6 registers /v1/worlds here.
+        this.javalin.get("/v1/worlds", ctx -> ctx.json(this.worldLookup.all()));
+
         // Task 7 registers /v1/regions here.
         // Task 8 registers /v1/players/regions here.
 
@@ -107,6 +111,10 @@ public final class RealtyRestServer {
 
     public @NotNull Database database() {
         return this.database;
+    }
+
+    @NotNull WorldLookup worldLookup() {
+        return this.worldLookup;
     }
 
     public void start() {

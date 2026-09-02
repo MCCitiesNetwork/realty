@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.rest;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
 import io.github.md5sha256.realty.database.mapper.RealtyWorldMapper;
 import org.apache.ibatis.session.ExecutorType;
 import org.jetbrains.annotations.NotNull;
@@ -11,6 +12,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Builds a {@link RealtyRestServer} over stub {@link RealtyBackend} and
@@ -34,6 +36,17 @@ final class TestServers {
         return new RealtyRestServer(stubBackend(), new StubDatabase(true), defaultSettings());
     }
 
+    static @NotNull RealtyRestServer withWorlds() {
+        List<RealtyWorldEntity> worlds = List.of(
+                new RealtyWorldEntity(UUID.randomUUID(), "world"),
+                new RealtyWorldEntity(UUID.randomUUID(), "My World"));
+        return new RealtyRestServer(stubBackend(), new StubDatabase(false, worlds), defaultSettings());
+    }
+
+    static @NotNull RealtyRestServer withNoWorlds() {
+        return new RealtyRestServer(stubBackend(), new StubDatabase(false, List.of()), defaultSettings());
+    }
+
     private static @NotNull RestSettings defaultSettings() {
         return new RestSettings("localhost", 0, 100, null, null, 1500);
     }
@@ -49,8 +62,8 @@ final class TestServers {
                 handler);
     }
 
-    private static @NotNull SqlSessionWrapper stubSession() {
-        RealtyWorldMapper realtyWorldMapper = worldMapperHandler();
+    private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds) {
+        RealtyWorldMapper realtyWorldMapper = worldMapperHandler(worlds);
         InvocationHandler handler = (proxy, method, args) -> {
             if ("realtyWorldMapper".equals(method.getName())) {
                 return realtyWorldMapper;
@@ -67,10 +80,24 @@ final class TestServers {
                 handler);
     }
 
-    private static @NotNull RealtyWorldMapper worldMapperHandler() {
+    private static @NotNull RealtyWorldMapper worldMapperHandler(@NotNull List<RealtyWorldEntity> worlds) {
         InvocationHandler handler = (proxy, method, args) -> {
             if ("selectAll".equals(method.getName())) {
-                return List.of();
+                return worlds;
+            }
+            if ("selectByName".equals(method.getName())) {
+                String name = (String) args[0];
+                return worlds.stream()
+                        .filter(world -> world.worldName().equals(name))
+                        .findFirst()
+                        .orElse(null);
+            }
+            if ("selectById".equals(method.getName())) {
+                UUID id = (UUID) args[0];
+                return worlds.stream()
+                        .filter(world -> world.worldId().equals(id))
+                        .findFirst()
+                        .orElse(null);
             }
             throw new UnsupportedOperationException(
                     "RealtyWorldMapper#" + method.getName() + " is not stubbed for this test");
@@ -89,9 +116,15 @@ final class TestServers {
     private static final class StubDatabase implements Database {
 
         private final boolean failing;
+        private final List<RealtyWorldEntity> worlds;
 
         private StubDatabase(boolean failing) {
+            this(failing, List.of());
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds) {
             this.failing = failing;
+            this.worlds = worlds;
         }
 
         @Override
@@ -104,7 +137,7 @@ final class TestServers {
             if (this.failing) {
                 throw new RuntimeException("stub database is unreachable");
             }
-            return stubSession();
+            return stubSession(this.worlds);
         }
 
         @Override
