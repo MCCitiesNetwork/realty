@@ -178,14 +178,52 @@ schema.
 ### 4. Pterodactyl egg
 
 `realty-rest/pterodactyl-egg.json` is importable under Admin > Nests > Import Egg. It
-declares every variable from the table above as a panel variable (with the two
-required database variables marked `required|string` and `REALTY_REST_PORT` validated
-as `integer|between:1,65535`), builds the shadow jar from source during installation,
-and starts the service with:
+declares every variable from the table above as a panel variable, plus one the service
+itself never reads:
+
+| Variable | Rules | Meaning |
+|---|---|---|
+| `REALTY_REST_VERSION` | `required|string|max:32` | The released version to install, e.g. `1.5.1` (a leading `v` is accepted). |
+
+The install step **downloads a prebuilt jar** from the matching GitHub Release —
+`https://github.com/MCCitiesNetwork/realty/releases/download/v<version>/realty-rest-<version>-all.jar`
+— rather than cloning and compiling the project on the panel. Installs are therefore
+fast, need no JDK or Gradle on the node, and produce a byte-identical jar to everyone
+else running that version. The download is anonymous: release assets need no token,
+which is why the jar is attached to a release rather than published to GitHub Packages,
+whose Maven registry requires a credential even for public packages.
+
+The version is **pinned, never `latest`**. `realty-rest` refuses to start unless the
+database schema is exactly the version it was built against, so it must move in lockstep
+with the Realty plugin; a reinstall must reproduce the same jar rather than silently
+cross a schema boundary and exit. Upgrading is an explicit edit an operator makes when
+they upgrade the plugin.
+
+Startup command, unchanged:
 
 ```
 java -jar realty-rest-all.jar
 ```
 
-No file is templated -- every setting is a panel-managed environment variable, matching
-the table above exactly.
+No file is templated -- every runtime setting is a panel-managed environment variable,
+matching the table above exactly.
+
+### Publishing a release
+
+`.github/workflows/release-rest.yml` builds and attaches the asset when a GitHub Release
+is **published** (or via `workflow_dispatch` with an existing tag, to re-run a failed
+upload).
+
+The **tag drives the version**: the workflow builds with
+`-PreleaseVersion=<tag without its leading v>`, so no version-bump commit is needed to
+cut a release and the tag cannot disagree with the artifact. `realty-conventions.gradle.kts`
+keeps `1.5.1` as the default every local and CI build uses.
+
+```bash
+git tag v1.6.0 && git push origin v1.6.0
+gh release create v1.6.0 --generate-notes    # publishing triggers the workflow
+```
+
+The workflow fails loudly if the expected `realty-rest-<version>-all.jar` is not produced,
+because that file name is the contract the egg's download URL is built from — a rename
+would otherwise 404 on every install rather than break the build.

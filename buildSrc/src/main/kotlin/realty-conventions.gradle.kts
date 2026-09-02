@@ -3,7 +3,16 @@ plugins {
 }
 
 group = "io.github.md5sha256"
-version = "1.5.1"
+
+// The release workflow passes -PreleaseVersion=<tag without its leading v>, so the
+// git tag is the single source of truth for a published build and no bump commit is
+// needed to cut one. The literal below is the default every local and CI build uses.
+//
+// Deliberately not named "version": Gradle already defines a project property by that
+// name, so -Pversion behaves differently depending on whether a build script assigns
+// it -- a trap that would surface as a wrongly-named release asset rather than an
+// error. A distinct name has no such ambiguity.
+version = (findProperty("releaseVersion") ?: "1.5.1").toString()
 
 val targetJavaVersion = 25
 

@@ -22,12 +22,22 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\n# Builds realty-rest's shadow jar from source and stages it as\n# realty-rest-all.jar, matching this egg's startup command.\n#\n# REALTY_REST_GIT_URL and REALTY_REST_GIT_REF may be overridden as build\n# arguments if the panel forks this repository.\nset -e\n\nGIT_URL=\"${REALTY_REST_GIT_URL:-https://github.com/MCCitiesNetwork/realty.git}\"\nGIT_REF=\"${REALTY_REST_GIT_REF:-main}\"\n\napt-get update && apt-get install -y --no-install-recommends git\n\ncd /mnt/server\nrm -rf build-src\ngit clone --depth 1 --branch \"${GIT_REF}\" \"${GIT_URL}\" build-src\ncd build-src\nchmod +x gradlew\n./gradlew --no-daemon :realty-rest:shadowJar\n\ncp build/libs/*-all.jar /mnt/server/realty-rest-all.jar 2>/dev/null || cp realty-rest/build/libs/*-all.jar /mnt/server/realty-rest-all.jar\ncd /mnt/server\nrm -rf build-src\n\necho \"Install complete: /mnt/server/realty-rest-all.jar\"\n",
-      "container": "eclipse-temurin:25-jdk-noble",
+      "script": "#!/bin/bash\n# Downloads a prebuilt realty-rest jar from a GitHub Release and stages it as\n# realty-rest-all.jar, matching this egg's startup command.\n#\n# Nothing is compiled here. The jar is published by the \"Release realty-rest\"\n# workflow when a release is published, and downloaded anonymously -- GitHub\n# Release assets need no token, unlike the Packages Maven registry.\n#\n# REALTY_REST_VERSION pins the version. It is deliberately not \"latest\":\n# realty-rest refuses to start unless the database schema is exactly the version\n# it was built against, so it must be upgraded in lockstep with the Realty\n# plugin. A reinstall must therefore produce the same jar it produced before,\n# not whatever has been released since.\nset -euo pipefail\n\nREPO=\"${REALTY_REST_REPO:-MCCitiesNetwork/realty}\"\nVERSION=\"${REALTY_REST_VERSION:-}\"\n\nif [ -z \"${VERSION}\" ]; then\n    echo \"ERROR: REALTY_REST_VERSION is not set. Set it to a released version, e.g. 1.5.1.\"\n    exit 1\nfi\n\n# Accept either \"1.5.1\" or \"v1.5.1\"; release tags carry the v, asset names do not.\nVERSION=\"${VERSION#v}\"\nJAR=\"realty-rest-${VERSION}-all.jar\"\nURL=\"https://github.com/${REPO}/releases/download/v${VERSION}/${JAR}\"\n\napt-get update && apt-get install -y --no-install-recommends curl ca-certificates\n\nmkdir -p /mnt/server\ncd /mnt/server\n\necho \"Downloading ${JAR} from ${URL}\"\nif ! curl --fail --location --show-error --silent -o realty-rest-all.jar.part \"${URL}\"; then\n    echo \"ERROR: could not download ${URL}\"\n    echo \"       Check that version ${VERSION} has a published release with that asset:\"\n    echo \"       https://github.com/${REPO}/releases\"\n    rm -f realty-rest-all.jar.part\n    exit 1\nfi\n\n# curl --fail already rejects an HTTP error, but a truncated transfer can still\n# leave a short file behind. Staging through .part means a failed install never\n# leaves a half-written jar that the startup command would try to run.\nif [ ! -s realty-rest-all.jar.part ]; then\n    echo \"ERROR: downloaded file is empty.\"\n    rm -f realty-rest-all.jar.part\n    exit 1\nfi\n\nmv realty-rest-all.jar.part realty-rest-all.jar\n\necho \"Install complete: /mnt/server/realty-rest-all.jar (realty-rest ${VERSION})\"\n",
+      "container": "debian:bookworm-slim",
       "entrypoint": "bash"
     }
   },
   "variables": [
+    {
+      "name": "Realty REST Version",
+      "description": "The released version to install, e.g. 1.5.1 (a leading v is accepted). Must be a version with a published release asset. realty-rest requires the database schema to be exactly the version it was built against, so upgrade this in lockstep with the Realty plugin -- reinstalling always fetches this exact version, never the latest.",
+      "env_variable": "REALTY_REST_VERSION",
+      "default_value": "1.5.1",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:32",
+      "field_type": "text"
+    },
     {
       "name": "Database URL",
       "description": "MariaDB JDBC URL, without the jdbc: prefix (the app prepends it). Example: mariadb://db-host:3306/realty",
