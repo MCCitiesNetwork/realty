@@ -67,6 +67,7 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.listener.WorldRegistrar;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.listener.PropertyTaxListener;
 import io.github.md5sha256.realty.listener.RegionNotificationListener;
@@ -295,6 +296,9 @@ public final class Realty extends JavaPlugin {
                 new SignInteractionListener(this.database, this.logic,
                         this.regionProfileService, this.executorState, this.signCache,
                         this.signTextApplicator, this.messageContainer), this);
+        WorldRegistrar worldRegistrar = new WorldRegistrar(this.database, this.executorState.dbExec());
+        getServer().getPluginManager().registerEvents(worldRegistrar, this);
+        worldRegistrar.syncLoadedWorlds(getServer().getWorlds());
         if (getServer().getPluginManager().isPluginEnabled("Treasury")) {
             registerTreasuryTaxProvider();
         }
