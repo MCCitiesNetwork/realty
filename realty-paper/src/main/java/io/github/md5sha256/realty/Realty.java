@@ -296,7 +296,7 @@ public final class Realty extends JavaPlugin {
                 new SignInteractionListener(this.database, this.logic,
                         this.regionProfileService, this.executorState, this.signCache,
                         this.signTextApplicator, this.messageContainer), this);
-        WorldRegistrar worldRegistrar = new WorldRegistrar(this.database, this.executorState.dbExec());
+        WorldRegistrar worldRegistrar = new WorldRegistrar(this.database, this.executorState.dbExec(), getLogger());
         getServer().getPluginManager().registerEvents(worldRegistrar, this);
         worldRegistrar.syncLoadedWorlds(getServer().getWorlds());
         if (getServer().getPluginManager().isPluginEnabled("Treasury")) {

@@ -57,9 +57,11 @@ final class PlayerRegionsHandler {
         PlayerRef player = new PlayerRef(playerId.toString(), null);
 
         PlayerRegionsResponse response = switch (category) {
+            case "all" -> handleAll(player, playerId, page, pageSize, offset);
             case "owned" -> handleOwned(player, playerId, page, pageSize, offset);
             case "rented" -> handleRented(player, playerId, page, pageSize, offset);
-            default -> handleAll(player, playerId, page, pageSize, offset);
+            default -> throw ApiException.badRequest("INVALID_CATEGORY",
+                    "Query parameter 'category' must be one of [all, owned, rented], got '" + category + "'");
         };
 
         ctx.json(response);

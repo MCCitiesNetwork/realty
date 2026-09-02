@@ -11,8 +11,6 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:2.0.16")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
 
-    testImplementation("org.testcontainers:testcontainers-mariadb:2.0.1")
-    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.2")
     testImplementation("io.javalin:javalin-testtools:6.4.0")
 }
 
