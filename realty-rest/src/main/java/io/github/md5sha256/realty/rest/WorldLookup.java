@@ -7,7 +7,10 @@ import io.github.md5sha256.realty.rest.json.WorldRef;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -61,6 +64,31 @@ public final class WorldLookup {
             RealtyWorldEntity entity = session.realtyWorldMapper().selectById(worldId);
             return new WorldRef(worldId.toString(), entity == null ? null : entity.worldName());
         }
+    }
+
+    /**
+     * Resolves several worlds in a single session/query, for a handler building a
+     * list of regions -- one {@link #refFor} call per region would open one session
+     * per region. Worlds are a handful of rows, so a single {@code selectAll()}
+     * filtered in memory is simpler than a parameterised IN-list query and just as
+     * cheap. A {@code worldId} absent from the table still yields an entry with a
+     * null name, exactly as {@link #refFor} does for a single lookup.
+     */
+    public @NotNull Map<UUID, WorldRef> refsFor(@NotNull Collection<UUID> worldIds) {
+        Map<UUID, WorldRef> result = new HashMap<>();
+        if (worldIds.isEmpty()) {
+            return result;
+        }
+        try (SqlSessionWrapper session = this.database.openSession(true)) {
+            Map<UUID, String> names = new HashMap<>();
+            for (RealtyWorldEntity entity : session.realtyWorldMapper().selectAll()) {
+                names.put(entity.worldId(), entity.worldName());
+            }
+            for (UUID worldId : worldIds) {
+                result.put(worldId, new WorldRef(worldId.toString(), names.get(worldId)));
+            }
+        }
+        return result;
     }
 
 }
