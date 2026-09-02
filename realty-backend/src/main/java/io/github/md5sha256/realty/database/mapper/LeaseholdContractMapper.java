@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.RentedRegionView;
 import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,6 +35,11 @@ public interface LeaseholdContractMapper {
                        @NotNull UUID tenantId);
 
     @NotNull List<ExpiredLeaseholdView> selectExpiredLeaseholds();
+
+    /** All regions rented by the given tenant, paired with each lease's end date. */
+    @NotNull List<RentedRegionView> selectRentedRegionsWithEndDate(@NotNull UUID tenantId,
+                                                                   int limit,
+                                                                   int offset);
 
     int clearTenant(int leaseholdContractId);
 
