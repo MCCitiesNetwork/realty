@@ -38,7 +38,8 @@ public final class RealtyRestServer {
     public static final List<String> ROUTES = List.of(
             "/v1/health",
             "/v1/worlds",
-            "/v1/regions"
+            "/v1/regions",
+            "/v1/players/regions"
     );
 
     private final RealtyBackend backend;
@@ -82,7 +83,9 @@ public final class RealtyRestServer {
         RegionHandler regionHandler = new RegionHandler(this.backend, this.database, this.worldLookup);
         this.javalin.get("/v1/regions", regionHandler::handle);
 
-        // Task 8 registers /v1/players/regions here.
+        PlayerRegionsHandler playerRegionsHandler =
+                new PlayerRegionsHandler(this.backend, this.database, this.worldLookup, this.settings);
+        this.javalin.get("/v1/players/regions", playerRegionsHandler::handle);
 
         this.javalin.exception(ApiException.class, (ex, ctx) -> {
             ctx.attribute(HANDLED_ATTRIBUTE, true);
