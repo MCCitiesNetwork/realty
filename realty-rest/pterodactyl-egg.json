@@ -16,13 +16,13 @@
     "startup": "java -jar realty-rest-all.jar",
     "config": {
         "files": "{}",
-        "startup": "{\"done\": \"Bound REALTY_REST_HOST\"}",
+        "startup": "{\"done\": \"Listening on http://\"}",
         "logs": "{}",
         "stop": "^C"
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\n# Builds realty-rest's shadow jar from source and stages it as\n# realty-rest-all.jar, matching this egg's startup command.\n#\n# REALTY_REST_GIT_URL and REALTY_REST_GIT_REF may be overridden as build\n# arguments if the panel forks this repository.\nset -e\n\nGIT_URL=\"${REALTY_REST_GIT_URL:-https://github.com/md5sha256/realty.git}\"\nGIT_REF=\"${REALTY_REST_GIT_REF:-main}\"\n\napt-get update && apt-get install -y --no-install-recommends git\n\ncd /mnt/server\nrm -rf build-src\ngit clone --depth 1 --branch \"${GIT_REF}\" \"${GIT_URL}\" build-src\ncd build-src\nchmod +x gradlew\n./gradlew --no-daemon :realty-rest:shadowJar\n\ncp build/libs/*-all.jar /mnt/server/realty-rest-all.jar 2>/dev/null || cp realty-rest/build/libs/*-all.jar /mnt/server/realty-rest-all.jar\ncd /mnt/server\nrm -rf build-src\n\necho \"Install complete: /mnt/server/realty-rest-all.jar\"\n",
+            "script": "#!/bin/bash\n# Builds realty-rest's shadow jar from source and stages it as\n# realty-rest-all.jar, matching this egg's startup command.\n#\n# REALTY_REST_GIT_URL and REALTY_REST_GIT_REF may be overridden as build\n# arguments if the panel forks this repository.\nset -e\n\nGIT_URL=\"${REALTY_REST_GIT_URL:-https://github.com/MCCitiesNetwork/realty.git}\"\nGIT_REF=\"${REALTY_REST_GIT_REF:-main}\"\n\napt-get update && apt-get install -y --no-install-recommends git\n\ncd /mnt/server\nrm -rf build-src\ngit clone --depth 1 --branch \"${GIT_REF}\" \"${GIT_URL}\" build-src\ncd build-src\nchmod +x gradlew\n./gradlew --no-daemon :realty-rest:shadowJar\n\ncp build/libs/*-all.jar /mnt/server/realty-rest-all.jar 2>/dev/null || cp realty-rest/build/libs/*-all.jar /mnt/server/realty-rest-all.jar\ncd /mnt/server\nrm -rf build-src\n\necho \"Install complete: /mnt/server/realty-rest-all.jar\"\n",
             "container": "eclipse-temurin:25-jdk-noble",
             "entrypoint": "bash"
         }

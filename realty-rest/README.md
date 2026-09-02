@@ -34,7 +34,7 @@ redacted) is logged once at startup.
 
 ### What is always null right now
 
-`worlds[].dimensions` and every player `name` field (in `/v1/players/regions`
+A region's `dimensions` field (in `/v1/regions` responses) and every player `name` field (in both `/v1/regions` and `/v1/players/regions`
 responses) are `null` in this build. They are populated by a separate query-service
 module that has not been built yet -- this is expected, not a bug. Passing a player
 *name* (rather than a UUID) to `/v1/players/regions` currently always fails with
