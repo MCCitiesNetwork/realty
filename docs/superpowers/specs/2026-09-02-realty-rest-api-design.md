@@ -429,6 +429,27 @@ variable with its default, description and validation rules, and
 `java -jar realty-rest-all.jar` as the startup command. Because configuration is
 environment-only, the egg needs no file templating.
 
+The install step downloads a prebuilt jar from the matching GitHub Release rather
+than compiling on the panel: no JDK or Gradle on the node, and every operator on a
+version runs the same bytes. The asset is attached to a *release* rather than
+published to GitHub Packages because the Packages Maven registry requires an access
+token to download even a public package, and an unattended install script should not
+need a credential to fetch a public read-only API. GHCR is the one registry allowing
+anonymous pulls, but a container image would fight Pterodactyl's model of serving
+files from `/home/container`.
+
+An extra panel variable, `REALTY_REST_VERSION`, pins the version; it is deliberately
+not `latest`. Because the service refuses to boot against any schema but its own
+(see **Schema coupling**), it must be upgraded in lockstep with the plugin, and a
+reinstall months later must reproduce the same jar rather than silently cross a
+schema boundary. The version the service never reads at runtime, so the egg
+conformance test tracks runtime and install-time variables as separate sets.
+
+A release workflow builds with `-PreleaseVersion=<tag without its leading v>`, making
+the tag the single source of truth for a published build, and fails if the expected
+`realty-rest-<version>-all.jar` is absent -- that name is the contract the egg's
+download URL is constructed from.
+
 ## Testing
 
 - **Handler tests** against a Javalin test harness with a stubbed `RealtyBackend`,

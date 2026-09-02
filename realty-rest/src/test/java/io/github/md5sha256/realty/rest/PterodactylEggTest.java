@@ -42,6 +42,29 @@ class PterodactylEggTest {
                         + "or the panel waits forever on a server that is already up");
     }
 
+    /**
+     * Variables the running service reads from its environment. Every one of these
+     * is a {@code RestConfiguration} lookup.
+     */
+    private static final Set<String> RUNTIME_VARIABLES = Set.of(
+            "REALTY_DB_URL",
+            "REALTY_DB_USERNAME",
+            "REALTY_DB_PASSWORD",
+            "REALTY_REST_HOST",
+            "REALTY_REST_PORT",
+            "REALTY_REST_MAX_PAGE_SIZE",
+            "REALTY_REST_CORS_ORIGINS",
+            "REALTY_REST_MODULE_URL",
+            "REALTY_REST_MODULE_SECRET",
+            "REALTY_REST_MODULE_TIMEOUT_MS");
+
+    /**
+     * Variables only the install script reads. The service never sees these, so
+     * they are listed separately rather than loosening the runtime check to
+     * "at least these" -- which would stop catching a panel variable nothing reads.
+     */
+    private static final Set<String> INSTALL_VARIABLES = Set.of("REALTY_REST_VERSION");
+
     @Test
     void everyDocumentedEnvironmentVariableIsDeclaredAsAPanelVariable() throws IOException {
         Set<String> declared = new TreeSet<>();
@@ -49,27 +72,73 @@ class PterodactylEggTest {
             declared.add(variable.get("env_variable").asText());
         }
 
-        Set<String> expected = new HashSet<>(Set.of(
-                "REALTY_DB_URL",
-                "REALTY_DB_USERNAME",
-                "REALTY_DB_PASSWORD",
-                "REALTY_REST_HOST",
-                "REALTY_REST_PORT",
-                "REALTY_REST_MAX_PAGE_SIZE",
-                "REALTY_REST_CORS_ORIGINS",
-                "REALTY_REST_MODULE_URL",
-                "REALTY_REST_MODULE_SECRET",
-                "REALTY_REST_MODULE_TIMEOUT_MS"));
+        Set<String> expected = new HashSet<>(RUNTIME_VARIABLES);
+        expected.addAll(INSTALL_VARIABLES);
 
         Set<String> missing = new TreeSet<>(expected);
         missing.removeAll(declared);
         Assertions.assertTrue(missing.isEmpty(),
-                "environment variables the service reads but the egg does not expose: " + missing);
+                "variables the egg must expose but does not: " + missing);
 
         Set<String> extra = new TreeSet<>(declared);
         extra.removeAll(expected);
         Assertions.assertTrue(extra.isEmpty(),
-                "panel variables the service does not read: " + extra);
+                "panel variables nothing reads: " + extra);
+    }
+
+    /**
+     * The install script downloads a prebuilt jar rather than compiling one. The
+     * URL it builds is the published contract between this egg and the release
+     * workflow's asset name; if either side moves, every install 404s on someone
+     * else's panel rather than failing in this build.
+     */
+    @Test
+    void theInstallScriptDownloadsThePinnedReleaseAsset() throws IOException {
+        String script = egg().get("scripts").get("installation").get("script").asText();
+
+        Assertions.assertTrue(script.contains("${REALTY_REST_VERSION"),
+                "the install script must take its version from REALTY_REST_VERSION");
+        Assertions.assertTrue(script.contains("releases/download/v${VERSION}/"),
+                "the download URL must address a release tag built from that version");
+        Assertions.assertTrue(script.contains("realty-rest-${VERSION}-all.jar"),
+                "the asset name must match what the release workflow uploads");
+        Assertions.assertTrue(script.contains("MCCitiesNetwork/realty"),
+                "the default repository must be this project");
+        Assertions.assertTrue(script.contains("--fail"),
+                "curl must fail on an HTTP error rather than write an error page to the jar");
+    }
+
+    /**
+     * The panel runs the startup command against whatever the install script left
+     * behind, so the two file names must agree.
+     */
+    @Test
+    void theStagedJarNameMatchesTheStartupCommand() throws IOException {
+        JsonNode egg = egg();
+        String script = egg.get("scripts").get("installation").get("script").asText();
+        String startup = egg.get("startup").asText();
+
+        Assertions.assertTrue(startup.contains("realty-rest-all.jar"),
+                "unexpected startup command: " + startup);
+        Assertions.assertTrue(script.contains("mv realty-rest-all.jar.part realty-rest-all.jar"),
+                "the install script must stage the jar under the name the startup command runs");
+    }
+
+    /**
+     * Nothing is compiled on the panel any more, so the install stage must not
+     * still be reaching for a compiler or a clone.
+     */
+    @Test
+    void theInstallScriptNoLongerBuildsFromSource() throws IOException {
+        JsonNode egg = egg();
+        String script = egg.get("scripts").get("installation").get("script").asText();
+
+        Assertions.assertFalse(script.contains("git clone"),
+                "the install script must not clone the repository");
+        Assertions.assertFalse(script.contains("gradlew"),
+                "the install script must not run a Gradle build");
+        Assertions.assertFalse(egg.get("scripts").get("installation").get("container").asText().contains("jdk"),
+                "the install container no longer needs a JDK");
     }
 
     @Test

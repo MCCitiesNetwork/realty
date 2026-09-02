@@ -1,0 +1,101 @@
+name: Release realty-rest
+
+# Attaches realty-rest's shadow jar to a published GitHub Release, so the
+# Pterodactyl egg can download a prebuilt jar instead of cloning and compiling
+# the whole project on the operator's panel.
+#
+# The jar is attached to a *release*, not published to GitHub Packages, for one
+# reason: the Packages Maven registry requires an access token to download even
+# a public package, and an install script running unattended on someone else's
+# panel would then need a credential to fetch a public, read-only API. Release
+# assets are anonymously downloadable.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and upload to (e.g. v1.5.1)"
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to upload an asset onto the release.
+      contents: write
+
+    steps:
+      - name: Resolve tag and version
+        id: version
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAG}" ]; then
+            echo "::error::No tag to build. A release trigger supplies one; workflow_dispatch requires the tag input."
+            exit 1
+          fi
+          # The tag drives the version. Strip a single leading "v" so both v1.5.1
+          # and 1.5.1 produce the same artifact name.
+          VERSION="${TAG#v}"
+          if [ -z "${VERSION}" ]; then
+            echo "::error::Tag '${TAG}' has no version after stripping the leading v."
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building realty-rest ${VERSION} from tag ${TAG}"
+
+      - name: Checkout the tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build the shadow jar
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :realty-rest:shadowJar \
+            -PreleaseVersion=${{ steps.version.outputs.version }}
+
+      - name: Verify the expected asset exists
+        id: jar
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # The egg builds its download URL from the version alone, so the file
+          # name is part of the published contract -- not an incidental build
+          # output. Fail here rather than let a renamed jar 404 on every install.
+          JAR="realty-rest/build/libs/realty-rest-${VERSION}-all.jar"
+          if [ ! -f "${JAR}" ]; then
+            echo "::error::Expected ${JAR}, found:"
+            ls -1 realty-rest/build/libs/ >&2 || true
+            exit 1
+          fi
+          echo "path=${JAR}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the jar to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ steps.version.outputs.tag }}" \
+            "${{ steps.jar.outputs.path }}" \
+            --repo "${{ github.repository }}" \
+            --clobber
