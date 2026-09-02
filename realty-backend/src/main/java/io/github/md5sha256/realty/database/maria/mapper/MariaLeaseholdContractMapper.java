@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.RentedRegionView;
 import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import org.apache.ibatis.annotations.Arg;
@@ -169,6 +170,26 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             @Arg(column = "worldId", javaType = UUID.class)
     })
     @NotNull List<ExpiredLeaseholdView> selectExpiredLeaseholds();
+
+    @Override
+    @Select("""
+            SELECT rr.worldGuardRegionId, rr.worldId, lc.endDate
+            FROM LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE lc.tenantId = #{tenantId}
+            ORDER BY rr.worldGuardRegionId
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "endDate", javaType = LocalDateTime.class)
+    })
+    @NotNull List<RentedRegionView> selectRentedRegionsWithEndDate(
+            @Param("tenantId") @NotNull UUID tenantId,
+            @Param("limit") int limit,
+            @Param("offset") int offset);
 
     @Override
     @Update("""
