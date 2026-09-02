@@ -26,7 +26,8 @@ as the source of truth for configuration.
 | `REALTY_DB_PASSWORD` | yes | -- | Database password. |
 | `REALTY_REST_HOST` | no | `0.0.0.0` | Bind address. |
 | `REALTY_REST_PORT` | no | `8080` | Bind port. |
-| `REALTY_REST_MAX_PAGE_SIZE` | no | `100` | Upper bound on the `pageSize` query parameter. |
+| `REALTY_REST_MAX_PAGE_SIZE` | no | `100` | Upper bound on the `pageSize` query parameter. **Hard-capped at 100** -- a larger value is clamped, with a warning, not honoured. |
+| `REALTY_REST_CORS_ORIGINS` | no | -- | Comma-separated allowlist of browser origins, e.g. `http://localhost:5173,https://realty.example`. Empty disables CORS; there is deliberately no wildcard default. |
 | `REALTY_REST_MODULE_URL` | no | -- | Base URL of a query-service module used to enrich responses. Unset disables enrichment. |
 | `REALTY_REST_MODULE_SECRET` | no | -- | Shared secret sent to that module. |
 | `REALTY_REST_MODULE_TIMEOUT_MS` | no | `1500` | Per-call timeout before a module-sourced field degrades to `null`. |
@@ -38,7 +39,7 @@ redacted) is logged once at startup.
 
 ### What is always null right now
 
-A region's `dimensions` field (in `/v1/regions` responses) and every player `name` field (in both `/v1/regions` and `/v1/players/regions`
+A region's `dimensions` field (in `/v1/region` responses) and every player `name` field (in both `/v1/region` and `/v1/players/regions`
 responses) are `null` in this build. They are populated by a separate query-service
 module that has not been built yet -- this is expected, not a bug. Passing a player
 *name* (rather than a UUID) to `/v1/players/regions` currently always fails with
@@ -48,10 +49,22 @@ module that has not been built yet -- this is expected, not a bug. Passing a pla
 
 - `GET /v1/health` -- liveness/readiness check.
 - `GET /v1/worlds` -- every world known to Realty.
-- `GET /v1/regions?world=&region=` -- a single region's state (the HTTP form of `/realty info`).
+- `GET /v1/region?world=&region=` -- a single region's state (the HTTP form of `/realty info`).
+- `GET /v1/regions?page=&pageSize=` -- a page of every registered region, identity only,
+  in a fixed total order.
+- `GET /v1/regions/search?type=&world=&minPrice=&maxPrice=&tag=&occupancy=&sort=&page=&pageSize=` --
+  browse and filter regions (the HTTP form of `/realty search`). Every filter is optional.
 - `GET /v1/players/regions?player=&category=&page=&pageSize=` -- a player's owned/landlord/rented regions (the HTTP form of `/realty list`).
 - `GET /v1/openapi.yaml`, `GET /v1/openapi.json` -- the OpenAPI document.
 - `GET /v1/docs` -- an interactive Swagger UI page.
+
+### Three region endpoints, three questions
+
+They are easy to confuse, so: `/v1/region` answers *what is the state of this one
+region*, `/v1/regions` answers *what regions exist*, and `/v1/regions/search`
+answers *what is on the market*. Only the last two are paged, and only the search
+one filters. A region Realty has registered but which carries no contract appears
+in `/v1/regions` and never in `/v1/regions/search`.
 
 ### A note on percent-encoding
 
@@ -65,6 +78,23 @@ are frequently not URL-safe:
 
 Send the raw name percent-encoded; do not pre-decode it.
 
+## Browser clients (CORS)
+
+A page served from another origin -- a front end on `http://localhost:5173`, say --
+cannot read this API until that origin is listed in `REALTY_REST_CORS_ORIGINS`. The
+browser blocks the response before any JavaScript sees it, and nothing is logged on
+this side, so a missing allowlist looks like a client bug rather than a configuration
+one.
+
+```bash
+REALTY_REST_CORS_ORIGINS="http://localhost:5173,https://realty.example"
+```
+
+Empty (the default) disables CORS entirely. Server-to-server callers -- `curl`, a bot,
+another backend -- are unaffected either way: CORS is a browser rule, not an
+authorisation one, and it grants nothing this read-only API does not already serve to
+anyone who can reach the port.
+
 ## Worked examples
 
 ```bash
@@ -76,11 +106,20 @@ curl -s http://localhost:8080/v1/health
 curl -s http://localhost:8080/v1/worlds
 # [{"id":"...","name":"world"},{"id":"...","name":"world_nether"}]
 
+# Every registered region, paged
+curl -s "http://localhost:8080/v1/regions?page=1&pageSize=25"
+
 # A region by world UUID (or name) + WorldGuard region id
-curl -s "http://localhost:8080/v1/regions?world=world&region=spawn-shop-3"
+curl -s "http://localhost:8080/v1/region?world=world&region=spawn-shop-3"
 
 # The same, with a space-containing world name -- percent-encoded as %20
-curl -s "http://localhost:8080/v1/regions?world=My%20World&region=downtown-1"
+curl -s "http://localhost:8080/v1/region?world=My%20World&region=downtown-1"
+
+# Browse: the cheapest rentals in one world, tagged commercial
+curl -s "http://localhost:8080/v1/regions/search?type=rent&world=My%20World&tag=commercial&sort=price_asc&pageSize=25"
+
+# Browse: everything for sale under 10000, most expensive first (the default order)
+curl -s "http://localhost:8080/v1/regions/search?type=sale&maxPrice=10000"
 
 # A player's regions, paged
 curl -s "http://localhost:8080/v1/players/regions?player=069a79f4-44e9-4726-a5be-fca90e38aaf5&category=all&page=1&pageSize=25"

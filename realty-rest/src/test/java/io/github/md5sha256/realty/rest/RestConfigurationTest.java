@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 class RestConfigurationTest {
@@ -23,6 +24,8 @@ class RestConfigurationTest {
         Assertions.assertEquals(8080, config.rest().port());
         Assertions.assertEquals(100, config.rest().maxPageSize());
         Assertions.assertNull(config.rest().moduleUrl());
+        Assertions.assertEquals(List.of(), config.rest().corsOrigins(),
+                "CORS must be off unless the operator names origins");
         Assertions.assertEquals(1500, config.rest().moduleTimeoutMs());
     }
 
@@ -87,5 +90,70 @@ class RestConfigurationTest {
                 "a redaction marker must be present, not just omitted: " + described);
         Assertions.assertTrue(described.contains("REALTY_DB_URL"),
                 "the running configuration must stay visible: " + described);
+    }
+
+    @Test
+    void splitsTheCorsAllowlistOnCommas() {
+        Map<String, String> env = validEnv();
+        env.put("REALTY_REST_CORS_ORIGINS", "http://localhost:5173, https://realty.example ");
+        RestConfiguration config = RestConfiguration.load(env::get);
+        Assertions.assertEquals(List.of("http://localhost:5173", "https://realty.example"),
+                config.rest().corsOrigins());
+    }
+
+    @Test
+    void treatsABlankCorsAllowlistAsDisabled() {
+        Map<String, String> env = validEnv();
+        env.put("REALTY_REST_CORS_ORIGINS", "  ,  ");
+        RestConfiguration config = RestConfiguration.load(env::get);
+        Assertions.assertEquals(List.of(), config.rest().corsOrigins());
+    }
+
+    @Test
+    void showsTheCorsAllowlistWhenDescribed() {
+        Map<String, String> env = validEnv();
+        env.put("REALTY_REST_CORS_ORIGINS", "http://localhost:5173");
+        String described = RestConfiguration.load(env::get).describeRedacted();
+        Assertions.assertTrue(described.contains("http://localhost:5173"),
+                "the allowlist is not a secret and must stay visible: " + described);
+    }
+
+    @Test
+    void saysCorsIsDisabledWhenNoOriginsAreConfigured() {
+        String described = RestConfiguration.load(validEnv()::get).describeRedacted();
+        Assertions.assertTrue(described.contains("REALTY_REST_CORS_ORIGINS=<none -- CORS disabled>"),
+                "an operator must be able to see that CORS is off: " + described);
+    }
+
+    @Test
+    void capsTheConfiguredMaxPageSizeAtTheHardLimit() {
+        Map<String, String> env = validEnv();
+        env.put("REALTY_REST_MAX_PAGE_SIZE", "5000");
+        RestConfiguration config = RestConfiguration.load(env::get);
+        Assertions.assertEquals(RestSettings.MAX_PAGE_SIZE_LIMIT, config.rest().maxPageSize(),
+                "an operator must not be able to configure a page size above the hard cap");
+    }
+
+    @Test
+    void leavesAConfiguredMaxPageSizeBelowTheLimitAlone() {
+        Map<String, String> env = validEnv();
+        env.put("REALTY_REST_MAX_PAGE_SIZE", "25");
+        Assertions.assertEquals(25, RestConfiguration.load(env::get).rest().maxPageSize());
+    }
+
+    @Test
+    void theBannerShowsTheCappedValueNotTheRequestedOne() {
+        Map<String, String> env = validEnv();
+        env.put("REALTY_REST_MAX_PAGE_SIZE", "5000");
+        String described = RestConfiguration.load(env::get).describeRedacted();
+        Assertions.assertTrue(described.contains("REALTY_REST_MAX_PAGE_SIZE=100"), described);
+        Assertions.assertFalse(described.contains("5000"),
+                "the banner must not report a page size the service will never serve: " + described);
+    }
+
+    @Test
+    void theCapCannotBeBypassedByConstructingSettingsDirectly() {
+        RestSettings settings = new RestSettings("0.0.0.0", 8080, 5000, List.of(), null, null, 1500);
+        Assertions.assertEquals(RestSettings.MAX_PAGE_SIZE_LIMIT, settings.maxPageSize());
     }
 }

@@ -52,7 +52,7 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/WorldRef"
-  /v1/regions:
+  /v1/region:
     get:
       summary: Look up a single region
       operationId: getRegion
@@ -93,6 +93,184 @@ paths:
           description: >-
             `WORLD_NOT_FOUND` when `world` names no known world; `REGION_NOT_FOUND`
             when the region does not exist in that world.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/regions:
+    get:
+      summary: List every registered region
+      operationId: listRegions
+      description: >-
+        A page of every region Realty has registered, whether or not it carries a
+        contract, in a fixed total order (WorldGuard region id, then world id,
+        then internal row id) so that paging cannot repeat or skip a row. Entries
+        are identity only -- use `/v1/region` for one region's full state, or
+        `/v1/regions/search` to browse what is actually on the market.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10 (or the configured maximum if it is
+            lower). A larger value is clamped rather than rejected.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: >-
+            The requested page. An empty `regions` array means no region is
+            registered, or the page lies beyond the last one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegionListResponse"
+        "400":
+          description: >-
+            `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a non-integer or
+            out-of-range value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/regions/search:
+    get:
+      summary: Search regions by type, world, price, tags and occupancy
+      operationId: searchRegions
+      description: >-
+        The bulk browse endpoint, backed by the same query as the in-game
+        `/realty search` dialog. Every filter is optional; with none given it
+        returns every region carrying a contract, most expensive first. A result
+        carries only identity, contract type and price -- fetch `/v1/regions` for
+        a single region's full state. No match is a 200 with an empty `results`
+        array, never a 404.
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: >-
+            `sale` for freehold contracts, `rent` for leasehold, `all` (the
+            default) for both.
+          schema:
+            type: string
+            enum: [ sale, rent, all ]
+            default: all
+        - name: world
+          in: query
+          required: false
+          description: >-
+            Restricts results to one world, given as a UUID or a name. A world
+            name is a folder name on disk and may contain spaces or other
+            characters requiring percent-encoding -- send the raw name
+            percent-encoded, do not pre-decode it. Omit to search every world.
+          schema:
+            type: string
+        - name: minPrice
+          in: query
+          required: false
+          description: Inclusive lower price bound. Defaults to no lower bound.
+          schema:
+            type: number
+            minimum: 0
+        - name: maxPrice
+          in: query
+          required: false
+          description: Inclusive upper price bound. Defaults to no upper bound.
+          schema:
+            type: number
+            minimum: 0
+        - name: tag
+          in: query
+          required: false
+          description: >-
+            Repeatable. A region matches when it carries at least one of the
+            given tags. Omit for no tag filter.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: occupancy
+          in: query
+          required: false
+          description: >-
+            `unoccupied` restricts to regions with no titleholder or tenant,
+            `occupied` to those with one, `any` (the default) does not filter.
+          schema:
+            type: string
+            enum: [ any, occupied, unoccupied ]
+            default: any
+        - name: sort
+          in: query
+          required: false
+          description: Result order. Defaults to most expensive first.
+          schema:
+            type: string
+            enum: [ price_desc, price_asc ]
+            default: price_desc
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10 (or the configured maximum if it is
+            lower). A larger value is clamped rather than rejected.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: >-
+            The requested page of matching regions. An empty `results` array
+            means nothing matched.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: >-
+            `INVALID_TYPE`, `INVALID_OCCUPANCY` or `INVALID_SORT` when that
+            parameter is present but not one of its listed values;
+            `INVALID_PRICE` when `minPrice` or `maxPrice` is not a finite number,
+            is negative, or `minPrice` exceeds `maxPrice`; `INVALID_PAGE` or
+            `INVALID_PAGE_SIZE` for a non-integer or out-of-range value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` when `world` names no known world."
           content:
             application/json:
               schema:
@@ -150,11 +328,13 @@ paths:
           in: query
           required: false
           description: >-
-            Page size, clamped to the server's configured maximum. Defaults to
-            10 (or the configured maximum if it is lower).
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10 (or the configured maximum if it is
+            lower). A larger value is clamped rather than rejected.
           schema:
             type: integer
             minimum: 1
+            maximum: 100
       responses:
         "200":
           description: The requested page of the player's regions.
@@ -430,4 +610,67 @@ components:
           type: integer
           format: int64
           nullable: true
+      required: [ worldGuardRegionId, world ]
+    SearchResponse:
+      type: object
+      description: >-
+        A page of search results. `results` is empty rather than absent when
+        nothing matched.
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResponse_Result"
+      required: [ page, pageSize, totalCount, totalPages, results ]
+    SearchResponse_Result:
+      type: object
+      description: >-
+        One matching region, as the search projection reports it. Deliberately
+        minimal -- a browse listing shows identity, type and price, and fetches
+        `/v1/regions` for the row a user opens.
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        contractType:
+          type: string
+          enum: [ freehold, leasehold ]
+        price:
+          type: number
+      required: [ worldGuardRegionId, world, contractType, price ]
+    RegionListResponse:
+      type: object
+      description: >-
+        A page of registered regions. Entries carry identity only; `/v1/region`
+        returns a single region's contracts, auction and tags.
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RegionListResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, regions ]
+    RegionListResponse_Entry:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
       required: [ worldGuardRegionId, world ]

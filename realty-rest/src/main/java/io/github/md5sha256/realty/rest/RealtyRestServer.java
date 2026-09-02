@@ -54,7 +54,9 @@ public final class RealtyRestServer {
     public static final List<String> ROUTES = List.of(
             "/v1/health",
             "/v1/worlds",
+            "/v1/region",
             "/v1/regions",
+            "/v1/regions/search",
             "/v1/players/regions",
             "/v1/openapi.yaml",
             "/v1/openapi.json",
@@ -97,17 +99,29 @@ public final class RealtyRestServer {
         this.database = database;
         this.settings = settings;
         this.worldLookup = new WorldLookup(database);
-        this.javalin = buildJavalin();
+        this.javalin = buildJavalin(settings);
         registerRoutes();
     }
 
-    private static @NotNull Javalin buildJavalin() {
+    private static @NotNull Javalin buildJavalin(@NotNull RestSettings settings) {
         ObjectMapper mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(mapper, false));
             config.showJavalinBanner = false;
+            // Browser front ends live on a different origin to this service, so
+            // without an allowlist every request from one fails at the preflight.
+            // Enabled only when the operator names origins: no wildcard default,
+            // and no CORS machinery at all for a deployment that has no browser
+            // client.
+            if (!settings.corsOrigins().isEmpty()) {
+                config.bundledPlugins.enableCors(cors -> cors.addRule(rule -> {
+                    for (String origin : settings.corsOrigins()) {
+                        rule.allowHost(origin);
+                    }
+                }));
+            }
         });
     }
 
@@ -123,7 +137,14 @@ public final class RealtyRestServer {
         this.javalin.get("/v1/worlds", ctx -> ctx.json(this.worldLookup.all()));
 
         RegionHandler regionHandler = new RegionHandler(this.backend, this.database, this.worldLookup);
-        this.javalin.get("/v1/regions", regionHandler::handle);
+        this.javalin.get("/v1/region", regionHandler::handle);
+
+        RegionListHandler regionListHandler =
+                new RegionListHandler(this.database, this.worldLookup, this.settings);
+        this.javalin.get("/v1/regions", regionListHandler::handle);
+
+        SearchHandler searchHandler = new SearchHandler(this.database, this.worldLookup, this.settings);
+        this.javalin.get("/v1/regions/search", searchHandler::handle);
 
         PlayerRegionsHandler playerRegionsHandler =
                 new PlayerRegionsHandler(this.backend, this.database, this.worldLookup, this.settings);

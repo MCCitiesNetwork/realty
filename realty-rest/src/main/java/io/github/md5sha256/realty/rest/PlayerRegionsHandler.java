@@ -50,8 +50,8 @@ final class PlayerRegionsHandler {
             category = "all";
         }
 
-        int page = parsePage(ctx.queryParam("page"));
-        int pageSize = parsePageSize(ctx.queryParam("pageSize"));
+        int page = QueryParams.page(ctx);
+        int pageSize = QueryParams.pageSize(ctx, this.settings.maxPageSize());
         int offset = (page - 1) * pageSize;
 
         PlayerRef player = new PlayerRef(playerId.toString(), null);
@@ -93,42 +93,6 @@ final class PlayerRegionsHandler {
                 && value.charAt(13) == '-'
                 && value.charAt(18) == '-'
                 && value.charAt(23) == '-';
-    }
-
-    private int parsePage(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return 1;
-        }
-        int page;
-        try {
-            page = Integer.parseInt(raw);
-        } catch (NumberFormatException ex) {
-            throw ApiException.badRequest("INVALID_PAGE", "Query parameter 'page' must be an integer");
-        }
-        if (page < 1) {
-            throw ApiException.badRequest("INVALID_PAGE", "Query parameter 'page' must be >= 1");
-        }
-        return page;
-    }
-
-    private int parsePageSize(String raw) {
-        // The configured maximum is operator-controlled and could be misconfigured
-        // to <= 0; clamping the effective size to at least 1 keeps totalPages'
-        // division well-defined regardless.
-        int effectiveMax = Math.max(1, this.settings.maxPageSize());
-        if (raw == null || raw.isBlank()) {
-            return Math.min(10, effectiveMax);
-        }
-        int pageSize;
-        try {
-            pageSize = Integer.parseInt(raw);
-        } catch (NumberFormatException ex) {
-            throw ApiException.badRequest("INVALID_PAGE_SIZE", "Query parameter 'pageSize' must be an integer");
-        }
-        if (pageSize < 1) {
-            throw ApiException.badRequest("INVALID_PAGE_SIZE", "Query parameter 'pageSize' must be >= 1");
-        }
-        return Math.min(pageSize, effectiveMax);
     }
 
     private @NotNull PlayerRegionsResponse handleOwned(@NotNull PlayerRef player, @NotNull UUID playerId,

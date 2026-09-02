@@ -56,6 +56,7 @@ class PterodactylEggTest {
                 "REALTY_REST_HOST",
                 "REALTY_REST_PORT",
                 "REALTY_REST_MAX_PAGE_SIZE",
+                "REALTY_REST_CORS_ORIGINS",
                 "REALTY_REST_MODULE_URL",
                 "REALTY_REST_MODULE_SECRET",
                 "REALTY_REST_MODULE_TIMEOUT_MS"));

@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * {@code GET /v1/regions?world=...&region=...} -- the HTTP form of {@code /realty info}.
+ * {@code GET /v1/region?world=...&region=...} -- the HTTP form of {@code /realty info}.
  */
 final class RegionHandler {
 
