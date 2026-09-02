@@ -24,13 +24,21 @@ public final class RealtyRestServer {
     private static final Logger LOGGER = Logger.getLogger(RealtyRestServer.class.getName());
 
     /**
+     * Context attribute set by the exception handlers below to mark a response as
+     * already carrying a deliberate error body, so the catch-all 404 handler knows
+     * not to overwrite it. See its comment for why this is needed at all.
+     */
+    private static final String HANDLED_ATTRIBUTE = "realty-rest.error-handled";
+
+    /**
      * Every path this server registers. The OpenAPI conformance test asserts this
      * matches the document exactly, in both directions, so a new route must be
      * added here and to openapi.yaml together.
      */
     public static final List<String> ROUTES = List.of(
             "/v1/health",
-            "/v1/worlds"
+            "/v1/worlds",
+            "/v1/regions"
     );
 
     private final RealtyBackend backend;
@@ -71,20 +79,32 @@ public final class RealtyRestServer {
 
         this.javalin.get("/v1/worlds", ctx -> ctx.json(this.worldLookup.all()));
 
-        // Task 7 registers /v1/regions here.
+        RegionHandler regionHandler = new RegionHandler(this.backend, this.database, this.worldLookup);
+        this.javalin.get("/v1/regions", regionHandler::handle);
+
         // Task 8 registers /v1/players/regions here.
 
-        this.javalin.exception(ApiException.class, (ex, ctx) ->
-                ctx.status(ex.status()).json(new ErrorResponse(ex.code(), ex.getMessage())));
+        this.javalin.exception(ApiException.class, (ex, ctx) -> {
+            ctx.attribute(HANDLED_ATTRIBUTE, true);
+            ctx.status(ex.status()).json(new ErrorResponse(ex.code(), ex.getMessage()));
+        });
 
         this.javalin.exception(Exception.class, (ex, ctx) -> {
+            ctx.attribute(HANDLED_ATTRIBUTE, true);
             LOGGER.log(Level.SEVERE, "Unhandled failure serving " + ctx.path(), ex);
             ctx.status(500).json(new ErrorResponse("INTERNAL_ERROR",
                     "An unexpected error occurred"));
         });
 
-        this.javalin.error(404, ctx ->
-                ctx.json(new ErrorResponse("NOT_FOUND", "No such endpoint: " + ctx.path())));
+        // Javalin's error() callback fires for every response with a matching status,
+        // including one an exception handler above already wrote a body for -- not just
+        // truly unmatched routes. The attribute distinguishes the two so a handled
+        // ApiException's body is not clobbered with a generic "no such endpoint" message.
+        this.javalin.error(404, ctx -> {
+            if (ctx.attribute(HANDLED_ATTRIBUTE) == null) {
+                ctx.json(new ErrorResponse("NOT_FOUND", "No such endpoint: " + ctx.path()));
+            }
+        });
     }
 
     private boolean databaseReachable() {

@@ -7,9 +7,6 @@ import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.SQLException;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
@@ -44,16 +41,12 @@ public final class RealtyRestMain {
         RealtyBackend backend = new RealtyBackendImpl(
                 database,
                 uuid -> CompletableFuture.completedFuture(uuid.toString()),
-                RealtyRestMain::formatIso,
+                IsoDates::format,
                 () -> 0L);
 
         RealtyRestServer server = new RealtyRestServer(backend, database, config.rest());
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
         server.start();
-    }
-
-    private static @NotNull String formatIso(@NotNull LocalDateTime dateTime) {
-        return dateTime.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT);
     }
 
 }
