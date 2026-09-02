@@ -24,6 +24,17 @@ public final class RealtyRestServer {
     private static final Logger LOGGER = Logger.getLogger(RealtyRestServer.class.getName());
 
     /**
+     * Prefix of the line logged once the port is bound.
+     *
+     * <p>Process supervisors match this text to decide the service has started; the
+     * Pterodactyl egg's {@code config.startup.done} carries exactly this string, and
+     * {@code PterodactylEggTest} asserts the two stay in step. Changing it here without
+     * changing the egg leaves a panel waiting forever on a server that is already up,
+     * so the test fails the build instead.</p>
+     */
+    public static final String LISTENING_LOG_PREFIX = "Listening on http://";
+
+    /**
      * Context attribute set by the exception handlers below to mark a response as
      * already carrying a deliberate error body, so the catch-all 404 handler knows
      * not to overwrite it. See its comment for why this is needed at all.
@@ -173,8 +184,20 @@ public final class RealtyRestServer {
         return this.worldLookup;
     }
 
+    /**
+     * Binds the configured host and port, then logs a single line naming the bound
+     * address.
+     *
+     * <p>That line is the marker process supervisors watch for to decide the service
+     * is up -- the Pterodactyl egg's {@code config.startup.done} matches it. It is
+     * logged after {@link Javalin#start(String, int)} returns, so it appears only once
+     * the port is genuinely accepting connections, unlike the configuration banner
+     * logged earlier during startup.</p>
+     */
     public void start() {
         this.javalin.start(this.settings.host(), this.settings.port());
+        LOGGER.info(LISTENING_LOG_PREFIX + this.settings.host() + ":"
+                + this.settings.port() + "/");
     }
 
     public void stop() {
