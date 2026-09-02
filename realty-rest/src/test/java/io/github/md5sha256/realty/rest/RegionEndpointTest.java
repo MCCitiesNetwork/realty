@@ -33,6 +33,22 @@ class RegionEndpointTest {
     }
 
     @Test
+    void resolvesAWorldNameContainingALiteralPlusSign() {
+        RealtyRestServer server = TestServers.withRegionInWorldNamed("My+World");
+        JavalinTest.test(server.javalin(), (jsonServer, client) ->
+                Assertions.assertEquals(200,
+                        client.get("/v1/regions?world=My%2BWorld&region=plot_1").code()));
+    }
+
+    @Test
+    void resolvesAWorldNameContainingAPercentEncodedSpace() {
+        RealtyRestServer server = TestServers.withRegionInWorldNamed("100%20");
+        JavalinTest.test(server.javalin(), (jsonServer, client) ->
+                Assertions.assertEquals(200,
+                        client.get("/v1/regions?world=100%2520&region=plot_1").code()));
+    }
+
+    @Test
     void returns404ForAnUnknownWorldName() {
         RealtyRestServer server = TestServers.withNoWorlds();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
