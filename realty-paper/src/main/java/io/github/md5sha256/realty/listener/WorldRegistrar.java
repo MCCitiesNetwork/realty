@@ -13,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Keeps the {@code RealtyWorld} table in step with the worlds Bukkit has loaded.
@@ -29,10 +31,13 @@ public final class WorldRegistrar implements Listener {
 
     private final Database database;
     private final Executor databaseExecutor;
+    private final Logger logger;
 
-    public WorldRegistrar(@NotNull Database database, @NotNull Executor databaseExecutor) {
+    public WorldRegistrar(@NotNull Database database, @NotNull Executor databaseExecutor,
+                           @NotNull Logger logger) {
         this.database = database;
         this.databaseExecutor = databaseExecutor;
+        this.logger = logger;
     }
 
     /**
@@ -67,6 +72,11 @@ public final class WorldRegistrar implements Listener {
         this.databaseExecutor.execute(() -> {
             try (SqlSessionWrapper session = this.database.openSession(true)) {
                 syncAll(session.realtyWorldMapper(), snapshot);
+            } catch (RuntimeException ex) {
+                // Non-fatal: a failed world projection must never break plugin
+                // startup or crash the executor's default uncaught-exception path.
+                this.logger.log(Level.WARNING,
+                        "Failed to project world(s) " + snapshot.values() + " into the RealtyWorld table", ex);
             }
         });
     }

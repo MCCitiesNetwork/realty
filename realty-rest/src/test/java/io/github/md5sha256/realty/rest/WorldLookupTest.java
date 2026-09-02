@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 class WorldLookupTest {
@@ -68,6 +70,27 @@ class WorldLookupTest {
         WorldRef ref = lookup.refFor(unknown);
         Assertions.assertEquals(unknown.toString(), ref.id());
         Assertions.assertNull(ref.name());
+    }
+
+    /**
+     * The batched form of {@link #refForReturnsANullNameForAnUnknownWorldWithoutThrowing()}:
+     * a world id absent from the table still yields a {@link WorldRef} (with a null
+     * name), never a missing map entry or a null ref -- {@code RegionRef.world} is
+     * {@code @NotNull}.
+     */
+    @Test
+    void refsForReturnsANullNameRefForAWorldAbsentFromTheTable() {
+        WorldLookup lookup = new WorldLookup(TestServers.databaseWithWorlds(List.of(WORLD)));
+        UUID unknown = UUID.randomUUID();
+        Map<UUID, WorldRef> refs = lookup.refsFor(Set.of(WORLD.worldId(), unknown));
+        WorldRef knownRef = refs.get(WORLD.worldId());
+        Assertions.assertNotNull(knownRef);
+        Assertions.assertEquals("world", knownRef.name());
+
+        WorldRef unknownRef = refs.get(unknown);
+        Assertions.assertNotNull(unknownRef);
+        Assertions.assertEquals(unknown.toString(), unknownRef.id());
+        Assertions.assertNull(unknownRef.name());
     }
 
 }

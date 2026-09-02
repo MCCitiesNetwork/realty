@@ -56,6 +56,15 @@ final class TestServers {
     }
 
     /**
+     * A world lookup that throws a {@link RuntimeException} carrying the given
+     * message when its table is queried -- for pinning that the server's catch-all
+     * 500 handler never echoes an exception's message back to the client.
+     */
+    static @NotNull RealtyRestServer withWorldLookupThatThrows(@NotNull String secretMessage) {
+        return new RealtyRestServer(stubBackend(), new ThrowingDatabase(secretMessage), defaultSettings());
+    }
+
+    /**
      * A single freehold region, {@code downtown_plot_14} in world {@code world},
      * for sale (no title holder, a price) and untagged.
      */
@@ -143,6 +152,29 @@ final class TestServers {
                 playerBackend(listResult, ownedResult, rentedResult),
                 new StubDatabase(false, worlds, false, List.of(), List.of(rented)),
                 settings);
+    }
+
+    /**
+     * A player who owns a single region whose {@code worldId} is absent from the
+     * {@code RealtyWorld} table -- {@link WorldLookup#refsFor} must still yield a
+     * {@link io.github.md5sha256.realty.rest.json.WorldRef} for it (with a null
+     * name) rather than a missing entry, since {@code RegionRef.world} is
+     * {@code @NotNull}.
+     */
+    static @NotNull RealtyRestServer withPlayerOwningRegionInMissingWorld() {
+        UUID missingWorldId = UUID.randomUUID();
+        RealtyRegionEntity owned = new RealtyRegionEntity(1, "orphaned_plot", missingWorldId);
+
+        RealtyBackend.ListResult listResult =
+                new RealtyBackend.ListResult(1, 1, 0, List.of(owned), List.of(), List.of());
+        RealtyBackend.SingleCategoryResult ownedResult =
+                new RealtyBackend.SingleCategoryResult(1, List.of(owned));
+        RealtyBackend.SingleCategoryResult empty = new RealtyBackend.SingleCategoryResult(0, List.of());
+
+        return new RealtyRestServer(
+                playerBackend(listResult, ownedResult, empty),
+                new StubDatabase(false, List.of(), false, List.of()),
+                defaultSettings());
     }
 
     /**
@@ -394,6 +426,47 @@ final class TestServers {
         @Override
         public @NotNull SqlSessionWrapper openSession(@NotNull ExecutorType executorType, boolean autoCommit) {
             return openSession(autoCommit);
+        }
+
+        @Override
+        public void initializeSchema(@NotNull Path schemaFilesDirectory) {
+            throw new UnsupportedOperationException("realty-rest must never migrate the schema");
+        }
+
+        @Override
+        public void close() {
+            // no-op
+        }
+
+    }
+
+    /**
+     * A {@link Database} whose every {@code openSession} call throws a
+     * {@link RuntimeException} carrying the given message -- used only to drive an
+     * endpoint into the server's catch-all 500 handler, to pin that the response
+     * never echoes the exception's message back to the client.
+     */
+    private static final class ThrowingDatabase implements Database {
+
+        private final String message;
+
+        private ThrowingDatabase(@NotNull String message) {
+            this.message = message;
+        }
+
+        @Override
+        public @NotNull SqlSessionWrapper openSession() {
+            throw new RuntimeException(this.message);
+        }
+
+        @Override
+        public @NotNull SqlSessionWrapper openSession(boolean autoCommit) {
+            throw new RuntimeException(this.message);
+        }
+
+        @Override
+        public @NotNull SqlSessionWrapper openSession(@NotNull ExecutorType executorType, boolean autoCommit) {
+            throw new RuntimeException(this.message);
         }
 
         @Override

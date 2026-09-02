@@ -166,7 +166,9 @@ paths:
           description: >-
             `MISSING_PARAMETER` when `player` is absent or blank; `MALFORMED_UUID`
             when `player` looks UUID-shaped but does not parse; `INVALID_PAGE` or
-            `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`.
+            `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`;
+            `INVALID_CATEGORY` when `category` is present but not one of
+            `all`, `owned`, `rented`.
           content:
             application/json:
               schema:

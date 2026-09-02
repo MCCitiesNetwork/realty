@@ -154,15 +154,17 @@ recommendation, not a guarantee.
 
 The plugin's own `RealtyWorld` table maps world UUID to world name. Realty core
 writes it — on enable for every loaded world, and on Bukkit's `WorldLoadEvent`
-and `WorldUnloadEvent` thereafter. It is defined by a new migration file,
-registered in `MariaSchemaMigrator.DEFAULT_MIGRATIONS`.
+thereafter. It deliberately does not react to `WorldUnloadEvent`: rows are never
+deleted, because a region in an unloaded world must still be nameable by the API.
+It is defined by a new migration file, registered in
+`MariaSchemaMigrator.DEFAULT_MIGRATIONS`.
 
 This is the only projection in the design, and it is worth stating why it is not
 inconsistent with refusing to project geometry or player names. Geometry changes
 via `/rg redefine`, and WorldGuard fires no event that would let a projection stay
 correct. Player names are an unbounded, genuinely volatile set. Worlds are
-neither: a handful of rows, effectively immutable, and Bukkit *does* fire load and
-unload events, so the table maintains itself.
+neither: a handful of rows, effectively immutable, and Bukkit *does* fire a load
+event, so the table maintains itself without ever needing to shrink.
 
 The payoff is that the primary lookup path does not depend on the module at all.
 `?world=` resolves with a SQL join — no HTTP call, no cache, no TTL, no cold-start
