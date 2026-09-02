@@ -1,0 +1,50 @@
+# Production-shaped compose file for realty-rest: MariaDB plus the API.
+#
+# This is NOT compose.dev.yml -- that file is managed by the startDevDb /
+# stopDevDb / resetDevDb Gradle tasks for `./gradlew runServer` and stays
+# untouched. This file stands the standalone realty-rest service up against
+# its own database, e.g. for local image verification or as a starting
+# point for a real deployment.
+#
+# realty-rest never migrates and never writes; it only reads a database that
+# realty-paper has already initialised/migrated elsewhere. For a from-empty
+# demo, replace `mariadb` below with an image that already has the schema
+# applied, or run realty-paper's migrations against it first.
+services:
+  mariadb:
+    image: mariadb:11.7
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: realty
+      MARIADB_USER: realty
+      MARIADB_PASSWORD: realty
+      MARIADB_ROOT_PASSWORD: root
+    volumes:
+      - realty-rest-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  realty-rest:
+    build:
+      context: .
+      dockerfile: realty-rest/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      REALTY_DB_URL: "mariadb://mariadb:3306/realty"
+      REALTY_DB_USERNAME: realty
+      REALTY_DB_PASSWORD: realty
+      REALTY_REST_HOST: "0.0.0.0"
+      REALTY_REST_PORT: "8080"
+      REALTY_REST_MAX_PAGE_SIZE: "100"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+volumes:
+  realty-rest-db:
