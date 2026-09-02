@@ -47,6 +47,22 @@ final class TestServers {
         return new RealtyRestServer(stubBackend(), new StubDatabase(false, List.of()), defaultSettings());
     }
 
+    /**
+     * A {@link Database} backed by the given worlds, for tests that exercise
+     * {@link WorldLookup} directly rather than through a {@link RealtyRestServer}.
+     */
+    static @NotNull Database databaseWithWorlds(@NotNull List<RealtyWorldEntity> worlds) {
+        return new StubDatabase(false, worlds, false);
+    }
+
+    /**
+     * A {@link Database} whose {@code selectByName} fails the test if invoked, for
+     * proving a caller short-circuits before ever reaching a name lookup.
+     */
+    static @NotNull Database databaseThatFailsIfSelectByNameCalled(@NotNull List<RealtyWorldEntity> worlds) {
+        return new StubDatabase(false, worlds, true);
+    }
+
     private static @NotNull RestSettings defaultSettings() {
         return new RestSettings("localhost", 0, 100, null, null, 1500);
     }
@@ -62,8 +78,9 @@ final class TestServers {
                 handler);
     }
 
-    private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds) {
-        RealtyWorldMapper realtyWorldMapper = worldMapperHandler(worlds);
+    private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
+                                                            boolean failOnSelectByName) {
+        RealtyWorldMapper realtyWorldMapper = worldMapperHandler(worlds, failOnSelectByName);
         InvocationHandler handler = (proxy, method, args) -> {
             if ("realtyWorldMapper".equals(method.getName())) {
                 return realtyWorldMapper;
@@ -80,12 +97,17 @@ final class TestServers {
                 handler);
     }
 
-    private static @NotNull RealtyWorldMapper worldMapperHandler(@NotNull List<RealtyWorldEntity> worlds) {
+    private static @NotNull RealtyWorldMapper worldMapperHandler(@NotNull List<RealtyWorldEntity> worlds,
+                                                                   boolean failOnSelectByName) {
         InvocationHandler handler = (proxy, method, args) -> {
             if ("selectAll".equals(method.getName())) {
                 return worlds;
             }
             if ("selectByName".equals(method.getName())) {
+                if (failOnSelectByName) {
+                    throw new AssertionError(
+                            "RealtyWorldMapper#selectByName must not be called on this path");
+                }
                 String name = (String) args[0];
                 return worlds.stream()
                         .filter(world -> world.worldName().equals(name))
@@ -117,14 +139,21 @@ final class TestServers {
 
         private final boolean failing;
         private final List<RealtyWorldEntity> worlds;
+        private final boolean failOnSelectByName;
 
         private StubDatabase(boolean failing) {
             this(failing, List.of());
         }
 
         private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds) {
+            this(failing, worlds, false);
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
+                              boolean failOnSelectByName) {
             this.failing = failing;
             this.worlds = worlds;
+            this.failOnSelectByName = failOnSelectByName;
         }
 
         @Override
@@ -137,7 +166,7 @@ final class TestServers {
             if (this.failing) {
                 throw new RuntimeException("stub database is unreachable");
             }
-            return stubSession(this.worlds);
+            return stubSession(this.worlds, this.failOnSelectByName);
         }
 
         @Override
