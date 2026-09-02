@@ -10,17 +10,28 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Refuses to start against a database migrated past what this build understands.
+ * Refuses to start unless the database schema is exactly the version this build was
+ * written against.
  *
- * <p>A service that silently serves columns it misreads is worse than one that does
- * not start: the failure here is immediate and names the real cause, which is a
- * plugin upgraded ahead of the API.</p>
+ * <p>Both directions are rejected, for different reasons. A <strong>newer</strong>
+ * database may have changed the meaning of a column this build reads, and serving
+ * columns it misreads is worse than not starting. An <strong>older</strong> database
+ * may be missing tables this build depends on outright -- {@code RealtyWorld} arrives
+ * in V16, and without it world listing and every {@code ?world=} lookup fail at
+ * request time with a 500 rather than at startup with an explanation.</p>
+ *
+ * <p>The cost of exactness is that a plugin migration irrelevant to the API still
+ * forces {@link #EXPECTED_VERSION} to be bumped and the service rebuilt. That is
+ * accepted deliberately: a version gate that guesses which migrations matter is a
+ * gate that eventually guesses wrong, and the failure it would produce is a runtime
+ * 500 with no indication of the real cause.</p>
  */
 public final class SchemaVersionCheck {
 
     /**
-     * The highest migration version this build was written against. Bump this
-     * deliberately when a migration lands that the API must understand.
+     * The exact migration version this build requires. Bump this whenever a migration
+     * lands in {@code MariaSchemaMigrator.DEFAULT_MIGRATIONS}, whether or not the API
+     * reads what it adds -- the check is an equality, not a floor.
      */
     public static final int EXPECTED_VERSION = 16;
 
@@ -37,6 +48,12 @@ public final class SchemaVersionCheck {
                     "Database schema version " + appliedVersion + " is newer than this build "
                             + "understands (" + EXPECTED_VERSION + "). Upgrade realty-rest to match "
                             + "the Realty plugin before starting it.");
+        }
+        if (appliedVersion < EXPECTED_VERSION) {
+            throw new IllegalStateException(
+                    "Database schema version " + appliedVersion + " is older than this build "
+                            + "requires (" + EXPECTED_VERSION + "). Upgrade the Realty plugin and "
+                            + "let it run its migrations before starting realty-rest.");
         }
     }
 
