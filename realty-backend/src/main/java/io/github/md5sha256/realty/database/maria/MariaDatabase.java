@@ -21,6 +21,7 @@ import io.github.md5sha256.realty.database.maria.mapper.MariaFreeholdContractSan
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtySignMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRegionTagMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSearchMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyWorldMapper;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.Configuration;
@@ -109,6 +110,7 @@ public class MariaDatabase implements Database {
         configuration.addMapper(MariaRealtySignMapper.class);
         configuration.addMapper(MariaRegionTagMapper.class);
         configuration.addMapper(MariaSearchMapper.class);
+        configuration.addMapper(MariaRealtyWorldMapper.class);
         return new SqlSessionFactoryBuilder().build(configuration);
     }
 
