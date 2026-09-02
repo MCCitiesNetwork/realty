@@ -12,7 +12,7 @@ class RestConfigurationTest {
         Map<String, String> env = new HashMap<>();
         env.put("REALTY_DB_URL", "mariadb://localhost:3306/realty");
         env.put("REALTY_DB_USERNAME", "realty");
-        env.put("REALTY_DB_PASSWORD", "secret");
+        env.put("REALTY_DB_PASSWORD", "korgath-plumbus-7742");
         return env;
     }
 
@@ -67,7 +67,25 @@ class RestConfigurationTest {
     void redactsThePasswordWhenDescribed() {
         RestConfiguration config = RestConfiguration.load(validEnv()::get);
         String described = config.describeRedacted();
-        Assertions.assertFalse(described.contains("secret"), "password must not appear: " + described);
-        Assertions.assertTrue(described.contains("REALTY_DB_URL"));
+        Assertions.assertFalse(described.contains("korgath-plumbus-7742"),
+                "password value must not appear: " + described);
+        Assertions.assertTrue(described.contains("<redacted>"),
+                "a redaction marker must be present, not just omitted: " + described);
+        Assertions.assertTrue(described.contains("REALTY_DB_URL"),
+                "the running configuration must stay visible: " + described);
+    }
+
+    @Test
+    void redactsTheModuleSecretWhenDescribed() {
+        Map<String, String> env = validEnv();
+        env.put("REALTY_REST_MODULE_SECRET", "zorblatt-quindecillion-9931");
+        RestConfiguration config = RestConfiguration.load(env::get);
+        String described = config.describeRedacted();
+        Assertions.assertFalse(described.contains("zorblatt-quindecillion-9931"),
+                "module secret value must not appear: " + described);
+        Assertions.assertTrue(described.contains("<redacted>"),
+                "a redaction marker must be present, not just omitted: " + described);
+        Assertions.assertTrue(described.contains("REALTY_DB_URL"),
+                "the running configuration must stay visible: " + described);
     }
 }
