@@ -7,10 +7,15 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
+import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
+import io.github.md5sha256.realty.database.entity.SearchResultEntity;
+import io.github.md5sha256.realty.database.entity.SearchSort;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
+import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyWorldMapper;
 import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
+import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import org.apache.ibatis.session.ExecutorType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -19,6 +24,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -147,7 +153,7 @@ final class TestServers {
         RealtyBackend.SingleCategoryResult rentedResult =
                 new RealtyBackend.SingleCategoryResult(1, List.of());
 
-        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, null, null, 1500);
+        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500);
         return new RealtyRestServer(
                 playerBackend(listResult, ownedResult, rentedResult),
                 new StubDatabase(false, worlds, false, List.of(), List.of(rented)),
@@ -229,8 +235,142 @@ final class TestServers {
         return new StubDatabase(false, worlds, true);
     }
 
+    /**
+     * Records the arguments a request reached {@link SearchMapper} with, and
+     * returns a fixed page of results.
+     *
+     * <p>The database is stubbed, so a test cannot prove filtering by observing
+     * fewer rows -- the filtering itself is the mapper's SQL, and asserting on a
+     * stub that pretends to filter would only test the stub. What the HTTP layer
+     * owns is translating query parameters into the right mapper arguments, so
+     * that is what these tests assert.</p>
+     */
+    static final class SearchStub {
+
+        private final List<SearchResultEntity> results;
+        private final int totalCount;
+
+        boolean includeFreehold;
+        boolean includeLeasehold;
+        UUID worldId;
+        Collection<String> tagIds;
+        Collection<String> excludedTagIds;
+        double minPrice;
+        double maxPrice;
+        OccupancyFilter occupancy;
+        SearchSort sort;
+        int limit;
+        int offset;
+
+        SearchStub(@NotNull List<SearchResultEntity> results, int totalCount) {
+            this.results = results;
+            this.totalCount = totalCount;
+        }
+
+        static @NotNull SearchStub empty() {
+            return new SearchStub(List.of(), 0);
+        }
+    }
+
+    static @NotNull RealtyRestServer withSearch(@NotNull SearchStub stub,
+                                                @NotNull List<RealtyWorldEntity> worlds) {
+        return withSearch(stub, worlds, 100, List.of());
+    }
+
+    static @NotNull RealtyRestServer withSearch(@NotNull SearchStub stub,
+                                                @NotNull List<RealtyWorldEntity> worlds,
+                                                int maxPageSize,
+                                                @NotNull List<String> corsOrigins) {
+        RestSettings settings =
+                new RestSettings("localhost", 0, maxPageSize, corsOrigins, null, null, 1500);
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), stub),
+                settings);
+    }
+
+    private static @NotNull SearchMapper searchMapperHandler(@NotNull SearchStub stub) {
+        InvocationHandler handler = (proxy, method, args) -> {
+            switch (method.getName()) {
+                case "searchCount" -> {
+                    return stub.totalCount;
+                }
+                case "search" -> {
+                    stub.includeFreehold = (boolean) args[0];
+                    stub.includeLeasehold = (boolean) args[1];
+                    stub.worldId = (UUID) args[2];
+                    stub.tagIds = asStrings(args[3]);
+                    stub.excludedTagIds = asStrings(args[4]);
+                    stub.minPrice = (double) args[5];
+                    stub.maxPrice = (double) args[6];
+                    stub.occupancy = (OccupancyFilter) args[7];
+                    stub.sort = (SearchSort) args[8];
+                    stub.limit = (int) args[9];
+                    stub.offset = (int) args[10];
+                    return stub.results;
+                }
+                default -> throw new UnsupportedOperationException(
+                        "SearchMapper#" + method.getName() + " is not stubbed for this test");
+            }
+        };
+        return (SearchMapper) Proxy.newProxyInstance(
+                SearchMapper.class.getClassLoader(),
+                new Class<?>[]{SearchMapper.class},
+                handler);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Collection<String> asStrings(Object arg) {
+        return (Collection<String>) arg;
+    }
+
+    /**
+     * A server listing the given regions from {@code GET /v1/regions}. The stub
+     * mapper slices its list exactly as the real query's {@code LIMIT}/{@code
+     * OFFSET} would, so the handler's paging arithmetic is genuinely exercised;
+     * the ordering itself belongs to the SQL and is verified against a real
+     * database, not here.
+     */
+    static @NotNull RealtyRestServer withRegionList(@NotNull List<RealtyRegionEntity> regions,
+                                                    @NotNull List<RealtyWorldEntity> worlds) {
+        return withRegionList(regions, worlds, 100);
+    }
+
+    static @NotNull RealtyRestServer withRegionList(@NotNull List<RealtyRegionEntity> regions,
+                                                    @NotNull List<RealtyWorldEntity> worlds,
+                                                    int maxPageSize) {
+        RestSettings settings =
+                new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500);
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, regions),
+                settings);
+    }
+
+    private static @NotNull RealtyRegionMapper realtyRegionMapperHandler(
+            @NotNull List<RealtyRegionEntity> allRegions) {
+        InvocationHandler handler = (proxy, method, args) -> {
+            switch (method.getName()) {
+                case "countAll" -> {
+                    return allRegions.size();
+                }
+                case "selectPage" -> {
+                    int limit = (int) args[0];
+                    int offset = (int) args[1];
+                    int from = Math.min(offset, allRegions.size());
+                    int to = Math.min(from + limit, allRegions.size());
+                    return List.copyOf(allRegions.subList(from, to));
+                }
+                default -> throw new UnsupportedOperationException(
+                        "RealtyRegionMapper#" + method.getName() + " is not stubbed for this test");
+            }
+        };
+        return (RealtyRegionMapper) Proxy.newProxyInstance(
+                RealtyRegionMapper.class.getClassLoader(),
+                new Class<?>[]{RealtyRegionMapper.class},
+                handler);
+    }
+
     private static @NotNull RestSettings defaultSettings() {
-        return new RestSettings("localhost", 0, 100, null, null, 1500);
+        return new RestSettings("localhost", 0, 100, List.of(), null, null, 1500);
     }
 
     private static @NotNull RealtyBackend stubBackend() {
@@ -246,19 +386,21 @@ final class TestServers {
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
                                                             boolean failOnSelectByName) {
-        return stubSession(worlds, failOnSelectByName, List.of(), List.of());
+        return stubSession(worlds, failOnSelectByName, List.of(), List.of(), null, null);
     }
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
                                                             boolean failOnSelectByName,
                                                             @NotNull List<String> regionTags) {
-        return stubSession(worlds, failOnSelectByName, regionTags, List.of());
+        return stubSession(worlds, failOnSelectByName, regionTags, List.of(), null, null);
     }
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
                                                             boolean failOnSelectByName,
                                                             @NotNull List<String> regionTags,
-                                                            @NotNull List<RentedRegionView> rentedViews) {
+                                                            @NotNull List<RentedRegionView> rentedViews,
+                                                            @Nullable SearchStub searchStub,
+                                                            @Nullable List<RealtyRegionEntity> allRegions) {
         RealtyWorldMapper realtyWorldMapper = worldMapperHandler(worlds, failOnSelectByName);
         RegionTagMapper regionTagMapper = regionTagMapperHandler(regionTags);
         LeaseholdContractMapper leaseholdContractMapper = leaseholdContractMapperHandler(rentedViews);
@@ -271,6 +413,20 @@ final class TestServers {
             }
             if ("leaseholdContractMapper".equals(method.getName())) {
                 return leaseholdContractMapper;
+            }
+            if ("realtyRegionMapper".equals(method.getName())) {
+                if (allRegions == null) {
+                    throw new UnsupportedOperationException(
+                            "SqlSessionWrapper#realtyRegionMapper is not stubbed for this test");
+                }
+                return realtyRegionMapperHandler(allRegions);
+            }
+            if ("searchMapper".equals(method.getName())) {
+                if (searchStub == null) {
+                    throw new UnsupportedOperationException(
+                            "SqlSessionWrapper#searchMapper is not stubbed for this test");
+                }
+                return searchMapperHandler(searchStub);
             }
             if ("close".equals(method.getName())) {
                 return null;
@@ -381,6 +537,8 @@ final class TestServers {
         private final boolean failOnSelectByName;
         private final List<String> regionTags;
         private final List<RentedRegionView> rentedViews;
+        private final SearchStub searchStub;
+        private final List<RealtyRegionEntity> allRegions;
 
         private StubDatabase(boolean failing) {
             this(failing, List.of());
@@ -403,11 +561,28 @@ final class TestServers {
         private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
                               boolean failOnSelectByName, @NotNull List<String> regionTags,
                               @NotNull List<RentedRegionView> rentedViews) {
+            this(failing, worlds, failOnSelectByName, regionTags, rentedViews, null);
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
+                              boolean failOnSelectByName, @NotNull List<String> regionTags,
+                              @NotNull List<RentedRegionView> rentedViews,
+                              @Nullable SearchStub searchStub) {
+            this(failing, worlds, failOnSelectByName, regionTags, rentedViews, searchStub, null);
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
+                              boolean failOnSelectByName, @NotNull List<String> regionTags,
+                              @NotNull List<RentedRegionView> rentedViews,
+                              @Nullable SearchStub searchStub,
+                              @Nullable List<RealtyRegionEntity> allRegions) {
+            this.allRegions = allRegions;
             this.failing = failing;
             this.worlds = worlds;
             this.failOnSelectByName = failOnSelectByName;
             this.regionTags = regionTags;
             this.rentedViews = rentedViews;
+            this.searchStub = searchStub;
         }
 
         @Override
@@ -420,7 +595,8 @@ final class TestServers {
             if (this.failing) {
                 throw new RuntimeException("stub database is unreachable");
             }
-            return stubSession(this.worlds, this.failOnSelectByName, this.regionTags, this.rentedViews);
+            return stubSession(this.worlds, this.failOnSelectByName, this.regionTags,
+                    this.rentedViews, this.searchStub, this.allRegions);
         }
 
         @Override

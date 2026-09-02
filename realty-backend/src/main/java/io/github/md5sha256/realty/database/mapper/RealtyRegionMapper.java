@@ -27,6 +27,12 @@ public interface RealtyRegionMapper {
 
     @NotNull List<RealtyRegionEntity> selectAll();
 
+    /**
+     * One page of every registered region, in a stable total order so that paging
+     * through the table never repeats or skips a row between requests.
+     */
+    @NotNull List<RealtyRegionEntity> selectPage(int limit, int offset);
+
     @NotNull List<RealtyRegionEntity> selectRegionsByTitleHolder(@NotNull UUID playerId, int limit, int offset);
 
     @NotNull List<RealtyRegionEntity> selectRegionsByAuthority(@NotNull UUID playerId, int limit, int offset);
