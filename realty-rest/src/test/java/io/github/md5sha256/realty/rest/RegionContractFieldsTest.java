@@ -7,7 +7,7 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.javalin.testtools.JavalinTest;
-import okhttp3.Response;
+import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;

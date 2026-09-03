@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.adapter.query;
 
 import io.javalin.testtools.JavalinTest;
-import okhttp3.Response;
+import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +9,7 @@ import java.time.Duration;
 
 class DimensionsEndpointTest {
 
-    private static okhttp3.Request.Builder auth(okhttp3.Request.Builder req) {
+    private static io.javalin.testtools.Request.Builder auth(io.javalin.testtools.Request.Builder req) {
         return req.header(QueryServiceServer.SECRET_HEADER, TestServers.SECRET);
     }
 

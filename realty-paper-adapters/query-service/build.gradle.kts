@@ -17,7 +17,7 @@ dependencies {
     // into a binding-less void.
     compileOnly("org.slf4j:slf4j-api:2.0.16")
 
-    implementation("io.javalin:javalin:6.4.0") {
+    implementation("io.javalin:javalin:7.2.3") {
         exclude(group = "org.slf4j", module = "slf4j-api")
     }
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
@@ -27,7 +27,7 @@ dependencies {
     testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    testImplementation("io.javalin:javalin-testtools:6.4.0")
+    testImplementation("io.javalin:javalin-testtools:7.2.3")
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.slf4j:slf4j-simple:2.0.16")
 }

@@ -161,9 +161,10 @@ class HttpModuleClientTest {
 
     /** {@code /health} always 500s; every other route 404s. */
     private static Javalin alwaysFailingHealthApp() {
-        Javalin app = Javalin.create(config -> config.showJavalinBanner = false);
-        app.get("/health", ctx -> ctx.status(500).result("{}"));
-        return app;
+        return Javalin.create(config -> {
+            config.startup.showJavalinBanner = false;
+            config.routes.get("/health", ctx -> ctx.status(500).result("{}"));
+        });
     }
 
     private static Handler collectInto(List<LogRecord> sink) {
