@@ -1,9 +1,14 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.rest.json.RegionResponse;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.testtools.JavalinTest;
 import okhttp3.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
 
 class RegionEndpointTest {
 
@@ -82,6 +87,36 @@ class RegionEndpointTest {
             String body = client.get("/v1/region?world=world&region=downtown_plot_14")
                     .body().string();
             Assertions.assertTrue(body.contains("\"name\":null"));
+        });
+    }
+
+    @Test
+    void enrichesDimensionsAndNamesFromTheModule() {
+        RegionResponse.Dimensions dims = new RegionResponse.Dimensions("CUBOID", 62, 140, List.of(
+                new RegionResponse.Point(104, -88), new RegionResponse.Point(131, -88),
+                new RegionResponse.Point(131, -61), new RegionResponse.Point(104, -61)));
+        ModuleClient module = TestServers.stubModule(
+                Map.of(TestServers.AUTHORITY, "DCGovernment"),
+                Map.of("downtown_plot_14", dims),
+                Map.of());
+        JavalinTest.test(TestServers.withModule(module).javalin(), (server, client) -> {
+            Response response = client.get("/v1/region?world=world&region=downtown_plot_14");
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("\"authority\":{\"id\":\"" + TestServers.AUTHORITY + "\",\"name\":\"DCGovernment\"}"), body);
+            Assertions.assertTrue(body.contains("\"dimensions\":{\"shape\":\"CUBOID\",\"minY\":62,\"maxY\":140,\"points\":[{\"x\":104,\"z\":-88}"), body);
+        });
+    }
+
+    @Test
+    void anUnreachableModuleYieldsNullsAnd200() {
+        JavalinTest.test(TestServers.withModule(TestServers.unreachableModule()).javalin(), (server, client) -> {
+            Response response = client.get("/v1/region?world=world&region=downtown_plot_14");
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("\"name\":null"), body);
+            Assertions.assertTrue(body.contains("\"dimensions\":null"), body);
+            Assertions.assertTrue(body.contains("\"price\":25000.0"), "database-sourced data is unaffected: " + body);
         });
     }
 }
