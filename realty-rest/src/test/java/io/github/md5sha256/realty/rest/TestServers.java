@@ -4,6 +4,8 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
+import io.github.md5sha256.realty.database.entity.AuctionSort;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
@@ -14,6 +16,7 @@ import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
 import io.github.md5sha256.realty.database.entity.SearchSort;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
@@ -249,6 +252,55 @@ final class TestServers {
                 handler);
         return new RealtyRestServer(backend, new StubDatabase(false, worlds), defaultSettings(),
                 stubModule(names, Map.of(), Map.of()));
+    }
+
+    /**
+     * Captures what a handler asked the auction listing for.
+     */
+    static final class AuctionStub {
+
+        private final List<ActiveAuctionRow> rows;
+        private final int totalCount;
+
+        UUID worldId;
+        AuctionSort sort;
+        int limit;
+        int offset;
+
+        AuctionStub(@NotNull List<ActiveAuctionRow> rows, int totalCount) {
+            this.rows = rows;
+            this.totalCount = totalCount;
+        }
+    }
+
+    static @NotNull RealtyRestServer withAuctions(@NotNull List<ActiveAuctionRow> rows,
+                                                  int totalCount,
+                                                  @NotNull Map<UUID, String> names) {
+        return withAuctions(new AuctionStub(rows, totalCount), names);
+    }
+
+    static @NotNull RealtyRestServer withAuctions(@NotNull AuctionStub stub,
+                                                  @NotNull Map<UUID, String> names) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "selectActivePage" -> {
+                stub.worldId = (UUID) args[0];
+                stub.sort = (AuctionSort) args[1];
+                stub.limit = (int) args[2];
+                stub.offset = (int) args[3];
+                yield List.copyOf(stub.rows);
+            }
+            case "countActiveInWorld" -> stub.totalCount;
+            default -> throw new UnsupportedOperationException(
+                    "FreeholdContractAuctionMapper#" + method.getName() + " is not stubbed for this test");
+        };
+        FreeholdContractAuctionMapper mapper = (FreeholdContractAuctionMapper) Proxy.newProxyInstance(
+                FreeholdContractAuctionMapper.class.getClassLoader(),
+                new Class<?>[]{FreeholdContractAuctionMapper.class},
+                handler);
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, null, null, mapper),
+                defaultSettings(), stubModule(names, Map.of(), Map.of()));
     }
 
     /**
@@ -773,13 +825,13 @@ final class TestServers {
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
                                                             boolean failOnSelectByName) {
-        return stubSession(worlds, failOnSelectByName, List.of(), List.of(), null, null, null);
+        return stubSession(worlds, failOnSelectByName, List.of(), List.of(), null, null, null, null);
     }
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
                                                             boolean failOnSelectByName,
                                                             @NotNull List<String> regionTags) {
-        return stubSession(worlds, failOnSelectByName, regionTags, List.of(), null, null, null);
+        return stubSession(worlds, failOnSelectByName, regionTags, List.of(), null, null, null, null);
     }
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
@@ -788,7 +840,8 @@ final class TestServers {
                                                             @NotNull List<RentedRegionView> rentedViews,
                                                             @Nullable SearchStub searchStub,
                                                             @Nullable List<RegionStateRow> allRegions,
-                                                            @Nullable FreeholdContractMapper freeholdContractMapper) {
+                                                            @Nullable FreeholdContractMapper freeholdContractMapper,
+                                                            @Nullable FreeholdContractAuctionMapper auctionMapper) {
         RealtyWorldMapper realtyWorldMapper = worldMapperHandler(worlds, failOnSelectByName);
         RegionTagMapper regionTagMapper = regionTagMapperHandler(regionTags);
         LeaseholdContractMapper leaseholdContractMapper = leaseholdContractMapperHandler(rentedViews);
@@ -808,6 +861,13 @@ final class TestServers {
                             "SqlSessionWrapper#realtyRegionMapper is not stubbed for this test");
                 }
                 return realtyRegionMapperHandler(allRegions);
+            }
+            if ("freeholdContractAuctionMapper".equals(method.getName())) {
+                if (auctionMapper == null) {
+                    throw new UnsupportedOperationException(
+                            "SqlSessionWrapper#freeholdContractAuctionMapper is not stubbed for this test");
+                }
+                return auctionMapper;
             }
             if ("freeholdContractMapper".equals(method.getName())) {
                 if (freeholdContractMapper == null) {
@@ -935,6 +995,7 @@ final class TestServers {
         private final SearchStub searchStub;
         private final List<RegionStateRow> allRegions;
         private final FreeholdContractMapper freeholdContractMapper;
+        private final FreeholdContractAuctionMapper auctionMapper;
 
         private StubDatabase(boolean failing) {
             this(failing, List.of());
@@ -982,6 +1043,18 @@ final class TestServers {
                               @Nullable SearchStub searchStub,
                               @Nullable List<RegionStateRow> allRegions,
                               @Nullable FreeholdContractMapper freeholdContractMapper) {
+            this(failing, worlds, failOnSelectByName, regionTags, rentedViews, searchStub,
+                    allRegions, freeholdContractMapper, null);
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
+                              boolean failOnSelectByName, @NotNull List<String> regionTags,
+                              @NotNull List<RentedRegionView> rentedViews,
+                              @Nullable SearchStub searchStub,
+                              @Nullable List<RegionStateRow> allRegions,
+                              @Nullable FreeholdContractMapper freeholdContractMapper,
+                              @Nullable FreeholdContractAuctionMapper auctionMapper) {
+            this.auctionMapper = auctionMapper;
             this.freeholdContractMapper = freeholdContractMapper;
             this.allRegions = allRegions;
             this.failing = failing;
@@ -1003,7 +1076,8 @@ final class TestServers {
                 throw new RuntimeException("stub database is unreachable");
             }
             return stubSession(this.worlds, this.failOnSelectByName, this.regionTags,
-                    this.rentedViews, this.searchStub, this.allRegions, this.freeholdContractMapper);
+                    this.rentedViews, this.searchStub, this.allRegions, this.freeholdContractMapper,
+                    this.auctionMapper);
         }
 
         @Override

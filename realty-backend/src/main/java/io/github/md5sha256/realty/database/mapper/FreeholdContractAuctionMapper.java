@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.database.mapper;
 
+import io.github.md5sha256.realty.database.entity.AuctionSort;
+import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import org.apache.ibatis.annotations.Param;
 import org.jetbrains.annotations.NotNull;
@@ -55,4 +57,19 @@ public interface FreeholdContractAuctionMapper {
     boolean existsByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     int countActive();
+
+    /**
+     * One page of the live auctions, joined to their region and standing bid.
+     *
+     * @param worldId narrows to one world, or null for every world
+     */
+    @NotNull List<ActiveAuctionRow> selectActivePage(@Nullable UUID worldId,
+                                                     @NotNull AuctionSort sort,
+                                                     int limit,
+                                                     int offset);
+
+    /**
+     * @param worldId narrows to one world, or null for every world
+     */
+    int countActiveInWorld(@Nullable UUID worldId);
 }
