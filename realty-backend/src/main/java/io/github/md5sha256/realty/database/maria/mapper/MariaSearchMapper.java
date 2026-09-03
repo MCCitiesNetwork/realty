@@ -26,9 +26,12 @@ public interface MariaSearchMapper extends SearchMapper {
                 FROM RealtyRegion rr
                 INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
                 INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
-                WHERE fc.price IS NOT NULL
-                    AND fc.price &gt;= #{minPrice}
-                    AND fc.price &lt;= #{maxPrice}
+                WHERE (
+                    (fc.price &gt;= #{minPrice} AND fc.price &lt;= #{maxPrice})
+                    <if test="includeUnpricedFreehold">
+                    OR fc.price IS NULL
+                    </if>
+                )
                     <if test="worldId != null">
                     AND rr.worldId = #{worldId}
                     </if>
@@ -115,10 +118,11 @@ public interface MariaSearchMapper extends SearchMapper {
             @Arg(column = "worldGuardRegionId", javaType = String.class),
             @Arg(column = "worldId", javaType = UUID.class),
             @Arg(column = "contractType", javaType = String.class),
-            @Arg(column = "price", javaType = double.class)
+            @Arg(column = "price", javaType = Double.class)
     })
     @NotNull List<SearchResultEntity> search(@Param("includeFreehold") boolean includeFreehold,
                                              @Param("includeLeasehold") boolean includeLeasehold,
+                                             @Param("includeUnpricedFreehold") boolean includeUnpricedFreehold,
                                              @Param("worldId") @Nullable UUID worldId,
                                              @Param("tagIds") @Nullable Collection<String> tagIds,
                                              @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
@@ -138,9 +142,12 @@ public interface MariaSearchMapper extends SearchMapper {
                 FROM RealtyRegion rr
                 INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
                 INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
-                WHERE fc.price IS NOT NULL
-                    AND fc.price &gt;= #{minPrice}
-                    AND fc.price &lt;= #{maxPrice}
+                WHERE (
+                    (fc.price &gt;= #{minPrice} AND fc.price &lt;= #{maxPrice})
+                    <if test="includeUnpricedFreehold">
+                    OR fc.price IS NULL
+                    </if>
+                )
                     <if test="worldId != null">
                     AND rr.worldId = #{worldId}
                     </if>
@@ -216,6 +223,7 @@ public interface MariaSearchMapper extends SearchMapper {
             """)
     int searchCount(@Param("includeFreehold") boolean includeFreehold,
                     @Param("includeLeasehold") boolean includeLeasehold,
+                    @Param("includeUnpricedFreehold") boolean includeUnpricedFreehold,
                     @Param("worldId") @Nullable UUID worldId,
                     @Param("tagIds") @Nullable Collection<String> tagIds,
                     @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,

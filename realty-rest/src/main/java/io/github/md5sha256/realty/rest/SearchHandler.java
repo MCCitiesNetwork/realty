@@ -48,13 +48,7 @@ final class SearchHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        String type = valueOr(QueryParams.optional(ctx, "type"), "all");
-        boolean includeFreehold = "all".equals(type) || "sale".equals(type);
-        boolean includeLeasehold = "all".equals(type) || "rent".equals(type);
-        if (!includeFreehold && !includeLeasehold) {
-            throw ApiException.badRequest("INVALID_TYPE",
-                    "Query parameter 'type' must be one of [sale, rent, all], got '" + type + "'");
-        }
+        TypeFilter type = parseType(QueryParams.optional(ctx, "type"));
 
         String worldParam = QueryParams.optional(ctx, "world");
         UUID worldId = worldParam == null ? null : this.worldLookup.resolve(worldParam);
@@ -89,10 +83,10 @@ final class SearchHandler {
         List<SearchResultEntity> rows;
         try (SqlSessionWrapper session = this.database.openSession(true)) {
             SearchMapper mapper = session.searchMapper();
-            totalCount = mapper.searchCount(includeFreehold, includeLeasehold, worldId,
-                    tagIds, null, effectiveMin, effectiveMax, occupancy);
-            rows = mapper.search(includeFreehold, includeLeasehold, worldId,
-                    tagIds, null, effectiveMin, effectiveMax, occupancy, sort, pageSize, offset);
+            totalCount = mapper.searchCount(type.freehold, type.leasehold, type.unpricedFreehold,
+                    worldId, tagIds, null, effectiveMin, effectiveMax, occupancy);
+            rows = mapper.search(type.freehold, type.leasehold, type.unpricedFreehold,
+                    worldId, tagIds, null, effectiveMin, effectiveMax, occupancy, sort, pageSize, offset);
         }
 
         Set<UUID> worldIds = new HashSet<>();
@@ -112,6 +106,46 @@ final class SearchHandler {
 
         ctx.json(new SearchResponse(page, pageSize, totalCount,
                 totalPages(totalCount, pageSize), results));
+    }
+
+    /**
+     * The {@code type} axis has two readings of "freehold": what is on the market
+     * (an asking price is set) and what exists (any freehold contract). {@code sale}
+     * and the default {@code all} are the market view, which is what the in-game
+     * search shows; {@code freehold} widens to every freehold, whose unlisted rows
+     * come back with a null price. Leaseholds always carry a price, so {@code rent}
+     * and {@code leasehold} are the same set and differ only in name.
+     */
+    private enum TypeFilter {
+        SALE(true, false, false),
+        RENT(false, true, false),
+        ALL(true, true, false),
+        FREEHOLD(true, false, true),
+        LEASEHOLD(false, true, false);
+
+        final boolean freehold;
+        final boolean leasehold;
+        final boolean unpricedFreehold;
+
+        TypeFilter(boolean freehold, boolean leasehold, boolean unpricedFreehold) {
+            this.freehold = freehold;
+            this.leasehold = leasehold;
+            this.unpricedFreehold = unpricedFreehold;
+        }
+    }
+
+    private static @NotNull TypeFilter parseType(@Nullable String raw) {
+        String value = valueOr(raw, "all");
+        return switch (value) {
+            case "sale" -> TypeFilter.SALE;
+            case "rent" -> TypeFilter.RENT;
+            case "all" -> TypeFilter.ALL;
+            case "freehold" -> TypeFilter.FREEHOLD;
+            case "leasehold" -> TypeFilter.LEASEHOLD;
+            default -> throw ApiException.badRequest("INVALID_TYPE",
+                    "Query parameter 'type' must be one of [sale, rent, all, freehold, leasehold], got '"
+                            + value + "'");
+        };
     }
 
     private static @NotNull OccupancyFilter parseOccupancy(@Nullable String raw) {
