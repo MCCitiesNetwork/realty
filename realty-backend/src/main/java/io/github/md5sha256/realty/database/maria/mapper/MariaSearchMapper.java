@@ -22,7 +22,8 @@ public interface MariaSearchMapper extends SearchMapper {
             <script>
             SELECT * FROM (
                 <if test="includeFreehold">
-                SELECT rr.worldGuardRegionId, rr.worldId, 'freehold' AS contractType, fc.price
+                SELECT rr.worldGuardRegionId, rr.worldId, 'freehold' AS contractType, fc.price,
+                       CASE WHEN fc.titleHolderId IS NOT NULL THEN 'SOLD' ELSE 'FOR_SALE' END AS state
                 FROM RealtyRegion rr
                 INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
                 INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
@@ -66,7 +67,8 @@ public interface MariaSearchMapper extends SearchMapper {
                 UNION ALL
                 </if>
                 <if test="includeLeasehold">
-                SELECT rr.worldGuardRegionId, rr.worldId, 'leasehold' AS contractType, lc.price
+                SELECT rr.worldGuardRegionId, rr.worldId, 'leasehold' AS contractType, lc.price,
+                       CASE WHEN lc.tenantId IS NOT NULL THEN 'LEASED' ELSE 'FOR_LEASE' END AS state
                 FROM RealtyRegion rr
                 INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
                 INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
@@ -118,7 +120,8 @@ public interface MariaSearchMapper extends SearchMapper {
             @Arg(column = "worldGuardRegionId", javaType = String.class),
             @Arg(column = "worldId", javaType = UUID.class),
             @Arg(column = "contractType", javaType = String.class),
-            @Arg(column = "price", javaType = Double.class)
+            @Arg(column = "price", javaType = Double.class),
+            @Arg(column = "state", javaType = String.class)
     })
     @NotNull List<SearchResultEntity> search(@Param("includeFreehold") boolean includeFreehold,
                                              @Param("includeLeasehold") boolean includeLeasehold,

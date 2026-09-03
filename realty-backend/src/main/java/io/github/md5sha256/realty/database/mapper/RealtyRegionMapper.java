@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -61,5 +62,16 @@ public interface RealtyRegionMapper {
     @NotNull List<RealtyRegionEntity> selectPageByWorld(@NotNull UUID worldId, int limit, int offset);
 
     int countByWorld(@NotNull UUID worldId);
+
+    /**
+     * The same page as {@link #selectPage(int, int)}, each row carrying the state its
+     * contract implies, derived in SQL rather than by a lookup per row.
+     */
+    @NotNull List<RegionStateRow> selectPageWithState(int limit, int offset);
+
+    /**
+     * The same page as {@link #selectPageWithState(int, int)}, narrowed to one world.
+     */
+    @NotNull List<RegionStateRow> selectPageWithStateByWorld(@NotNull UUID worldId, int limit, int offset);
 
 }

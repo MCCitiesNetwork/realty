@@ -54,9 +54,23 @@ has to call `/v1/region` once per row to learn whether a plot is sold or for sal
 
 Note this one is **not** free. `RegionListResponse.Entry` is identity only
 (`worldGuardRegionId`, `world`) and its page query reads `RealtyRegion` alone in a
-fixed total order; carrying `state` needs a join, not a projection tweak. The same
-applies to `SearchResponse.Result`. Everything else in the table is a field already
-loaded and simply not serialised.
+fixed total order; carrying `state` needs a join, not a projection tweak. Everything
+else in the table is a field already loaded and simply not serialised.
+
+The two rows turned out to differ in cost. `SearchResponse.Result` is cheap: the
+search query already joins `Contract` to `FreeholdContract`/`LeaseholdContract` and
+each `UNION` branch knows its own contract type, so `state` is a `CASE` over
+`titleHolderId`/`tenantId` nullity on columns already in hand.
+
+`RegionListResponse.Entry` needs the joins added, via new `selectPageWithState` /
+`selectPageWithStateByWorld` queries projecting `RegionStateRow`. What it must not do
+is call `getRegionState` per row: that is two queries per region, and
+`getAllRegionsWithState` -- the obvious-looking helper -- is worse still, adding a
+placeholder map per region and *dropping* regions with no contract rather than
+reporting them. A listing has to report them, so the two rows disagree on nullability
+by design: `state` is nullable on `/v1/regions`, which lists every registered region,
+and non-null on `/v1/regions/search`, where a row exists only because a contract
+matched.
 
 ## B. Region-scoped endpoints
 

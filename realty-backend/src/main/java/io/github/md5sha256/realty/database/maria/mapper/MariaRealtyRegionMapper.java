@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
@@ -255,5 +256,64 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             WHERE worldId = #{worldId}
             """)
     int countByWorld(@Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Select("""
+            SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId,
+                   CASE
+                       WHEN fc.freeholdContractId IS NOT NULL AND fc.titleHolderId IS NOT NULL THEN 'SOLD'
+                       WHEN fc.freeholdContractId IS NOT NULL THEN 'FOR_SALE'
+                       WHEN lc.leaseholdContractId IS NOT NULL AND lc.tenantId IS NOT NULL THEN 'LEASED'
+                       WHEN lc.leaseholdContractId IS NOT NULL THEN 'FOR_LEASE'
+                   END AS state
+            FROM RealtyRegion rr
+            LEFT JOIN Contract cf
+                   ON cf.realtyRegionId = rr.realtyRegionId AND cf.contractType = 'freehold'
+            LEFT JOIN FreeholdContract fc ON fc.freeholdContractId = cf.contractId
+            LEFT JOIN Contract cl
+                   ON cl.realtyRegionId = rr.realtyRegionId AND cl.contractType = 'leasehold'
+            LEFT JOIN LeaseholdContract lc ON lc.leaseholdContractId = cl.contractId
+            ORDER BY rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "state", javaType = String.class)
+    })
+    @NotNull List<RegionStateRow> selectPageWithState(@Param("limit") int limit,
+                                                      @Param("offset") int offset);
+
+    @Override
+    @Select("""
+            SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId,
+                   CASE
+                       WHEN fc.freeholdContractId IS NOT NULL AND fc.titleHolderId IS NOT NULL THEN 'SOLD'
+                       WHEN fc.freeholdContractId IS NOT NULL THEN 'FOR_SALE'
+                       WHEN lc.leaseholdContractId IS NOT NULL AND lc.tenantId IS NOT NULL THEN 'LEASED'
+                       WHEN lc.leaseholdContractId IS NOT NULL THEN 'FOR_LEASE'
+                   END AS state
+            FROM RealtyRegion rr
+            LEFT JOIN Contract cf
+                   ON cf.realtyRegionId = rr.realtyRegionId AND cf.contractType = 'freehold'
+            LEFT JOIN FreeholdContract fc ON fc.freeholdContractId = cf.contractId
+            LEFT JOIN Contract cl
+                   ON cl.realtyRegionId = rr.realtyRegionId AND cl.contractType = 'leasehold'
+            LEFT JOIN LeaseholdContract lc ON lc.leaseholdContractId = cl.contractId
+            WHERE rr.worldId = #{worldId}
+            ORDER BY rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "state", javaType = String.class)
+    })
+    @NotNull List<RegionStateRow> selectPageWithStateByWorld(@Param("worldId") @NotNull UUID worldId,
+                                                             @Param("limit") int limit,
+                                                             @Param("offset") int offset);
+
 
 }

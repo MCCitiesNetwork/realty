@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
+import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
@@ -511,31 +512,49 @@ final class TestServers {
                                                     int maxPageSize) {
         RestSettings settings =
                 new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500);
+        List<RegionStateRow> rows = new ArrayList<>();
+        for (RealtyRegionEntity region : regions) {
+            rows.add(new RegionStateRow(region.realtyRegionId(),
+                    region.worldGuardRegionId(), region.worldId(), null));
+        }
         return new RealtyRestServer(stubBackend(),
-                new StubDatabase(false, worlds, false, List.of(), List.of(), null, regions),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
                 settings);
     }
 
+    /**
+     * A server whose region page reports exactly {@code rows}, each with the state
+     * the mapper's projection would derive for it.
+     */
+    static @NotNull RealtyRestServer withRegionListStates(@NotNull List<RegionStateRow> rows,
+                                                          @NotNull List<RealtyWorldEntity> worlds) {
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
+                defaultSettings());
+    }
+
     private static @NotNull RealtyRegionMapper realtyRegionMapperHandler(
-            @NotNull List<RealtyRegionEntity> allRegions) {
+            @NotNull List<RegionStateRow> allRegions) {
         InvocationHandler handler = (proxy, method, args) -> {
             switch (method.getName()) {
                 case "countAll" -> {
                     return allRegions.size();
                 }
                 case "selectPage" -> {
-                    int limit = (int) args[0];
-                    int offset = (int) args[1];
-                    return page(allRegions, limit, offset);
+                    return asRegions(page(allRegions, (int) args[0], (int) args[1]));
+                }
+                case "selectPageWithState" -> {
+                    return page(allRegions, (int) args[0], (int) args[1]);
                 }
                 case "countByWorld" -> {
                     return inWorld(allRegions, (UUID) args[0]).size();
                 }
                 case "selectPageByWorld" -> {
-                    List<RealtyRegionEntity> scoped = inWorld(allRegions, (UUID) args[0]);
-                    int limit = (int) args[1];
-                    int offset = (int) args[2];
-                    return page(scoped, limit, offset);
+                    return asRegions(page(inWorld(allRegions, (UUID) args[0]),
+                            (int) args[1], (int) args[2]));
+                }
+                case "selectPageWithStateByWorld" -> {
+                    return page(inWorld(allRegions, (UUID) args[0]), (int) args[1], (int) args[2]);
                 }
                 default -> throw new UnsupportedOperationException(
                         "RealtyRegionMapper#" + method.getName() + " is not stubbed for this test");
@@ -547,23 +566,32 @@ final class TestServers {
                 handler);
     }
 
-    private static @NotNull List<RealtyRegionEntity> inWorld(@NotNull List<RealtyRegionEntity> regions,
-                                                            @NotNull UUID worldId) {
-        List<RealtyRegionEntity> scoped = new ArrayList<>();
-        for (RealtyRegionEntity region : regions) {
-            if (region.worldId().equals(worldId)) {
-                scoped.add(region);
+    private static @NotNull List<RegionStateRow> inWorld(@NotNull List<RegionStateRow> rows,
+                                                        @NotNull UUID worldId) {
+        List<RegionStateRow> scoped = new ArrayList<>();
+        for (RegionStateRow row : rows) {
+            if (row.worldId().equals(worldId)) {
+                scoped.add(row);
             }
         }
         return scoped;
     }
 
-    private static @NotNull List<RealtyRegionEntity> page(@NotNull List<RealtyRegionEntity> regions,
-                                                          int limit,
-                                                          int offset) {
-        int from = Math.min(offset, regions.size());
-        int to = Math.min(from + limit, regions.size());
-        return List.copyOf(regions.subList(from, to));
+    private static @NotNull List<RegionStateRow> page(@NotNull List<RegionStateRow> rows,
+                                                      int limit,
+                                                      int offset) {
+        int from = Math.min(offset, rows.size());
+        int to = Math.min(from + limit, rows.size());
+        return List.copyOf(rows.subList(from, to));
+    }
+
+    private static @NotNull List<RealtyRegionEntity> asRegions(@NotNull List<RegionStateRow> rows) {
+        List<RealtyRegionEntity> regions = new ArrayList<>();
+        for (RegionStateRow row : rows) {
+            regions.add(new RealtyRegionEntity(
+                    row.realtyRegionId(), row.worldGuardRegionId(), row.worldId()));
+        }
+        return regions;
     }
 
     private static @NotNull RestSettings defaultSettings() {
@@ -597,7 +625,7 @@ final class TestServers {
                                                             @NotNull List<String> regionTags,
                                                             @NotNull List<RentedRegionView> rentedViews,
                                                             @Nullable SearchStub searchStub,
-                                                            @Nullable List<RealtyRegionEntity> allRegions) {
+                                                            @Nullable List<RegionStateRow> allRegions) {
         RealtyWorldMapper realtyWorldMapper = worldMapperHandler(worlds, failOnSelectByName);
         RegionTagMapper regionTagMapper = regionTagMapperHandler(regionTags);
         LeaseholdContractMapper leaseholdContractMapper = leaseholdContractMapperHandler(rentedViews);
@@ -735,7 +763,7 @@ final class TestServers {
         private final List<String> regionTags;
         private final List<RentedRegionView> rentedViews;
         private final SearchStub searchStub;
-        private final List<RealtyRegionEntity> allRegions;
+        private final List<RegionStateRow> allRegions;
 
         private StubDatabase(boolean failing) {
             this(failing, List.of());
@@ -772,7 +800,7 @@ final class TestServers {
                               boolean failOnSelectByName, @NotNull List<String> regionTags,
                               @NotNull List<RentedRegionView> rentedViews,
                               @Nullable SearchStub searchStub,
-                              @Nullable List<RealtyRegionEntity> allRegions) {
+                              @Nullable List<RegionStateRow> allRegions) {
             this.allRegions = allRegions;
             this.failing = failing;
             this.worlds = worlds;

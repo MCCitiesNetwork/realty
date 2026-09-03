@@ -814,7 +814,14 @@ components:
           description: >-
             The asking price, or null for a freehold that is not currently for
             sale. Null only appears under `type=freehold`.
-      required: [ worldGuardRegionId, world, contractType, price ]
+        state:
+          type: string
+          enum: [ FOR_SALE, SOLD, FOR_LEASE, LEASED ]
+          description: >-
+            Never null here: a search result matched on a contract, so it always
+            has a state. Contrast `/v1/regions`, which lists contractless regions
+            too and reports null for them.
+      required: [ worldGuardRegionId, world, contractType, price, state ]
     RegionListResponse:
       type: object
       description: >-
@@ -841,4 +848,11 @@ components:
           type: string
         world:
           $ref: "#/components/schemas/WorldRef"
-      required: [ worldGuardRegionId, world ]
+        state:
+          type: [ string, "null" ]
+          description: >-
+            The region's state, so a browse grid need not call `/v1/region` once
+            per row to learn it. Null for a registered region carrying no
+            contract at all -- which `/v1/regions` lists and `/v1/regions/search`
+            does not.
+      required: [ worldGuardRegionId, world, state ]

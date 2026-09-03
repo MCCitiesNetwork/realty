@@ -22,7 +22,7 @@ class SearchEndpointTest {
     }
 
     private static TestServers.SearchStub stubWithOneResult() {
-        SearchResultEntity row = new SearchResultEntity("plot_12", WORLD_ID, "freehold", 5000.0);
+        SearchResultEntity row = new SearchResultEntity("plot_12", WORLD_ID, "freehold", 5000.0, "FOR_SALE");
         return new TestServers.SearchStub(List.of(row), 1);
     }
 
@@ -83,7 +83,7 @@ class SearchEndpointTest {
 
     @Test
     void anUnpricedFreeholdIsRenderedWithANullPrice() {
-        SearchResultEntity row = new SearchResultEntity("plot_sold", WORLD_ID, "freehold", null);
+        SearchResultEntity row = new SearchResultEntity("plot_sold", WORLD_ID, "freehold", null, "SOLD");
         TestServers.SearchStub stub = new TestServers.SearchStub(List.of(row), 1);
         JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
             String body = client.get("/v1/regions/search?type=freehold").body().string();
