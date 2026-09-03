@@ -60,10 +60,10 @@
     },
     {
       "name": "Database Password",
-      "description": "Password for REALTY_DB_USERNAME.",
+      "description": "Password for REALTY_DB_USERNAME. Viewable as well as editable: Pterodactyl renders a field only for viewable variables, so a hidden one cannot be filled in at all. Anyone with startup access to this server can therefore read it -- give the service its own database user rather than a shared one.",
       "env_variable": "REALTY_DB_PASSWORD",
       "default_value": "",
-      "user_viewable": false,
+      "user_viewable": true,
       "user_editable": true,
       "rules": "required|string",
       "field_type": "text"
