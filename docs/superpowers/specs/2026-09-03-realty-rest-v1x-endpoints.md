@@ -16,6 +16,47 @@ world identity as `{id, name}` with a nullable `name`, paging via `page`/`pageSi
 with the same clamping, and the region/world addressed by query parameter, never
 path segment.
 
+One convention is **changed** rather than carried over; see *Identifying a player*.
+
+## Identifying a player
+
+v1 took a single polymorphic `player={name|uuid}`, discriminated by the shape of the
+value. Every route here instead takes `playerId` **or** `playerName`, never both.
+
+Ambiguity was never the problem: a Minecraft name is at most 16 characters and a
+Floodgate name is a `.` followed by a gamertag, so neither can reach 36 characters
+with hyphens at positions 8, 13, 18 and 23. The shape test was sound.
+
+The problem is that one parameter carried two different *dependency and failure*
+profiles. `playerId` is answered from MariaDB alone. `playerName` needs the
+query-service module, and so answers 404 for a name nobody knows and 502 when the
+module is unreachable. Under `player=`, whether the module sat on the critical path
+depended on the shape of a value the caller supplied -- so `/v1/players/summary`
+kept working during a module outage for some callers and not others, and the OpenAPI
+document could describe the parameter only as a bare `type: string` while attaching
+a 502 to the whole route when it really applied to half the inputs.
+
+Splitting them makes each honest:
+
+- `playerId` is `format: uuid`, never returns 404 or 502, and keeps working through a
+  module outage -- the returned `name` degrades to null like every other
+  module-sourced field.
+- `playerName` is the one form that needs the module, and is documented as such.
+- Giving both is `400 AMBIGUOUS_PARAMETER`. A request carrying two answers to one
+  question is a caller mistake; a precedence rule would hide it.
+- Where the pair is an optional filter (`/v1/region/history`), giving neither simply
+  does not filter.
+
+This also removes the redundancy `/v1/players/lookup` created: that route exists so a
+client resolves a name once and caches the UUID, which every other route accepting
+names quietly re-litigated. Its own parameter is `playerName` too, for one spelling
+across the API.
+
+**This is a breaking change to `/v1/players/regions`,** which shipped taking
+`player=`. It is taken now, before external consumers exist, rather than carried
+forward or softened into a deprecated alias that would keep the ambiguity alive in
+the document indefinitely.
+
 ## What has already shipped
 
 An earlier draft of this document assumed a state of the code that has since moved.
@@ -74,7 +115,7 @@ matched.
 
 ## B. Region-scoped endpoints
 
-### `GET /v1/region/history?world=&region=&type=&since=&player=&page=&pageSize=`
+### `GET /v1/region/history?world=&region=&type=&since=&playerId=|playerName=&page=&pageSize=`
 
 The HTTP form of `/realty history`. Backed directly by
 `RealtyBackend.searchHistory(...)`, which fans out over the three
@@ -110,7 +151,7 @@ this before" (`type=RENT`), so it removes the need for separate sold-price route
 
 ## C. Player-scoped endpoints
 
-### `GET /v1/players/summary?player=`
+### `GET /v1/players/summary?playerId=|playerName=`
 
 A profile card, one query per counter, all already on the backend:
 
@@ -125,7 +166,7 @@ A profile card, one query per counter, all already on the backend:
 Cheaper than paging `/v1/players/regions` to the end just to get a total, and it is
 the shape a Discord `/profile` command wants.
 
-### `GET /v1/players/lookup?name=`
+### `GET /v1/players/lookup?playerName=`
 
 Bare name-to-UUID resolution. `ModuleClient.uuidOf` already exists, so this is a
 handler and a spec change with no module work — it degrades to the existing
@@ -148,7 +189,7 @@ They are kept because the underlying facts are public and a server website is th
 intended consumer — but they are the routes to reconsider first if the rule tightens
 from "could a player learn this?" to "could a player learn this at this scale?".
 
-### `GET /v1/players/history?player=&type=&since=&page=&pageSize=`
+### `GET /v1/players/history?playerId=|playerName=&type=&since=&page=&pageSize=`
 
 Every history event a player took part in, across all regions. **New query**: the
 existing `searchHistory` is scoped to one region, so this needs a `UNION` across the

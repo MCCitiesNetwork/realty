@@ -302,6 +302,11 @@ only in the second.
 
 ### `GET /v1/players/regions?player={name|uuid}`
 
+> **Superseded.** The single polymorphic `player` parameter described below was
+> replaced by `playerId` / `playerName` (exactly one, never both). See *Identifying a
+> player* in `2026-09-03-realty-rest-v1x-endpoints.md` for why. The rest of this
+> section still describes the route accurately.
+
 The `/realty list` payload. Backed by `listRegions`, `listOwnedRegions` and
 `listRentedRegions`. A name is resolved to a UUID through the module.
 

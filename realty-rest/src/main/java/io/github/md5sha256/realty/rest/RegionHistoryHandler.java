@@ -51,7 +51,8 @@ final class RegionHistoryHandler {
 
         String eventType = eventType(ctx);
         LocalDateTime since = since(ctx);
-        UUID playerId = playerFilter(ctx);
+        PlayerRef playerFilter = PlayerNameResolution.fromRequest(ctx, this.moduleClient, false);
+        UUID playerId = playerFilter == null ? null : UUID.fromString(playerFilter.id());
 
         int page = QueryParams.page(ctx);
         int pageSize = QueryParams.pageSize(ctx, this.settings.maxPageSize());
@@ -107,19 +108,6 @@ final class RegionHistoryHandler {
         }
         throw ApiException.badRequest("INVALID_EVENT_TYPE",
                 "Query parameter 'type' is not a known event type: '" + raw + "'");
-    }
-
-    private static @Nullable UUID playerFilter(@NotNull Context ctx) {
-        String raw = QueryParams.optional(ctx, "player");
-        if (raw == null) {
-            return null;
-        }
-        try {
-            return UUID.fromString(raw);
-        } catch (IllegalArgumentException ex) {
-            throw ApiException.badRequest("MALFORMED_UUID",
-                    "Query parameter 'player' is not a valid UUID");
-        }
     }
 
     private static void collectIds(@NotNull HistoryEntry entry, @NotNull List<UUID> ids) {

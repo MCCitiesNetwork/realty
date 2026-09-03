@@ -155,6 +155,15 @@ final class TestServers {
                 defaultSettings(), stubModule(Map.of(id, name), Map.of(), Map.of(name, id)));
     }
 
+    /**
+     * A summary server wired to the given module, for proving which parameter depends
+     * on it and which does not.
+     */
+    static @NotNull RealtyRestServer withPlayerSummaryAndModule(@NotNull ModuleClient module) {
+        return new RealtyRestServer(summaryBackend(Map.of()), new StubDatabase(false),
+                defaultSettings(), module);
+    }
+
     private static @NotNull RealtyBackend summaryBackend(@NotNull Map<String, Integer> counters) {
         InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
             case "countRegionsByTitleHolder", "countRegionsByLandlord",

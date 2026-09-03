@@ -17,7 +17,7 @@ class PlayerLookupEndpointTest {
         RealtyRestServer server = TestServers.withModule(
                 TestServers.stubModule(Map.of(), Map.of(), Map.of("Notch", NOTCH)));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/lookup?name=Notch");
+            Response response = client.get("/v1/players/lookup?playerName=Notch");
             Assertions.assertEquals(200, response.code());
             Assertions.assertEquals(
                     "{\"id\":\"" + NOTCH + "\",\"name\":\"Notch\"}",
@@ -31,7 +31,7 @@ class PlayerLookupEndpointTest {
         RealtyRestServer server = TestServers.withModule(
                 TestServers.stubModule(Map.of(), Map.of(), Map.of(".Xbox Gamer", id)));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/lookup?name=.Xbox%20Gamer");
+            Response response = client.get("/v1/players/lookup?playerName=.Xbox%20Gamer");
             Assertions.assertEquals(200, response.code());
             Assertions.assertTrue(response.body().string().contains(id.toString()));
         });
@@ -53,7 +53,7 @@ class PlayerLookupEndpointTest {
         RealtyRestServer server = TestServers.withModule(
                 TestServers.stubModule(Map.of(), Map.of(), Map.of()));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/lookup?name=Nobody");
+            Response response = client.get("/v1/players/lookup?playerName=Nobody");
             Assertions.assertEquals(404, response.code());
             Assertions.assertTrue(response.body().string().contains("PLAYER_NOT_FOUND"));
         });
@@ -63,7 +63,7 @@ class PlayerLookupEndpointTest {
     void reportsAnUnreachableModuleAsABadGateway() {
         RealtyRestServer server = TestServers.withModule(TestServers.unreachableModule());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/lookup?name=Notch");
+            Response response = client.get("/v1/players/lookup?playerName=Notch");
             Assertions.assertEquals(502, response.code());
             Assertions.assertTrue(response.body().string().contains("NAME_LOOKUP_UNAVAILABLE"));
         });

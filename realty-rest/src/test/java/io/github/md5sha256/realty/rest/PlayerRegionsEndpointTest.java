@@ -24,7 +24,7 @@ class PlayerRegionsEndpointTest {
     void returnsThreeCategoriesForCategoryAll() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/regions?player=" + UUID_PARAM);
+            Response response = client.get("/v1/players/regions?playerId=" + UUID_PARAM);
             Assertions.assertEquals(200, response.code());
             String body = response.body().string();
             Assertions.assertTrue(body.contains("\"owned\""));
@@ -37,7 +37,7 @@ class PlayerRegionsEndpointTest {
     void rentedEntriesCarryEndDateAndSecondsRemaining() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            String body = client.get("/v1/players/regions?player=" + UUID_PARAM).body().string();
+            String body = client.get("/v1/players/regions?playerId=" + UUID_PARAM).body().string();
             Assertions.assertTrue(body.contains("\"secondsRemaining\""));
             Assertions.assertTrue(body.contains("\"endDate\""));
         });
@@ -47,7 +47,7 @@ class PlayerRegionsEndpointTest {
     void aPlayerWhoOwnsNothingIs200WithZeroTotal() {
         RealtyRestServer server = TestServers.withEmptyPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/regions?player=" + UUID_PARAM);
+            Response response = client.get("/v1/players/regions?playerId=" + UUID_PARAM);
             Assertions.assertEquals(200, response.code());
             Assertions.assertTrue(response.body().string().contains("\"totalCount\":0"));
         });
@@ -57,7 +57,7 @@ class PlayerRegionsEndpointTest {
     void returns400ForAUuidShapedButInvalidValue() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/regions?player=" + UUID_SHAPED_BUT_INVALID);
+            Response response = client.get("/v1/players/regions?playerId=" + UUID_SHAPED_BUT_INVALID);
             Assertions.assertEquals(400, response.code());
         });
     }
@@ -66,7 +66,7 @@ class PlayerRegionsEndpointTest {
     void returns502WhenLookingUpByNameWithNoModuleConfigured() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/regions?player=Notch");
+            Response response = client.get("/v1/players/regions?playerName=Notch");
             Assertions.assertEquals(502, response.code());
             Assertions.assertTrue(response.body().string().contains("NAME_LOOKUP_UNAVAILABLE"));
         });
@@ -76,7 +76,7 @@ class PlayerRegionsEndpointTest {
     void clampsPageSizeToTheConfiguredMaximum() {
         RealtyRestServer server = TestServers.withPlayerHoldingsAndMaxPageSize(10);
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&pageSize=500")
+            String body = client.get("/v1/players/regions?playerId=" + UUID_PARAM + "&pageSize=500")
                     .body().string();
             Assertions.assertTrue(body.contains("\"pageSize\":10"));
         });
@@ -87,14 +87,14 @@ class PlayerRegionsEndpointTest {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) ->
                 Assertions.assertEquals(400,
-                        client.get("/v1/players/regions?player=" + UUID_PARAM + "&page=0").code()));
+                        client.get("/v1/players/regions?playerId=" + UUID_PARAM + "&page=0").code()));
     }
 
     @Test
     void categoryAllOmitsTheSingleCategoryRegionsField() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=all")
+            String body = client.get("/v1/players/regions?playerId=" + UUID_PARAM + "&category=all")
                     .body().string();
             Assertions.assertTrue(body.contains("\"owned\""));
             Assertions.assertTrue(body.contains("\"landlord\""));
@@ -107,7 +107,7 @@ class PlayerRegionsEndpointTest {
     void categoryOwnedOmitsTheThreeCategoryFields() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=owned")
+            String body = client.get("/v1/players/regions?playerId=" + UUID_PARAM + "&category=owned")
                     .body().string();
             Assertions.assertTrue(body.contains("\"regions\""));
             Assertions.assertFalse(body.contains("\"owned\""));
@@ -120,7 +120,7 @@ class PlayerRegionsEndpointTest {
     void aRegionInAWorldMissingFromTheTableStillAppearsWithANullWorldName() {
         RealtyRestServer server = TestServers.withPlayerOwningRegionInMissingWorld();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=owned");
+            Response response = client.get("/v1/players/regions?playerId=" + UUID_PARAM + "&category=owned");
             Assertions.assertEquals(200, response.code());
             String body = response.body().string();
             Assertions.assertTrue(body.contains("\"orphaned_plot\""));
@@ -132,7 +132,7 @@ class PlayerRegionsEndpointTest {
     void returns400ForAnUnrecognisedCategory() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=owned2");
+            Response response = client.get("/v1/players/regions?playerId=" + UUID_PARAM + "&category=owned2");
             Assertions.assertEquals(400, response.code());
             Assertions.assertTrue(response.body().string().contains("INVALID_CATEGORY"));
         });
@@ -142,7 +142,7 @@ class PlayerRegionsEndpointTest {
     void categoryRentedOmitsTheThreeCategoryFields() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=rented")
+            String body = client.get("/v1/players/regions?playerId=" + UUID_PARAM + "&category=rented")
                     .body().string();
             Assertions.assertTrue(body.contains("\"regions\""));
             Assertions.assertFalse(body.contains("\"owned\""));
@@ -157,7 +157,7 @@ class PlayerRegionsEndpointTest {
                 Map.of(TestServers.PLAYER_ID, ".Cool Guy 123"), Map.of(), Map.of(".Cool Guy 123", TestServers.PLAYER_ID));
         JavalinTest.test(TestServers.withPlayerHoldingsAndModule(module).javalin(), (server, client) -> {
             for (String encoded : List.of(".Cool%20Guy%20123", ".Cool+Guy+123")) {
-                Response response = client.get("/v1/players/regions?player=" + encoded);
+                Response response = client.get("/v1/players/regions?playerName=" + encoded);
                 Assertions.assertEquals(200, response.code(), encoded);
                 Assertions.assertTrue(response.body().string().contains(
                         "\"player\":{\"id\":\"" + TestServers.PLAYER_ID + "\",\"name\":\".Cool Guy 123\"}"), encoded);
@@ -169,7 +169,7 @@ class PlayerRegionsEndpointTest {
     void anUnknownNameIs404() {
         ModuleClient module = TestServers.stubModule(Map.of(), Map.of(), Map.of());
         JavalinTest.test(TestServers.withPlayerHoldingsAndModule(module).javalin(), (server, client) -> {
-            Response response = client.get("/v1/players/regions?player=nobody");
+            Response response = client.get("/v1/players/regions?playerName=nobody");
             Assertions.assertEquals(404, response.code());
             Assertions.assertTrue(response.body().string().contains("PLAYER_NOT_FOUND"));
         });
@@ -178,8 +178,8 @@ class PlayerRegionsEndpointTest {
     @Test
     void aNameWithAnUnreachableModuleIs502ButAUuidStillWorks() {
         JavalinTest.test(TestServers.withPlayerHoldingsAndModule(TestServers.unreachableModule()).javalin(), (server, client) -> {
-            Assertions.assertEquals(502, client.get("/v1/players/regions?player=Notch").code());
-            Response byId = client.get("/v1/players/regions?player=" + TestServers.PLAYER_ID);
+            Assertions.assertEquals(502, client.get("/v1/players/regions?playerName=Notch").code());
+            Response byId = client.get("/v1/players/regions?playerId=" + TestServers.PLAYER_ID);
             Assertions.assertEquals(200, byId.code());
             Assertions.assertTrue(byId.body().string().contains("\"name\":null"));
         });

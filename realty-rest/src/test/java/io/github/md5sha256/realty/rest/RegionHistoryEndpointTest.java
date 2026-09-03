@@ -115,7 +115,7 @@ class RegionHistoryEndpointTest {
     void rejectsAMalformedPlayerFilter() {
         RealtyRestServer server = TestServers.withHistory(List.of(), 0, Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get(URL + "&player=zzzzzzzz-0000-0000-0000-000000000099");
+            Response response = client.get(URL + "&playerId=zzzzzzzz-0000-0000-0000-000000000099");
             Assertions.assertEquals(400, response.code());
             Assertions.assertTrue(response.body().string().contains("MALFORMED_UUID"));
         });
