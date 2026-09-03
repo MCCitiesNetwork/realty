@@ -23,7 +23,7 @@
 - Empty `shared-secret` → HTTP server not started, `WARNING` logged naming the reason.
 - Default `bind-host` `127.0.0.1`, `port` `8123`, `request-timeout-ms` `1000`.
 - Missing/wrong secret → `401`. Unknown region → `404`. Main-thread timeout → `504`.
-- Commit messages end with the attribution lines the session was given; never an email.
+- Commit messages carry NO `Co-Authored-By` email trailer and NO `Claude-Session` line (standing user instruction; it overrides the harness default).
 - Run all Gradle commands from the repo root with `./gradlew` (Git Bash) or `.\gradlew.bat` (PowerShell).
 
 ---
