@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.api.PlayerNameService;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,11 @@ final class PlayerNamesHandler {
         if (request.names() == null) {
             throw ApiException.badRequest("INVALID_BODY", "Body must be {\"names\":[...]}");
         }
+        for (String name : request.names()) {
+            if (name == null) {
+                throw ApiException.badRequest("INVALID_BODY", "Names must not contain null");
+            }
+        }
         Map<String, Optional<UUID>> resolved = this.names.uuidsOf(request.names()).join();
         List<PlayerName> players = new ArrayList<>(request.names().size());
         for (String name : request.names()) {
@@ -65,13 +71,26 @@ final class PlayerNamesHandler {
 
     private static <T> @NotNull T body(@NotNull Context ctx, @NotNull Class<T> type) {
         try {
-            return ctx.bodyAsClass(type);
-        } catch (Exception ex) {
+            return bodyAsClass(ctx, type);
+        } catch (RuntimeException | IOException ex) {
             throw ApiException.badRequest("INVALID_BODY", "Body is not valid JSON for this route");
         }
     }
 
-    private static @NotNull UUID parseUuid(@NotNull String raw) {
+    /**
+     * Javalin sneaky-throws Jackson's checked {@link IOException} out of {@code bodyAsClass}
+     * without declaring it, so {@link #body} could not otherwise catch it by type without also
+     * swallowing unrelated {@link RuntimeException}s from inside Javalin/Jackson internals. This
+     * indirection declares the checked exception so the caller's catch is exhaustive and precise.
+     */
+    private static <T> T bodyAsClass(@NotNull Context ctx, @NotNull Class<T> type) throws IOException {
+        return ctx.bodyAsClass(type);
+    }
+
+    private static @NotNull UUID parseUuid(String raw) {
+        if (raw == null) {
+            throw ApiException.badRequest("INVALID_UUID", "Not a UUID: null");
+        }
         try {
             return UUID.fromString(raw);
         } catch (IllegalArgumentException ex) {
