@@ -7,7 +7,6 @@ import io.github.md5sha256.realty.api.PlayerNameService;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,12 +23,6 @@ import java.util.concurrent.CompletableFuture;
  */
 final class PlayerNamesHandler {
 
-    /**
-     * Cap on a batch. Every entry can cost a main-thread hop and, in the worst case, a Mojang
-     * round trip, so an unbounded list is a way to tie up the server from one request.
-     */
-    static final int MAX_BATCH = 256;
-
     private final PlayerNameService names;
     private final Duration timeout;
 
@@ -45,11 +38,11 @@ final class PlayerNamesHandler {
     }
 
     void names(@NotNull Context ctx) {
-        NamesRequest request = body(ctx, NamesRequest.class);
+        NamesRequest request = Bodies.read(ctx, NamesRequest.class);
         if (request.ids() == null) {
             throw ApiException.badRequest("INVALID_BODY", "Body must be {\"ids\":[...]}");
         }
-        requireWithinBatchLimit(request.ids().size());
+        Bodies.requireWithinBatchLimit(request.ids().size());
         List<UUID> ids = new ArrayList<>(request.ids().size());
         for (String raw : request.ids()) {
             ids.add(parseUuid(raw));
@@ -63,11 +56,11 @@ final class PlayerNamesHandler {
     }
 
     void uuids(@NotNull Context ctx) {
-        UuidsRequest request = body(ctx, UuidsRequest.class);
+        UuidsRequest request = Bodies.read(ctx, UuidsRequest.class);
         if (request.names() == null) {
             throw ApiException.badRequest("INVALID_BODY", "Body must be {\"names\":[...]}");
         }
-        requireWithinBatchLimit(request.names().size());
+        Bodies.requireWithinBatchLimit(request.names().size());
         for (String name : request.names()) {
             if (name == null) {
                 throw ApiException.badRequest("INVALID_BODY", "Names must not contain null");
@@ -87,31 +80,6 @@ final class PlayerNamesHandler {
      */
     private <T> T join(@NotNull CompletableFuture<T> future) {
         return Futures.joinWithin(future, this.timeout, ApiException.UPSTREAM_TIMEOUT);
-    }
-
-    private static void requireWithinBatchLimit(int size) {
-        if (size > MAX_BATCH) {
-            throw ApiException.badRequest("BATCH_TOO_LARGE", "At most " + MAX_BATCH
-                    + " entries per request");
-        }
-    }
-
-    private static <T> @NotNull T body(@NotNull Context ctx, @NotNull Class<T> type) {
-        try {
-            return bodyAsClass(ctx, type);
-        } catch (RuntimeException | IOException ex) {
-            throw ApiException.badRequest("INVALID_BODY", "Body is not valid JSON for this route");
-        }
-    }
-
-    /**
-     * Javalin sneaky-throws Jackson's checked {@link IOException} out of {@code bodyAsClass}
-     * without declaring it, so {@link #body} could not otherwise catch it by type without also
-     * swallowing unrelated {@link RuntimeException}s from inside Javalin/Jackson internals. This
-     * indirection declares the checked exception so the caller's catch is exhaustive and precise.
-     */
-    private static <T> T bodyAsClass(@NotNull Context ctx, @NotNull Class<T> type) throws IOException {
-        return ctx.bodyAsClass(type);
     }
 
     private static @NotNull UUID parseUuid(String raw) {
