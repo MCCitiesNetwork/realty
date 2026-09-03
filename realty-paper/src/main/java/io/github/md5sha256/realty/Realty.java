@@ -137,6 +137,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 
 public final class Realty extends JavaPlugin {
 
@@ -716,7 +717,7 @@ public final class Realty extends JavaPlugin {
         Path moduleDir = getDataFolder().toPath().resolve("modules");
         try {
             Files.createDirectories(moduleDir);
-            this.moduleManager.start();
+            startModuleManager(moduleDir);
             if (this.moduleManager.getActiveModules().isEmpty()) {
                 getLogger().warning("No notification delivery module is installed. Realty fires notification "
                         + "events but delivers nothing on its own; every notification (sale, lease, offer, "
@@ -739,6 +740,32 @@ public final class Realty extends JavaPlugin {
         } catch (IOException ex) {
             // A broken module directory is not worth taking the whole plugin down for.
             getLogger().severe("Failed to load modules from " + moduleDir + ": " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Starts the module manager, surviving a module jar that cannot even be class-loaded.
+     *
+     * <p>{@code ModuleLoader} resolves each entry class with {@code Class.forName}, so a module
+     * compiled against a plugin the server does not have throws {@link LinkageError} (in practice
+     * {@code NoClassDefFoundError}) while the class is being loaded — before {@code initialize}, and
+     * therefore outside the {@code ModuleInitializationException | RuntimeException} the lifecycle
+     * manager catches. That is an {@code Error}, so it escaped {@code start()} and aborted Realty's
+     * whole {@code onEnable}; a single mismatched module jar took the plugin down with it.</p>
+     *
+     * <p>Caught here, Realty enables with whatever modules did load. Because {@code start()} loads
+     * every module in one call, a linkage failure part-way through may leave none active — the
+     * "no delivery module" warning below then fires on its own and says so in operator terms. Only
+     * {@code LinkageError} is caught; every other {@code Error} still propagates.</p>
+     */
+    private void startModuleManager(@NotNull Path moduleDir) throws IOException {
+        try {
+            this.moduleManager.start();
+        } catch (LinkageError error) {
+            getLogger().log(Level.SEVERE,
+                    "Failed to load one or more modules: a module in " + moduleDir + " references a plugin "
+                            + "that is not installed; that module's jar must be removed or its dependency "
+                            + "installed. Realty is continuing with whatever modules did load.", error);
         }
     }
 
