@@ -10,7 +10,7 @@
   "description": "Standalone, read-only HTTP API over a Realty MariaDB database. Configured entirely by environment variables -- no config file is templated by the egg.",
   "features": null,
   "docker_images": {
-    "Java 25 (Temurin)": "docker.io/library/eclipse-temurin:25-jre-noble"
+    "Java 25 (Yolks)": "ghcr.io/parkervcp/yolks:java_25"
   },
   "file_denylist": [],
   "startup": "java -jar realty-rest-all.jar",
@@ -63,7 +63,7 @@
       "description": "Password for REALTY_DB_USERNAME.",
       "env_variable": "REALTY_DB_PASSWORD",
       "default_value": "",
-      "user_viewable": true,
+      "user_viewable": false,
       "user_editable": true,
       "rules": "required|string",
       "field_type": "text"

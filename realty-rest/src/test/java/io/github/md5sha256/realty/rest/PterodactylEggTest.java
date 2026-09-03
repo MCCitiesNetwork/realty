@@ -142,6 +142,26 @@ class PterodactylEggTest {
                 "the install container no longer needs a JDK");
     }
 
+    /**
+     * Wings runs the startup command as the unprivileged {@code container} user out of
+     * {@code /home/container}. A stock upstream JRE image has neither that user nor the
+     * entrypoint scaffolding, so the server dies before the JVM prints anything -- an
+     * empty console with an instant exit, which is the least diagnosable failure there
+     * is. Only a Pterodactyl-flavoured image is a valid choice here.
+     */
+    @Test
+    void everyDockerImageIsAPterodactylCompatibleOne() throws IOException {
+        JsonNode images = egg().get("docker_images");
+        Assertions.assertTrue(images.size() > 0, "the egg must offer at least one image");
+        for (JsonNode image : images) {
+            String reference = image.asText();
+            Assertions.assertTrue(reference.contains("yolks"),
+                    "not a Pterodactyl image: " + reference
+                            + " -- Wings needs the yolks entrypoint and container user, "
+                            + "so a stock JRE image fails to start with no output at all");
+        }
+    }
+
     @Test
     void bothSecretsAreHiddenFromPanelViewers() throws IOException {
         for (JsonNode variable : egg().get("variables")) {
