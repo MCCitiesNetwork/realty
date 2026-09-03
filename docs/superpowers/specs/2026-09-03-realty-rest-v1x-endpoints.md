@@ -20,6 +20,16 @@ One convention is **changed** rather than carried over; see *Identifying a playe
 
 ## Identifying a player
 
+> **Superseded 2026-09-04.** The `playerId`/`playerName` split described below was
+> reverted: every route now takes a single `player` parameter again, discriminated
+> by shape exactly as v1 did. The dependency/failure argument for splitting them was
+> sound and is left in place below as the record of that trade-off, but the
+> consumer-facing cost -- a caller having to pick a parameter name depending on
+> whether it holds an id or a name, for a distinction the API can make for itself --
+> was judged not worth it. `PlayerNameResolution.byUuidOrName` carries the same
+> shape test and the same per-case error codes (`MALFORMED_UUID`,
+> `PLAYER_NOT_FOUND`, `NAME_LOOKUP_UNAVAILABLE`); only the parameter name changed.
+
 v1 took a single polymorphic `player={name|uuid}`, discriminated by the shape of the
 value. Every route here instead takes `playerId` **or** `playerName`, never both.
 
