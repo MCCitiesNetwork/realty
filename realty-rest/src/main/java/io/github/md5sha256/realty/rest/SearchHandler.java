@@ -101,7 +101,8 @@ final class SearchHandler {
                     row.worldGuardRegionId(),
                     worlds.get(row.worldId()),
                     row.contractType(),
-                    row.price()));
+                    row.price(),
+                    row.state()));
         }
 
         ctx.json(new SearchResponse(page, pageSize, totalCount,

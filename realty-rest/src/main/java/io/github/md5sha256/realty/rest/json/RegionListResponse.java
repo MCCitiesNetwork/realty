@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.rest.json;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -20,9 +21,15 @@ public record RegionListResponse(
         @NotNull List<Entry> regions
 ) {
 
+    /**
+     * @param state the region's {@code RegionState} name, or null for a registered
+     *              region carrying no contract. Present so a browse grid need not
+     *              call {@code /v1/region} once per row to learn it.
+     */
     public record Entry(
             @NotNull String worldGuardRegionId,
-            @NotNull WorldRef world
+            @NotNull WorldRef world,
+            @Nullable String state
     ) {
     }
 

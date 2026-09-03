@@ -20,6 +20,7 @@ public record SearchResultEntity(
         @NotNull String worldGuardRegionId,
         @NotNull UUID worldId,
         @NotNull String contractType,
-        @Nullable Double price
+        @Nullable Double price,
+        @NotNull String state
 ) {
 }
