@@ -1,6 +1,9 @@
 package io.github.md5sha256.realty.adapter.query;
 
 import com.minecraftcitiesnetwork.pluginInfrastructure.modules.SimplePluginModule;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.Realty;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -55,10 +58,16 @@ public final class QueryServiceModule extends SimplePluginModule<Realty> {
 
     private static @NotNull AutoCloseable serve(@NotNull Realty plugin,
                                                 @NotNull QueryServiceConfig config) {
+        // Composition root: this is the only place in the module that reaches for a static service
+        // locator. Everything below is handed its collaborators.
+        RegionContainer regionContainer = WorldGuard.getInstance().getPlatform().getRegionContainer();
         QueryServiceServer server = new QueryServiceServer(
                 config.sharedSecret(),
                 config.requestTimeout(),
-                new MainThreadDimensionsSource(plugin.executorState().mainThreadExec()),
+                new MainThreadDimensionsSource(
+                        plugin.executorState().mainThreadExec(),
+                        plugin.getServer()::getWorld,
+                        world -> regionContainer.get(BukkitAdapter.adapt(world))),
                 plugin.paperApi().playerNameService());
         server.start(config.bindHost(), config.port());
         return server::stop;

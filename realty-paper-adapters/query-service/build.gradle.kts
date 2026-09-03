@@ -28,7 +28,18 @@ dependencies {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     testImplementation("io.javalin:javalin-testtools:6.4.0")
+    testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.slf4j:slf4j-simple:2.0.16")
+}
+
+tasks.test {
+    // Mockito warns when it has to attach its inline mock maker's agent dynamically; attaching it
+    // up front keeps the test output clean.
+    val byteBuddyAgent = configurations.testRuntimeClasspath.get().files
+            .find { it.name.contains("byte-buddy-agent") }
+    if (byteBuddyAgent != null) {
+        jvmArgs("-javaagent:$byteBuddyAgent")
+    }
 }
 
 tasks.shadowJar {

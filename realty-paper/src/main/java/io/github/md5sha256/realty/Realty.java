@@ -260,9 +260,12 @@ public final class Realty extends JavaPlugin {
         try {
             this.nameResolver = new SquirrelIdUsernameResolver(
                     new File(getDataFolder(), "profiles.sqlite"),
-                    this.executorState.networkExec());
+                    this.executorState.networkExec(),
+                    getServer());
             this.playerNameService = new SquirrelIdPlayerNameService(
-                    this.nameResolver, this.executorState.mainThreadExec());
+                    this.nameResolver,
+                    this.executorState.mainThreadExec(),
+                    getServer()::isPrimaryThread);
         } catch (IOException ex) {
             getLogger().severe("Failed to initialize profile cache!");
             ex.printStackTrace();
