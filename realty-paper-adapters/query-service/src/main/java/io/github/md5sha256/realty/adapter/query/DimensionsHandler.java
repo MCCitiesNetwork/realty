@@ -7,9 +7,6 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /** {@code GET /regions/{worldId}/{regionId}/dimensions}. */
 final class DimensionsHandler {
@@ -31,18 +28,16 @@ final class DimensionsHandler {
                     "worldId must be a UUID: " + ctx.pathParam("worldId"));
         }
         String regionId = ctx.pathParam("regionId");
-        Optional<RegionDimensions> dims;
-        try {
-            dims = this.source.dimensions(worldId, regionId)
-                    .orTimeout(this.timeout.toMillis(), TimeUnit.MILLISECONDS)
-                    .join();
-        } catch (CompletionException ex) {
-            if (ex.getCause() instanceof TimeoutException) {
-                throw ApiException.gatewayTimeout(
-                        "Main thread did not answer within " + this.timeout.toMillis() + "ms");
-            }
-            throw ex;
-        }
+        // The timeout inside joinWithin is load-bearing beyond answering a wedged tick. A module
+        // reload is marshalled onto the main thread by ModuleCommandGroup, so javalin.stop() runs
+        // there — while this request may be parked waiting for a main-thread task that the reload
+        // itself is now preventing from running. The timeout fires on the common scheduler, not the
+        // main thread, so it is what releases this worker and lets Jetty's drain complete instead of
+        // deadlocking the server against its own reload.
+        Optional<RegionDimensions> dims = Futures.joinWithin(
+                this.source.dimensions(worldId, regionId),
+                this.timeout,
+                ApiException.MAIN_THREAD_TIMEOUT);
         ctx.json(dims.orElseThrow(() -> ApiException.notFound("REGION_NOT_FOUND",
                 "No region '" + regionId + "' in world " + worldId)));
     }

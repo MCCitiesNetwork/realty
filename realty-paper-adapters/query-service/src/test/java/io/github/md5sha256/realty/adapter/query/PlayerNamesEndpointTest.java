@@ -6,6 +6,9 @@ import okhttp3.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 class PlayerNamesEndpointTest {
@@ -104,6 +107,60 @@ class PlayerNamesEndpointTest {
     void batchRequiresTheSecretToo() {
         JavalinTest.test(TestServers.standard().javalin(), (server, client) -> {
             Assertions.assertEquals(401, client.post("/players/names", "{\"ids\":[]}").code());
+        });
+    }
+
+    private static String idsBody(int count) {
+        List<String> ids = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            ids.add("\"" + new UUID(0L, i) + "\"");
+        }
+        return "{\"ids\":[" + String.join(",", ids) + "]}";
+    }
+
+    private static String namesBody(int count) {
+        List<String> names = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            names.add("\"player" + i + "\"");
+        }
+        return "{\"names\":[" + String.join(",", names) + "]}";
+    }
+
+    @Test
+    void aBatchOverTheCapIs400() {
+        JavalinTest.test(TestServers.withNoPlayers().javalin(), (server, client) -> {
+            Response ids = client.post("/players/names", idsBody(PlayerNamesHandler.MAX_BATCH + 1),
+                    PlayerNamesEndpointTest::auth);
+            Assertions.assertEquals(400, ids.code());
+            Assertions.assertTrue(ids.body().string().contains("\"error\":\"BATCH_TOO_LARGE\""));
+
+            Response names = client.post("/players/uuids", namesBody(PlayerNamesHandler.MAX_BATCH + 1),
+                    PlayerNamesEndpointTest::auth);
+            Assertions.assertEquals(400, names.code());
+            Assertions.assertTrue(names.body().string().contains("\"error\":\"BATCH_TOO_LARGE\""));
+        });
+    }
+
+    @Test
+    void aBatchExactlyAtTheCapIsAccepted() {
+        JavalinTest.test(TestServers.withNoPlayers().javalin(), (server, client) -> {
+            Assertions.assertEquals(200, client.post("/players/names",
+                    idsBody(PlayerNamesHandler.MAX_BATCH), PlayerNamesEndpointTest::auth).code());
+            Assertions.assertEquals(200, client.post("/players/uuids",
+                    namesBody(PlayerNamesHandler.MAX_BATCH), PlayerNamesEndpointTest::auth).code());
+        });
+    }
+
+    @Test
+    void aStalledNameResolverIs504NotAHang() {
+        JavalinTest.test(TestServers.withStalledNames(Duration.ofMillis(200)).javalin(), (server, client) -> {
+            long started = System.nanoTime();
+            Response response = client.get("/players/" + TestServers.NOTCH + "/name",
+                    PlayerNamesEndpointTest::auth);
+            long elapsedMs = (System.nanoTime() - started) / 1_000_000;
+            Assertions.assertEquals(504, response.code());
+            Assertions.assertTrue(response.body().string().contains("\"error\":\"UPSTREAM_TIMEOUT\""));
+            Assertions.assertTrue(elapsedMs < 5_000, "took " + elapsedMs + "ms");
         });
     }
 }

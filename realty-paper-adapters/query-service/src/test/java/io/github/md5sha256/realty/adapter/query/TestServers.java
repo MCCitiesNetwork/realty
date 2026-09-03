@@ -63,4 +63,42 @@ final class TestServers {
     static @NotNull QueryServiceServer withStalledMainThread(@NotNull Duration timeout) {
         return new QueryServiceServer(SECRET, timeout, stalledMainThread(), twoPlayers());
     }
+
+    /** A name service that never answers, standing in for a wedged resolver. */
+    static @NotNull PlayerNameService stalledNames() {
+        return new PlayerNameService() {
+            @Override
+            public @NotNull CompletableFuture<Optional<String>> nameOf(@NotNull UUID id) {
+                return new CompletableFuture<>();
+            }
+
+            @Override
+            public @NotNull CompletableFuture<Optional<UUID>> uuidOf(@NotNull String name) {
+                return new CompletableFuture<>();
+            }
+        };
+    }
+
+    static @NotNull QueryServiceServer withStalledNames(@NotNull Duration timeout) {
+        return new QueryServiceServer(SECRET, timeout, oneRegion(), stalledNames());
+    }
+
+    /** Answers every id and name as unknown; enough to exercise batch-size limits. */
+    static @NotNull PlayerNameService noPlayers() {
+        return new PlayerNameService() {
+            @Override
+            public @NotNull CompletableFuture<Optional<String>> nameOf(@NotNull UUID id) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
+
+            @Override
+            public @NotNull CompletableFuture<Optional<UUID>> uuidOf(@NotNull String name) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
+        };
+    }
+
+    static @NotNull QueryServiceServer withNoPlayers() {
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), oneRegion(), noPlayers());
+    }
 }
