@@ -405,6 +405,76 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/auctions:
+    get:
+      summary: Auctions currently taking bids
+      operationId: listAuctions
+      description: >-
+        The browse form of `/realty auction info`, which is granted by default and
+        already renders the auctioneer, minimum bid, minimum step and bidding
+        duration to any player. `endDate` is computed in SQL as the last bid -- or
+        the start, where there is none -- plus the bidding duration, which is also
+        what `ending_soon` orders by, so paging cannot put an auction closing sooner
+        on a later page.
+      parameters:
+        - name: world
+          in: query
+          required: false
+          description: Narrow to one world, by name or UUID. Omitted lists every world.
+          schema:
+            type: string
+        - name: sort
+          in: query
+          required: false
+          description: >-
+            `ending_soon` (default) orders by the bidding deadline, soonest first.
+            `highest_bid` orders by the standing bid, largest first, with an auction
+            nobody has bid on ranking at its minimum bid.
+          schema:
+            type: string
+            enum: [ ending_soon, highest_bid ]
+            default: ending_soon
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: >-
+            The requested page. An empty `auctions` array means nothing is under the
+            hammer, or the page lies beyond the last one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuctionsResponse"
+        "400":
+          description: "`INVALID_SORT`, `INVALID_PAGE` or `INVALID_PAGE_SIZE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- Realty has never seen that world."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/leaderboard/owners:
     get:
       summary: Title holders ranked by plot count
@@ -868,6 +938,68 @@ components:
         extensionsRemaining:
           type: integer
       required: [ kind, eventType, eventTime ]
+    AuctionsResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        auctions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuctionsResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, auctions ]
+    AuctionsResponse_Entry:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        auctioneer:
+          $ref: "#/components/schemas/PlayerRef"
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+          description: When bidding closes.
+        minBid:
+          type: number
+        minStep:
+          type: number
+        biddingDurationSeconds:
+          type: integer
+          format: int64
+        paymentDurationSeconds:
+          type: integer
+          format: int64
+        highestBid:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/AuctionsResponse_Bid"
+        bidderCount:
+          type: integer
+          description: How many distinct players have bid. Names nobody.
+      required: [ worldGuardRegionId, world, auctioneer, startDate, endDate, minBid,
+                  minStep, biddingDurationSeconds, paymentDurationSeconds, bidderCount ]
+    AuctionsResponse_Bid:
+      type: object
+      properties:
+        bidder:
+          $ref: "#/components/schemas/PlayerRef"
+        amount:
+          type: number
+        bidTime:
+          type: string
+          format: date-time
+      required: [ bidder, amount, bidTime ]
     OwnersLeaderboardResponse:
       type: object
       properties:

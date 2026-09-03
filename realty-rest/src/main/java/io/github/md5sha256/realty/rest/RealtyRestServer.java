@@ -64,6 +64,7 @@ public final class RealtyRestServer {
             "/v1/tags",
             "/v1/stats",
             "/v1/leaderboard/owners",
+            "/v1/auctions",
             "/v1/players/regions",
             "/v1/players/lookup",
             "/v1/players/summary",
@@ -184,6 +185,10 @@ public final class RealtyRestServer {
         OwnersLeaderboardHandler ownersLeaderboardHandler =
                 new OwnersLeaderboardHandler(this.database, this.settings, this.moduleClient);
         this.javalin.get("/v1/leaderboard/owners", ownersLeaderboardHandler::handle);
+
+        AuctionsHandler auctionsHandler = new AuctionsHandler(
+                this.database, this.worldLookup, this.settings, this.moduleClient);
+        this.javalin.get("/v1/auctions", auctionsHandler::handle);
 
         StatsHandler statsHandler = new StatsHandler(this.backend);
         this.javalin.get("/v1/stats", statsHandler::handle);
