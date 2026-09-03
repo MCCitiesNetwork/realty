@@ -81,12 +81,24 @@ class RegionEndpointTest {
     }
 
     @Test
-    void playerIdentitiesCarryANullNameUntilEnrichmentShips() {
+    void playerIdentitiesCarryANullNameWhenTheModuleIsDisabled() {
         RealtyRestServer server = TestServers.withForSaleRegion();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             String body = client.get("/v1/region?world=world&region=downtown_plot_14")
                     .body().string();
             Assertions.assertTrue(body.contains("\"name\":null"));
+        });
+    }
+
+    @Test
+    void aSlowModuleIsPaidForOnceNotTwice() {
+        ModuleClient slow = TestServers.stallingModule(300);
+        JavalinTest.test(TestServers.withModule(slow).javalin(), (server, client) -> {
+            long started = System.nanoTime();
+            Assertions.assertEquals(200, client.get("/v1/region?world=world&region=downtown_plot_14").code());
+            long elapsedMs = (System.nanoTime() - started) / 1_000_000;
+            Assertions.assertTrue(elapsedMs < 550,
+                    "the two module calls must overlap, took " + elapsedMs + "ms");
         });
     }
 

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -87,7 +88,7 @@ final class PlayerRegionsHandler {
             } catch (IllegalArgumentException ex) {
                 throw ApiException.badRequest("MALFORMED_UUID", "Query parameter 'player' is not a valid UUID");
             }
-            return PlayerNames.ref(id, PlayerNames.resolve(this.moduleClient, List.of(id)));
+            return Objects.requireNonNull(PlayerNames.ref(id, PlayerNames.resolve(this.moduleClient, List.of(id))));
         }
         return switch (this.moduleClient.uuidOf(param)) {
             case NameLookup.Resolved resolved -> new PlayerRef(resolved.id().toString(), resolved.name());

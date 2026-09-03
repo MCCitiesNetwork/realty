@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * {@code GET /v1/region?world=...&region=...} -- the HTTP form of {@code /realty info}.
@@ -74,8 +75,12 @@ final class RegionHandler {
         if (info.highestBid() != null) {
             playerIds.add(info.highestBid().bidderId());
         }
-        Map<UUID, String> names = PlayerNames.resolve(this.moduleClient, playerIds);
+        // Both module calls are independent, and each carries the same timeout budget.
+        // Run them concurrently so a wedged module costs one timeout, not two.
+        CompletableFuture<Map<UUID, String>> pendingNames =
+                CompletableFuture.supplyAsync(() -> PlayerNames.resolve(this.moduleClient, playerIds));
         RegionResponse.Dimensions dimensions = this.moduleClient.dimensions(worldId, regionParam).orElse(null);
+        Map<UUID, String> names = pendingNames.join();
 
         RegionResponse response = new RegionResponse(
                 regionParam,

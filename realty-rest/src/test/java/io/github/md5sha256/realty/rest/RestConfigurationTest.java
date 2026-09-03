@@ -30,6 +30,27 @@ class RestConfigurationTest {
     }
 
     @Test
+    void rejectsANonPositiveModuleTimeout() {
+        for (String offending : List.of("0", "-5")) {
+            Map<String, String> env = validEnv();
+            env.put("REALTY_REST_MODULE_TIMEOUT_MS", offending);
+            IllegalStateException thrown = Assertions.assertThrows(IllegalStateException.class,
+                    () -> RestConfiguration.load(env::get));
+            Assertions.assertTrue(thrown.getMessage().contains("REALTY_REST_MODULE_TIMEOUT_MS"),
+                    "message should name the variable, was: " + thrown.getMessage());
+            Assertions.assertTrue(thrown.getMessage().contains(offending),
+                    "message should quote the offending value, was: " + thrown.getMessage());
+        }
+    }
+
+    @Test
+    void acceptsTheSmallestPositiveModuleTimeout() {
+        Map<String, String> env = validEnv();
+        env.put("REALTY_REST_MODULE_TIMEOUT_MS", "1");
+        Assertions.assertEquals(1, RestConfiguration.load(env::get).rest().moduleTimeoutMs());
+    }
+
+    @Test
     void readsTheDatabaseSettings() {
         RestConfiguration config = RestConfiguration.load(validEnv()::get);
         Assertions.assertEquals("mariadb://localhost:3306/realty", config.database().url());

@@ -61,28 +61,55 @@ public final class HttpModuleClient implements ModuleClient {
         this.mapper = Objects.requireNonNull(mapper, "mapper");
     }
 
-    /** Builds the client the settings describe, or {@link ModuleClient#disabled()} when no URL is set. */
+    /**
+     * Builds the client the settings describe, or {@link ModuleClient#disabled()} when no
+     * URL is set or the URL is unusable, logging which of the two it was. A URL with no
+     * {@code http}/{@code https} scheme or no host cannot address anything, so it is
+     * rejected once here rather than throwing out of every later call.
+     */
     public static @NotNull ModuleClient from(@NotNull RestSettings settings) {
         String url = settings.moduleUrl();
         String secret = settings.moduleSecret();
         if (url == null || url.isBlank() || secret == null || secret.isBlank()) {
+            LOGGER.info("query-service enrichment: disabled (REALTY_REST_MODULE_URL unset or no secret)");
+            return ModuleClient.disabled();
+        }
+        String trimmed = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+        URI base;
+        try {
+            base = URI.create(trimmed);
+        } catch (IllegalArgumentException ex) {
+            LOGGER.log(Level.WARNING, "REALTY_REST_MODULE_URL=" + url
+                    + " is not a valid URL; query-service enrichment is disabled", ex);
+            return ModuleClient.disabled();
+        }
+        String scheme = base.getScheme();
+        if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
+            LOGGER.warning("REALTY_REST_MODULE_URL=" + url + " has no http:// or https:// scheme;"
+                    + " query-service enrichment is disabled");
+            return ModuleClient.disabled();
+        }
+        if (base.getHost() == null || base.getHost().isBlank()) {
+            LOGGER.warning("REALTY_REST_MODULE_URL=" + url + " names no host;"
+                    + " query-service enrichment is disabled");
             return ModuleClient.disabled();
         }
         Duration timeout = Duration.ofMillis(settings.moduleTimeoutMs());
         HttpClient http = HttpClient.newBuilder().connectTimeout(timeout).build();
-        return new HttpModuleClient(URI.create(url.endsWith("/") ? url.substring(0, url.length() - 1) : url),
-                secret, timeout, http, new ObjectMapper());
+        LOGGER.info("query-service enrichment: enabled against " + base);
+        return new HttpModuleClient(base, secret, timeout, http, new ObjectMapper());
     }
 
     @Override
     public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
                                                                    @NotNull String regionId) {
-        String path = "/regions/" + worldId + "/" + pathSegment(regionId) + "/dimensions";
-        JsonNode body = get(path);
-        if (body == null || !body.has("shape")) {
-            return Optional.empty();
-        }
+        String path = "/regions/" + worldId + "/dimensions";
         try {
+            path = "/regions/" + worldId + "/" + pathSegment(regionId) + "/dimensions";
+            JsonNode body = get(path);
+            if (body == null || !body.has("shape")) {
+                return Optional.empty();
+            }
             List<RegionResponse.Point> points = new ArrayList<>();
             for (JsonNode point : body.path("points")) {
                 points.add(new RegionResponse.Point(point.path("x").asInt(), point.path("z").asInt()));
@@ -97,20 +124,22 @@ public final class HttpModuleClient implements ModuleClient {
 
     @Override
     public @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids) {
-        List<UUID> distinct = new ArrayList<>(new LinkedHashSet<>(ids));
-        if (distinct.isEmpty()) {
-            return Map.of();
-        }
-        if (distinct.size() > MAX_BATCH) {
-            distinct = distinct.subList(0, MAX_BATCH);
-        }
         String path = "/players/names";
-        JsonNode body = post(path, Map.of("ids", distinct.stream().map(UUID::toString).toList()));
-        Map<UUID, String> names = new LinkedHashMap<>();
-        if (body == null) {
-            return names;
-        }
         try {
+            List<UUID> distinct = new ArrayList<>(new LinkedHashSet<>(ids));
+            if (distinct.isEmpty()) {
+                return Map.of();
+            }
+            if (distinct.size() > MAX_BATCH) {
+                LOGGER.fine("truncating a batch of " + distinct.size() + " player ids to " + MAX_BATCH
+                        + "; the module rejects larger batches");
+                distinct = distinct.subList(0, MAX_BATCH);
+            }
+            JsonNode body = post(path, Map.of("ids", distinct.stream().map(UUID::toString).toList()));
+            Map<UUID, String> names = new LinkedHashMap<>();
+            if (body == null) {
+                return names;
+            }
             for (JsonNode player : body.path("players")) {
                 JsonNode name = player.path("name");
                 if (name.isNull() || !name.isTextual()) {
@@ -136,11 +165,11 @@ public final class HttpModuleClient implements ModuleClient {
     @Override
     public @NotNull NameLookup uuidOf(@NotNull String name) {
         String path = "/players/uuids";
-        JsonNode body = post(path, Map.of("names", List.of(name)));
-        if (body == null) {
-            return new NameLookup.Unavailable();
-        }
         try {
+            JsonNode body = post(path, Map.of("names", List.of(name)));
+            if (body == null) {
+                return new NameLookup.Unavailable();
+            }
             JsonNode player = body.path("players").path(0);
             JsonNode id = player.path("id");
             if (id.isNull() || !id.isTextual()) {
@@ -171,7 +200,12 @@ public final class HttpModuleClient implements ModuleClient {
 
     @Override
     public @NotNull Status status() {
-        return get("/health") == null ? Status.UNREACHABLE : Status.OK;
+        try {
+            return get("/health") == null ? Status.UNREACHABLE : Status.OK;
+        } catch (RuntimeException ex) {
+            failed("/health", ex);
+            return Status.UNREACHABLE;
+        }
     }
 
     private @Nullable JsonNode get(@NotNull String path) {
@@ -196,8 +230,13 @@ public final class HttpModuleClient implements ModuleClient {
                     request.header(SECRET_HEADER, this.secret).timeout(this.timeout).build(),
                     HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 404) {
-                recovered();
+                // An unknown region or player is a normal answer, not a fault. Leaving the
+                // reachability flag alone is the point: touching it here would re-arm the
+                // WARNING on every real failure whenever unknown-region traffic is mixed in.
                 return null;
+            }
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                return rejected(path, response.statusCode());
             }
             if (response.statusCode() / 100 != 2) {
                 return failed(path, new IOException("HTTP " + response.statusCode()));
@@ -216,6 +255,21 @@ public final class HttpModuleClient implements ModuleClient {
         if (this.reachable.compareAndSet(true, false)) {
             LOGGER.log(Level.WARNING, "query-service module unreachable at " + this.baseUrl + path
                     + "; responses degrade to null geometry and names until it returns", ex);
+        }
+        return null;
+    }
+
+    /**
+     * A 401/403 is a configuration fault, not an outage: the module answered, it just
+     * refused us. It degrades identically, but saying which it was saves an operator
+     * hunting a network problem that is not there.
+     */
+    private @Nullable JsonNode rejected(@NotNull String path, int statusCode) {
+        if (this.reachable.compareAndSet(true, false)) {
+            LOGGER.warning("query-service module refused " + this.baseUrl + path + " with HTTP "
+                    + statusCode + ": the shared secret does not match. REALTY_REST_MODULE_SECRET"
+                    + " must equal the module's shared-secret. Responses degrade to null geometry"
+                    + " and names until it does");
         }
         return null;
     }
