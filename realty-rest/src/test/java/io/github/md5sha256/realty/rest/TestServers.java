@@ -388,6 +388,7 @@ final class TestServers {
 
         boolean includeFreehold;
         boolean includeLeasehold;
+        boolean includeUnpricedFreehold;
         UUID worldId;
         Collection<String> tagIds;
         Collection<String> excludedTagIds;
@@ -433,15 +434,16 @@ final class TestServers {
                 case "search" -> {
                     stub.includeFreehold = (boolean) args[0];
                     stub.includeLeasehold = (boolean) args[1];
-                    stub.worldId = (UUID) args[2];
-                    stub.tagIds = asStrings(args[3]);
-                    stub.excludedTagIds = asStrings(args[4]);
-                    stub.minPrice = (double) args[5];
-                    stub.maxPrice = (double) args[6];
-                    stub.occupancy = (OccupancyFilter) args[7];
-                    stub.sort = (SearchSort) args[8];
-                    stub.limit = (int) args[9];
-                    stub.offset = (int) args[10];
+                    stub.includeUnpricedFreehold = (boolean) args[2];
+                    stub.worldId = (UUID) args[3];
+                    stub.tagIds = asStrings(args[4]);
+                    stub.excludedTagIds = asStrings(args[5]);
+                    stub.minPrice = (double) args[6];
+                    stub.maxPrice = (double) args[7];
+                    stub.occupancy = (OccupancyFilter) args[8];
+                    stub.sort = (SearchSort) args[9];
+                    stub.limit = (int) args[10];
+                    stub.offset = (int) args[11];
                     return stub.results;
                 }
                 default -> throw new UnsupportedOperationException(

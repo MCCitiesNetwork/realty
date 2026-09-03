@@ -328,7 +328,7 @@ public final class SearchDialog {
                 SearchMapper mapper = session.searchMapper();
                 // The in-game dialog searches every world and always orders by price
                 // descending; the world filter and sort choice exist for the REST API.
-                int totalCount = mapper.searchCount(includeFreehold, includeLeasehold,
+                int totalCount = mapper.searchCount(includeFreehold, includeLeasehold, false,
                         null, tagIds, excludedTagIds, minPrice, maxPrice, occupancy);
 
                 if (totalCount == 0) {
@@ -345,7 +345,7 @@ public final class SearchDialog {
                 }
 
                 int offset = (page - 1) * PAGE_SIZE;
-                List<SearchResultEntity> results = mapper.search(includeFreehold, includeLeasehold,
+                List<SearchResultEntity> results = mapper.search(includeFreehold, includeLeasehold, false,
                         null, tagIds, excludedTagIds, minPrice, maxPrice, occupancy,
                         SearchSort.PRICE_DESC, PAGE_SIZE, offset);
 
@@ -356,11 +356,15 @@ public final class SearchDialog {
                 for (SearchResultEntity result : results) {
                     String typeLabel = "freehold".equals(result.contractType())
                             ? "Freehold" : "Leasehold";
+                    // The dialog never asks for unpriced freeholds, so a null price cannot
+                    // reach here; the guard only keeps the nullable projection honest.
+                    Double price = result.price();
+                    String priceLabel = price == null ? "-" : CurrencyFormatter.format(price);
                     builder.appendNewline();
                     builder.append(parseMiniMessage(MessageKeys.SEARCH_ENTRY,
                             "<region>", result.worldGuardRegionId(),
                             "<type>", typeLabel,
-                            "<price>", CurrencyFormatter.format(result.price())));
+                            "<price>", priceLabel));
                 }
 
                 appendFooter(builder, includeFreehold, includeLeasehold, tagIds, excludedTagIds,
