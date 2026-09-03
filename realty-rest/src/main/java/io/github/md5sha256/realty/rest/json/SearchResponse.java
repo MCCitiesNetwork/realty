@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.rest.json;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -29,12 +30,14 @@ public record SearchResponse(
      *                     search projection reports it
      * @param world        the full world identity rather than a bare UUID, so a
      *                     consumer grouping rows by world needs no second lookup
+     * @param price        null for a freehold with no asking price, which only
+     *                     appears under {@code type=freehold}
      */
     public record Result(
             @NotNull String worldGuardRegionId,
             @NotNull WorldRef world,
             @NotNull String contractType,
-            double price
+            @Nullable Double price
     ) {
     }
 

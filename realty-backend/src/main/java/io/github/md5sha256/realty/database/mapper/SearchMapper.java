@@ -13,6 +13,11 @@ import java.util.UUID;
 /**
  * Mapper for searching regions by contract type, world, tags, price range, and occupancy.
  *
+ * @param includeUnpricedFreehold when true, freehold contracts with no asking price (a
+ *                                sold or never-listed region) are included as well; they have
+ *                                no price to compare, so the price bounds do not apply to them
+ *                                and their {@code price} is null. Has no effect on the
+ *                                leasehold side, which always carries a price.
  * @param worldId        when non-null, only regions in that world are included
  * @param tagIds         when non-null, only regions with at least one of these tags are included
  * @param excludedTagIds when non-null, regions with any of these tags are excluded
@@ -24,6 +29,7 @@ public interface SearchMapper {
 
     @NotNull List<SearchResultEntity> search(boolean includeFreehold,
                                              boolean includeLeasehold,
+                                             boolean includeUnpricedFreehold,
                                              @Nullable UUID worldId,
                                              @Nullable Collection<String> tagIds,
                                              @Nullable Collection<String> excludedTagIds,
@@ -36,6 +42,7 @@ public interface SearchMapper {
 
     int searchCount(boolean includeFreehold,
                     boolean includeLeasehold,
+                    boolean includeUnpricedFreehold,
                     @Nullable UUID worldId,
                     @Nullable Collection<String> tagIds,
                     @Nullable Collection<String> excludedTagIds,
