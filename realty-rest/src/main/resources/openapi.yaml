@@ -161,22 +161,14 @@ paths:
           schema:
             type: string
             format: date-time
-        - name: playerId
+        - name: player
           in: query
           required: false
           description: >-
-            Only events this player took part in, by UUID. Needs no module. Give at
-            most one of `playerId` or `playerName`; giving neither does not filter.
-          schema:
-            type: string
-            format: uuid
-        - name: playerName
-          in: query
-          required: false
-          description: >-
-            The same filter by name, resolved through the query-service module, so it
-            answers 404 for an unknown name and 502 when the module is unreachable.
-            Give at most one of `playerId` or `playerName`.
+            Only events this player took part in, given as a UUID or a name. A UUID
+            needs no module; a name is resolved through the query-service module, so
+            it answers 404 for an unknown name and 502 when the module is
+            unreachable. Omit to not filter by player.
           schema:
             type: string
         - name: page
@@ -202,9 +194,9 @@ paths:
                 $ref: "#/components/schemas/HistoryResponse"
         "400":
           description: >-
-            `MISSING_PARAMETER`, `AMBIGUOUS_PARAMETER` (both `playerId` and
-            `playerName` given), `INVALID_EVENT_TYPE`, `INVALID_SINCE`,
-            `MALFORMED_UUID`, `INVALID_PAGE` or `INVALID_PAGE_SIZE`.
+            `MISSING_PARAMETER`, `INVALID_EVENT_TYPE`, `INVALID_SINCE`,
+            `MALFORMED_UUID` (a UUID-shaped `player` that does not parse),
+            `INVALID_PAGE` or `INVALID_PAGE_SIZE`.
           content:
             application/json:
               schema:
@@ -889,27 +881,18 @@ paths:
         own length. When `category` is `owned` or `rented`, that single category
         is paged normally and returned under `regions` instead.
       parameters:
-        - name: playerId
+        - name: player
           in: query
-          required: false
+          required: true
           description: >-
-            The player's UUID. Answered from the database alone, so this form keeps
-            working while the query-service module is down -- the returned `name` is
-            simply null, as every other module-sourced field degrades. Give exactly
-            one of `playerId` or `playerName`.
-          schema:
-            type: string
-            format: uuid
-        - name: playerName
-          in: query
-          required: false
-          description: >-
-            The player's name, resolved through the query-service module. A Floodgate
-            (Bedrock) player's name is a `.` followed by their Xbox gamertag, which
-            may itself contain spaces -- send it percent-encoded, so `.Some Gamertag`
-            becomes `.Some%20Gamertag`. Unlike `playerId` this needs the module, and
-            so answers 404 for an unknown name and 502 when the module is unreachable.
-            Give exactly one of `playerId` or `playerName`.
+            The player, as a UUID or a name. A UUID is answered from the database
+            alone, so this form keeps working while the query-service module is
+            down -- the returned `name` is simply null, as every other
+            module-sourced field degrades. A name is resolved through the module,
+            so it answers 404 for an unknown name and 502 when the module is
+            unreachable. A Floodgate (Bedrock) player's name is a `.` followed by
+            their Xbox gamertag, which may itself contain spaces -- send it
+            percent-encoded, so `.Some Gamertag` becomes `.Some%20Gamertag`.
           schema:
             type: string
         - name: category
@@ -948,26 +931,26 @@ paths:
                 $ref: "#/components/schemas/PlayerRegionsResponse"
         "400":
           description: >-
-            `MISSING_PARAMETER` when neither `playerId` nor `playerName` was given;
-            `AMBIGUOUS_PARAMETER` when both were; `MALFORMED_UUID` when `playerId`
-            does not parse; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a non-integer
-            or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when `category` is
-            present but not one of `all`, `owned`, `rented`.
+            `MISSING_PARAMETER` when `player` was not given; `MALFORMED_UUID` when
+            a UUID-shaped `player` does not parse; `INVALID_PAGE` or
+            `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`;
+            `INVALID_CATEGORY` when `category` is present but not one of `all`,
+            `owned`, `rented`.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: "`PLAYER_NOT_FOUND` -- `playerName` names a player the server does not know."
+          description: "`PLAYER_NOT_FOUND` -- `player` names a player the server does not know."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: >-
-            `NAME_LOOKUP_UNAVAILABLE` -- `playerName` was given and the
-            query-service module is not reachable. Never returned for `playerId`,
-            which needs no module.
+            `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name and the
+            query-service module is not reachable. Never returned for a
+            UUID-shaped `player`, which needs no module.
           content:
             application/json:
               schema:
@@ -990,27 +973,18 @@ paths:
         200 with zeroes, not a 404: "nothing" is an answer, and there is no player
         resource here that could be missing.
       parameters:
-        - name: playerId
+        - name: player
           in: query
-          required: false
+          required: true
           description: >-
-            The player's UUID. Answered from the database alone, so this form keeps
-            working while the query-service module is down -- the returned `name` is
-            simply null, as every other module-sourced field degrades. Give exactly
-            one of `playerId` or `playerName`.
-          schema:
-            type: string
-            format: uuid
-        - name: playerName
-          in: query
-          required: false
-          description: >-
-            The player's name, resolved through the query-service module. A Floodgate
-            (Bedrock) player's name is a `.` followed by their Xbox gamertag, which
-            may itself contain spaces -- send it percent-encoded, so `.Some Gamertag`
-            becomes `.Some%20Gamertag`. Unlike `playerId` this needs the module, and
-            so answers 404 for an unknown name and 502 when the module is unreachable.
-            Give exactly one of `playerId` or `playerName`.
+            The player, as a UUID or a name. A UUID is answered from the database
+            alone, so this form keeps working while the query-service module is
+            down -- the returned `name` is simply null, as every other
+            module-sourced field degrades. A name is resolved through the module,
+            so it answers 404 for an unknown name and 502 when the module is
+            unreachable. A Floodgate (Bedrock) player's name is a `.` followed by
+            their Xbox gamertag, which may itself contain spaces -- send it
+            percent-encoded, so `.Some Gamertag` becomes `.Some%20Gamertag`.
           schema:
             type: string
       responses:
@@ -1022,8 +996,8 @@ paths:
                 $ref: "#/components/schemas/PlayerSummaryResponse"
         "400":
           description: >-
-            `MISSING_PARAMETER` when neither `playerId` nor `playerName` was given,
-            `AMBIGUOUS_PARAMETER` when both were, or `MALFORMED_UUID`.
+            `MISSING_PARAMETER` when `player` was not given, or `MALFORMED_UUID`
+            when a UUID-shaped `player` does not parse.
           content:
             application/json:
               schema:
@@ -1042,8 +1016,9 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: >-
-            `NAME_LOOKUP_UNAVAILABLE` -- `playerName` was given and the module is
-            unreachable. Never returned for `playerId`, which needs no module.
+            `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name and the
+            module is unreachable. Never returned for a UUID-shaped `player`,
+            which needs no module.
           content:
             application/json:
               schema:
@@ -1064,8 +1039,10 @@ paths:
           required: true
           description: >-
             The player name to resolve. Percent-encode a name containing a space;
-            a Floodgate player is its gamertag behind a leading `.`. Named to match
-            the parameter every other player-scoped route takes.
+            a Floodgate player is its gamertag behind a leading `.`. This route
+            always takes a name -- resolving a UUID you already hold has no
+            purpose -- so it keeps its own parameter name rather than the `player`
+            every other player-scoped route takes, which accepts either.
           schema:
             type: string
       responses:
