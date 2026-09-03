@@ -28,7 +28,10 @@ public final class QueryServiceServer {
     /** Every registered path, for documentation and for tests that pin the surface. */
     public static final List<String> ROUTES = List.of(
             "/health",
-            "/regions/{worldId}/{regionId}/dimensions");
+            "/regions/{worldId}/{regionId}/dimensions",
+            "/players/{uuid}/name",
+            "/players/names",
+            "/players/uuids");
 
     private static final Logger LOGGER = Logger.getLogger(QueryServiceServer.class.getName());
     private static final String HANDLED_ATTRIBUTE = "realty.handled";
@@ -72,6 +75,11 @@ public final class QueryServiceServer {
 
         DimensionsHandler dimensionsHandler = new DimensionsHandler(this.dimensions, this.requestTimeout);
         this.javalin.get("/regions/{worldId}/{regionId}/dimensions", dimensionsHandler::handle);
+
+        PlayerNamesHandler playerNames = new PlayerNamesHandler(this.names);
+        this.javalin.get("/players/{uuid}/name", playerNames::single);
+        this.javalin.post("/players/names", playerNames::names);
+        this.javalin.post("/players/uuids", playerNames::uuids);
 
         this.javalin.exception(ApiException.class, (ex, ctx) -> {
             ctx.attribute(HANDLED_ATTRIBUTE, true);
