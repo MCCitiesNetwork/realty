@@ -51,12 +51,32 @@ class PterodactylEggTest {
             "REALTY_DB_USERNAME",
             "REALTY_DB_PASSWORD",
             "REALTY_REST_HOST",
-            "REALTY_REST_PORT",
             "REALTY_REST_MAX_PAGE_SIZE",
             "REALTY_REST_CORS_ORIGINS",
             "REALTY_REST_MODULE_URL",
             "REALTY_REST_MODULE_SECRET",
             "REALTY_REST_MODULE_TIMEOUT_MS");
+
+    /**
+     * Wings injects {@code SERVER_PORT} into every container from the server's primary
+     * allocation, and the yolks entrypoint expands {@code {{SERVER_PORT}}} in the startup
+     * command. The port is therefore never a panel variable: asking the operator to type
+     * it a second time only lets it disagree with the allocation, and a disagreement means
+     * a server that is up but unreachable.
+     */
+    @Test
+    void theBindPortComesFromTheAllocationNotAPanelVariable() throws IOException {
+        JsonNode egg = egg();
+        Assertions.assertTrue(egg.get("startup").asText().contains("REALTY_REST_PORT={{SERVER_PORT}}"),
+                "the startup command must pass the allocation's SERVER_PORT to the service");
+        for (JsonNode variable : egg.get("variables")) {
+            String name = variable.get("env_variable").asText();
+            Assertions.assertNotEquals("REALTY_REST_PORT", name,
+                    "the bind port must not be a panel variable");
+            Assertions.assertFalse(name.equals("SERVER_PORT") || name.equals("SERVER_IP"),
+                    name + " is reserved by Wings and must not be declared by the egg");
+        }
+    }
 
     /**
      * Variables only the install script reads. The service never sees these, so
