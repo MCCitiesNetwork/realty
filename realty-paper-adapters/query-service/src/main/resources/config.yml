@@ -1,0 +1,21 @@
+# query-service
+#
+# A private HTTP endpoint inside the game server that answers for the two things Realty's
+# database does not hold: live WorldGuard region geometry, and player names. It exists for
+# realty-rest, which runs as a separate process; it is not a second public API.
+#
+# Every request must carry the shared secret in the X-Realty-Secret header. Leaving it empty
+# does NOT run the endpoint open — it disables the endpoint entirely, and realty-rest degrades
+# to returning null geometry and null names.
+shared-secret: ""
+
+# Interface to bind. Localhost by default, so a same-host realty-rest can reach it and nothing
+# else can. Set to 0.0.0.0 only if realty-rest runs on another host or in another container,
+# and front it with a reverse proxy if that hop crosses a network you do not control.
+bind-host: "127.0.0.1"
+port: 8123
+
+# WorldGuard's region data may only be read on the main thread, so a geometry request waits
+# for a main-thread tick. If one does not come within this many milliseconds the request fails
+# with 504 rather than holding an HTTP worker while the server is stalled.
+request-timeout-ms: 1000
