@@ -10,6 +10,7 @@ import io.github.md5sha256.realty.rest.json.ErrorResponse;
 import io.github.md5sha256.realty.rest.json.HealthResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.json.JavalinJackson;
 import org.jetbrains.annotations.NotNull;
 
@@ -58,9 +59,20 @@ public final class RealtyRestServer {
             "/v1/health",
             "/v1/worlds",
             "/v1/region",
+            "/v1/region/history",
             "/v1/regions",
             "/v1/regions/search",
+            "/v1/regions/at",
+            "/v1/region/members",
+            "/v1/worlds/geometry",
+            "/v1/tags",
+            "/v1/stats",
+            "/v1/leaderboard/owners",
+            "/v1/auctions",
+            "/v1/activity",
             "/v1/players/regions",
+            "/v1/players/lookup",
+            "/v1/players/summary",
             "/v1/openapi.yaml",
             "/v1/openapi.json",
             "/v1/docs"
@@ -111,34 +123,40 @@ public final class RealtyRestServer {
         this.settings = settings;
         this.moduleClient = moduleClient;
         this.worldLookup = new WorldLookup(database);
-        this.javalin = buildJavalin(settings);
-        registerRoutes();
+        this.javalin = buildJavalin();
     }
 
-    private static @NotNull Javalin buildJavalin(@NotNull RestSettings settings) {
+    /**
+     * Builds and configures the instance in one pass. Javalin 7 removed routing methods
+     * ({@code get}, {@code post}, {@code exception}, {@code error}, ...) from {@link Javalin}
+     * itself; they now live on {@code config.routes} inside {@link Javalin#create(java.util.function.Consumer)},
+     * so registration can no longer happen in a separate step after construction.
+     */
+    private @NotNull Javalin buildJavalin() {
         ObjectMapper mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(mapper, false));
-            config.showJavalinBanner = false;
+            config.startup.showJavalinBanner = false;
             // Browser front ends live on a different origin to this service, so
             // without an allowlist every request from one fails at the preflight.
             // Enabled only when the operator names origins: no wildcard default,
             // and no CORS machinery at all for a deployment that has no browser
             // client.
-            if (!settings.corsOrigins().isEmpty()) {
+            if (!this.settings.corsOrigins().isEmpty()) {
                 config.bundledPlugins.enableCors(cors -> cors.addRule(rule -> {
-                    for (String origin : settings.corsOrigins()) {
+                    for (String origin : this.settings.corsOrigins()) {
                         rule.allowHost(origin);
                     }
                 }));
             }
+            registerRoutes(config.routes);
         });
     }
 
-    private void registerRoutes() {
-        this.javalin.get("/v1/health", ctx -> {
+    private void registerRoutes(@NotNull RoutesConfig routes) {
+        routes.get("/v1/health", ctx -> {
             if (databaseReachable()) {
                 ctx.status(200).json(new HealthResponse("ok",
                         this.moduleClient.status().name().toLowerCase(Locale.ROOT)));
@@ -147,36 +165,77 @@ public final class RealtyRestServer {
             }
         });
 
-        this.javalin.get("/v1/worlds", ctx -> ctx.json(this.worldLookup.all()));
+        routes.get("/v1/worlds", ctx -> ctx.json(this.worldLookup.all()));
 
         RegionHandler regionHandler =
                 new RegionHandler(this.backend, this.database, this.worldLookup, this.moduleClient);
-        this.javalin.get("/v1/region", regionHandler::handle);
+        routes.get("/v1/region", regionHandler::handle);
 
         RegionListHandler regionListHandler =
                 new RegionListHandler(this.database, this.worldLookup, this.settings);
-        this.javalin.get("/v1/regions", regionListHandler::handle);
+        routes.get("/v1/regions", regionListHandler::handle);
 
         SearchHandler searchHandler = new SearchHandler(this.database, this.worldLookup, this.settings);
-        this.javalin.get("/v1/regions/search", searchHandler::handle);
+        routes.get("/v1/regions/search", searchHandler::handle);
 
         PlayerRegionsHandler playerRegionsHandler = new PlayerRegionsHandler(
                 this.backend, this.database, this.worldLookup, this.settings, this.moduleClient);
-        this.javalin.get("/v1/players/regions", playerRegionsHandler::handle);
+        routes.get("/v1/players/regions", playerRegionsHandler::handle);
 
-        this.javalin.get("/v1/openapi.yaml", ctx -> ctx.contentType("application/yaml")
+        PlayerLookupHandler playerLookupHandler = new PlayerLookupHandler(this.moduleClient);
+        routes.get("/v1/players/lookup", playerLookupHandler::handle);
+
+        PlayerSummaryHandler playerSummaryHandler =
+                new PlayerSummaryHandler(this.backend, this.moduleClient);
+        routes.get("/v1/players/summary", playerSummaryHandler::handle);
+
+        RegionHistoryHandler regionHistoryHandler = new RegionHistoryHandler(
+                this.backend, this.worldLookup, this.settings, this.moduleClient);
+        routes.get("/v1/region/history", regionHistoryHandler::handle);
+
+        OwnersLeaderboardHandler ownersLeaderboardHandler =
+                new OwnersLeaderboardHandler(this.database, this.settings, this.moduleClient);
+        routes.get("/v1/leaderboard/owners", ownersLeaderboardHandler::handle);
+
+        AuctionsHandler auctionsHandler = new AuctionsHandler(
+                this.database, this.worldLookup, this.settings, this.moduleClient);
+        routes.get("/v1/auctions", auctionsHandler::handle);
+
+        ActivityHandler activityHandler = new ActivityHandler(
+                this.database, this.worldLookup, this.settings, this.moduleClient);
+        routes.get("/v1/activity", activityHandler::handle);
+
+        RegionsAtHandler regionsAtHandler =
+                new RegionsAtHandler(this.database, this.worldLookup, this.moduleClient);
+        routes.get("/v1/regions/at", regionsAtHandler::handle);
+
+        RegionMembersHandler regionMembersHandler =
+                new RegionMembersHandler(this.database, this.worldLookup, this.moduleClient);
+        routes.get("/v1/region/members", regionMembersHandler::handle);
+
+        WorldGeometryHandler worldGeometryHandler = new WorldGeometryHandler(
+                this.database, this.worldLookup, this.settings, this.moduleClient);
+        routes.get("/v1/worlds/geometry", worldGeometryHandler::handle);
+
+        StatsHandler statsHandler = new StatsHandler(this.backend);
+        routes.get("/v1/stats", statsHandler::handle);
+
+        TagsHandler tagsHandler = new TagsHandler(this.backend);
+        routes.get("/v1/tags", tagsHandler::handle);
+
+        routes.get("/v1/openapi.yaml", ctx -> ctx.contentType("application/yaml")
                 .result(OpenApiRoutes.rawDocument()));
 
-        this.javalin.get("/v1/openapi.json", ctx -> ctx.json(OpenApiRoutes.asParsedTree()));
+        routes.get("/v1/openapi.json", ctx -> ctx.json(OpenApiRoutes.asParsedTree()));
 
-        this.javalin.get("/v1/docs", ctx -> ctx.contentType("text/html").result(SWAGGER_UI_PAGE));
+        routes.get("/v1/docs", ctx -> ctx.contentType("text/html").result(SWAGGER_UI_PAGE));
 
-        this.javalin.exception(ApiException.class, (ex, ctx) -> {
+        routes.exception(ApiException.class, (ex, ctx) -> {
             ctx.attribute(HANDLED_ATTRIBUTE, true);
             ctx.status(ex.status()).json(new ErrorResponse(ex.code(), ex.getMessage()));
         });
 
-        this.javalin.exception(Exception.class, (ex, ctx) -> {
+        routes.exception(Exception.class, (ex, ctx) -> {
             ctx.attribute(HANDLED_ATTRIBUTE, true);
             LOGGER.log(Level.SEVERE, "Unhandled failure serving " + ctx.path(), ex);
             ctx.status(500).json(new ErrorResponse("INTERNAL_ERROR",
@@ -187,7 +246,7 @@ public final class RealtyRestServer {
         // including one an exception handler above already wrote a body for -- not just
         // truly unmatched routes. The attribute distinguishes the two so a handled
         // ApiException's body is not clobbered with a generic "no such endpoint" message.
-        this.javalin.error(404, ctx -> {
+        routes.error(404, ctx -> {
             if (ctx.attribute(HANDLED_ATTRIBUTE) == null) {
                 ctx.json(new ErrorResponse("NOT_FOUND", "No such endpoint: " + ctx.path()));
             }

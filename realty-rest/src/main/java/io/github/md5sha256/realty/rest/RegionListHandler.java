@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.rest.json.RegionListResponse;
 import io.github.md5sha256.realty.rest.json.WorldRef;
@@ -42,24 +42,35 @@ final class RegionListHandler {
         int pageSize = QueryParams.pageSize(ctx, this.settings.maxPageSize());
         int offset = (page - 1) * pageSize;
 
+        // Resolved before the page is read so an unknown world is a 404 rather than
+        // an empty page, which would otherwise be indistinguishable from a real world
+        // that happens to hold no region.
+        String worldParam = QueryParams.optional(ctx, "world");
+        UUID worldFilter = worldParam == null ? null : this.worldLookup.resolve(worldParam);
+
         int totalCount;
-        List<RealtyRegionEntity> rows;
+        List<RegionStateRow> rows;
         try (SqlSessionWrapper session = this.database.openSession(true)) {
             RealtyRegionMapper mapper = session.realtyRegionMapper();
-            totalCount = mapper.countAll();
-            rows = mapper.selectPage(pageSize, offset);
+            if (worldFilter == null) {
+                totalCount = mapper.countAll();
+                rows = mapper.selectPageWithState(pageSize, offset);
+            } else {
+                totalCount = mapper.countByWorld(worldFilter);
+                rows = mapper.selectPageWithStateByWorld(worldFilter, pageSize, offset);
+            }
         }
 
         Set<UUID> worldIds = new HashSet<>();
-        for (RealtyRegionEntity row : rows) {
+        for (RegionStateRow row : rows) {
             worldIds.add(row.worldId());
         }
         Map<UUID, WorldRef> worlds = this.worldLookup.refsFor(worldIds);
 
         List<RegionListResponse.Entry> entries = new ArrayList<>();
-        for (RealtyRegionEntity row : rows) {
+        for (RegionStateRow row : rows) {
             entries.add(new RegionListResponse.Entry(
-                    row.worldGuardRegionId(), worlds.get(row.worldId())));
+                    row.worldGuardRegionId(), worlds.get(row.worldId()), row.state()));
         }
 
         ctx.json(new RegionListResponse(page, pageSize, totalCount,

@@ -125,3 +125,7 @@ memory-bank
 CLAUDE.md
 # Superpowers scratch (agent workspace, not project content)
 .superpowers/
+
+# Local secrets for compose.yml -- see .env.example for the template.
+# Never commit the real file.
+.env

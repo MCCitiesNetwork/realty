@@ -39,13 +39,21 @@ The resolved configuration (secrets redacted) is logged once at startup.
 The last three variables point this service at a query-service module running
 inside the Paper process. When configured, it supplies a region's `dimensions`
 (in `/v1/region` responses) and every player `name` (in `/v1/region` and
-`/v1/players/regions` responses), and lets `/v1/players/regions?player=<name>`
-resolve a player name to a UUID. Without it -- or if it stops answering --
+`/v1/players/regions` responses), and resolves the name form of every `player`
+parameter, plus `/v1/players/lookup`. Without it -- or if it stops answering --
 those fields degrade to `null` rather than failing the whole response, and
 `/v1/health`'s `module` field reports `disabled` or `unreachable` accordingly.
-The one exception is `?player=<name>`: since a name lookup has nothing else to
-return, a module that is unreachable *or not configured* fails that request with
-`502 NAME_LOOKUP_UNAVAILABLE`; looking a player up by UUID still works.
+The one exception is a **name-shaped** `player`: since a name lookup has nothing
+else to return, a module that is unreachable *or not configured* fails that
+request with `502 NAME_LOOKUP_UNAVAILABLE`. A **UUID-shaped** `player` is
+unaffected -- it is answered from the database alone.
+
+Three routes are answered *entirely* by the module and so have nothing to degrade
+to either: `/v1/regions/at` and `/v1/region/members` fail with `502` when it is
+unreachable, because an empty answer would assert something different and untrue --
+that the block is in no region, or that the region has no owners.
+`/v1/worlds/geometry` is the exception among the three: its region list comes from
+the database, so it keeps returning the page with every `dimensions` null.
 
 A wedged module therefore adds at most `REALTY_REST_MODULE_TIMEOUT_MS` to a
 request, not a multiple of it: `/v1/region` needs two module calls and issues
@@ -61,6 +69,21 @@ them concurrently, so the two share one timeout budget.
 - `GET /v1/regions/search?type=&world=&minPrice=&maxPrice=&tag=&occupancy=&sort=&page=&pageSize=` --
   browse and filter regions (the HTTP form of `/realty search`). Every filter is optional.
 - `GET /v1/players/regions?player=&category=&page=&pageSize=` -- a player's owned/landlord/rented regions (the HTTP form of `/realty list`).
+- `GET /v1/players/summary?player=` -- one player's holdings as counts.
+- `GET /v1/players/lookup?playerName=` -- resolve a name to a UUID, so a client can cache it.
+- `GET /v1/region/history?world=&region=&type=&since=&player=&page=&pageSize=` -- one region's history (the HTTP form of `/realty history`).
+- `GET /v1/tags` -- every tag in use, with its region count.
+- `GET /v1/stats` -- server-wide totals.
+- `GET /v1/leaderboard/owners?page=&pageSize=` -- title holders ranked by plot count.
+- `GET /v1/regions/at?world=&x=&z=&y=` -- which registered regions contain a block.
+  With `y` this is a point test at that block; without it, a column test over the
+  footprint at any height, which is what a 2-D map click means. The response's
+  `test` field says which one ran.
+- `GET /v1/region/members?world=&region=` -- the region's WorldGuard owner and
+  member domains, which are distinct from Realty's title holder and tenant.
+- `GET /v1/worlds/geometry?world=&page=&pageSize=` -- every registered region's
+  footprint in one world, for a map overlay. Use this rather than looping
+  `/v1/region`: a page costs the game server one main-thread hop, not one per region.
 - `GET /v1/openapi.yaml`, `GET /v1/openapi.json` -- the OpenAPI document.
 - `GET /v1/docs` -- an interactive Swagger UI page.
 
@@ -71,6 +94,18 @@ region*, `/v1/regions` answers *what regions exist*, and `/v1/regions/search`
 answers *what is on the market*. Only the last two are paged, and only the search
 one filters. A region Realty has registered but which carries no contract appears
 in `/v1/regions` and never in `/v1/regions/search`.
+
+### Identifying a player
+
+Every route that identifies a player takes one `player` parameter, which may be
+**either a UUID or a name** -- discriminated by shape, since neither a Java
+Edition name (at most 16 characters) nor a Floodgate name (a `.`-prefixed Xbox
+gamertag) can reach a UUID's 36-character, hyphens-at-8-13-18-23 shape. A
+UUID-shaped value needs only the database; a name is resolved through the
+query-service module, so it answers `404 PLAYER_NOT_FOUND` for an unknown name
+and `502 NAME_LOOKUP_UNAVAILABLE` when the module is unreachable, neither of
+which a UUID can trigger. Resolve a name once with `/v1/players/lookup` and use
+the UUID thereafter to avoid paying the module hop on every call.
 
 ### A note on percent-encoding
 
@@ -169,7 +204,29 @@ declares a container `HEALTHCHECK` against `/v1/health`.
 ### 3. Docker Compose
 
 `compose.yml` at the repository root brings up `mariadb:11.7` and the API together,
-with the API's `depends_on` gated on the database's `service_healthy` condition:
+with the API's `depends_on` gated on the database's `service_healthy` condition.
+
+**It holds no credentials itself.** Every value that matters -- the database URL,
+username, password, and the query-service module's URL and secret -- is a
+`${VARIABLE}` reference, substituted from a `.env` file that Compose reads
+automatically from the same directory. That file is exactly what let a real
+password get committed once already (see git history for `compose.yml` around
+2026-09-03/04): a value that lives only in a gitignored `.env` cannot be
+committed by accident, because it is never written into a tracked file in the
+first place.
+
+Set it up once:
+
+```bash
+cp .env.example .env
+$EDITOR .env          # fill in REALTY_DB_PASSWORD etc.
+```
+
+`.env.example` is the tracked template, documenting every variable; `.env` is
+your real copy, and `.gitignore` excludes it by name. **Never put a real
+credential in `.env.example`** -- it is the file that ends up in a commit.
+
+Then, to run the bundled database and the API together:
 
 ```bash
 docker compose up -d
@@ -177,18 +234,57 @@ curl -s http://localhost:8080/v1/health
 docker compose down
 ```
 
+To point the API at a database you already manage -- a remote host, or one
+`realty-paper` has already migrated -- instead of the bundled empty one, set
+`REALTY_DB_URL` in `.env` to that database's address and skip starting the
+bundled `mariadb` service:
+
+```bash
+docker compose up -d --no-deps realty-rest
+```
+
+`--no-deps` is required here: `realty-rest`'s `depends_on: mariadb` would
+otherwise start the bundled database anyway even though nothing points at it.
+
 This is a separate file from `compose.dev.yml`, which exists only for
-`./gradlew runServer` and is not used here. `compose.yml` stands up its own empty
-database -- point it at a database `realty-paper` has already migrated (or run the
-plugin against it once) before expecting `/v1/regions` or `/v1/players/regions` to
-return real data; `/v1/health` and `/v1/worlds` work against a migrated-but-empty
-schema.
+`./gradlew runServer` and is not used here. When the bundled `mariadb` is used,
+it stands up its own empty database -- point `REALTY_DB_URL` at a database
+`realty-paper` has already migrated (or run the plugin against it once) before
+expecting `/v1/regions` or `/v1/players/regions` to return real data;
+`/v1/health` and `/v1/worlds` work against a migrated-but-empty schema.
+
+#### How `.env` actually reaches the container
+
+Three mechanisms look similar and are easy to conflate:
+
+- **Compose's automatic `.env` substitution** (what `compose.yml` uses): Compose
+  reads `.env` from the project directory before parsing the compose file, and
+  replaces every `${VARIABLE}` in the YAML with that value. This happens at
+  `docker compose` parse time -- it is not a Docker feature, and a plain
+  `docker run` never sees it. `docker compose config` (used above to validate
+  this file) prints the compose document with every substitution already
+  applied, which is the fastest way to check `.env` is being read correctly.
+- **A service's `env_file:` key** (not used by `compose.yml`, but worth
+  knowing): lists a file whose `KEY=value` lines are injected directly into
+  that container's environment, without touching the YAML at all. This is the
+  right tool when you want to hand a container a whole file of variables the
+  compose file never names individually.
+- **`docker run --env-file`**: the plain-Docker equivalent of `env_file:`,
+  for the "2. Docker" section above -- `docker run --env-file .env realty-rest`
+  loads every line of `.env` as a container environment variable, replacing
+  the individual `-e` flags shown there.
+
+`compose.yml` uses only the first. If you add a variable to `.env.example`
+that the YAML does not reference as `${THAT_VARIABLE}`, Compose reads it but
+never uses it -- and the reverse, a `${VARIABLE}` with nothing in `.env`,
+substitutes an empty string with a warning rather than failing, which is why
+`docker compose config` is worth running after editing either file.
 
 ### 4. Pterodactyl egg
 
 `realty-rest/pterodactyl-egg.json` is importable under Admin > Nests > Import Egg. It
-declares every variable from the table above as a panel variable, plus one the service
-itself never reads:
+declares every variable from the table above as a panel variable except
+`REALTY_REST_PORT`, plus one the service itself never reads:
 
 | Variable | Rules | Meaning |
 |---|---|---|
@@ -208,14 +304,21 @@ with the Realty plugin; a reinstall must reproduce the same jar rather than sile
 cross a schema boundary and exit. Upgrading is an explicit edit an operator makes when
 they upgrade the plugin.
 
-Startup command, unchanged:
+Startup command:
 
 ```
-java -jar realty-rest-all.jar
+REALTY_REST_PORT={{SERVER_PORT}} java -jar realty-rest-all.jar
 ```
 
-No file is templated -- every runtime setting is a panel-managed environment variable,
-matching the table above exactly.
+The bind port is **not** a panel variable. Wings injects `SERVER_PORT` (and `SERVER_IP`)
+into every container from the server's primary allocation, and the yolks entrypoint
+expands `{{SERVER_PORT}}` in the startup command, so the service always listens on the
+port the panel actually routed. Asking the operator for a port a second time only lets
+the two disagree, which yields a server that reports healthy but is unreachable. Change
+the port by changing the server's primary allocation.
+
+No file is templated -- every other runtime setting is a panel-managed environment
+variable, matching the table above.
 
 ### Publishing a release
 

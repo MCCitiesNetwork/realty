@@ -15,7 +15,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-class MainThreadDimensionsSourceTest {
+class MainThreadRegionSourceTest {
 
     private static final UUID WORLD_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
@@ -38,7 +38,7 @@ class MainThreadDimensionsSourceTest {
     @Test
     void anUnknownWorldYieldsEmpty() {
         RecordingExecutor executor = new RecordingExecutor();
-        MainThreadDimensionsSource source = new MainThreadDimensionsSource(
+        MainThreadRegionSource source = new MainThreadRegionSource(
                 executor, id -> null, world -> Mockito.mock(RegionManager.class));
 
         Assertions.assertEquals(Optional.empty(), source.dimensions(WORLD_ID, "plot").join());
@@ -49,7 +49,7 @@ class MainThreadDimensionsSourceTest {
     void aWorldWithoutARegionManagerYieldsEmpty() {
         RecordingExecutor executor = new RecordingExecutor();
         World world = Mockito.mock(World.class);
-        MainThreadDimensionsSource source = new MainThreadDimensionsSource(
+        MainThreadRegionSource source = new MainThreadRegionSource(
                 executor, id -> world, w -> null);
 
         Assertions.assertEquals(Optional.empty(), source.dimensions(WORLD_ID, "plot").join());
@@ -62,7 +62,7 @@ class MainThreadDimensionsSourceTest {
         World world = Mockito.mock(World.class);
         RegionManager manager = Mockito.mock(RegionManager.class);
         Mockito.when(manager.getRegion("plot")).thenReturn(null);
-        MainThreadDimensionsSource source = new MainThreadDimensionsSource(
+        MainThreadRegionSource source = new MainThreadRegionSource(
                 executor, id -> world, w -> manager);
 
         Assertions.assertEquals(Optional.empty(), source.dimensions(WORLD_ID, "plot").join());
@@ -77,7 +77,7 @@ class MainThreadDimensionsSourceTest {
         Mockito.when(manager.getRegion("plot")).thenReturn(new ProtectedCuboidRegion("plot",
                 BlockVector3.at(104, 62, -88), BlockVector3.at(131, 140, -61)));
         Function<UUID, World> worldLookup = id -> WORLD_ID.equals(id) ? world : null;
-        MainThreadDimensionsSource source = new MainThreadDimensionsSource(
+        MainThreadRegionSource source = new MainThreadRegionSource(
                 executor, worldLookup, w -> w == world ? manager : null);
 
         RegionDimensions dims = source.dimensions(WORLD_ID, "plot").join().orElseThrow();

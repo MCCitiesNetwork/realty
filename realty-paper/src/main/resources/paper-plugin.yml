@@ -259,3 +259,45 @@ permissions:
   realty.command.sign.list:
     description: Allows using /realty sign list
     default: op
+  realty.command.modify.price:
+    description: Allows using /realty modify price
+    default: true
+  realty.command.modify.duration:
+    description: Allows using /realty modify duration
+    default: true
+  realty.command.modify.maxextensions:
+    description: Allows using /realty modify maxextensions
+    default: true
+  realty.command.modify.accept:
+    description: Allows using /realty modify accept
+    default: true
+  realty.command.modify.reject:
+    description: Allows using /realty modify reject
+    default: true
+  realty.command.modify.withdraw:
+    description: Allows using /realty modify withdraw
+    default: true
+  realty.command.modify.inbox:
+    description: Allows using /realty modify inbox
+    default: true
+  realty.command.modify.outbox:
+    description: Allows using /realty modify outbox
+    default: true
+  realty.command.modify.others:
+    description: Bypasses the landlord/tenant check for /realty modify
+    default: op
+  realty.command.terminate:
+    description: Allows using /realty terminate
+    default: true
+  realty.command.terminate.now:
+    description: Allows --now on /realty terminate, skipping the notice period
+    default: op
+  realty.command.terminate.others:
+    description: Bypasses the landlord/tenant check for /realty terminate
+    default: op
+  realty.command.rentable:
+    description: Allows using /realty rentable
+    default: op
+  realty.command.rentable.others:
+    description: Bypasses ownership/agent check for /realty rentable
+    default: op

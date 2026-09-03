@@ -4,13 +4,22 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
+import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
+import io.github.md5sha256.realty.database.entity.ActivityRow;
+import io.github.md5sha256.realty.database.entity.AuctionSort;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
+import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
 import io.github.md5sha256.realty.database.entity.SearchSort;
+import io.github.md5sha256.realty.database.mapper.ActivityMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
+import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyWorldMapper;
@@ -18,6 +27,9 @@ import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import io.github.md5sha256.realty.rest.json.RegionResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
+import io.github.md5sha256.realty.rest.module.ModuleResult;
+import io.github.md5sha256.realty.rest.module.RegionMembers;
+import io.github.md5sha256.realty.rest.module.RegionsAt;
 import io.github.md5sha256.realty.rest.module.NameLookup;
 import org.apache.ibatis.session.ExecutorType;
 import org.jetbrains.annotations.NotNull;
@@ -27,6 +39,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,6 +81,289 @@ final class TestServers {
     }
 
     /**
+     * A server whose backend reports exactly {@code tagIds} in that order, and the
+     * given per-tag region counts. A tag absent from {@code counts} counts zero, so
+     * a test naming one tag need not populate the other.
+     */
+    static @NotNull RealtyRestServer withTags(@NotNull List<String> tagIds,
+                                              @NotNull Map<String, Integer> counts) {
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "getAllTagIds" -> List.copyOf(tagIds);
+            case "countRegionsByTag" -> counts.getOrDefault((String) args[0], 0);
+            default -> throw new UnsupportedOperationException(
+                    "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
+                handler);
+        return new RealtyRestServer(backend, new StubDatabase(false), defaultSettings());
+    }
+
+    /**
+     * A server whose backend reports the given counter values. A counter absent from
+     * {@code counters} answers the sample value named here, so a test asserting on one
+     * figure need not restate the other nine.
+     */
+    static @NotNull RealtyRestServer withStats(@NotNull Map<String, Integer> counters) {
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "countAllRegions", "countAllFreeholdContracts", "countOccupiedFreeholdContracts",
+                 "countAllLeaseholdContracts", "countOccupiedLeaseholdContracts",
+                 "countActiveOffers", "countActiveAuctions" -> counters.getOrDefault(method.getName(), 1);
+            case "averageFreeholdPrice" -> 18250.5d;
+            case "averageLeaseholdPrice" -> 640.0d;
+            case "averageLeaseholdDurationSeconds" -> 604800L;
+            default -> throw new UnsupportedOperationException(
+                    "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
+                handler);
+        return new RealtyRestServer(backend, new StubDatabase(false), defaultSettings());
+    }
+
+    /**
+     * A server whose backend reports a server on which nothing has been registered --
+     * every counter and every average zero.
+     */
+    static @NotNull RealtyRestServer withEmptyStats() {
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "countAllRegions", "countAllFreeholdContracts", "countOccupiedFreeholdContracts",
+                 "countAllLeaseholdContracts", "countOccupiedLeaseholdContracts",
+                 "countActiveOffers", "countActiveAuctions" -> 0;
+            case "averageFreeholdPrice", "averageLeaseholdPrice" -> 0.0d;
+            case "averageLeaseholdDurationSeconds" -> 0L;
+            default -> throw new UnsupportedOperationException(
+                    "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
+                handler);
+        return new RealtyRestServer(backend, new StubDatabase(false), defaultSettings());
+    }
+
+    /**
+     * A server whose backend answers the given holding counters, wired to a module
+     * resolving {@code names}. A counter absent from {@code counters} answers zero.
+     */
+    static @NotNull RealtyRestServer withPlayerSummary(@NotNull Map<String, Integer> counters,
+                                                       @NotNull Map<UUID, String> names) {
+        return new RealtyRestServer(summaryBackend(counters), new StubDatabase(false),
+                defaultSettings(), stubModule(names, Map.of(), Map.of()));
+    }
+
+    /**
+     * A summary server whose module resolves exactly {@code name} to {@code id}, for
+     * proving the route accepts a name where the other player routes do.
+     */
+    static @NotNull RealtyRestServer withPlayerSummaryByName(@NotNull String name, @NotNull UUID id) {
+        return new RealtyRestServer(summaryBackend(Map.of()), new StubDatabase(false),
+                defaultSettings(), stubModule(Map.of(id, name), Map.of(), Map.of(name, id)));
+    }
+
+    /**
+     * A summary server wired to the given module, for proving which parameter depends
+     * on it and which does not.
+     */
+    static @NotNull RealtyRestServer withPlayerSummaryAndModule(@NotNull ModuleClient module) {
+        return new RealtyRestServer(summaryBackend(Map.of()), new StubDatabase(false),
+                defaultSettings(), module);
+    }
+
+    private static @NotNull RealtyBackend summaryBackend(@NotNull Map<String, Integer> counters) {
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "countRegionsByTitleHolder", "countRegionsByLandlord",
+                 "countOccupiedLeaseholdsByLandlord", "countRegionsByTenant",
+                 "countRegionsByAuthority" -> counters.getOrDefault(method.getName(), 0);
+            default -> throw new UnsupportedOperationException(
+                    "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+        };
+        return (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
+                handler);
+    }
+
+    /**
+     * A server whose freehold mapper reports exactly {@code counts} as one page of the
+     * owners leaderboard, out of {@code totalCount} distinct title holders, with the
+     * module resolving {@code names}.
+     */
+    static @NotNull RealtyRestServer withOwnerCounts(@NotNull List<PlotOwnerCount> counts,
+                                                     int totalCount,
+                                                     @NotNull Map<UUID, String> names) {
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "selectPlotCountsByTitleHolderPaged" -> List.copyOf(counts);
+            case "countDistinctTitleHolders" -> totalCount;
+            default -> throw new UnsupportedOperationException(
+                    "FreeholdContractMapper#" + method.getName() + " is not stubbed for this test");
+        };
+        FreeholdContractMapper mapper = (FreeholdContractMapper) Proxy.newProxyInstance(
+                FreeholdContractMapper.class.getClassLoader(),
+                new Class<?>[]{FreeholdContractMapper.class},
+                handler);
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, List.of(), false, List.of(), List.of(), null, null, mapper),
+                defaultSettings(), stubModule(names, Map.of(), Map.of()));
+    }
+
+    /**
+     * Captures what a handler asked {@code searchHistory} for, so a test can assert on
+     * the arguments as well as the response.
+     */
+    static final class HistoryStub {
+
+        private final List<HistoryEntry> entries;
+        private final int totalCount;
+
+        String eventType;
+        LocalDateTime since;
+        UUID playerId;
+        int limit;
+        int offset;
+
+        HistoryStub(@NotNull List<HistoryEntry> entries, int totalCount) {
+            this.entries = entries;
+            this.totalCount = totalCount;
+        }
+    }
+
+    static @NotNull RealtyRestServer withHistory(@NotNull List<HistoryEntry> entries,
+                                                 int totalCount,
+                                                 @NotNull Map<UUID, String> names) {
+        return withHistory(new HistoryStub(entries, totalCount), names);
+    }
+
+    static @NotNull RealtyRestServer withHistory(@NotNull HistoryStub stub,
+                                                 @NotNull Map<UUID, String> names) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
+        InvocationHandler handler = (proxy, method, args) -> {
+            if (!"searchHistory".equals(method.getName())) {
+                throw new UnsupportedOperationException(
+                        "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+            }
+            stub.eventType = (String) args[2];
+            stub.since = (LocalDateTime) args[3];
+            stub.playerId = (UUID) args[4];
+            stub.limit = (int) args[5];
+            stub.offset = (int) args[6];
+            return new RealtyBackend.HistoryResult(stub.entries, stub.totalCount);
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
+                handler);
+        return new RealtyRestServer(backend, new StubDatabase(false, worlds), defaultSettings(),
+                stubModule(names, Map.of(), Map.of()));
+    }
+
+    /**
+     * Captures what a handler asked the auction listing for.
+     */
+    static final class AuctionStub {
+
+        private final List<ActiveAuctionRow> rows;
+        private final int totalCount;
+
+        UUID worldId;
+        AuctionSort sort;
+        int limit;
+        int offset;
+
+        AuctionStub(@NotNull List<ActiveAuctionRow> rows, int totalCount) {
+            this.rows = rows;
+            this.totalCount = totalCount;
+        }
+    }
+
+    static @NotNull RealtyRestServer withAuctions(@NotNull List<ActiveAuctionRow> rows,
+                                                  int totalCount,
+                                                  @NotNull Map<UUID, String> names) {
+        return withAuctions(new AuctionStub(rows, totalCount), names);
+    }
+
+    static @NotNull RealtyRestServer withAuctions(@NotNull AuctionStub stub,
+                                                  @NotNull Map<UUID, String> names) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "selectActivePage" -> {
+                stub.worldId = (UUID) args[0];
+                stub.sort = (AuctionSort) args[1];
+                stub.limit = (int) args[2];
+                stub.offset = (int) args[3];
+                yield List.copyOf(stub.rows);
+            }
+            case "countActiveInWorld" -> stub.totalCount;
+            default -> throw new UnsupportedOperationException(
+                    "FreeholdContractAuctionMapper#" + method.getName() + " is not stubbed for this test");
+        };
+        FreeholdContractAuctionMapper mapper = (FreeholdContractAuctionMapper) Proxy.newProxyInstance(
+                FreeholdContractAuctionMapper.class.getClassLoader(),
+                new Class<?>[]{FreeholdContractAuctionMapper.class},
+                handler);
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, null, null, mapper),
+                defaultSettings(), stubModule(names, Map.of(), Map.of()));
+    }
+
+    /**
+     * Captures what a handler asked the activity feed for.
+     */
+    static final class ActivityStub {
+
+        private final List<ActivityRow> rows;
+        private final int totalCount;
+
+        List<String> eventTypes;
+        UUID worldId;
+        LocalDateTime since;
+        int limit;
+        int offset;
+
+        ActivityStub(@NotNull List<ActivityRow> rows, int totalCount) {
+            this.rows = rows;
+            this.totalCount = totalCount;
+        }
+    }
+
+    static @NotNull RealtyRestServer withActivity(@NotNull List<ActivityRow> rows,
+                                                  int totalCount,
+                                                  @NotNull Map<UUID, String> names) {
+        return withActivity(new ActivityStub(rows, totalCount), names);
+    }
+
+    @SuppressWarnings("unchecked")
+    static @NotNull RealtyRestServer withActivity(@NotNull ActivityStub stub,
+                                                  @NotNull Map<UUID, String> names) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "selectPage" -> {
+                stub.eventTypes = List.copyOf((Collection<String>) args[0]);
+                stub.worldId = (UUID) args[1];
+                stub.since = (LocalDateTime) args[2];
+                stub.limit = (int) args[3];
+                stub.offset = (int) args[4];
+                yield List.copyOf(stub.rows);
+            }
+            case "countMatching" -> {
+                stub.eventTypes = List.copyOf((Collection<String>) args[0]);
+                yield stub.totalCount;
+            }
+            default -> throw new UnsupportedOperationException(
+                    "ActivityMapper#" + method.getName() + " is not stubbed for this test");
+        };
+        ActivityMapper mapper = (ActivityMapper) Proxy.newProxyInstance(
+                ActivityMapper.class.getClassLoader(),
+                new Class<?>[]{ActivityMapper.class},
+                handler);
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, null, null, null, mapper),
+                defaultSettings(), stubModule(names, Map.of(), Map.of()));
+    }
+
+    /**
      * A world lookup that throws a {@link RuntimeException} carrying the given
      * message when its table is queried -- for pinning that the server's catch-all
      * 500 handler never echoes an exception's message back to the client.
@@ -105,6 +401,18 @@ final class TestServers {
                 new StubDatabase(false, worlds), defaultSettings(), module);
     }
 
+    /**
+     * A server serving exactly {@code info} for region {@code downtown_plot_14} in
+     * world {@code WORLD_ID}, for tests asserting on one contract's serialised fields.
+     */
+    static @NotNull RealtyRestServer withRegionInfo(@NotNull RealtyBackend.RegionInfo info,
+                                                    @Nullable RegionState state,
+                                                    @NotNull ModuleClient module) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
+        return new RealtyRestServer(regionBackend(info, state),
+                new StubDatabase(false, worlds), defaultSettings(), module);
+    }
+
     static @NotNull ModuleClient stubModule(@NotNull Map<UUID, String> names,
                                             @NotNull Map<String, RegionResponse.Dimensions> dimensionsByRegionId,
                                             @NotNull Map<String, UUID> uuidsByName) {
@@ -130,6 +438,31 @@ final class TestServers {
             public @NotNull NameLookup uuidOf(@NotNull String name) {
                 UUID id = uuidsByName.get(name);
                 return id == null ? new NameLookup.Unknown() : new NameLookup.Resolved(id, name);
+            }
+
+            @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                Map<String, RegionResponse.Dimensions> found = new LinkedHashMap<>();
+                for (String regionId : regionIds) {
+                    RegionResponse.Dimensions dims = dimensionsByRegionId.get(regionId);
+                    if (dims != null) {
+                        found.put(regionId, dims);
+                    }
+                }
+                return found;
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
             }
 
             @Override
@@ -164,6 +497,24 @@ final class TestServers {
             }
 
             @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
             public @NotNull Status status() {
                 return Status.OK;
             }
@@ -194,6 +545,24 @@ final class TestServers {
             @Override
             public @NotNull NameLookup uuidOf(@NotNull String name) {
                 return new NameLookup.Unavailable();
+            }
+
+            @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
             }
 
             @Override
@@ -478,24 +847,149 @@ final class TestServers {
                                                     int maxPageSize) {
         RestSettings settings =
                 new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500);
+        List<RegionStateRow> rows = new ArrayList<>();
+        for (RealtyRegionEntity region : regions) {
+            rows.add(new RegionStateRow(region.realtyRegionId(),
+                    region.worldGuardRegionId(), region.worldId(), null));
+        }
         return new RealtyRestServer(stubBackend(),
-                new StubDatabase(false, worlds, false, List.of(), List.of(), null, regions),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
                 settings);
     }
 
+    /**
+     * A server whose region page reports exactly {@code rows}, each with the state
+     * the mapper's projection would derive for it.
+     */
+    static @NotNull RealtyRestServer withRegionListStates(@NotNull List<RegionStateRow> rows,
+                                                          @NotNull List<RealtyWorldEntity> worlds) {
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
+                defaultSettings());
+    }
+
+    /**
+     * A server over a fixed set of registered regions, wired to the given module -- the shape
+     * every route in section E of the v1.x spec needs, since each one crosses both.
+     */
+    static @NotNull RealtyRestServer withAllRegionsAndModule(@NotNull List<RegionStateRow> rows,
+                                                             @NotNull List<RealtyWorldEntity> worlds,
+                                                             @NotNull ModuleClient module) {
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
+                defaultSettings(), module);
+    }
+
+    /**
+     * A module answering the three region-query routes from fixed data. {@code regionsAt} is
+     * keyed by the y the caller sends, so a test can pin that the point and column forms are
+     * genuinely different queries rather than one with a default.
+     */
+    static @NotNull ModuleClient regionQueryModule(@NotNull Map<UUID, String> names,
+                                                   @NotNull Map<String, RegionResponse.Dimensions> geometry,
+                                                   @Nullable RegionsAt column,
+                                                   @Nullable RegionsAt point,
+                                                   @Nullable RegionMembers members) {
+        return new ModuleClient() {
+            @Override
+            public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
+                                                                           @NotNull String regionId) {
+                return Optional.ofNullable(geometry.get(regionId));
+            }
+
+            @Override
+            public @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids) {
+                Map<UUID, String> resolved = new LinkedHashMap<>();
+                for (UUID id : ids) {
+                    if (names.containsKey(id)) {
+                        resolved.put(id, names.get(id));
+                    }
+                }
+                return resolved;
+            }
+
+            @Override
+            public @NotNull NameLookup uuidOf(@NotNull String name) {
+                return new NameLookup.Unknown();
+            }
+
+            @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                Map<String, RegionResponse.Dimensions> found = new LinkedHashMap<>();
+                for (String regionId : regionIds) {
+                    RegionResponse.Dimensions dims = geometry.get(regionId);
+                    if (dims != null) {
+                        found.put(regionId, dims);
+                    }
+                }
+                return found;
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                RegionsAt answer = y == null ? column : point;
+                return answer == null ? new ModuleResult.NotFound<>() : new ModuleResult.Found<>(answer);
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return members == null ? new ModuleResult.NotFound<>()
+                        : new ModuleResult.Found<>(members);
+            }
+
+            @Override
+            public @NotNull Status status() {
+                return Status.OK;
+            }
+        };
+    }
+
     private static @NotNull RealtyRegionMapper realtyRegionMapperHandler(
-            @NotNull List<RealtyRegionEntity> allRegions) {
+            @NotNull List<RegionStateRow> allRegions) {
         InvocationHandler handler = (proxy, method, args) -> {
             switch (method.getName()) {
                 case "countAll" -> {
                     return allRegions.size();
                 }
                 case "selectPage" -> {
-                    int limit = (int) args[0];
-                    int offset = (int) args[1];
-                    int from = Math.min(offset, allRegions.size());
-                    int to = Math.min(from + limit, allRegions.size());
-                    return List.copyOf(allRegions.subList(from, to));
+                    return asRegions(page(allRegions, (int) args[0], (int) args[1]));
+                }
+                case "selectPageWithState" -> {
+                    return page(allRegions, (int) args[0], (int) args[1]);
+                }
+                case "countByWorld" -> {
+                    return inWorld(allRegions, (UUID) args[0]).size();
+                }
+                case "selectPageByWorld" -> {
+                    return asRegions(page(inWorld(allRegions, (UUID) args[0]),
+                            (int) args[1], (int) args[2]));
+                }
+                case "selectPageWithStateByWorld" -> {
+                    return page(inWorld(allRegions, (UUID) args[0]), (int) args[1], (int) args[2]);
+                }
+                case "selectRegisteredIds" -> {
+                    @SuppressWarnings("unchecked")
+                    List<String> candidates = (List<String>) args[1];
+                    List<String> registered = new ArrayList<>();
+                    for (RegionStateRow row : inWorld(allRegions, (UUID) args[0])) {
+                        if (candidates.contains(row.worldGuardRegionId())
+                                && !registered.contains(row.worldGuardRegionId())) {
+                            registered.add(row.worldGuardRegionId());
+                        }
+                    }
+                    return registered;
+                }
+                case "selectByWorldGuardRegion" -> {
+                    for (RegionStateRow row : inWorld(allRegions, (UUID) args[1])) {
+                        if (row.worldGuardRegionId().equals(args[0])) {
+                            return new RealtyRegionEntity(row.realtyRegionId(),
+                                    row.worldGuardRegionId(), row.worldId());
+                        }
+                    }
+                    return null;
                 }
                 default -> throw new UnsupportedOperationException(
                         "RealtyRegionMapper#" + method.getName() + " is not stubbed for this test");
@@ -505,6 +999,34 @@ final class TestServers {
                 RealtyRegionMapper.class.getClassLoader(),
                 new Class<?>[]{RealtyRegionMapper.class},
                 handler);
+    }
+
+    private static @NotNull List<RegionStateRow> inWorld(@NotNull List<RegionStateRow> rows,
+                                                        @NotNull UUID worldId) {
+        List<RegionStateRow> scoped = new ArrayList<>();
+        for (RegionStateRow row : rows) {
+            if (row.worldId().equals(worldId)) {
+                scoped.add(row);
+            }
+        }
+        return scoped;
+    }
+
+    private static @NotNull List<RegionStateRow> page(@NotNull List<RegionStateRow> rows,
+                                                      int limit,
+                                                      int offset) {
+        int from = Math.min(offset, rows.size());
+        int to = Math.min(from + limit, rows.size());
+        return List.copyOf(rows.subList(from, to));
+    }
+
+    private static @NotNull List<RealtyRegionEntity> asRegions(@NotNull List<RegionStateRow> rows) {
+        List<RealtyRegionEntity> regions = new ArrayList<>();
+        for (RegionStateRow row : rows) {
+            regions.add(new RealtyRegionEntity(
+                    row.realtyRegionId(), row.worldGuardRegionId(), row.worldId()));
+        }
+        return regions;
     }
 
     private static @NotNull RestSettings defaultSettings() {
@@ -524,13 +1046,13 @@ final class TestServers {
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
                                                             boolean failOnSelectByName) {
-        return stubSession(worlds, failOnSelectByName, List.of(), List.of(), null, null);
+        return stubSession(worlds, failOnSelectByName, List.of(), List.of(), null, null, null, null, null);
     }
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
                                                             boolean failOnSelectByName,
                                                             @NotNull List<String> regionTags) {
-        return stubSession(worlds, failOnSelectByName, regionTags, List.of(), null, null);
+        return stubSession(worlds, failOnSelectByName, regionTags, List.of(), null, null, null, null, null);
     }
 
     private static @NotNull SqlSessionWrapper stubSession(@NotNull List<RealtyWorldEntity> worlds,
@@ -538,7 +1060,10 @@ final class TestServers {
                                                             @NotNull List<String> regionTags,
                                                             @NotNull List<RentedRegionView> rentedViews,
                                                             @Nullable SearchStub searchStub,
-                                                            @Nullable List<RealtyRegionEntity> allRegions) {
+                                                            @Nullable List<RegionStateRow> allRegions,
+                                                            @Nullable FreeholdContractMapper freeholdContractMapper,
+                                                            @Nullable FreeholdContractAuctionMapper auctionMapper,
+                                                            @Nullable ActivityMapper activityMapper) {
         RealtyWorldMapper realtyWorldMapper = worldMapperHandler(worlds, failOnSelectByName);
         RegionTagMapper regionTagMapper = regionTagMapperHandler(regionTags);
         LeaseholdContractMapper leaseholdContractMapper = leaseholdContractMapperHandler(rentedViews);
@@ -558,6 +1083,27 @@ final class TestServers {
                             "SqlSessionWrapper#realtyRegionMapper is not stubbed for this test");
                 }
                 return realtyRegionMapperHandler(allRegions);
+            }
+            if ("activityMapper".equals(method.getName())) {
+                if (activityMapper == null) {
+                    throw new UnsupportedOperationException(
+                            "SqlSessionWrapper#activityMapper is not stubbed for this test");
+                }
+                return activityMapper;
+            }
+            if ("freeholdContractAuctionMapper".equals(method.getName())) {
+                if (auctionMapper == null) {
+                    throw new UnsupportedOperationException(
+                            "SqlSessionWrapper#freeholdContractAuctionMapper is not stubbed for this test");
+                }
+                return auctionMapper;
+            }
+            if ("freeholdContractMapper".equals(method.getName())) {
+                if (freeholdContractMapper == null) {
+                    throw new UnsupportedOperationException(
+                            "SqlSessionWrapper#freeholdContractMapper is not stubbed for this test");
+                }
+                return freeholdContractMapper;
             }
             if ("searchMapper".equals(method.getName())) {
                 if (searchStub == null) {
@@ -676,7 +1222,10 @@ final class TestServers {
         private final List<String> regionTags;
         private final List<RentedRegionView> rentedViews;
         private final SearchStub searchStub;
-        private final List<RealtyRegionEntity> allRegions;
+        private final List<RegionStateRow> allRegions;
+        private final FreeholdContractMapper freeholdContractMapper;
+        private final FreeholdContractAuctionMapper auctionMapper;
+        private final ActivityMapper activityMapper;
 
         private StubDatabase(boolean failing) {
             this(failing, List.of());
@@ -713,7 +1262,43 @@ final class TestServers {
                               boolean failOnSelectByName, @NotNull List<String> regionTags,
                               @NotNull List<RentedRegionView> rentedViews,
                               @Nullable SearchStub searchStub,
-                              @Nullable List<RealtyRegionEntity> allRegions) {
+                              @Nullable List<RegionStateRow> allRegions) {
+            this(failing, worlds, failOnSelectByName, regionTags, rentedViews, searchStub,
+                    allRegions, null);
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
+                              boolean failOnSelectByName, @NotNull List<String> regionTags,
+                              @NotNull List<RentedRegionView> rentedViews,
+                              @Nullable SearchStub searchStub,
+                              @Nullable List<RegionStateRow> allRegions,
+                              @Nullable FreeholdContractMapper freeholdContractMapper) {
+            this(failing, worlds, failOnSelectByName, regionTags, rentedViews, searchStub,
+                    allRegions, freeholdContractMapper, null);
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
+                              boolean failOnSelectByName, @NotNull List<String> regionTags,
+                              @NotNull List<RentedRegionView> rentedViews,
+                              @Nullable SearchStub searchStub,
+                              @Nullable List<RegionStateRow> allRegions,
+                              @Nullable FreeholdContractMapper freeholdContractMapper,
+                              @Nullable FreeholdContractAuctionMapper auctionMapper) {
+            this(failing, worlds, failOnSelectByName, regionTags, rentedViews, searchStub,
+                    allRegions, freeholdContractMapper, auctionMapper, null);
+        }
+
+        private StubDatabase(boolean failing, @NotNull List<RealtyWorldEntity> worlds,
+                              boolean failOnSelectByName, @NotNull List<String> regionTags,
+                              @NotNull List<RentedRegionView> rentedViews,
+                              @Nullable SearchStub searchStub,
+                              @Nullable List<RegionStateRow> allRegions,
+                              @Nullable FreeholdContractMapper freeholdContractMapper,
+                              @Nullable FreeholdContractAuctionMapper auctionMapper,
+                              @Nullable ActivityMapper activityMapper) {
+            this.activityMapper = activityMapper;
+            this.auctionMapper = auctionMapper;
+            this.freeholdContractMapper = freeholdContractMapper;
             this.allRegions = allRegions;
             this.failing = failing;
             this.worlds = worlds;
@@ -734,7 +1319,8 @@ final class TestServers {
                 throw new RuntimeException("stub database is unreachable");
             }
             return stubSession(this.worlds, this.failOnSelectByName, this.regionTags,
-                    this.rentedViews, this.searchStub, this.allRegions);
+                    this.rentedViews, this.searchStub, this.allRegions, this.freeholdContractMapper,
+                    this.auctionMapper, this.activityMapper);
         }
 
         @Override
