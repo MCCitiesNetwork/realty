@@ -16,6 +16,9 @@ import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyWorldMapper;
 import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
+import io.github.md5sha256.realty.rest.json.RegionResponse;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
+import io.github.md5sha256.realty.rest.module.NameLookup;
 import org.apache.ibatis.session.ExecutorType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,7 +28,10 @@ import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -81,6 +87,81 @@ final class TestServers {
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds, false, List.of()), defaultSettings());
+    }
+
+    static final UUID WORLD_ID = UUID.fromString("8f4d0000-0000-0000-0000-000000000001");
+    static final UUID AUTHORITY = UUID.fromString("069a79f4-44e9-4726-a5be-fca90e38aaf5");
+
+    /**
+     * A single freehold region, {@code downtown_plot_14} in world {@code WORLD_ID},
+     * for sale, wired to the given {@link ModuleClient} -- for tests exercising
+     * module-backed health and enrichment behaviour.
+     */
+    static @NotNull RealtyRestServer withModule(@NotNull ModuleClient module) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
+        FreeholdContractEntity freehold = new FreeholdContractEntity(1, AUTHORITY, null, 25000.0, true);
+        RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
+        return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
+                new StubDatabase(false, worlds), defaultSettings(), module);
+    }
+
+    static @NotNull ModuleClient stubModule(@NotNull Map<UUID, String> names,
+                                            @NotNull Map<String, RegionResponse.Dimensions> dimensionsByRegionId,
+                                            @NotNull Map<String, UUID> uuidsByName) {
+        return new ModuleClient() {
+            @Override
+            public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
+                                                                            @NotNull String regionId) {
+                return Optional.ofNullable(dimensionsByRegionId.get(regionId));
+            }
+
+            @Override
+            public @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids) {
+                Map<UUID, String> resolved = new LinkedHashMap<>();
+                for (UUID id : ids) {
+                    if (names.containsKey(id)) {
+                        resolved.put(id, names.get(id));
+                    }
+                }
+                return resolved;
+            }
+
+            @Override
+            public @NotNull NameLookup uuidOf(@NotNull String name) {
+                UUID id = uuidsByName.get(name);
+                return id == null ? new NameLookup.Unknown() : new NameLookup.Resolved(id, name);
+            }
+
+            @Override
+            public @NotNull Status status() {
+                return Status.OK;
+            }
+        };
+    }
+
+    static @NotNull ModuleClient unreachableModule() {
+        return new ModuleClient() {
+            @Override
+            public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
+                                                                            @NotNull String regionId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids) {
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull NameLookup uuidOf(@NotNull String name) {
+                return new NameLookup.Unavailable();
+            }
+
+            @Override
+            public @NotNull Status status() {
+                return Status.UNREACHABLE;
+            }
+        };
     }
 
     /**

@@ -4,6 +4,8 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.rest.module.HttpModuleClient;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.SQLException;
@@ -44,7 +46,12 @@ public final class RealtyRestMain {
                 IsoDates::format,
                 () -> 0L);
 
-        RealtyRestServer server = new RealtyRestServer(backend, database, config.rest());
+        ModuleClient moduleClient = HttpModuleClient.from(config.rest());
+        LOGGER.info("query-service enrichment: " + (moduleClient.status() == ModuleClient.Status.DISABLED
+                ? "disabled (REALTY_REST_MODULE_URL unset or no secret)"
+                : "enabled against " + config.rest().moduleUrl()));
+
+        RealtyRestServer server = new RealtyRestServer(backend, database, config.rest(), moduleClient);
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
         server.start();
     }

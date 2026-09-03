@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.database.entity.RentedRegionView;
 import io.github.md5sha256.realty.rest.json.PlayerRef;
 import io.github.md5sha256.realty.rest.json.PlayerRegionsResponse;
 import io.github.md5sha256.realty.rest.json.WorldRef;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 
@@ -30,15 +31,18 @@ final class PlayerRegionsHandler {
     private final Database database;
     private final WorldLookup worldLookup;
     private final RestSettings settings;
+    private final ModuleClient moduleClient;
 
     PlayerRegionsHandler(@NotNull RealtyBackend backend,
                          @NotNull Database database,
                          @NotNull WorldLookup worldLookup,
-                         @NotNull RestSettings settings) {
+                         @NotNull RestSettings settings,
+                         @NotNull ModuleClient moduleClient) {
         this.backend = backend;
         this.database = database;
         this.worldLookup = worldLookup;
         this.settings = settings;
+        this.moduleClient = moduleClient;
     }
 
     void handle(@NotNull Context ctx) {

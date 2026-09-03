@@ -11,6 +11,7 @@ import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.rest.json.PlayerRef;
 import io.github.md5sha256.realty.rest.json.RegionResponse;
 import io.github.md5sha256.realty.rest.json.WorldRef;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,11 +28,14 @@ final class RegionHandler {
     private final RealtyBackend backend;
     private final Database database;
     private final WorldLookup worldLookup;
+    private final ModuleClient moduleClient;
 
-    RegionHandler(@NotNull RealtyBackend backend, @NotNull Database database, @NotNull WorldLookup worldLookup) {
+    RegionHandler(@NotNull RealtyBackend backend, @NotNull Database database, @NotNull WorldLookup worldLookup,
+                 @NotNull ModuleClient moduleClient) {
         this.backend = backend;
         this.database = database;
         this.worldLookup = worldLookup;
+        this.moduleClient = moduleClient;
     }
 
     void handle(@NotNull Context ctx) {
