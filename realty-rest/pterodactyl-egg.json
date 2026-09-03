@@ -110,10 +110,10 @@
     },
     {
       "name": "Query Module Secret",
-      "description": "Shared secret sent to the query-service module on every call. Only used when Query Module URL is set.",
+      "description": "Shared secret sent to the query-service module on every call. Only used when Query Module URL is set. Viewable, like every other editable field on this egg -- Pterodactyl renders a field only for viewable variables, so hiding it would make it uneditable too.",
       "env_variable": "REALTY_REST_MODULE_SECRET",
       "default_value": "",
-      "user_viewable": false,
+      "user_viewable": true,
       "user_editable": true,
       "rules": "nullable|string",
       "field_type": "text"
