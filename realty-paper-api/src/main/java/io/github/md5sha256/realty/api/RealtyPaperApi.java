@@ -30,6 +30,12 @@ public interface RealtyPaperApi {
      */
     void setSafeBlockPredicate(@NotNull Predicate<Block> predicate);
 
+    /**
+     * Player name and UUID resolution backed by the server's usercache and Realty's profile cache.
+     * Modules and other plugins should use this rather than {@code Bukkit.getOfflinePlayer}.
+     */
+    @NotNull PlayerNameService playerNameService();
+
     // ═══════════════════════════════════════════════════
     // COMPLEX OPERATIONS (economy + WG + signs/flags)
     // ═══════════════════════════════════════════════════

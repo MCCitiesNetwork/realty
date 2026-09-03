@@ -28,8 +28,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -81,7 +83,7 @@ class RealtyPaperApiImplTest {
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
-                new SafeLocationFinder());
+                new SafeLocationFinder(), stubPlayerNameService());
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
 
@@ -111,6 +113,20 @@ class RealtyPaperApiImplTest {
         bukkitMock.close();
         worldGuardMock.close();
         bukkitAdapterMock.close();
+    }
+
+    private static PlayerNameService stubPlayerNameService() {
+        return new PlayerNameService() {
+            @Override
+            public CompletableFuture<Optional<String>> nameOf(UUID id) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
+
+            @Override
+            public CompletableFuture<Optional<UUID>> uuidOf(String name) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
+        };
     }
 
     private static ExecutorService sameThreadExecutorService() {
