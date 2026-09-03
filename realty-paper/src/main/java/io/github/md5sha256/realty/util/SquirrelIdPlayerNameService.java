@@ -1,7 +1,6 @@
 package io.github.md5sha256.realty.util;
 
 import io.github.md5sha256.realty.api.PlayerNameService;
-import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
@@ -20,7 +19,7 @@ import java.util.function.Function;
  * this class is where that becomes {@link Optional#empty()}.</p>
  *
  * <p><b>Threading.</b> The lookups are only <i>mostly</i> asynchronous: both read the server's
- * usercache first ({@code Bukkit.getOfflinePlayer}, {@code Bukkit.getOfflinePlayerIfCached})
+ * usercache first ({@code Server#getOfflinePlayer}, {@code Server#getOfflinePlayerIfCached})
  * <i>before</i> returning their future, and that profile cache is mutated on the main thread.
  * Calling them from an arbitrary thread — a Javalin worker serving {@code query-service}, say — is
  * therefore a data race. This class is the single place that fixes it: an off-main-thread call hops
@@ -36,14 +35,15 @@ public final class SquirrelIdPlayerNameService implements PlayerNameService {
     private final BooleanSupplier onMainThread;
 
     public SquirrelIdPlayerNameService(@NotNull SquirrelIdUsernameResolver resolver,
-                                       @NotNull Executor mainThread) {
-        this(resolver::getUsername, resolver::getUuid, mainThread, Bukkit::isPrimaryThread);
+                                       @NotNull Executor mainThread,
+                                       @NotNull BooleanSupplier onMainThread) {
+        this(resolver::getUsername, resolver::getUuid, mainThread, onMainThread);
     }
 
-    SquirrelIdPlayerNameService(@NotNull Function<UUID, CompletableFuture<String>> nameLookup,
-                                @NotNull Function<String, CompletableFuture<Optional<UUID>>> uuidLookup,
-                                @NotNull Executor mainThread,
-                                @NotNull BooleanSupplier onMainThread) {
+    public SquirrelIdPlayerNameService(@NotNull Function<UUID, CompletableFuture<String>> nameLookup,
+                                       @NotNull Function<String, CompletableFuture<Optional<UUID>>> uuidLookup,
+                                       @NotNull Executor mainThread,
+                                       @NotNull BooleanSupplier onMainThread) {
         this.nameLookup = Objects.requireNonNull(nameLookup, "nameLookup");
         this.uuidLookup = Objects.requireNonNull(uuidLookup, "uuidLookup");
         this.mainThread = Objects.requireNonNull(mainThread, "mainThread");

@@ -1,29 +1,45 @@
 package io.github.md5sha256.realty.adapter.query;
 
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 
 /**
  * Reads WorldGuard on the main thread. The measurement is a handful of O(1) field reads; the thread
  * hop is the cost. The caller applies the timeout, because it owns the request.
+ *
+ * <p>Both lookups are injected rather than reached for statically: the world lookup stands in for
+ * {@code Server#getWorld}, and the region-manager lookup for WorldGuard's region container. That
+ * keeps this class free of static service locators, so the read logic is unit-testable without a
+ * running server.</p>
  */
 public final class MainThreadDimensionsSource implements RegionDimensionsSource {
 
     private final Executor mainThread;
+    private final Function<UUID, @Nullable World> worldLookup;
+    private final Function<World, @Nullable RegionManager> regionManagerLookup;
 
-    public MainThreadDimensionsSource(@NotNull Executor mainThread) {
+    /**
+     * @param mainThread          executor running tasks on the server main thread
+     * @param worldLookup         world by unique id, {@code null} when no such world is loaded
+     * @param regionManagerLookup WorldGuard region manager for a world, {@code null} when the world
+     *                            is not region-managed
+     */
+    public MainThreadDimensionsSource(@NotNull Executor mainThread,
+                                      @NotNull Function<UUID, @Nullable World> worldLookup,
+                                      @NotNull Function<World, @Nullable RegionManager> regionManagerLookup) {
         this.mainThread = Objects.requireNonNull(mainThread, "mainThread");
+        this.worldLookup = Objects.requireNonNull(worldLookup, "worldLookup");
+        this.regionManagerLookup = Objects.requireNonNull(regionManagerLookup, "regionManagerLookup");
     }
 
     @Override
@@ -40,14 +56,13 @@ public final class MainThreadDimensionsSource implements RegionDimensionsSource 
         }
     }
 
-    private static @NotNull Optional<RegionDimensions> readOnMainThread(@NotNull UUID worldId,
-                                                                         @NotNull String regionId) {
-        World world = Bukkit.getWorld(worldId);
+    private @NotNull Optional<RegionDimensions> readOnMainThread(@NotNull UUID worldId,
+                                                                 @NotNull String regionId) {
+        World world = this.worldLookup.apply(worldId);
         if (world == null) {
             return Optional.empty();
         }
-        RegionManager manager = WorldGuard.getInstance().getPlatform()
-                .getRegionContainer().get(BukkitAdapter.adapt(world));
+        RegionManager manager = this.regionManagerLookup.apply(world);
         if (manager == null) {
             return Optional.empty();
         }
