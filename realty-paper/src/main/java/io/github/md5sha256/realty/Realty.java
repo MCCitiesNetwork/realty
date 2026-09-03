@@ -13,6 +13,7 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RealtyBackend;
+import io.github.md5sha256.realty.api.PlayerNameService;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
 import io.github.md5sha256.realty.api.RegionProfileService;
@@ -86,6 +87,7 @@ import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
+import io.github.md5sha256.realty.util.SquirrelIdPlayerNameService;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
@@ -147,6 +149,7 @@ public final class Realty extends JavaPlugin {
     private final SignCache signCache = new SignCache();
     private EconomyProvider economyProvider;
     private SquirrelIdUsernameResolver nameResolver;
+    private PlayerNameService playerNameService;
     private ExecutorState executorState;
     private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
@@ -258,6 +261,7 @@ public final class Realty extends JavaPlugin {
             this.nameResolver = new SquirrelIdUsernameResolver(
                     new File(getDataFolder(), "profiles.sqlite"),
                     this.executorState.networkExec());
+            this.playerNameService = new SquirrelIdPlayerNameService(this.nameResolver);
         } catch (IOException ex) {
             getLogger().severe("Failed to initialize profile cache!");
             ex.printStackTrace();
@@ -305,7 +309,8 @@ public final class Realty extends JavaPlugin {
         this.paperApi = new RealtyPaperApiImpl(
                 this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
-                () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder);
+                () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
+                this.playerNameService);
         this.eventDispatch = new RealtyEventDispatch(
                 getServer(),
                 this.executorState.mainThreadExec(),
@@ -323,6 +328,8 @@ public final class Realty extends JavaPlugin {
                 .register(RealtyBackend.class, this.logic, this, ServicePriority.Normal);
         getServer().getServicesManager()
                 .register(RealtyPaperApi.class, this.paperApi, this, ServicePriority.Normal);
+        getServer().getServicesManager()
+                .register(PlayerNameService.class, this.playerNameService, this, ServicePriority.Normal);
         warnOrphanedTags();
         // Modules start last so that everything they might reach for — the API services, commands
         // and listeners — is already in place.
