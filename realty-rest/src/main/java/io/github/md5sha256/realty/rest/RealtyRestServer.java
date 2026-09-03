@@ -61,8 +61,11 @@ public final class RealtyRestServer {
             "/v1/regions",
             "/v1/regions/search",
             "/v1/tags",
+            "/v1/stats",
+            "/v1/leaderboard/owners",
             "/v1/players/regions",
             "/v1/players/lookup",
+            "/v1/players/summary",
             "/v1/openapi.yaml",
             "/v1/openapi.json",
             "/v1/docs"
@@ -168,6 +171,17 @@ public final class RealtyRestServer {
 
         PlayerLookupHandler playerLookupHandler = new PlayerLookupHandler(this.moduleClient);
         this.javalin.get("/v1/players/lookup", playerLookupHandler::handle);
+
+        PlayerSummaryHandler playerSummaryHandler =
+                new PlayerSummaryHandler(this.backend, this.moduleClient);
+        this.javalin.get("/v1/players/summary", playerSummaryHandler::handle);
+
+        OwnersLeaderboardHandler ownersLeaderboardHandler =
+                new OwnersLeaderboardHandler(this.database, this.settings, this.moduleClient);
+        this.javalin.get("/v1/leaderboard/owners", ownersLeaderboardHandler::handle);
+
+        StatsHandler statsHandler = new StatsHandler(this.backend);
+        this.javalin.get("/v1/stats", statsHandler::handle);
 
         TagsHandler tagsHandler = new TagsHandler(this.backend);
         this.javalin.get("/v1/tags", tagsHandler::handle);

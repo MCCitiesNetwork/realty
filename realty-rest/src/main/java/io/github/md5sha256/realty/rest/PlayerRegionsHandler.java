@@ -80,24 +80,7 @@ final class PlayerRegionsHandler {
      * unreachable module is 502.
      */
     private @NotNull PlayerRef resolvePlayer(@NotNull String param) {
-        if (isUuidShaped(param)) {
-            UUID id;
-            try {
-                id = UUID.fromString(param);
-            } catch (IllegalArgumentException ex) {
-                throw ApiException.badRequest("MALFORMED_UUID", "Query parameter 'player' is not a valid UUID");
-            }
-            return Objects.requireNonNull(PlayerNames.ref(id, PlayerNames.resolve(this.moduleClient, List.of(id))));
-        }
-        return PlayerNameResolution.byName(this.moduleClient, param, "player");
-    }
-
-    private static boolean isUuidShaped(@NotNull String value) {
-        return value.length() == 36
-                && value.charAt(8) == '-'
-                && value.charAt(13) == '-'
-                && value.charAt(18) == '-'
-                && value.charAt(23) == '-';
+        return PlayerNameResolution.byUuidOrName(this.moduleClient, param, "player");
     }
 
     private @NotNull PlayerRegionsResponse handleOwned(@NotNull PlayerRef player, @NotNull UUID playerId,
