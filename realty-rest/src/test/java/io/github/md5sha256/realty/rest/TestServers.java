@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
@@ -189,6 +190,56 @@ final class TestServers {
         return new RealtyRestServer(stubBackend(),
                 new StubDatabase(false, List.of(), false, List.of(), List.of(), null, null, mapper),
                 defaultSettings(), stubModule(names, Map.of(), Map.of()));
+    }
+
+    /**
+     * Captures what a handler asked {@code searchHistory} for, so a test can assert on
+     * the arguments as well as the response.
+     */
+    static final class HistoryStub {
+
+        private final List<HistoryEntry> entries;
+        private final int totalCount;
+
+        String eventType;
+        LocalDateTime since;
+        UUID playerId;
+        int limit;
+        int offset;
+
+        HistoryStub(@NotNull List<HistoryEntry> entries, int totalCount) {
+            this.entries = entries;
+            this.totalCount = totalCount;
+        }
+    }
+
+    static @NotNull RealtyRestServer withHistory(@NotNull List<HistoryEntry> entries,
+                                                 int totalCount,
+                                                 @NotNull Map<UUID, String> names) {
+        return withHistory(new HistoryStub(entries, totalCount), names);
+    }
+
+    static @NotNull RealtyRestServer withHistory(@NotNull HistoryStub stub,
+                                                 @NotNull Map<UUID, String> names) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
+        InvocationHandler handler = (proxy, method, args) -> {
+            if (!"searchHistory".equals(method.getName())) {
+                throw new UnsupportedOperationException(
+                        "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+            }
+            stub.eventType = (String) args[2];
+            stub.since = (LocalDateTime) args[3];
+            stub.playerId = (UUID) args[4];
+            stub.limit = (int) args[5];
+            stub.offset = (int) args[6];
+            return new RealtyBackend.HistoryResult(stub.entries, stub.totalCount);
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
+                handler);
+        return new RealtyRestServer(backend, new StubDatabase(false, worlds), defaultSettings(),
+                stubModule(names, Map.of(), Map.of()));
     }
 
     /**

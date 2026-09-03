@@ -58,6 +58,7 @@ public final class RealtyRestServer {
             "/v1/health",
             "/v1/worlds",
             "/v1/region",
+            "/v1/region/history",
             "/v1/regions",
             "/v1/regions/search",
             "/v1/tags",
@@ -175,6 +176,10 @@ public final class RealtyRestServer {
         PlayerSummaryHandler playerSummaryHandler =
                 new PlayerSummaryHandler(this.backend, this.moduleClient);
         this.javalin.get("/v1/players/summary", playerSummaryHandler::handle);
+
+        RegionHistoryHandler regionHistoryHandler = new RegionHistoryHandler(
+                this.backend, this.worldLookup, this.settings, this.moduleClient);
+        this.javalin.get("/v1/region/history", regionHistoryHandler::handle);
 
         OwnersLeaderboardHandler ownersLeaderboardHandler =
                 new OwnersLeaderboardHandler(this.database, this.settings, this.moduleClient);
