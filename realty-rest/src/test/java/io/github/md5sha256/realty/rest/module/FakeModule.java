@@ -38,7 +38,8 @@ final class FakeModule {
         app.get("/health", ctx -> ctx.json(Map.of("status", "ok")));
         app.get("/regions/{worldId}/{regionId}/dimensions", ctx -> {
             if (ctx.pathParam("worldId").equals(WORLD.toString())
-                    && ctx.pathParam("regionId").equals("downtown_plot_14")) {
+                    && (ctx.pathParam("regionId").equals("downtown_plot_14")
+                    || ctx.pathParam("regionId").equals("plot+1"))) {
                 ctx.result("{\"shape\":\"POLYGONAL\",\"minY\":62,\"maxY\":140,\"points\":["
                         + "{\"x\":104,\"z\":-88},{\"x\":131,\"z\":-88},{\"x\":131,\"z\":-61},{\"x\":104,\"z\":-61}]}")
                         .contentType("application/json");
@@ -87,5 +88,21 @@ final class FakeModule {
             }
         }
         return ids;
+    }
+
+    /** A minimal app returning a malformed player id from both batch routes, to exercise defensive parsing. */
+    static @NotNull Javalin malformedIdApp() {
+        Javalin app = Javalin.create(config -> config.showJavalinBanner = false);
+        app.before(ctx -> {
+            if (!SECRET.equals(ctx.header("X-Realty-Secret"))) {
+                ctx.status(401).json(Map.of("error", "UNAUTHORIZED", "message", "nope"));
+                ctx.skipRemainingHandlers();
+            }
+        });
+        app.post("/players/names", ctx ->
+                ctx.result("{\"players\":[{\"id\":\"not-a-uuid\",\"name\":\"X\"}]}").contentType("application/json"));
+        app.post("/players/uuids", ctx ->
+                ctx.result("{\"players\":[{\"id\":\"not-a-uuid\",\"name\":\"X\"}]}").contentType("application/json"));
+        return app;
     }
 }
