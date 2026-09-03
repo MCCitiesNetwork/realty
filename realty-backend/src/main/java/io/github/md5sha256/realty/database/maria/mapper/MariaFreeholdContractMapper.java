@@ -240,6 +240,30 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
 
     @Override
     @Select("""
+            SELECT titleHolderId, COUNT(*) AS plotCount
+            FROM FreeholdContract
+            WHERE titleHolderId IS NOT NULL
+            GROUP BY titleHolderId
+            ORDER BY plotCount DESC, titleHolderId
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "titleHolderId", javaType = UUID.class),
+            @Arg(column = "plotCount", javaType = int.class)
+    })
+    @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolderPaged(@Param("limit") int limit,
+                                                                     @Param("offset") int offset);
+
+    @Override
+    @Select("""
+            SELECT COUNT(DISTINCT titleHolderId)
+            FROM FreeholdContract
+            WHERE titleHolderId IS NOT NULL
+            """)
+    int countDistinctTitleHolders();
+
+    @Override
+    @Select("""
             SELECT fc.titleHolderId       AS titleHolderId,
                    rr.worldGuardRegionId  AS worldGuardRegionId,
                    rt.tagId               AS tagId

@@ -295,6 +295,79 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/leaderboard/owners:
+    get:
+      summary: Title holders ranked by plot count
+      operationId: getOwnersLeaderboard
+      description: >-
+        Owners ranked highest first. Ownership is already public per player via
+        `/realty list <player>`, so no row reveals anything new; what this route
+        adds is the ranking, which no in-game command performs. Ties break on the
+        title holder's UUID so the order is total and paging cannot repeat or skip
+        an owner.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: >-
+            The requested page. An empty `owners` array means nobody holds a plot,
+            or the page lies beyond the last one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnersLeaderboardResponse"
+        "400":
+          description: "`INVALID_PAGE` or `INVALID_PAGE_SIZE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/stats:
+    get:
+      summary: Server-wide totals
+      operationId: getStats
+      description: >-
+        Aggregates over the whole estate: region and contract counts, occupancy,
+        mean prices and the mean lease term. No player or region identity appears
+        in the response. An empty server reports zeroes rather than nulls or
+        absent fields, so a dashboard need not distinguish "no data" from
+        "nothing registered yet".
+      responses:
+        "200":
+          description: The current totals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/tags:
     get:
       summary: List every tag in use with its region count
@@ -409,6 +482,55 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/players/summary:
+    get:
+      summary: One player's holdings, as counts
+      operationId: getPlayerSummary
+      description: >-
+        The counts behind `/realty list <player>`, which accepts any target and is
+        granted by default, so this exposes nothing a passer-by could not already
+        enumerate in game. It exists because counting via that listing means paging
+        it to the last page purely to read a total. A player holding nothing is a
+        200 with zeroes, not a 404: "nothing" is an answer, and there is no player
+        resource here that could be missing.
+      parameters:
+        - name: player
+          in: query
+          required: true
+          description: A player UUID, or a name to resolve through the query-service module.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The player's holdings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerSummaryResponse"
+        "400":
+          description: "`MISSING_PARAMETER` or `MALFORMED_UUID`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`PLAYER_NOT_FOUND` -- the module knows no player by that name."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: "`NAME_LOOKUP_UNAVAILABLE` -- a name was given and the module is unreachable."
           content:
             application/json:
               schema:
@@ -530,6 +652,95 @@ components:
           nullable: true
           description: From the query-service module; null when it is disabled or unreachable.
       required: [ id ]
+    PlayerSummaryResponse:
+      type: object
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        titleHeld:
+          type: integer
+        landlordOf:
+          type: integer
+        occupiedLandlordOf:
+          type: integer
+          description: >-
+            The subset of `landlordOf` that currently has a tenant, so a caller can
+            show let versus vacant without a second call.
+        renting:
+          type: integer
+        authorityOver:
+          type: integer
+      required: [ player, titleHeld, landlordOf, occupiedLandlordOf, renting, authorityOver ]
+    OwnersLeaderboardResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+          description: How many distinct players hold at least one plot.
+        totalPages:
+          type: integer
+        owners:
+          type: array
+          items:
+            $ref: "#/components/schemas/OwnersLeaderboardResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, owners ]
+    OwnersLeaderboardResponse_Entry:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: >-
+            The row's 1-based position across the whole leaderboard, not within the
+            page, so page 2 at pageSize 10 starts at 11.
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        plotCount:
+          type: integer
+      required: [ rank, player, plotCount ]
+    StatsResponse:
+      type: object
+      properties:
+        regions:
+          type: integer
+        freehold:
+          $ref: "#/components/schemas/StatsResponse_Freehold"
+        leasehold:
+          $ref: "#/components/schemas/StatsResponse_Leasehold"
+        activeOffers:
+          type: integer
+        activeAuctions:
+          type: integer
+      required: [ regions, freehold, leasehold, activeOffers, activeAuctions ]
+    StatsResponse_Freehold:
+      type: object
+      properties:
+        contracts:
+          type: integer
+        occupied:
+          type: integer
+          description: Freehold contracts that currently have a title holder.
+        averagePrice:
+          type: number
+      required: [ contracts, occupied, averagePrice ]
+    StatsResponse_Leasehold:
+      type: object
+      properties:
+        contracts:
+          type: integer
+        occupied:
+          type: integer
+          description: Leasehold contracts that currently have a tenant.
+        averagePrice:
+          type: number
+        averageDurationSeconds:
+          type: integer
+          format: int64
+          description: The mean lease term, in whole seconds.
+      required: [ contracts, occupied, averagePrice, averageDurationSeconds ]
     TagResponse:
       type: object
       description: A tag id in use, and how many regions carry it.

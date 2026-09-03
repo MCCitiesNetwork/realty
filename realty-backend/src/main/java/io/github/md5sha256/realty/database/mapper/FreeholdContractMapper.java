@@ -171,6 +171,21 @@ public interface FreeholdContractMapper {
     @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolder();
 
     /**
+     * One page of the same counts, ranked highest first.
+     *
+     * <p>Ties break on {@code titleHolderId} so the order is total. Without that a
+     * caller paging a leaderboard where many owners hold one plot each could see the
+     * same owner twice, or miss one, as the database is free to order ties differently
+     * between the two queries.</p>
+     */
+    @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolderPaged(int limit, int offset);
+
+    /**
+     * @return how many distinct players hold at least one plot
+     */
+    int countDistinctTitleHolders();
+
+    /**
      * Enumerates every title-held freehold region together with its tags, for
      * per-property tax assessment. Returns one row per (region, tag); a region
      * with no tags yields a single row with {@code tagId == null}. Only freeholds
