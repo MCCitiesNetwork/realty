@@ -42,12 +42,23 @@ final class RegionListHandler {
         int pageSize = QueryParams.pageSize(ctx, this.settings.maxPageSize());
         int offset = (page - 1) * pageSize;
 
+        // Resolved before the page is read so an unknown world is a 404 rather than
+        // an empty page, which would otherwise be indistinguishable from a real world
+        // that happens to hold no region.
+        String worldParam = QueryParams.optional(ctx, "world");
+        UUID worldFilter = worldParam == null ? null : this.worldLookup.resolve(worldParam);
+
         int totalCount;
         List<RealtyRegionEntity> rows;
         try (SqlSessionWrapper session = this.database.openSession(true)) {
             RealtyRegionMapper mapper = session.realtyRegionMapper();
-            totalCount = mapper.countAll();
-            rows = mapper.selectPage(pageSize, offset);
+            if (worldFilter == null) {
+                totalCount = mapper.countAll();
+                rows = mapper.selectPage(pageSize, offset);
+            } else {
+                totalCount = mapper.countByWorld(worldFilter);
+                rows = mapper.selectPageByWorld(worldFilter, pageSize, offset);
+            }
         }
 
         Set<UUID> worldIds = new HashSet<>();

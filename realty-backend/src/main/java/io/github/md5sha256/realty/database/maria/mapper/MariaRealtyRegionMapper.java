@@ -231,4 +231,29 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             """)
     int countAll();
 
+    @Override
+    @Select("""
+            SELECT realtyRegionId, worldGuardRegionId, worldId
+            FROM RealtyRegion
+            WHERE worldId = #{worldId}
+            ORDER BY worldGuardRegionId, worldId, realtyRegionId
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<RealtyRegionEntity> selectPageByWorld(@Param("worldId") @NotNull UUID worldId,
+                                                        @Param("limit") int limit,
+                                                        @Param("offset") int offset);
+
+    @Override
+    @Select("""
+            SELECT COUNT(*)
+            FROM RealtyRegion
+            WHERE worldId = #{worldId}
+            """)
+    int countByWorld(@Param("worldId") @NotNull UUID worldId);
+
 }
