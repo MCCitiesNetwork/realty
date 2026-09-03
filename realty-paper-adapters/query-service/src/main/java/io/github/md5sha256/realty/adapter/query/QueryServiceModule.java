@@ -7,6 +7,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -18,6 +19,7 @@ import java.util.logging.Logger;
 public final class QueryServiceModule extends SimplePluginModule<Realty> {
 
     private @Nullable QueryServiceServer server;
+    private @Nullable QueryServiceConfig activeConfig;
 
     @Override
     public void initialize(@NotNull Realty plugin, @NotNull Path dataFolder) {
@@ -35,11 +37,36 @@ public final class QueryServiceModule extends SimplePluginModule<Realty> {
      * A reload re-reads {@code config.yml} and restarts the server on the new settings.
      * {@code reloadable: true} in the manifest does nothing by itself; this override is what makes
      * {@code /realty module reload query-service} take effect.
+     *
+     * <p>A broken edit keeps the previous configuration running: if the new {@code config.yml}
+     * fails to read, or the new server fails to start (e.g. a port clash on the new bind settings),
+     * the module falls back to the configuration it was already running rather than being left
+     * without a server until another reload succeeds.</p>
      */
     @Override
     public @NotNull CompletableFuture<Void> reload(@NotNull Realty plugin) {
+        Logger log = plugin.getLogger();
+        QueryServiceConfig newConfig;
+        try {
+            newConfig = QueryServiceConfig.read(dataFolder());
+        } catch (RuntimeException e) {
+            log.log(Level.SEVERE, "query-service: reload failed to read config.yml, keeping the "
+                    + "running configuration", e);
+            return CompletableFuture.completedFuture(null);
+        }
+        QueryServiceConfig previousConfig = this.activeConfig;
         stop();
-        start(plugin, QueryServiceConfig.read(dataFolder()));
+        try {
+            start(plugin, newConfig);
+        } catch (RuntimeException e) {
+            if (previousConfig != null) {
+                log.log(Level.SEVERE, "query-service: failed to start on the new config, "
+                        + "restarting on the previous one", e);
+                start(plugin, previousConfig);
+            } else {
+                throw e;
+            }
+        }
         return CompletableFuture.completedFuture(null);
     }
 
@@ -49,6 +76,7 @@ public final class QueryServiceModule extends SimplePluginModule<Realty> {
             log.warning("query-service: shared-secret is empty in " + dataFolder().resolve("config.yml")
                     + ", so the query endpoint is NOT running. realty-rest will serve null geometry and "
                     + "null player names until a secret is set here and matched in REALTY_REST_MODULE_SECRET.");
+            this.activeConfig = config;
             return;
         }
         QueryServiceServer created = new QueryServiceServer(
@@ -58,6 +86,7 @@ public final class QueryServiceModule extends SimplePluginModule<Realty> {
                 plugin.paperApi().playerNameService());
         created.start(config.bindHost(), config.port());
         this.server = created;
+        this.activeConfig = config;
         log.info("query-service listening on http://" + config.bindHost() + ":" + config.port());
     }
 
