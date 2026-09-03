@@ -32,18 +32,20 @@ as the source of truth for configuration.
 | `REALTY_REST_MODULE_SECRET` | no | -- | Shared secret sent to that module. |
 | `REALTY_REST_MODULE_TIMEOUT_MS` | no | `1500` | Per-call timeout before a module-sourced field degrades to `null`. |
 
-The last three are read and validated by `RestConfiguration` but are otherwise
-**inert in this build** -- no query-service module client exists yet. Every field it
-would fill in (see below) is always `null`. The resolved configuration (secrets
-redacted) is logged once at startup.
+The resolved configuration (secrets redacted) is logged once at startup.
 
-### What is always null right now
+### Enrichment
 
-A region's `dimensions` field (in `/v1/region` responses) and every player `name` field (in both `/v1/region` and `/v1/players/regions`
-responses) are `null` in this build. They are populated by a separate query-service
-module that has not been built yet -- this is expected, not a bug. Passing a player
-*name* (rather than a UUID) to `/v1/players/regions` currently always fails with
-`502 NAME_LOOKUP_UNAVAILABLE`, for the same reason: name resolution needs that module.
+The last three variables point this service at a query-service module running
+inside the Paper process. When configured, it supplies a region's `dimensions`
+(in `/v1/region` responses) and every player `name` (in `/v1/region` and
+`/v1/players/regions` responses), and lets `/v1/players/regions?player=<name>`
+resolve a player name to a UUID. Without it -- or if it stops answering --
+those fields degrade to `null` rather than failing the whole response, and
+`/v1/health`'s `module` field reports `disabled` or `unreachable` accordingly.
+The one exception is `?player=<name>`: since a name lookup has nothing else to
+return, an unreachable module fails that request with `502
+NAME_LOOKUP_UNAVAILABLE`; looking a player up by UUID still works.
 
 ## Endpoints
 

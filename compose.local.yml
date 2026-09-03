@@ -48,6 +48,12 @@ services:
       # The dev SPA runs on Vite's default port. Without this the browser
       # blocks every request it makes, silently.
       REALTY_REST_CORS_ORIGINS: "http://localhost:5173"
+      # The query-service module runs inside the Paper process on the host. Its
+      # shared-secret lives in plugins/Realty/modules/query-service/config.yml and
+      # must match REALTY_REST_MODULE_SECRET here.
+      REALTY_REST_MODULE_URL: "http://host.docker.internal:8123"
+      REALTY_REST_MODULE_SECRET: "change-me"
+      REALTY_REST_MODULE_TIMEOUT_MS: "1500"
     extra_hosts:
       # Docker Desktop resolves host.docker.internal already; this line is what
       # makes the same file work on plain Linux Docker.

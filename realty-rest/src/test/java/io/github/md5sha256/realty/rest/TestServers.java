@@ -207,8 +207,16 @@ final class TestServers {
      * (with an end date, so {@code secondsRemaining} is exercised) -- all three in
      * a single world.
      */
+    /**
+     * The player id every {@code withPlayerHoldings...} backend is stubbed for --
+     * the stub {@link RealtyBackend} ignores the requested id and returns the same
+     * fixed holdings regardless, so any UUID works, but tests that resolve a name
+     * through a {@link ModuleClient} need a fixed id to assert the response names.
+     */
+    static final UUID PLAYER_ID = UUID.fromString("3a1c88f0-0000-0000-0000-000000000099");
+
     static @NotNull RealtyRestServer withPlayerHoldings() {
-        return withPlayerHoldings(100);
+        return withPlayerHoldings(100, ModuleClient.disabled());
     }
 
     /**
@@ -216,10 +224,18 @@ final class TestServers {
      * given value -- for the page-size clamping test.
      */
     static @NotNull RealtyRestServer withPlayerHoldingsAndMaxPageSize(int maxPageSize) {
-        return withPlayerHoldings(maxPageSize);
+        return withPlayerHoldings(maxPageSize, ModuleClient.disabled());
     }
 
-    private static @NotNull RealtyRestServer withPlayerHoldings(int maxPageSize) {
+    /**
+     * As {@link #withPlayerHoldings()}, but wired to the given {@link ModuleClient}
+     * -- for tests exercising name resolution on {@code /v1/players/regions}.
+     */
+    static @NotNull RealtyRestServer withPlayerHoldingsAndModule(@NotNull ModuleClient module) {
+        return withPlayerHoldings(100, module);
+    }
+
+    private static @NotNull RealtyRestServer withPlayerHoldings(int maxPageSize, @NotNull ModuleClient module) {
         UUID worldId = UUID.randomUUID();
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(worldId, "world"));
 
@@ -238,7 +254,7 @@ final class TestServers {
         return new RealtyRestServer(
                 playerBackend(listResult, ownedResult, rentedResult),
                 new StubDatabase(false, worlds, false, List.of(), List.of(rented)),
-                settings);
+                settings, module);
     }
 
     /**

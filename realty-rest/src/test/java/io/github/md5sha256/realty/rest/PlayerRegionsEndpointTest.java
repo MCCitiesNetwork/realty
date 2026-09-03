@@ -1,9 +1,13 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.testtools.JavalinTest;
 import okhttp3.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
 
 class PlayerRegionsEndpointTest {
 
@@ -144,6 +148,40 @@ class PlayerRegionsEndpointTest {
             Assertions.assertFalse(body.contains("\"owned\""));
             Assertions.assertFalse(body.contains("\"landlord\""));
             Assertions.assertFalse(body.contains("\"rented\""));
+        });
+    }
+
+    @Test
+    void resolvesAPlayerNameThroughTheModuleAndNamesTheRef() {
+        ModuleClient module = TestServers.stubModule(
+                Map.of(TestServers.PLAYER_ID, ".Cool Guy 123"), Map.of(), Map.of(".Cool Guy 123", TestServers.PLAYER_ID));
+        JavalinTest.test(TestServers.withPlayerHoldingsAndModule(module).javalin(), (server, client) -> {
+            for (String encoded : List.of(".Cool%20Guy%20123", ".Cool+Guy+123")) {
+                Response response = client.get("/v1/players/regions?player=" + encoded);
+                Assertions.assertEquals(200, response.code(), encoded);
+                Assertions.assertTrue(response.body().string().contains(
+                        "\"player\":{\"id\":\"" + TestServers.PLAYER_ID + "\",\"name\":\".Cool Guy 123\"}"), encoded);
+            }
+        });
+    }
+
+    @Test
+    void anUnknownNameIs404() {
+        ModuleClient module = TestServers.stubModule(Map.of(), Map.of(), Map.of());
+        JavalinTest.test(TestServers.withPlayerHoldingsAndModule(module).javalin(), (server, client) -> {
+            Response response = client.get("/v1/players/regions?player=nobody");
+            Assertions.assertEquals(404, response.code());
+            Assertions.assertTrue(response.body().string().contains("PLAYER_NOT_FOUND"));
+        });
+    }
+
+    @Test
+    void aNameWithAnUnreachableModuleIs502ButAUuidStillWorks() {
+        JavalinTest.test(TestServers.withPlayerHoldingsAndModule(TestServers.unreachableModule()).javalin(), (server, client) -> {
+            Assertions.assertEquals(502, client.get("/v1/players/regions?player=Notch").code());
+            Response byId = client.get("/v1/players/regions?player=" + TestServers.PLAYER_ID);
+            Assertions.assertEquals(200, byId.code());
+            Assertions.assertTrue(byId.body().string().contains("\"name\":null"));
         });
     }
 }
