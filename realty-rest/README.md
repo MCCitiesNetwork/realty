@@ -187,8 +187,8 @@ schema.
 ### 4. Pterodactyl egg
 
 `realty-rest/pterodactyl-egg.json` is importable under Admin > Nests > Import Egg. It
-declares every variable from the table above as a panel variable, plus one the service
-itself never reads:
+declares every variable from the table above as a panel variable except
+`REALTY_REST_PORT`, plus one the service itself never reads:
 
 | Variable | Rules | Meaning |
 |---|---|---|
@@ -208,14 +208,21 @@ with the Realty plugin; a reinstall must reproduce the same jar rather than sile
 cross a schema boundary and exit. Upgrading is an explicit edit an operator makes when
 they upgrade the plugin.
 
-Startup command, unchanged:
+Startup command:
 
 ```
-java -jar realty-rest-all.jar
+REALTY_REST_PORT={{SERVER_PORT}} java -jar realty-rest-all.jar
 ```
 
-No file is templated -- every runtime setting is a panel-managed environment variable,
-matching the table above exactly.
+The bind port is **not** a panel variable. Wings injects `SERVER_PORT` (and `SERVER_IP`)
+into every container from the server's primary allocation, and the yolks entrypoint
+expands `{{SERVER_PORT}}` in the startup command, so the service always listens on the
+port the panel actually routed. Asking the operator for a port a second time only lets
+the two disagree, which yields a server that reports healthy but is unreachable. Change
+the port by changing the server's primary allocation.
+
+No file is templated -- every other runtime setting is a panel-managed environment
+variable, matching the table above.
 
 ### Publishing a release
 
