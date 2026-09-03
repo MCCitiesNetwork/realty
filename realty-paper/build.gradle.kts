@@ -187,6 +187,9 @@ tasks {
         // anyway keeps the jar fresh for a server that does have PN dropped in by hand.
         val playerNotificationsAdapterJar = project(":realty-paper-adapters:player-notifications-adapter")
                 .tasks.named("shadowJar", AbstractArchiveTask::class).flatMap { it.archiveFile }
+        // The REST query seam. Staged so the module/realty-rest pair can be smoke-tested locally.
+        val queryServiceJar = project(":realty-paper-adapters:query-service")
+                .tasks.named("shadowJar", AbstractArchiveTask::class).flatMap { it.archiveFile }
         // Plan is downloaded below, so stage the extension that pairs with it. Staging it
         // here rather than leaving a hand-copied jar in run/plugins is what stops it going
         // stale: the copy that lived there was built before RealtyApi became RealtyBackend
@@ -197,13 +200,14 @@ tasks {
         val pluginsDir = layout.projectDirectory.dir("run/plugins").asFile
         // The archiveFile providers carry their producing task as a dependency, so the
         // explicit dependsOn declarations they replace are no longer needed.
-        inputs.files(chatAdapterJar, essentialsAdapterJar, playerNotificationsAdapterJar, planExtensionJar)
+        inputs.files(chatAdapterJar, essentialsAdapterJar, playerNotificationsAdapterJar, queryServiceJar, planExtensionJar)
         doFirst {
             moduleDir.mkdirs()
             chatAdapterJar.get().asFile.copyTo(moduleDir.resolve("chat-adapter.jar"), overwrite = true)
             essentialsAdapterJar.get().asFile
                     .copyTo(moduleDir.resolve("essentials-adapter.jar"), overwrite = true)
             playerNotificationsAdapterJar.get().asFile.copyTo(moduleDir.resolve("player-notifications-adapter.jar"), overwrite = true)
+            queryServiceJar.get().asFile.copyTo(moduleDir.resolve("query-service.jar"), overwrite = true)
             // Fixed filename, so a rebuild replaces the jar instead of leaving the previous
             // version behind as a second, duplicate plugin.
             pluginsDir.mkdirs()
