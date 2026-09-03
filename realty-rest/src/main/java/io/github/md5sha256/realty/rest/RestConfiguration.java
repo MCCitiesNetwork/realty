@@ -46,6 +46,11 @@ public record RestConfiguration(
                 env.apply("REALTY_REST_MODULE_URL"),
                 env.apply("REALTY_REST_MODULE_SECRET"),
                 integer(env, "REALTY_REST_MODULE_TIMEOUT_MS", 1500));
+        if (rest.moduleUrl() != null && !rest.moduleUrl().isBlank()
+                && (rest.moduleSecret() == null || rest.moduleSecret().isBlank())) {
+            LOGGER.warning("REALTY_REST_MODULE_URL is set but REALTY_REST_MODULE_SECRET is not; the module "
+                    + "rejects unauthenticated calls, so enrichment is disabled until a secret is set");
+        }
         return new RestConfiguration(database, rest);
     }
 

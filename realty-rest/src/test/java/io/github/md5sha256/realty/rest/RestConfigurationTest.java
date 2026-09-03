@@ -156,4 +156,14 @@ class RestConfigurationTest {
         RestSettings settings = new RestSettings("0.0.0.0", 8080, 5000, List.of(), null, null, 1500);
         Assertions.assertEquals(RestSettings.MAX_PAGE_SIZE_LIMIT, settings.maxPageSize());
     }
+
+    @Test
+    void aModuleUrlWithoutASecretWarnsAndDisablesEnrichment() {
+        Map<String, String> env = new HashMap<>(validEnv());
+        env.put("REALTY_REST_MODULE_URL", "http://localhost:8123");
+        RestConfiguration config = RestConfiguration.load(env::get);
+        Assertions.assertEquals("http://localhost:8123", config.rest().moduleUrl());
+        Assertions.assertNull(config.rest().moduleSecret());
+        Assertions.assertTrue(config.describeRedacted().contains("REALTY_REST_MODULE_SECRET=<unset>"));
+    }
 }
