@@ -127,6 +127,9 @@ curl -s "http://localhost:8080/v1/regions/search?type=rent&world=My%20World&tag=
 # Browse: everything for sale under 10000, most expensive first (the default order)
 curl -s "http://localhost:8080/v1/regions/search?type=sale&maxPrice=10000"
 
+# Every freehold, listed or not -- an unlisted one carries "price": null
+curl -s "http://localhost:8080/v1/regions/search?type=freehold"
+
 # A player's regions, paged
 curl -s "http://localhost:8080/v1/players/regions?player=069a79f4-44e9-4726-a5be-fca90e38aaf5&category=all&page=1&pageSize=25"
 

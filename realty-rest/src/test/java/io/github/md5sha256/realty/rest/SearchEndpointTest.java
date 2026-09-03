@@ -39,12 +39,55 @@ class SearchEndpointTest {
     }
 
     @Test
-    void typeSaleSelectsFreeholdOnly() {
+    void defaultsToTheMarketViewOfFreeholds() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200, client.get("/v1/regions/search").code());
+            Assertions.assertFalse(stub.includeUnpricedFreehold,
+                    "all means on the market, so unlisted freeholds stay out");
+        });
+    }
+
+    @Test
+    void typeSaleSelectsPricedFreeholdOnly() {
         TestServers.SearchStub stub = stubWithOneResult();
         JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
             Assertions.assertEquals(200, client.get("/v1/regions/search?type=sale").code());
             Assertions.assertTrue(stub.includeFreehold);
             Assertions.assertFalse(stub.includeLeasehold);
+            Assertions.assertFalse(stub.includeUnpricedFreehold);
+        });
+    }
+
+    @Test
+    void typeFreeholdSelectsEveryFreeholdIncludingUnpriced() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200, client.get("/v1/regions/search?type=freehold").code());
+            Assertions.assertTrue(stub.includeFreehold);
+            Assertions.assertFalse(stub.includeLeasehold);
+            Assertions.assertTrue(stub.includeUnpricedFreehold);
+        });
+    }
+
+    @Test
+    void typeLeaseholdSelectsLeaseholdOnly() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200, client.get("/v1/regions/search?type=leasehold").code());
+            Assertions.assertFalse(stub.includeFreehold);
+            Assertions.assertTrue(stub.includeLeasehold);
+            Assertions.assertFalse(stub.includeUnpricedFreehold);
+        });
+    }
+
+    @Test
+    void anUnpricedFreeholdIsRenderedWithANullPrice() {
+        SearchResultEntity row = new SearchResultEntity("plot_sold", WORLD_ID, "freehold", null);
+        TestServers.SearchStub stub = new TestServers.SearchStub(List.of(row), 1);
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            String body = client.get("/v1/regions/search?type=freehold").body().string();
+            Assertions.assertTrue(body.contains("\"price\":null"), body);
         });
     }
 
@@ -72,7 +115,7 @@ class SearchEndpointTest {
     void rejectsAnUnknownType() {
         TestServers.SearchStub stub = stubWithOneResult();
         JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
-            Response response = client.get("/v1/regions/search?type=lease");
+            Response response = client.get("/v1/regions/search?type=mortgage");
             Assertions.assertEquals(400, response.code());
             Assertions.assertTrue(response.body().string().contains("INVALID_TYPE"));
         });

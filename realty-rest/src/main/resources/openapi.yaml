@@ -180,11 +180,17 @@ paths:
           in: query
           required: false
           description: >-
-            `sale` for freehold contracts, `rent` for leasehold, `all` (the
-            default) for both.
+            Which contracts to search. `sale` is freeholds with an asking price,
+            `rent` is leaseholds, and `all` (the default) is both -- the market
+            view, matching the in-game `/realty search`. `freehold` widens to
+            every freehold contract, including sold or never-listed regions,
+            which come back with a null `price`; the price bounds apply only to
+            the priced rows, since an unpriced one has nothing to compare.
+            `leasehold` is every leasehold contract, which is the same set as
+            `rent` because a lease always carries a price.
           schema:
             type: string
-            enum: [ sale, rent, all ]
+            enum: [ sale, rent, all, freehold, leasehold ]
             default: all
         - name: world
           in: query
@@ -681,7 +687,10 @@ components:
           type: string
           enum: [ freehold, leasehold ]
         price:
-          type: number
+          type: [ number, "null" ]
+          description: >-
+            The asking price, or null for a freehold that is not currently for
+            sale. Null only appears under `type=freehold`.
       required: [ worldGuardRegionId, world, contractType, price ]
     RegionListResponse:
       type: object
