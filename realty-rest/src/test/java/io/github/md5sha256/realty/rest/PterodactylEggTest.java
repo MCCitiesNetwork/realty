@@ -182,14 +182,70 @@ class PterodactylEggTest {
         }
     }
 
+    /**
+     * Every variable an operator has to fill in must be viewable. In the panel's client-facing
+     * startup tab {@code user_viewable} decides whether the field is rendered at all, and
+     * {@code user_editable} only decides whether a rendered field accepts input, so the pair
+     * {@code viewable: false, editable: true} describes a field nobody can type into. That is
+     * how the database password ended up unenterable by anyone short of a panel root admin.
+     *
+     * <p>A required variable with an empty default is one the operator must supply, so it is
+     * exactly the set that has to be reachable. Deriving the set from the egg's own rules
+     * rather than listing names keeps a future required variable from repeating this.</p>
+     */
     @Test
-    void bothSecretsAreHiddenFromPanelViewers() throws IOException {
+    void everyVariableTheOperatorMustSupplyIsReachableFromThePanel() throws IOException {
         for (JsonNode variable : egg().get("variables")) {
             String name = variable.get("env_variable").asText();
-            if (name.equals("REALTY_DB_PASSWORD") || name.equals("REALTY_REST_MODULE_SECRET")) {
-                Assertions.assertFalse(variable.get("user_viewable").asBoolean(),
-                        name + " must not be viewable by panel users");
+            boolean required = variable.get("rules").asText().contains("required");
+            boolean hasDefault = !variable.get("default_value").asText().isEmpty();
+            if (!required || hasDefault) {
+                continue;
+            }
+            Assertions.assertTrue(variable.get("user_viewable").asBoolean(),
+                    name + " must be supplied by the operator but is not viewable, so the panel"
+                            + " never renders a field for it");
+            Assertions.assertTrue(variable.get("user_editable").asBoolean(),
+                    name + " must be supplied by the operator but is not editable");
+        }
+    }
+
+    /**
+     * The database password is a credential, and making it enterable also makes it readable
+     * by anyone with startup access to the server. That is the accepted trade -- an
+     * unenterable credential is not a working deployment -- but it is a deliberate choice
+     * rather than an oversight, so it is pinned here where anyone changing it will see why.
+     */
+    @Test
+    void theDatabasePasswordIsEnterableFromThePanel() throws IOException {
+        JsonNode password = variable("REALTY_DB_PASSWORD");
+        Assertions.assertTrue(password.get("user_viewable").asBoolean(),
+                "an admin must be able to enter the database password in the panel");
+        Assertions.assertTrue(password.get("user_editable").asBoolean());
+    }
+
+    /**
+     * The module secret stays hidden for now, which it can afford to be: unlike the database
+     * password it is optional, so leaving it unset is a supported deployment -- the service
+     * simply runs without module enrichment rather than failing to start. It carries the same
+     * unenterable-field problem for anyone who does want enrichment, and the second assertion
+     * here is what forces the question to be revisited if it ever becomes required.
+     */
+    @Test
+    void theModuleSecretRemainsHidden() throws IOException {
+        JsonNode secret = variable("REALTY_REST_MODULE_SECRET");
+        Assertions.assertFalse(secret.get("user_viewable").asBoolean(),
+                "the module secret is optional, so it need not be exposed to panel viewers");
+        Assertions.assertFalse(secret.get("rules").asText().contains("required"),
+                "if the module secret ever becomes required it must become viewable too");
+    }
+
+    private static JsonNode variable(String envVariable) throws IOException {
+        for (JsonNode variable : egg().get("variables")) {
+            if (variable.get("env_variable").asText().equals(envVariable)) {
+                return variable;
             }
         }
+        return Assertions.fail("the egg declares no " + envVariable);
     }
 }
