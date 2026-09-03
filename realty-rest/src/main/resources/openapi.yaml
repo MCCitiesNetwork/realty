@@ -111,6 +111,104 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/region/history:
+    get:
+      summary: One region's history
+      operationId: getRegionHistory
+      description: >-
+        The HTTP form of `/realty history`, which is granted by default and accepts
+        any region. Also answers the questions that would otherwise want routes of
+        their own: a region's price history is `type=BUY`, and who has rented it
+        before is `type=RENT`. A region nobody has traded is a 200 with an empty
+        `entries` array, not a 404.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: A world name or UUID.
+          schema:
+            type: string
+        - name: region
+          in: query
+          required: true
+          description: The WorldGuard region id.
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          description: >-
+            Restrict to one event type. Case-insensitive; an unrecognised value is
+            rejected rather than ignored, so a typo does not silently return
+            everything.
+          schema:
+            type: string
+            enum: [ BUY, AUCTION_BUY, OFFER_BUY, AGENT_ADD, AGENT_REMOVE, RENT, UNRENT,
+                    RENEW, LEASEHOLD_EXPIRY, SET_PRICE, UNSET_PRICE, SET_TITLEHOLDER,
+                    UNSET_TITLEHOLDER, SET_DURATION, SET_LANDLORD, SET_TENANT,
+                    UNSET_TENANT, SET_MAX_EXTENSIONS, MODIFY_PROPOSE, MODIFY_ACCEPT,
+                    MODIFY_REJECT, MODIFY_WITHDRAW, MODIFY_APPLY, TERMINATE,
+                    TERMINATION_CANCEL ]
+        - name: since
+          in: query
+          required: false
+          description: >-
+            Only events at or after this instant. Must carry an offset (`Z` or
+            `+hh:mm`): a bare local date-time is rejected rather than assumed to be
+            UTC, since assuming would shift a caller's window by hours in silence.
+            The command takes a relative duration instead; `now - duration` is a
+            trivial conversion on the client.
+          schema:
+            type: string
+            format: date-time
+        - name: player
+          in: query
+          required: false
+          description: Only events this player took part in. A UUID, not a name.
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: The requested page of events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER`, `INVALID_EVENT_TYPE`, `INVALID_SINCE`,
+            `MALFORMED_UUID`, `INVALID_PAGE` or `INVALID_PAGE_SIZE`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- Realty has never seen that world."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/regions:
     get:
       summary: List every registered region
@@ -671,6 +769,59 @@ components:
         authorityOver:
           type: integer
       required: [ player, titleHeld, landlordOf, occupiedLandlordOf, renting, authorityOver ]
+    HistoryResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, entries ]
+    HistoryResponse_Entry:
+      type: object
+      description: >-
+        One event. `kind` decides which of the remaining fields are present; the
+        others are omitted rather than sent as null, so a consumer cannot mistake
+        "this kind has no such field" for "this field happened to be empty".
+        Switch on `kind`: freehold carries buyer, authority and price; leasehold
+        carries tenant, landlord and the lease terms; agent carries agent and actor.
+      properties:
+        kind:
+          type: string
+          enum: [ freehold, leasehold, agent ]
+        eventType:
+          type: string
+        eventTime:
+          type: string
+          format: date-time
+        buyer:
+          $ref: "#/components/schemas/PlayerRef"
+        authority:
+          $ref: "#/components/schemas/PlayerRef"
+        tenant:
+          $ref: "#/components/schemas/PlayerRef"
+        landlord:
+          $ref: "#/components/schemas/PlayerRef"
+        agent:
+          $ref: "#/components/schemas/PlayerRef"
+        actor:
+          $ref: "#/components/schemas/PlayerRef"
+        price:
+          type: number
+        durationSeconds:
+          type: integer
+          format: int64
+        extensionsRemaining:
+          type: integer
+      required: [ kind, eventType, eventTime ]
     OwnersLeaderboardResponse:
       type: object
       properties:
