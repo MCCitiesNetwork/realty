@@ -8,8 +8,7 @@ import java.util.List;
 /**
  * The region payload, mirroring what {@code /realty info} renders.
  *
- * <p>{@code dimensions} is always null until the query-service enrichment client
- * ships, and null thereafter whenever the module is unreachable. It is deliberately
+ * <p>{@code dimensions} is null when the module is disabled or unreachable. It is deliberately
  * present-and-null rather than absent, so adding it later is not a breaking change.</p>
  */
 public record RegionResponse(
@@ -19,7 +18,7 @@ public record RegionResponse(
         @Nullable Freehold freehold,
         @Nullable Leasehold leasehold,
         @Nullable Auction auction,
-        @Nullable Object dimensions,
+        @Nullable Dimensions dimensions,
         @NotNull List<String> tags
 ) {
 
@@ -60,6 +59,19 @@ public record RegionResponse(
             @NotNull PlayerRef bidder,
             double amount
     ) {
+    }
+
+    /**
+     * Live WorldGuard geometry from the query-service module. For a cuboid the four
+     * points are its footprint corners, so both shapes read the same way.
+     */
+    public record Dimensions(@NotNull String shape,
+                             int minY,
+                             int maxY,
+                             @NotNull List<Point> points) {
+    }
+
+    public record Point(int x, int z) {
     }
 
 }

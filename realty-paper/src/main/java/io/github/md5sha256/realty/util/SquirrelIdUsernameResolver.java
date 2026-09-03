@@ -8,7 +8,8 @@ import org.enginehub.squirrelid.resolver.CombinedProfileService;
 import org.enginehub.squirrelid.resolver.HttpRepositoryService;
 import org.enginehub.squirrelid.resolver.PaperPlayerService;
 import org.enginehub.squirrelid.resolver.ProfileService;
-import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -23,9 +24,11 @@ public class SquirrelIdUsernameResolver {
     private final ProfileCache cache;
     private final ProfileService service;
     private final Executor asyncExecutor;
+    private final Server server;
 
     public SquirrelIdUsernameResolver(@NotNull File cacheFile,
-                                      @NotNull Executor asyncExecutor) throws IOException {
+                                      @NotNull Executor asyncExecutor,
+                                      @NotNull Server server) throws IOException {
         this.cache = new SQLiteCache(cacheFile);
         this.service = new CacheForwardingService(
                 new CombinedProfileService(
@@ -33,6 +36,7 @@ public class SquirrelIdUsernameResolver {
                         HttpRepositoryService.forMinecraft()),
                 this.cache);
         this.asyncExecutor = asyncExecutor;
+        this.server = server;
     }
 
     @NotNull
@@ -48,7 +52,7 @@ public class SquirrelIdUsernameResolver {
         // Mojang can't resolve. The UUID overload of getOfflinePlayer never hits Mojang.
         // Only fall through to the (Mojang-backed) profile service for a UUID the server
         // has genuinely never seen.
-        String local = Bukkit.getOfflinePlayer(uuid).getName();
+        String local = this.server.getOfflinePlayer(uuid).getName();
         if (local != null && !local.isEmpty()) {
             return CompletableFuture.completedFuture(local);
         }
@@ -61,6 +65,27 @@ public class SquirrelIdUsernameResolver {
                 return uuid.toString();
             } catch (Exception ex) {
                 return uuid.toString();
+            }
+        }, this.asyncExecutor);
+    }
+
+    /**
+     * Name → UUID. Mirrors {@link #getUsername}: the local usercache first, which is the only place
+     * a Floodgate name such as {@code .Cool Guy 123} can be found, then the profile service.
+     * Completes empty, never exceptionally, when nothing knows the name.
+     */
+    @NotNull
+    public CompletableFuture<Optional<UUID>> getUuid(@NotNull String name) {
+        OfflinePlayer cached = this.server.getOfflinePlayerIfCached(name);
+        if (cached != null) {
+            return CompletableFuture.completedFuture(Optional.of(cached.getUniqueId()));
+        }
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Profile profile = this.service.findByName(name);
+                return Optional.ofNullable(profile).map(Profile::getUniqueId);
+            } catch (Exception ex) {
+                return Optional.<UUID>empty();
             }
         }, this.asyncExecutor);
     }

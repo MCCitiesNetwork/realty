@@ -90,6 +90,11 @@ The routes are unversioned. Both sides of this seam ship from one repository and
 upgrade together; a version prefix here would be ceremony. The public API's `/v1`
 prefix exists because its consumers are third parties, which is not true here.
 
+### `GET /health`
+
+`{"status":"ok"}`; the secret is required here too. It exists so `realty-rest`'s own
+health endpoint can report whether the module is reachable.
+
 ### `GET /regions/{worldId}/{regionId}/dimensions`
 
 Shape, ordered points, and vertical bounds, read live from WorldGuard.
@@ -191,8 +196,15 @@ work. This is the first thing to measure if the endpoint ever needs optimising,
 and a short-TTL in-memory cache refreshed on the main thread is the obvious answer
 if it does. It is not built now, because nothing has measured a need.
 
-Name resolution already returns a `CompletableFuture` and needs no main-thread
-hop.
+Name resolution needs the same discipline, for a less obvious reason: the lookup
+reads the server's usercache (`Bukkit.getOfflinePlayer`,
+`Bukkit.getOfflinePlayerIfCached`) before it returns its future, and that profile
+cache is main-thread-owned state. `SquirrelIdPlayerNameService` therefore hops to
+the main thread whenever it is called from any other thread, and calls the lookup
+directly when it is already on it — a main-thread caller that joins the future
+must not end up waiting for its own next tick. Name requests are bounded by
+`request-timeout-ms` like geometry requests, and a batch is capped at 256 entries,
+so no single request can hold a worker thread or the main thread open-endedly.
 
 ## Lifecycle
 

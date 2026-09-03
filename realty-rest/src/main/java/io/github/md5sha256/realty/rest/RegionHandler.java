@@ -11,13 +11,19 @@ import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.rest.json.PlayerRef;
 import io.github.md5sha256.realty.rest.json.RegionResponse;
 import io.github.md5sha256.realty.rest.json.WorldRef;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
+import io.github.md5sha256.realty.rest.module.PlayerNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * {@code GET /v1/region?world=...&region=...} -- the HTTP form of {@code /realty info}.
@@ -27,11 +33,14 @@ final class RegionHandler {
     private final RealtyBackend backend;
     private final Database database;
     private final WorldLookup worldLookup;
+    private final ModuleClient moduleClient;
 
-    RegionHandler(@NotNull RealtyBackend backend, @NotNull Database database, @NotNull WorldLookup worldLookup) {
+    RegionHandler(@NotNull RealtyBackend backend, @NotNull Database database, @NotNull WorldLookup worldLookup,
+                 @NotNull ModuleClient moduleClient) {
         this.backend = backend;
         this.database = database;
         this.worldLookup = worldLookup;
+        this.moduleClient = moduleClient;
     }
 
     void handle(@NotNull Context ctx) {
@@ -54,39 +63,56 @@ final class RegionHandler {
             tags = session.regionTagMapper().selectTagIdsByRegionId(regionParam);
         }
 
+        List<UUID> playerIds = new ArrayList<>();
+        if (info.freehold() != null) {
+            playerIds.add(info.freehold().titleHolderId());
+            playerIds.add(info.freehold().authorityId());
+        }
+        if (info.leasehold() != null) {
+            playerIds.add(info.leasehold().landlordId());
+            playerIds.add(info.leasehold().tenantId());
+        }
+        if (info.highestBid() != null) {
+            playerIds.add(info.highestBid().bidderId());
+        }
+        // Both module calls are independent, and each carries the same timeout budget.
+        // Run them concurrently so a wedged module costs one timeout, not two.
+        CompletableFuture<Map<UUID, String>> pendingNames =
+                CompletableFuture.supplyAsync(() -> PlayerNames.resolve(this.moduleClient, playerIds));
+        RegionResponse.Dimensions dimensions = this.moduleClient.dimensions(worldId, regionParam).orElse(null);
+        Map<UUID, String> names = pendingNames.join();
+
         RegionResponse response = new RegionResponse(
                 regionParam,
                 worldRef,
                 state == null ? null : state.name(),
-                toFreehold(info.freehold(), info.lastSoldPrice()),
-                toLeasehold(info.leasehold()),
-                toAuction(info.auction(), info.highestBid()),
-                null,
+                toFreehold(info.freehold(), info.lastSoldPrice(), names),
+                toLeasehold(info.leasehold(), names),
+                toAuction(info.auction(), info.highestBid(), names),
+                dimensions,
                 tags);
 
         ctx.json(response);
     }
 
     private static @Nullable RegionResponse.Freehold toFreehold(@Nullable FreeholdContractEntity freehold,
-                                                                @Nullable Double lastSoldPrice) {
+                                                                @Nullable Double lastSoldPrice,
+                                                                @NotNull Map<UUID, String> names) {
         if (freehold == null) {
             return null;
         }
-        PlayerRef titleHolder = freehold.titleHolderId() == null
-                ? null
-                : new PlayerRef(freehold.titleHolderId().toString(), null);
-        PlayerRef authority = new PlayerRef(freehold.authorityId().toString(), null);
+        PlayerRef titleHolder = PlayerNames.ref(freehold.titleHolderId(), names);
+        PlayerRef authority = Objects.requireNonNull(PlayerNames.ref(freehold.authorityId(), names));
         return new RegionResponse.Freehold(titleHolder, authority, freehold.price(), lastSoldPrice);
     }
 
-    private static @Nullable RegionResponse.Leasehold toLeasehold(@Nullable LeaseholdContractEntity leasehold) {
+    private static @Nullable RegionResponse.Leasehold toLeasehold(@Nullable LeaseholdContractEntity leasehold,
+                                                                   @NotNull Map<UUID, String> names) {
         if (leasehold == null) {
             return null;
         }
-        PlayerRef landlord = new PlayerRef(leasehold.landlordId().toString(), null);
-        PlayerRef tenant = leasehold.tenantId() == null
-                ? null
-                : new PlayerRef(leasehold.tenantId().toString(), null);
+        PlayerRef landlord = Objects.requireNonNull(PlayerNames.ref(leasehold.landlordId(), names));
+        PlayerRef tenant = PlayerNames.ref(leasehold.tenantId(), names);
         return new RegionResponse.Leasehold(
                 landlord,
                 tenant,
@@ -99,7 +125,8 @@ final class RegionHandler {
     }
 
     private static @Nullable RegionResponse.Auction toAuction(@Nullable FreeholdContractAuctionEntity auction,
-                                                               @Nullable FreeholdContractBid highestBid) {
+                                                               @Nullable FreeholdContractBid highestBid,
+                                                               @NotNull Map<UUID, String> names) {
         if (auction == null) {
             return null;
         }
@@ -107,7 +134,7 @@ final class RegionHandler {
         LocalDateTime endDate = lastActivity.plusSeconds(auction.biddingDurationSeconds());
         RegionResponse.Bid bid = highestBid == null
                 ? null
-                : new RegionResponse.Bid(new PlayerRef(highestBid.bidderId().toString(), null), highestBid.bidAmount());
+                : new RegionResponse.Bid(Objects.requireNonNull(PlayerNames.ref(highestBid.bidderId(), names)), highestBid.bidAmount());
         return new RegionResponse.Auction(IsoDates.format(endDate), bid);
     }
 
