@@ -49,6 +49,13 @@ return, a module that is unreachable *or not configured* fails that request with
 the database alone, and that is precisely why the two are separate parameters
 rather than one that behaves differently depending on what you put in it.
 
+Three routes are answered *entirely* by the module and so have nothing to degrade
+to either: `/v1/regions/at` and `/v1/region/members` fail with `502` when it is
+unreachable, because an empty answer would assert something different and untrue --
+that the block is in no region, or that the region has no owners.
+`/v1/worlds/geometry` is the exception among the three: its region list comes from
+the database, so it keeps returning the page with every `dimensions` null.
+
 A wedged module therefore adds at most `REALTY_REST_MODULE_TIMEOUT_MS` to a
 request, not a multiple of it: `/v1/region` needs two module calls and issues
 them concurrently, so the two share one timeout budget.
@@ -69,6 +76,15 @@ them concurrently, so the two share one timeout budget.
 - `GET /v1/tags` -- every tag in use, with its region count.
 - `GET /v1/stats` -- server-wide totals.
 - `GET /v1/leaderboard/owners?page=&pageSize=` -- title holders ranked by plot count.
+- `GET /v1/regions/at?world=&x=&z=&y=` -- which registered regions contain a block.
+  With `y` this is a point test at that block; without it, a column test over the
+  footprint at any height, which is what a 2-D map click means. The response's
+  `test` field says which one ran.
+- `GET /v1/region/members?world=&region=` -- the region's WorldGuard owner and
+  member domains, which are distinct from Realty's title holder and tenant.
+- `GET /v1/worlds/geometry?world=&page=&pageSize=` -- every registered region's
+  footprint in one world, for a map overlay. Use this rather than looping
+  `/v1/region`: a page costs the game server one main-thread hop, not one per region.
 - `GET /v1/openapi.yaml`, `GET /v1/openapi.json` -- the OpenAPI document.
 - `GET /v1/docs` -- an interactive Swagger UI page.
 

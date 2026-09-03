@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.rest.module;
 
 import io.github.md5sha256.realty.rest.json.RegionResponse;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Map;
@@ -27,6 +28,22 @@ public interface ModuleClient {
 
     @NotNull NameLookup uuidOf(@NotNull String name);
 
+    /**
+     * Geometry for several regions in one call, keyed by region id. An id naming no region is
+     * omitted. Enrichment, so an unreachable module yields an empty map rather than failing.
+     */
+    @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(@NotNull UUID worldId,
+                                                                  @NotNull Collection<String> regionIds);
+
+    /**
+     * Which WorldGuard regions cover a block. {@code y} null asks the column question.
+     * {@code NotFound} means the world is unknown or not region-managed.
+     */
+    @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x, @Nullable Integer y, int z);
+
+    /** A region's WorldGuard owner and member domains. */
+    @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId, @NotNull String regionId);
+
     /** A live probe of the module's {@code /health}; never cached. */
     @NotNull Status status();
 
@@ -47,6 +64,24 @@ public interface ModuleClient {
             @Override
             public @NotNull NameLookup uuidOf(@NotNull String name) {
                 return new NameLookup.Unavailable();
+            }
+
+            @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
             }
 
             @Override

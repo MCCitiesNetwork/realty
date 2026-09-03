@@ -259,6 +259,29 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
 
     @Override
     @Select("""
+            <script>
+            SELECT DISTINCT worldGuardRegionId
+            FROM RealtyRegion
+            WHERE worldId = #{worldId}
+              <choose>
+                  <when test="candidates != null and !candidates.isEmpty()">
+                      AND worldGuardRegionId IN
+                      <foreach item="candidate" collection="candidates" open="(" separator="," close=")">
+                          #{candidate}
+                      </foreach>
+                  </when>
+                  <!-- An empty candidate list matches nothing. Without this the foreach emits
+                       nothing at all, leaving a bare IN and a syntax error. -->
+                  <otherwise>AND 1 = 0</otherwise>
+              </choose>
+            ORDER BY worldGuardRegionId
+            </script>
+            """)
+    @NotNull List<String> selectRegisteredIds(@Param("worldId") @NotNull UUID worldId,
+                                              @Param("candidates") @NotNull List<String> candidates);
+
+    @Override
+    @Select("""
             SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId,
                    CASE
                        WHEN fc.freeholdContractId IS NOT NULL AND fc.titleHolderId IS NOT NULL THEN 'SOLD'

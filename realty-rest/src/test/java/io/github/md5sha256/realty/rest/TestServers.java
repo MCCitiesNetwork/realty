@@ -27,6 +27,9 @@ import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import io.github.md5sha256.realty.rest.json.RegionResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
+import io.github.md5sha256.realty.rest.module.ModuleResult;
+import io.github.md5sha256.realty.rest.module.RegionMembers;
+import io.github.md5sha256.realty.rest.module.RegionsAt;
 import io.github.md5sha256.realty.rest.module.NameLookup;
 import org.apache.ibatis.session.ExecutorType;
 import org.jetbrains.annotations.NotNull;
@@ -438,6 +441,31 @@ final class TestServers {
             }
 
             @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                Map<String, RegionResponse.Dimensions> found = new LinkedHashMap<>();
+                for (String regionId : regionIds) {
+                    RegionResponse.Dimensions dims = dimensionsByRegionId.get(regionId);
+                    if (dims != null) {
+                        found.put(regionId, dims);
+                    }
+                }
+                return found;
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
             public @NotNull Status status() {
                 return Status.OK;
             }
@@ -466,6 +494,24 @@ final class TestServers {
             @Override
             public @NotNull NameLookup uuidOf(@NotNull String name) {
                 return new NameLookup.Unavailable();
+            }
+
+            @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
             }
 
             @Override
@@ -499,6 +545,24 @@ final class TestServers {
             @Override
             public @NotNull NameLookup uuidOf(@NotNull String name) {
                 return new NameLookup.Unavailable();
+            }
+
+            @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
             }
 
             @Override
@@ -804,6 +868,85 @@ final class TestServers {
                 defaultSettings());
     }
 
+    /**
+     * A server over a fixed set of registered regions, wired to the given module -- the shape
+     * every route in section E of the v1.x spec needs, since each one crosses both.
+     */
+    static @NotNull RealtyRestServer withAllRegionsAndModule(@NotNull List<RegionStateRow> rows,
+                                                             @NotNull List<RealtyWorldEntity> worlds,
+                                                             @NotNull ModuleClient module) {
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
+                defaultSettings(), module);
+    }
+
+    /**
+     * A module answering the three region-query routes from fixed data. {@code regionsAt} is
+     * keyed by the y the caller sends, so a test can pin that the point and column forms are
+     * genuinely different queries rather than one with a default.
+     */
+    static @NotNull ModuleClient regionQueryModule(@NotNull Map<UUID, String> names,
+                                                   @NotNull Map<String, RegionResponse.Dimensions> geometry,
+                                                   @Nullable RegionsAt column,
+                                                   @Nullable RegionsAt point,
+                                                   @Nullable RegionMembers members) {
+        return new ModuleClient() {
+            @Override
+            public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
+                                                                           @NotNull String regionId) {
+                return Optional.ofNullable(geometry.get(regionId));
+            }
+
+            @Override
+            public @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids) {
+                Map<UUID, String> resolved = new LinkedHashMap<>();
+                for (UUID id : ids) {
+                    if (names.containsKey(id)) {
+                        resolved.put(id, names.get(id));
+                    }
+                }
+                return resolved;
+            }
+
+            @Override
+            public @NotNull NameLookup uuidOf(@NotNull String name) {
+                return new NameLookup.Unknown();
+            }
+
+            @Override
+            public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+                    @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+                Map<String, RegionResponse.Dimensions> found = new LinkedHashMap<>();
+                for (String regionId : regionIds) {
+                    RegionResponse.Dimensions dims = geometry.get(regionId);
+                    if (dims != null) {
+                        found.put(regionId, dims);
+                    }
+                }
+                return found;
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                              @Nullable Integer y, int z) {
+                RegionsAt answer = y == null ? column : point;
+                return answer == null ? new ModuleResult.NotFound<>() : new ModuleResult.Found<>(answer);
+            }
+
+            @Override
+            public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                                @NotNull String regionId) {
+                return members == null ? new ModuleResult.NotFound<>()
+                        : new ModuleResult.Found<>(members);
+            }
+
+            @Override
+            public @NotNull Status status() {
+                return Status.OK;
+            }
+        };
+    }
+
     private static @NotNull RealtyRegionMapper realtyRegionMapperHandler(
             @NotNull List<RegionStateRow> allRegions) {
         InvocationHandler handler = (proxy, method, args) -> {
@@ -826,6 +969,27 @@ final class TestServers {
                 }
                 case "selectPageWithStateByWorld" -> {
                     return page(inWorld(allRegions, (UUID) args[0]), (int) args[1], (int) args[2]);
+                }
+                case "selectRegisteredIds" -> {
+                    @SuppressWarnings("unchecked")
+                    List<String> candidates = (List<String>) args[1];
+                    List<String> registered = new ArrayList<>();
+                    for (RegionStateRow row : inWorld(allRegions, (UUID) args[0])) {
+                        if (candidates.contains(row.worldGuardRegionId())
+                                && !registered.contains(row.worldGuardRegionId())) {
+                            registered.add(row.worldGuardRegionId());
+                        }
+                    }
+                    return registered;
+                }
+                case "selectByWorldGuardRegion" -> {
+                    for (RegionStateRow row : inWorld(allRegions, (UUID) args[1])) {
+                        if (row.worldGuardRegionId().equals(args[0])) {
+                            return new RealtyRegionEntity(row.realtyRegionId(),
+                                    row.worldGuardRegionId(), row.worldId());
+                        }
+                    }
+                    return null;
                 }
                 default -> throw new UnsupportedOperationException(
                         "RealtyRegionMapper#" + method.getName() + " is not stubbed for this test");
