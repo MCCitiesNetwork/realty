@@ -61,6 +61,9 @@ public final class RealtyRestServer {
             "/v1/region/history",
             "/v1/regions",
             "/v1/regions/search",
+            "/v1/regions/at",
+            "/v1/region/members",
+            "/v1/worlds/geometry",
             "/v1/tags",
             "/v1/stats",
             "/v1/leaderboard/owners",
@@ -194,6 +197,18 @@ public final class RealtyRestServer {
         ActivityHandler activityHandler = new ActivityHandler(
                 this.database, this.worldLookup, this.settings, this.moduleClient);
         this.javalin.get("/v1/activity", activityHandler::handle);
+
+        RegionsAtHandler regionsAtHandler =
+                new RegionsAtHandler(this.database, this.worldLookup, this.moduleClient);
+        this.javalin.get("/v1/regions/at", regionsAtHandler::handle);
+
+        RegionMembersHandler regionMembersHandler =
+                new RegionMembersHandler(this.database, this.worldLookup, this.moduleClient);
+        this.javalin.get("/v1/region/members", regionMembersHandler::handle);
+
+        WorldGeometryHandler worldGeometryHandler = new WorldGeometryHandler(
+                this.database, this.worldLookup, this.settings, this.moduleClient);
+        this.javalin.get("/v1/worlds/geometry", worldGeometryHandler::handle);
 
         StatsHandler statsHandler = new StatsHandler(this.backend);
         this.javalin.get("/v1/stats", statsHandler::handle);

@@ -651,6 +651,229 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/regions/at:
+    get:
+      summary: Which registered regions contain a block
+      operationId: regionsAt
+      description: >-
+        A point or column lookup, for a map click or a "what plot am I standing
+        on" bot command. `y` is optional and the two forms are different
+        questions rather than one with a default: with `y` this is a true point
+        test at that block, so a region whose vertical band excludes the point
+        does not match; without it, a column test matching every region whose
+        horizontal footprint covers `(x, z)` at any height. The response's `test`
+        field says which ran, so a consumer never has to infer it from whether it
+        remembered to send `y`. `y` is deliberately not defaulted to the build
+        floor or sea level, either of which would answer the column question
+        wrongly on a server using vertical subdivision.
+
+
+        WorldGuard's answer is intersected with the regions Realty manages, so an
+        unregistered WorldGuard region never appears. A block inside no
+        registered region is a 200 with an empty `regions` array, never a 404.
+
+
+        Answered entirely by the query-service module, so an unreachable module
+        is a 502 rather than a degraded response.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: The world, as a UUID or a name.
+          schema:
+            type: string
+        - name: x
+          in: query
+          required: true
+          description: Block X coordinate.
+          schema:
+            type: integer
+        - name: z
+          in: query
+          required: true
+          description: Block Z coordinate.
+          schema:
+            type: integer
+        - name: y
+          in: query
+          required: false
+          description: >-
+            Block Y coordinate. Omit for a column test. An empty value is treated
+            as omitted, so a client templating the query string with nothing to
+            substitute asks the column question rather than getting a 400.
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The regions covering that block, in WorldGuard's own region order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegionsAtResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER` when `world` is absent, or `INVALID_COORDINATE`
+            when `x` or `z` is absent, or any of the three is not a whole number.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- no world of that name or id."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: >-
+            `GEOMETRY_UNAVAILABLE` -- the query-service module is disabled or
+            unreachable, and this route has no database-only answer to fall back
+            on.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/region/members:
+    get:
+      summary: A region's WorldGuard owners and members
+      operationId: regionMembers
+      description: >-
+        The owner and member domains WorldGuard holds for the region, which are
+        distinct from Realty's own title holder and tenant.
+
+
+        Each domain keeps WorldGuard's three kinds of entry apart rather than
+        flattening them. `players` are UUID entries, named where the module could
+        name them; `playerNames` are legacy name entries, which carry no id at
+        all and which WorldGuard lower-cases on the way in; `groups` are
+        permission groups, which are not players. A region configured the legacy
+        way would otherwise report an empty owner list.
+
+
+        The region must be one Realty manages: an unregistered WorldGuard region
+        is a 404 here rather than a pass-through. Answered entirely by the
+        query-service module, so an unreachable module is a 502.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: The world, as a UUID or a name.
+          schema:
+            type: string
+        - name: region
+          in: query
+          required: true
+          description: The WorldGuard region id.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Both domains.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegionMembersResponse"
+        "400":
+          description: "`MISSING_PARAMETER` -- `world` or `region` was not given."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: >-
+            `WORLD_NOT_FOUND`, or `REGION_NOT_FOUND` when Realty does not manage
+            that region or WorldGuard no longer holds it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: >-
+            `MEMBERS_UNAVAILABLE` -- the query-service module is disabled or
+            unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/worlds/geometry:
+    get:
+      summary: Every registered region's footprint in one world
+      operationId: worldGeometry
+      description: >-
+        For drawing a map overlay. The point of the route is that a page of
+        regions costs the game server one main-thread hop rather than one per
+        region, so a client should use this instead of looping `/v1/region`.
+
+
+        Unlike the other two module-backed routes, geometry here is enrichment
+        rather than the whole answer: the region list comes from the database, so
+        an unreachable module yields the page with every `dimensions` null rather
+        than a 502 -- the same degradation `/v1/region` already applies. A
+        `dimensions` of null therefore means either that, or a region Realty has
+        registered which WorldGuard no longer holds.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: The world, as a UUID or a name.
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Rows per page, defaulting to 10 and clamped to the operator's
+            configured maximum.
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+      responses:
+        "200":
+          description: One page of the world's registered regions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldGeometryResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER`, `INVALID_PAGE` or `INVALID_PAGE_SIZE`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- no world of that name or id."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/players/regions:
     get:
       summary: List a player's owned, landlorded and rented regions
@@ -1529,3 +1752,90 @@ components:
             contract at all -- which `/v1/regions` lists and `/v1/regions/search`
             does not.
       required: [ worldGuardRegionId, world, state ]
+    RegionsAtResponse:
+      type: object
+      properties:
+        test:
+          type: string
+          enum: [ point, column ]
+          description: >-
+            Which question was answered. `point` when the request carried a `y`,
+            `column` when it did not.
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RegionsAtResponse_Entry"
+      required: [ test, regions ]
+    RegionsAtResponse_Entry:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+      required: [ worldGuardRegionId, world ]
+    RegionMembersResponse:
+      type: object
+      properties:
+        owners:
+          $ref: "#/components/schemas/RegionMembersResponse_Party"
+        members:
+          $ref: "#/components/schemas/RegionMembersResponse_Party"
+      required: [ owners, members ]
+    RegionMembersResponse_Party:
+      type: object
+      description: >-
+        One WorldGuard domain, with its three kinds of entry kept apart because
+        WorldGuard stores three kinds and flattening them loses information.
+      properties:
+        players:
+          type: array
+          description: UUID entries, with a name where the module could supply one.
+          items:
+            $ref: "#/components/schemas/PlayerRef"
+        playerNames:
+          type: array
+          description: >-
+            Legacy name entries, which carry no UUID and so cannot be a
+            PlayerRef. WorldGuard lower-cases these on the way in and they are
+            reported as it holds them.
+          items:
+            type: string
+        groups:
+          type: array
+          description: Permission group names, which are not players.
+          items:
+            type: string
+      required: [ players, playerNames, groups ]
+    WorldGeometryResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorldGeometryResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, world, regions ]
+    WorldGeometryResponse_Entry:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        dimensions:
+          oneOf:
+            - $ref: "#/components/schemas/Dimensions"
+            - type: "null"
+          description: >-
+            Null when the query-service module is disabled or unreachable, or
+            when Realty has the region registered but WorldGuard no longer holds
+            it. The row is still reported in either case.
+      required: [ worldGuardRegionId, dimensions ]
