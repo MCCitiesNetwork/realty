@@ -10,15 +10,26 @@
 # realty-paper has already initialised/migrated elsewhere. For a from-empty
 # demo, replace `mariadb` below with an image that already has the schema
 # applied, or run realty-paper's migrations against it first.
+#
+# Every value below that is a real credential rather than a fixed default is
+# `${VARIABLE}`, never a literal -- Compose substitutes these from a `.env`
+# file in this directory, which .gitignore excludes from the repository.
+# Copy .env.example to .env and fill it in before running this file; see
+# README.md's "Docker Compose" section for the full explanation.
+#
+# Testing against an existing remote database rather than the bundled
+# `mariadb` service: set REALTY_DB_URL in `.env` to that database's address
+# and start only the API, skipping its dependency on the bundled one --
+#     docker compose up -d --no-deps realty-rest
 services:
   mariadb:
     image: mariadb:11.7
     restart: unless-stopped
     environment:
       MARIADB_DATABASE: realty
-      MARIADB_USER: realty
-      MARIADB_PASSWORD: realty
-      MARIADB_ROOT_PASSWORD: root
+      MARIADB_USER: ${REALTY_DB_USERNAME}
+      MARIADB_PASSWORD: ${REALTY_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${REALTY_DB_ROOT_PASSWORD}
     volumes:
       - realty-rest-db:/var/lib/mysql
     healthcheck:
@@ -36,18 +47,19 @@ services:
     ports:
       - "8080:8080"
     environment:
-      REALTY_DB_URL: "mariadb://mariadb:3306/realty"
-      REALTY_DB_USERNAME: realty
-      REALTY_DB_PASSWORD: realty
+      REALTY_DB_URL: "${REALTY_DB_URL}"
+      REALTY_DB_USERNAME: "${REALTY_DB_USERNAME}"
+      REALTY_DB_PASSWORD: "${REALTY_DB_PASSWORD}"
       REALTY_REST_HOST: "0.0.0.0"
       REALTY_REST_PORT: "8080"
       REALTY_REST_MAX_PAGE_SIZE: "100"
       # Point at the query-service module inside the game server to enrich
-      # responses with live geometry and player names. Both values must match the
-      # module's config.yml; unset leaves those fields null.
-      # REALTY_REST_MODULE_URL: "http://game-server:8123"
-      # REALTY_REST_MODULE_SECRET: "change-me"
-      # REALTY_REST_MODULE_TIMEOUT_MS: "1500"
+      # responses with live geometry and player names. Left blank in
+      # .env.example, which disables enrichment; both must match the
+      # module's own config.yml when set.
+      REALTY_REST_MODULE_URL: "${REALTY_REST_MODULE_URL}"
+      REALTY_REST_MODULE_SECRET: "${REALTY_REST_MODULE_SECRET}"
+      REALTY_REST_MODULE_TIMEOUT_MS: "1500"
     depends_on:
       mariadb:
         condition: service_healthy

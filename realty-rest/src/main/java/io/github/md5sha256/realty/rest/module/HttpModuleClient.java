@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -107,15 +108,7 @@ public final class HttpModuleClient implements ModuleClient {
         try {
             path = "/regions/" + worldId + "/" + pathSegment(regionId) + "/dimensions";
             JsonNode body = get(path);
-            if (body == null || !body.has("shape")) {
-                return Optional.empty();
-            }
-            List<RegionResponse.Point> points = new ArrayList<>();
-            for (JsonNode point : body.path("points")) {
-                points.add(new RegionResponse.Point(point.path("x").asInt(), point.path("z").asInt()));
-            }
-            return Optional.of(new RegionResponse.Dimensions(
-                    body.path("shape").asText(), body.path("minY").asInt(), body.path("maxY").asInt(), points));
+            return body == null ? Optional.empty() : Optional.ofNullable(dimensions(body));
         } catch (RuntimeException ex) {
             failed(path, ex);
             return Optional.empty();
@@ -185,6 +178,131 @@ public final class HttpModuleClient implements ModuleClient {
             failed(path, ex);
             return new NameLookup.Unavailable();
         }
+    }
+
+    @Override
+    public @NotNull Map<String, RegionResponse.Dimensions> dimensionsOf(
+            @NotNull UUID worldId, @NotNull Collection<String> regionIds) {
+        String path = "/regions/" + worldId + "/dimensions";
+        try {
+            List<String> distinct = new ArrayList<>(new LinkedHashSet<>(regionIds));
+            if (distinct.isEmpty()) {
+                return Map.of();
+            }
+            if (distinct.size() > MAX_BATCH) {
+                LOGGER.fine("truncating a batch of " + distinct.size() + " region ids to " + MAX_BATCH
+                        + "; the module rejects larger batches");
+                distinct = distinct.subList(0, MAX_BATCH);
+            }
+            JsonNode body = post(path, Map.of("ids", distinct));
+            if (body == null) {
+                return Map.of();
+            }
+            Map<String, RegionResponse.Dimensions> dims = new LinkedHashMap<>();
+            JsonNode regions = body.path("regions");
+            Iterator<Map.Entry<String, JsonNode>> fields = regions.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> field = fields.next();
+                RegionResponse.Dimensions parsed = dimensions(field.getValue());
+                if (parsed != null) {
+                    dims.put(field.getKey(), parsed);
+                }
+            }
+            return dims;
+        } catch (RuntimeException ex) {
+            failed(path, ex);
+            return Map.of();
+        }
+    }
+
+    @Override
+    public @NotNull ModuleResult<RegionsAt> regionsAt(@NotNull UUID worldId, int x,
+                                                      @Nullable Integer y, int z) {
+        String path = "/regions/" + worldId + "/at?x=" + x + "&z=" + z
+                + (y == null ? "" : "&y=" + y);
+        try {
+            JsonNode body = get(path);
+            if (body == null) {
+                // The module answers 404 for an unknown world, which send() also reports as null.
+                // Telling the two apart would need send() to surface the status; until a caller
+                // needs that distinction, an unreachable module and an unknown world both degrade
+                // to Unavailable, which is the safe direction: a 502 says "ask again", a 404 says
+                // "stop asking", and only one of those is safe to say wrongly.
+                return new ModuleResult.Unavailable<>();
+            }
+            JsonNode test = body.path("test");
+            if (!test.isTextual()) {
+                return new ModuleResult.Unavailable<>();
+            }
+            List<String> ids = new ArrayList<>();
+            for (JsonNode id : body.path("regions")) {
+                if (id.isTextual()) {
+                    ids.add(id.asText());
+                }
+            }
+            return new ModuleResult.Found<>(new RegionsAt(test.asText(), List.copyOf(ids)));
+        } catch (RuntimeException ex) {
+            failed(path, ex);
+            return new ModuleResult.Unavailable<>();
+        }
+    }
+
+    @Override
+    public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
+                                                        @NotNull String regionId) {
+        String path = "/regions/" + worldId + "/" + pathSegment(regionId) + "/members";
+        try {
+            JsonNode body = get(path);
+            if (body == null) {
+                return new ModuleResult.NotFound<>();
+            }
+            if (!body.has("owners") || !body.has("members")) {
+                return new ModuleResult.Unavailable<>();
+            }
+            return new ModuleResult.Found<>(new RegionMembers(
+                    party(body.path("owners")), party(body.path("members"))));
+        } catch (RuntimeException ex) {
+            failed(path, ex);
+            return new ModuleResult.Unavailable<>();
+        }
+    }
+
+    private static @NotNull RegionMembers.Party party(@NotNull JsonNode node) {
+        List<UUID> ids = new ArrayList<>();
+        for (JsonNode id : node.path("playerIds")) {
+            if (!id.isTextual()) {
+                continue;
+            }
+            try {
+                ids.add(UUID.fromString(id.asText()));
+            } catch (IllegalArgumentException ex) {
+                LOGGER.log(Level.FINE, "module returned a malformed player id in a member domain", ex);
+            }
+        }
+        return new RegionMembers.Party(List.copyOf(ids),
+                strings(node.path("playerNames")), strings(node.path("groups")));
+    }
+
+    private static @NotNull List<String> strings(@NotNull JsonNode array) {
+        List<String> values = new ArrayList<>();
+        for (JsonNode value : array) {
+            if (value.isTextual()) {
+                values.add(value.asText());
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private static @Nullable RegionResponse.Dimensions dimensions(@NotNull JsonNode body) {
+        if (!body.has("shape")) {
+            return null;
+        }
+        List<RegionResponse.Point> points = new ArrayList<>();
+        for (JsonNode point : body.path("points")) {
+            points.add(new RegionResponse.Point(point.path("x").asInt(), point.path("z").asInt()));
+        }
+        return new RegionResponse.Dimensions(body.path("shape").asText(),
+                body.path("minY").asInt(), body.path("maxY").asInt(), points);
     }
 
     /**

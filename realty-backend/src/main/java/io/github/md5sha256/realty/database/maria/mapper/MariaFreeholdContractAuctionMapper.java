@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
+import io.github.md5sha256.realty.database.entity.AuctionSort;
+import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
 import org.apache.ibatis.annotations.Arg;
@@ -239,5 +241,83 @@ public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuct
             WHERE ended = FALSE
             """)
     int countActive();
+
+    /**
+     * The standing bid is read by correlated subquery rather than a join, so an
+     * auction with no bids still yields a row -- the same reason the highest-bid
+     * columns are nullable together.
+     */
+    @Override
+    @Select("""
+            <script>
+            SELECT rr.worldGuardRegionId, rr.worldId, sca.auctioneerId, sca.startDate,
+                   sca.biddingDurationSeconds, sca.paymentDurationSeconds,
+                   sca.minBid, sca.minStep,
+                   (SELECT b.bidderId FROM FreeholdContractBid b
+                     WHERE b.freeholdContractAuctionId = sca.freeholdContractAuctionId
+                     ORDER BY b.bidPrice DESC, b.bidTime DESC LIMIT 1) AS highestBidderId,
+                   (SELECT b.bidPrice FROM FreeholdContractBid b
+                     WHERE b.freeholdContractAuctionId = sca.freeholdContractAuctionId
+                     ORDER BY b.bidPrice DESC, b.bidTime DESC LIMIT 1) AS highestBidPrice,
+                   (SELECT b.bidTime FROM FreeholdContractBid b
+                     WHERE b.freeholdContractAuctionId = sca.freeholdContractAuctionId
+                     ORDER BY b.bidPrice DESC, b.bidTime DESC LIMIT 1) AS highestBidTime,
+                   (SELECT COUNT(DISTINCT b.bidderId) FROM FreeholdContractBid b
+                     WHERE b.freeholdContractAuctionId = sca.freeholdContractAuctionId) AS bidderCount,
+                   DATE_ADD(COALESCE((SELECT b.bidTime FROM FreeholdContractBid b
+                                       WHERE b.freeholdContractAuctionId = sca.freeholdContractAuctionId
+                                       ORDER BY b.bidPrice DESC, b.bidTime DESC LIMIT 1),
+                                     sca.startDate),
+                            INTERVAL sca.biddingDurationSeconds SECOND) AS endDate
+            FROM FreeholdContractAuction sca
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
+            WHERE sca.ended = FALSE
+            <if test="worldId != null">
+            AND rr.worldId = #{worldId}
+            </if>
+            <choose>
+                <when test="sort.name() == 'HIGHEST_BID'">
+                ORDER BY COALESCE(highestBidPrice, sca.minBid) DESC, rr.worldGuardRegionId
+                </when>
+                <otherwise>
+                ORDER BY endDate ASC, rr.worldGuardRegionId
+                </otherwise>
+            </choose>
+            LIMIT #{limit} OFFSET #{offset}
+            </script>
+            """)
+    @ConstructorArgs({
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "auctioneerId", javaType = UUID.class),
+            @Arg(column = "startDate", javaType = LocalDateTime.class),
+            @Arg(column = "biddingDurationSeconds", javaType = long.class),
+            @Arg(column = "paymentDurationSeconds", javaType = long.class),
+            @Arg(column = "minBid", javaType = double.class),
+            @Arg(column = "minStep", javaType = double.class),
+            @Arg(column = "highestBidderId", javaType = UUID.class),
+            @Arg(column = "highestBidPrice", javaType = Double.class),
+            @Arg(column = "highestBidTime", javaType = LocalDateTime.class),
+            @Arg(column = "bidderCount", javaType = int.class),
+            @Arg(column = "endDate", javaType = LocalDateTime.class)
+    })
+    @NotNull List<ActiveAuctionRow> selectActivePage(@Param("worldId") @Nullable UUID worldId,
+                                                     @Param("sort") @NotNull AuctionSort sort,
+                                                     @Param("limit") int limit,
+                                                     @Param("offset") int offset);
+
+    @Override
+    @Select("""
+            <script>
+            SELECT COUNT(*)
+            FROM FreeholdContractAuction sca
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
+            WHERE sca.ended = FALSE
+            <if test="worldId != null">
+            AND rr.worldId = #{worldId}
+            </if>
+            </script>
+            """)
+    int countActiveInWorld(@Param("worldId") @Nullable UUID worldId);
 
 }

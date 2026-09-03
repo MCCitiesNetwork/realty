@@ -25,8 +25,10 @@ Other artifacts:
 
 ```bash
 ./gradlew :realty-paper-plan-extension:shadowJar
-./gradlew :realty-areashop-importer:shadowJar
 ```
+
+`realty-areashop-importer` is currently excluded from the build -- see
+`settings.gradle.kts`. Re-enable its `include` there before building it.
 
 ## Maven
 
@@ -66,7 +68,7 @@ immutable: republishing a version that already exists fails with a 409, so bump 
 | `realty-common` | Shared logic and database access |
 | `realty-paper` | Main Paper plugin |
 | `realty-paper-plan-extension` | Optional [Plan](https://github.com/plan-player-analytics/Plan) integration |
-| `realty-areashop-importer` | Optional AreaShop migration helper |
+| `realty-areashop-importer` | Optional AreaShop migration helper (excluded from the build) |
 | `realty-paper-adapters/chat-adapter` | Notification delivery to online players via chat |
 | `realty-paper-adapters/essentials-adapter` | Notification delivery via EssentialsX mail |
 | `realty-paper-adapters/player-notifications-adapter` | Notification delivery via [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) |

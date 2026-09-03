@@ -81,6 +81,24 @@ class SearchMapperTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void reportsEachRowsStateAlongsideItsPrice() {
+        List<SearchResultEntity> rows = search(true, true, true, 0, Double.MAX_VALUE);
+        Assertions.assertEquals(List.of("plot_listed", "plot_rental", "plot_sold"), ids(rows));
+        Assertions.assertEquals("FOR_SALE", rows.get(0).state());
+        Assertions.assertEquals("FOR_LEASE", rows.get(1).state());
+        Assertions.assertEquals("SOLD", rows.get(2).state(),
+                "a freehold with a title holder is sold, whether or not it still carries a price");
+    }
+
+    @Test
+    void reportsLeasedOnceTheLeaseholdHasATenant() {
+        UUID tenant = UUID.fromString("3a1c88f0-0000-0000-0000-000000000013");
+        Assertions.assertNotNull(logic.rentRegion("plot_rental", WORLD_ID, tenant));
+        List<SearchResultEntity> rows = search(false, true, false, 0, Double.MAX_VALUE);
+        Assertions.assertEquals("LEASED", rows.get(0).state());
+    }
+
+    @Test
     void bothSidesUnionWithUnpricedFreeholds() {
         List<SearchResultEntity> rows = search(true, true, true, 0, Double.MAX_VALUE);
         Assertions.assertEquals(List.of("plot_listed", "plot_rental", "plot_sold"), ids(rows));

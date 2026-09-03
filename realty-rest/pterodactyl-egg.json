@@ -7,13 +7,13 @@
   "exported_at": "2026-09-02T00:00:00+00:00",
   "name": "Realty REST",
   "author": "42793301+md5sha256@users.noreply.github.com",
-  "description": "Standalone, read-only HTTP API over a Realty MariaDB database. Configured entirely by environment variables -- no config file is templated by the egg.",
+  "description": "Standalone, read-only HTTP API over a Realty MariaDB database. Configured entirely by environment variables -- no config file is templated by the egg. The HTTP server binds the port of the server's primary allocation.",
   "features": null,
   "docker_images": {
     "Java 25 (Yolks)": "ghcr.io/parkervcp/yolks:java_25"
   },
   "file_denylist": [],
-  "startup": "java -jar realty-rest-all.jar",
+  "startup": "REALTY_REST_PORT={{SERVER_PORT}} java -jar realty-rest-all.jar",
   "config": {
     "files": "{}",
     "startup": "{\"done\": \"Realty REST listening on http://\"}",
@@ -60,10 +60,10 @@
     },
     {
       "name": "Database Password",
-      "description": "Password for REALTY_DB_USERNAME.",
+      "description": "Password for REALTY_DB_USERNAME. Viewable as well as editable: Pterodactyl renders a field only for viewable variables, so a hidden one cannot be filled in at all. Anyone with startup access to this server can therefore read it -- give the service its own database user rather than a shared one.",
       "env_variable": "REALTY_DB_PASSWORD",
       "default_value": "",
-      "user_viewable": false,
+      "user_viewable": true,
       "user_editable": true,
       "rules": "required|string",
       "field_type": "text"
@@ -76,16 +76,6 @@
       "user_viewable": true,
       "user_editable": true,
       "rules": "nullable|string",
-      "field_type": "text"
-    },
-    {
-      "name": "Bind Port",
-      "description": "Port the HTTP server listens on. Must match the port allocated to this server in the panel.",
-      "env_variable": "REALTY_REST_PORT",
-      "default_value": "8080",
-      "user_viewable": true,
-      "user_editable": true,
-      "rules": "required|integer|between:1,65535",
       "field_type": "text"
     },
     {

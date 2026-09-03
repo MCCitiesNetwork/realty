@@ -9,7 +9,6 @@ import io.github.md5sha256.realty.rest.json.PlayerRef;
 import io.github.md5sha256.realty.rest.json.PlayerRegionsResponse;
 import io.github.md5sha256.realty.rest.json.WorldRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
-import io.github.md5sha256.realty.rest.module.NameLookup;
 import io.github.md5sha256.realty.rest.module.PlayerNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
@@ -49,8 +48,8 @@ final class PlayerRegionsHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        String playerParam = QueryParams.required(ctx, "player");
-        PlayerRef player = resolvePlayer(playerParam);
+        PlayerRef player = Objects.requireNonNull(
+                PlayerNameResolution.fromRequest(ctx, this.moduleClient, true));
         UUID playerId = UUID.fromString(player.id());
 
         String category = ctx.queryParam("category");
@@ -71,40 +70,6 @@ final class PlayerRegionsHandler {
         };
 
         ctx.json(response);
-    }
-
-    /**
-     * Determines whether {@code param} should be resolved as a UUID or a player
-     * name. A UUID-shaped value (36 characters, hyphens at the standard positions)
-     * that fails to parse is treated as a malformed UUID and rejected with 400; a
-     * name resolves through the query-service module -- unknown is 404, and an
-     * unreachable module is 502.
-     */
-    private @NotNull PlayerRef resolvePlayer(@NotNull String param) {
-        if (isUuidShaped(param)) {
-            UUID id;
-            try {
-                id = UUID.fromString(param);
-            } catch (IllegalArgumentException ex) {
-                throw ApiException.badRequest("MALFORMED_UUID", "Query parameter 'player' is not a valid UUID");
-            }
-            return Objects.requireNonNull(PlayerNames.ref(id, PlayerNames.resolve(this.moduleClient, List.of(id))));
-        }
-        return switch (this.moduleClient.uuidOf(param)) {
-            case NameLookup.Resolved resolved -> new PlayerRef(resolved.id().toString(), resolved.name());
-            case NameLookup.Unknown unknown -> throw ApiException.notFound("PLAYER_NOT_FOUND",
-                    "No player named '" + param + "'");
-            case NameLookup.Unavailable unavailable -> throw ApiException.badGateway("NAME_LOOKUP_UNAVAILABLE",
-                    "Player name lookup requires the query-service module, which is not reachable");
-        };
-    }
-
-    private static boolean isUuidShaped(@NotNull String value) {
-        return value.length() == 36
-                && value.charAt(8) == '-'
-                && value.charAt(13) == '-'
-                && value.charAt(18) == '-'
-                && value.charAt(23) == '-';
     }
 
     private @NotNull PlayerRegionsResponse handleOwned(@NotNull PlayerRef player, @NotNull UUID playerId,

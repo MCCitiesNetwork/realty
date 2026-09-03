@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.adapter.query;
 
 import io.javalin.testtools.JavalinTest;
-import okhttp3.Request;
-import okhttp3.Response;
+import io.javalin.testtools.Request;
+import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -129,12 +129,12 @@ class PlayerNamesEndpointTest {
     @Test
     void aBatchOverTheCapIs400() {
         JavalinTest.test(TestServers.withNoPlayers().javalin(), (server, client) -> {
-            Response ids = client.post("/players/names", idsBody(PlayerNamesHandler.MAX_BATCH + 1),
+            Response ids = client.post("/players/names", idsBody(QueryServiceServer.MAX_BATCH + 1),
                     PlayerNamesEndpointTest::auth);
             Assertions.assertEquals(400, ids.code());
             Assertions.assertTrue(ids.body().string().contains("\"error\":\"BATCH_TOO_LARGE\""));
 
-            Response names = client.post("/players/uuids", namesBody(PlayerNamesHandler.MAX_BATCH + 1),
+            Response names = client.post("/players/uuids", namesBody(QueryServiceServer.MAX_BATCH + 1),
                     PlayerNamesEndpointTest::auth);
             Assertions.assertEquals(400, names.code());
             Assertions.assertTrue(names.body().string().contains("\"error\":\"BATCH_TOO_LARGE\""));
@@ -145,9 +145,9 @@ class PlayerNamesEndpointTest {
     void aBatchExactlyAtTheCapIsAccepted() {
         JavalinTest.test(TestServers.withNoPlayers().javalin(), (server, client) -> {
             Assertions.assertEquals(200, client.post("/players/names",
-                    idsBody(PlayerNamesHandler.MAX_BATCH), PlayerNamesEndpointTest::auth).code());
+                    idsBody(QueryServiceServer.MAX_BATCH), PlayerNamesEndpointTest::auth).code());
             Assertions.assertEquals(200, client.post("/players/uuids",
-                    namesBody(PlayerNamesHandler.MAX_BATCH), PlayerNamesEndpointTest::auth).code());
+                    namesBody(QueryServiceServer.MAX_BATCH), PlayerNamesEndpointTest::auth).code());
         });
     }
 

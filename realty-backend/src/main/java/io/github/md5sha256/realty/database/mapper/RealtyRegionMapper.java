@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -54,5 +55,32 @@ public interface RealtyRegionMapper {
     int countRegionsByLandlord(@NotNull UUID playerId);
 
     int countAll();
+
+    /**
+     * The same page as {@link #selectPage(int, int)}, narrowed to one world.
+     */
+    @NotNull List<RealtyRegionEntity> selectPageByWorld(@NotNull UUID worldId, int limit, int offset);
+
+    int countByWorld(@NotNull UUID worldId);
+
+    /**
+     * The same page as {@link #selectPage(int, int)}, each row carrying the state its
+     * contract implies, derived in SQL rather than by a lookup per row.
+     */
+    @NotNull List<RegionStateRow> selectPageWithState(int limit, int offset);
+
+    /**
+     * The same page as {@link #selectPageWithState(int, int)}, narrowed to one world.
+     */
+    @NotNull List<RegionStateRow> selectPageWithStateByWorld(@NotNull UUID worldId, int limit, int offset);
+
+    /**
+     * The subset of {@code candidates} that is registered in {@code worldId}, each reported once.
+     *
+     * <p>WorldGuard knows regions Realty does not, so a lookup answered from WorldGuard has to be
+     * intersected with this table before it is reported. Done in SQL rather than by a lookup per
+     * candidate, and an empty candidate list matches nothing rather than everything.</p>
+     */
+    @NotNull List<String> selectRegisteredIds(@NotNull UUID worldId, @NotNull List<String> candidates);
 
 }

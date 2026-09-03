@@ -1,12 +1,18 @@
 package io.github.md5sha256.realty.adapter.query;
 
 import io.javalin.testtools.JavalinTest;
-import okhttp3.Request;
-import okhttp3.Response;
+import io.javalin.testtools.Request;
+import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 class RouteSurfaceTest {
+
+    /** The routes registered for POST; everything else in ROUTES is a GET. */
+    private static final Set<String> POST_ROUTES = Set.of(
+            "/players/names", "/players/uuids", "/regions/{worldId}/dimensions");
 
     private static Request.Builder auth(Request.Builder req) {
         return req.header(QueryServiceServer.SECRET_HEADER, TestServers.SECRET);
@@ -20,9 +26,10 @@ class RouteSurfaceTest {
                         .replace("{worldId}", TestServers.WORLD.toString())
                         .replace("{regionId}", "downtown_plot_14")
                         .replace("{uuid}", TestServers.NOTCH.toString());
-                Response response = route.startsWith("/players/names") || route.startsWith("/players/uuids")
+                Response response = POST_ROUTES.contains(route)
                         ? client.post(path, "{\"ids\":[],\"names\":[]}", RouteSurfaceTest::auth)
-                        : client.get(path, RouteSurfaceTest::auth);
+                        : client.get(path + (route.endsWith("/at") ? "?x=0&z=0" : ""),
+                                RouteSurfaceTest::auth);
                 String body = response.body().string();
                 Assertions.assertFalse(body.contains("\"error\":\"NOT_FOUND\""),
                         route + " is declared in ROUTES but not registered: " + body);

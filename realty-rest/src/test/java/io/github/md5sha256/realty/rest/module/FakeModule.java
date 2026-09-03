@@ -25,52 +25,56 @@ final class FakeModule {
     }
 
     @NotNull Javalin app() {
-        Javalin app = Javalin.create(config -> config.showJavalinBanner = false);
-        app.before(ctx -> {
-            if (!SECRET.equals(ctx.header("X-Realty-Secret"))) {
-                ctx.status(401).json(Map.of("error", "UNAUTHORIZED", "message", "nope"));
-                ctx.skipRemainingHandlers();
-            }
-            if (this.stallMillis > 0) {
-                Thread.sleep(this.stallMillis);
-            }
-        });
-        app.get("/health", ctx -> ctx.json(Map.of("status", "ok")));
-        app.get("/regions/{worldId}/{regionId}/dimensions", ctx -> {
-            if (ctx.pathParam("worldId").equals(WORLD.toString())
-                    && (ctx.pathParam("regionId").equals("downtown_plot_14")
-                    || ctx.pathParam("regionId").equals("plot+1"))) {
-                ctx.result("{\"shape\":\"POLYGONAL\",\"minY\":62,\"maxY\":140,\"points\":["
-                        + "{\"x\":104,\"z\":-88},{\"x\":131,\"z\":-88},{\"x\":131,\"z\":-61},{\"x\":104,\"z\":-61}]}")
-                        .contentType("application/json");
-            } else {
-                ctx.status(404).json(Map.of("error", "REGION_NOT_FOUND", "message", "no"));
-            }
-        });
-        app.post("/players/names", ctx -> {
-            this.receivedBodies.add(ctx.body());
-            StringBuilder players = new StringBuilder();
-            for (String id : idsIn(ctx.body())) {
-                if (!players.isEmpty()) {
-                    players.append(',');
+        // Javalin 7 removed routing methods from Javalin itself; they now live on
+        // config.routes inside create(), so every route is registered here instead of on
+        // the instance returned by create().
+        return Javalin.create(config -> {
+            config.startup.showJavalinBanner = false;
+            config.routes.before(ctx -> {
+                if (!SECRET.equals(ctx.header("X-Realty-Secret"))) {
+                    ctx.status(401).json(Map.of("error", "UNAUTHORIZED", "message", "nope"));
+                    ctx.skipRemainingHandlers();
                 }
-                String name = id.equals(NOTCH.toString()) ? "\"Notch\""
-                        : id.equals(BEDROCK.toString()) ? "\".Cool Guy 123\"" : "null";
-                players.append("{\"id\":\"").append(id).append("\",\"name\":").append(name).append('}');
-            }
-            ctx.result("{\"players\":[" + players + "]}").contentType("application/json");
+                if (this.stallMillis > 0) {
+                    Thread.sleep(this.stallMillis);
+                }
+            });
+            config.routes.get("/health", ctx -> ctx.json(Map.of("status", "ok")));
+            config.routes.get("/regions/{worldId}/{regionId}/dimensions", ctx -> {
+                if (ctx.pathParam("worldId").equals(WORLD.toString())
+                        && (ctx.pathParam("regionId").equals("downtown_plot_14")
+                        || ctx.pathParam("regionId").equals("plot+1"))) {
+                    ctx.result("{\"shape\":\"POLYGONAL\",\"minY\":62,\"maxY\":140,\"points\":["
+                            + "{\"x\":104,\"z\":-88},{\"x\":131,\"z\":-88},{\"x\":131,\"z\":-61},{\"x\":104,\"z\":-61}]}")
+                            .contentType("application/json");
+                } else {
+                    ctx.status(404).json(Map.of("error", "REGION_NOT_FOUND", "message", "no"));
+                }
+            });
+            config.routes.post("/players/names", ctx -> {
+                this.receivedBodies.add(ctx.body());
+                StringBuilder players = new StringBuilder();
+                for (String id : idsIn(ctx.body())) {
+                    if (!players.isEmpty()) {
+                        players.append(',');
+                    }
+                    String name = id.equals(NOTCH.toString()) ? "\"Notch\""
+                            : id.equals(BEDROCK.toString()) ? "\".Cool Guy 123\"" : "null";
+                    players.append("{\"id\":\"").append(id).append("\",\"name\":").append(name).append('}');
+                }
+                ctx.result("{\"players\":[" + players + "]}").contentType("application/json");
+            });
+            config.routes.post("/players/uuids", ctx -> {
+                this.receivedBodies.add(ctx.body());
+                String body = ctx.body();
+                String player = body.contains("\"Notch\"")
+                        ? "{\"id\":\"" + NOTCH + "\",\"name\":\"Notch\"}"
+                        : body.contains("\".Cool Guy 123\"")
+                        ? "{\"id\":\"" + BEDROCK + "\",\"name\":\".Cool Guy 123\"}"
+                        : "{\"id\":null,\"name\":\"nobody\"}";
+                ctx.result("{\"players\":[" + player + "]}").contentType("application/json");
+            });
         });
-        app.post("/players/uuids", ctx -> {
-            this.receivedBodies.add(ctx.body());
-            String body = ctx.body();
-            String player = body.contains("\"Notch\"")
-                    ? "{\"id\":\"" + NOTCH + "\",\"name\":\"Notch\"}"
-                    : body.contains("\".Cool Guy 123\"")
-                    ? "{\"id\":\"" + BEDROCK + "\",\"name\":\".Cool Guy 123\"}"
-                    : "{\"id\":null,\"name\":\"nobody\"}";
-            ctx.result("{\"players\":[" + player + "]}").contentType("application/json");
-        });
-        return app;
     }
 
     /** Pulls the quoted strings out of {@code {"ids":["…","…"]}} without a JSON library. */
@@ -92,17 +96,18 @@ final class FakeModule {
 
     /** A minimal app returning a malformed player id from both batch routes, to exercise defensive parsing. */
     static @NotNull Javalin malformedIdApp() {
-        Javalin app = Javalin.create(config -> config.showJavalinBanner = false);
-        app.before(ctx -> {
-            if (!SECRET.equals(ctx.header("X-Realty-Secret"))) {
-                ctx.status(401).json(Map.of("error", "UNAUTHORIZED", "message", "nope"));
-                ctx.skipRemainingHandlers();
-            }
+        return Javalin.create(config -> {
+            config.startup.showJavalinBanner = false;
+            config.routes.before(ctx -> {
+                if (!SECRET.equals(ctx.header("X-Realty-Secret"))) {
+                    ctx.status(401).json(Map.of("error", "UNAUTHORIZED", "message", "nope"));
+                    ctx.skipRemainingHandlers();
+                }
+            });
+            config.routes.post("/players/names", ctx ->
+                    ctx.result("{\"players\":[{\"id\":\"not-a-uuid\",\"name\":\"X\"}]}").contentType("application/json"));
+            config.routes.post("/players/uuids", ctx ->
+                    ctx.result("{\"players\":[{\"id\":\"not-a-uuid\",\"name\":\"X\"}]}").contentType("application/json"));
         });
-        app.post("/players/names", ctx ->
-                ctx.result("{\"players\":[{\"id\":\"not-a-uuid\",\"name\":\"X\"}]}").contentType("application/json"));
-        app.post("/players/uuids", ctx ->
-                ctx.result("{\"players\":[{\"id\":\"not-a-uuid\",\"name\":\"X\"}]}").contentType("application/json"));
-        return app;
     }
 }

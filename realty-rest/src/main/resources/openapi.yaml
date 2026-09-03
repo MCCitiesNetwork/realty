@@ -111,6 +111,108 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/region/history:
+    get:
+      summary: One region's history
+      operationId: getRegionHistory
+      description: >-
+        The HTTP form of `/realty history`, which is granted by default and accepts
+        any region. Also answers the questions that would otherwise want routes of
+        their own: a region's price history is `type=BUY`, and who has rented it
+        before is `type=RENT`. A region nobody has traded is a 200 with an empty
+        `entries` array, not a 404.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: A world name or UUID.
+          schema:
+            type: string
+        - name: region
+          in: query
+          required: true
+          description: The WorldGuard region id.
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          description: >-
+            Restrict to one event type. Case-insensitive; an unrecognised value is
+            rejected rather than ignored, so a typo does not silently return
+            everything.
+          schema:
+            type: string
+            enum: [ BUY, AUCTION_BUY, OFFER_BUY, AGENT_ADD, AGENT_REMOVE, RENT, UNRENT,
+                    RENEW, LEASEHOLD_EXPIRY, SET_PRICE, UNSET_PRICE, SET_TITLEHOLDER,
+                    UNSET_TITLEHOLDER, SET_DURATION, SET_LANDLORD, SET_TENANT,
+                    UNSET_TENANT, SET_MAX_EXTENSIONS, MODIFY_PROPOSE, MODIFY_ACCEPT,
+                    MODIFY_REJECT, MODIFY_WITHDRAW, MODIFY_APPLY, TERMINATE,
+                    TERMINATION_CANCEL ]
+        - name: since
+          in: query
+          required: false
+          description: >-
+            Only events at or after this instant. Must carry an offset (`Z` or
+            `+hh:mm`): a bare local date-time is rejected rather than assumed to be
+            UTC, since assuming would shift a caller's window by hours in silence.
+            The command takes a relative duration instead; `now - duration` is a
+            trivial conversion on the client.
+          schema:
+            type: string
+            format: date-time
+        - name: player
+          in: query
+          required: false
+          description: >-
+            Only events this player took part in, given as a UUID or a name. A UUID
+            needs no module; a name is resolved through the query-service module, so
+            it answers 404 for an unknown name and 502 when the module is
+            unreachable. Omit to not filter by player.
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: The requested page of events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER`, `INVALID_EVENT_TYPE`, `INVALID_SINCE`,
+            `MALFORMED_UUID` (a UUID-shaped `player` that does not parse),
+            `INVALID_PAGE` or `INVALID_PAGE_SIZE`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- Realty has never seen that world."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/regions:
     get:
       summary: List every registered region
@@ -295,6 +397,475 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/activity:
+    get:
+      summary: A server-wide feed of recent events
+      operationId: getActivity
+      description: >-
+        Recent events across every region, newest first. Each event is individually
+        obtainable in game -- `/realty history` is granted by default and accepts any
+        region -- but no command performs the sweep across regions, so this is the
+        aggregation the v1.x spec flags rather than plainly public data. The default
+        type set is the sales-and-lettings ticker (`BUY`, `AUCTION_BUY`, `OFFER_BUY`,
+        `RENT`); naming types explicitly gives the full audit trail.
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: >-
+            Repeatable. Restrict the feed to these event types. Omitted entirely, the
+            default ticker set applies; an unrecognised value is rejected rather than
+            ignored.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: world
+          in: query
+          required: false
+          description: Narrow to one world, by name or UUID.
+          schema:
+            type: string
+        - name: since
+          in: query
+          required: false
+          description: >-
+            Only events at or after this instant. Must carry an offset; a bare local
+            date-time is rejected rather than assumed to be UTC.
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: The requested page of events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityResponse"
+        "400":
+          description: "`INVALID_EVENT_TYPE`, `INVALID_SINCE`, `INVALID_PAGE` or `INVALID_PAGE_SIZE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- Realty has never seen that world."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/auctions:
+    get:
+      summary: Auctions currently taking bids
+      operationId: listAuctions
+      description: >-
+        The browse form of `/realty auction info`, which is granted by default and
+        already renders the auctioneer, minimum bid, minimum step and bidding
+        duration to any player. `endDate` is computed in SQL as the last bid -- or
+        the start, where there is none -- plus the bidding duration, which is also
+        what `ending_soon` orders by, so paging cannot put an auction closing sooner
+        on a later page.
+      parameters:
+        - name: world
+          in: query
+          required: false
+          description: Narrow to one world, by name or UUID. Omitted lists every world.
+          schema:
+            type: string
+        - name: sort
+          in: query
+          required: false
+          description: >-
+            `ending_soon` (default) orders by the bidding deadline, soonest first.
+            `highest_bid` orders by the standing bid, largest first, with an auction
+            nobody has bid on ranking at its minimum bid.
+          schema:
+            type: string
+            enum: [ ending_soon, highest_bid ]
+            default: ending_soon
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: >-
+            The requested page. An empty `auctions` array means nothing is under the
+            hammer, or the page lies beyond the last one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuctionsResponse"
+        "400":
+          description: "`INVALID_SORT`, `INVALID_PAGE` or `INVALID_PAGE_SIZE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- Realty has never seen that world."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/leaderboard/owners:
+    get:
+      summary: Title holders ranked by plot count
+      operationId: getOwnersLeaderboard
+      description: >-
+        Owners ranked highest first. Ownership is already public per player via
+        `/realty list <player>`, so no row reveals anything new; what this route
+        adds is the ranking, which no in-game command performs. Ties break on the
+        title holder's UUID so the order is total and paging cannot repeat or skip
+        an owner.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: >-
+            The requested page. An empty `owners` array means nobody holds a plot,
+            or the page lies beyond the last one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnersLeaderboardResponse"
+        "400":
+          description: "`INVALID_PAGE` or `INVALID_PAGE_SIZE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/stats:
+    get:
+      summary: Server-wide totals
+      operationId: getStats
+      description: >-
+        Aggregates over the whole estate: region and contract counts, occupancy,
+        mean prices and the mean lease term. No player or region identity appears
+        in the response. An empty server reports zeroes rather than nulls or
+        absent fields, so a dashboard need not distinguish "no data" from
+        "nothing registered yet".
+      responses:
+        "200":
+          description: The current totals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/tags:
+    get:
+      summary: List every tag in use with its region count
+      operationId: listTags
+      description: >-
+        Every tag id currently attached to at least one region, with how many
+        regions carry it, so a consumer of `/v1/regions/search?tag=` can discover
+        which values that filter accepts. Display names are deliberately absent --
+        they live in the plugin's RealtyTags config, which this service does not
+        read, and the `tags` array on a region reports raw ids for the same reason.
+        Always 200; an empty array means no tag is in use.
+      responses:
+        "200":
+          description: Every tag in use, in the order the backend reports them.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TagResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/regions/at:
+    get:
+      summary: Which registered regions contain a block
+      operationId: regionsAt
+      description: >-
+        A point or column lookup, for a map click or a "what plot am I standing
+        on" bot command. `y` is optional and the two forms are different
+        questions rather than one with a default: with `y` this is a true point
+        test at that block, so a region whose vertical band excludes the point
+        does not match; without it, a column test matching every region whose
+        horizontal footprint covers `(x, z)` at any height. The response's `test`
+        field says which ran, so a consumer never has to infer it from whether it
+        remembered to send `y`. `y` is deliberately not defaulted to the build
+        floor or sea level, either of which would answer the column question
+        wrongly on a server using vertical subdivision.
+
+
+        WorldGuard's answer is intersected with the regions Realty manages, so an
+        unregistered WorldGuard region never appears. A block inside no
+        registered region is a 200 with an empty `regions` array, never a 404.
+
+
+        Answered entirely by the query-service module, so an unreachable module
+        is a 502 rather than a degraded response.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: The world, as a UUID or a name.
+          schema:
+            type: string
+        - name: x
+          in: query
+          required: true
+          description: Block X coordinate.
+          schema:
+            type: integer
+        - name: z
+          in: query
+          required: true
+          description: Block Z coordinate.
+          schema:
+            type: integer
+        - name: y
+          in: query
+          required: false
+          description: >-
+            Block Y coordinate. Omit for a column test. An empty value is treated
+            as omitted, so a client templating the query string with nothing to
+            substitute asks the column question rather than getting a 400.
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The regions covering that block, in WorldGuard's own region order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegionsAtResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER` when `world` is absent, or `INVALID_COORDINATE`
+            when `x` or `z` is absent, or any of the three is not a whole number.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- no world of that name or id."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: >-
+            `GEOMETRY_UNAVAILABLE` -- the query-service module is disabled or
+            unreachable, and this route has no database-only answer to fall back
+            on.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/region/members:
+    get:
+      summary: A region's WorldGuard owners and members
+      operationId: regionMembers
+      description: >-
+        The owner and member domains WorldGuard holds for the region, which are
+        distinct from Realty's own title holder and tenant.
+
+
+        Each domain keeps WorldGuard's three kinds of entry apart rather than
+        flattening them. `players` are UUID entries, named where the module could
+        name them; `playerNames` are legacy name entries, which carry no id at
+        all and which WorldGuard lower-cases on the way in; `groups` are
+        permission groups, which are not players. A region configured the legacy
+        way would otherwise report an empty owner list.
+
+
+        The region must be one Realty manages: an unregistered WorldGuard region
+        is a 404 here rather than a pass-through. Answered entirely by the
+        query-service module, so an unreachable module is a 502.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: The world, as a UUID or a name.
+          schema:
+            type: string
+        - name: region
+          in: query
+          required: true
+          description: The WorldGuard region id.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Both domains.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegionMembersResponse"
+        "400":
+          description: "`MISSING_PARAMETER` -- `world` or `region` was not given."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: >-
+            `WORLD_NOT_FOUND`, or `REGION_NOT_FOUND` when Realty does not manage
+            that region or WorldGuard no longer holds it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: >-
+            `MEMBERS_UNAVAILABLE` -- the query-service module is disabled or
+            unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/worlds/geometry:
+    get:
+      summary: Every registered region's footprint in one world
+      operationId: worldGeometry
+      description: >-
+        For drawing a map overlay. The point of the route is that a page of
+        regions costs the game server one main-thread hop rather than one per
+        region, so a client should use this instead of looping `/v1/region`.
+
+
+        Unlike the other two module-backed routes, geometry here is enrichment
+        rather than the whole answer: the region list comes from the database, so
+        an unreachable module yields the page with every `dimensions` null rather
+        than a 502 -- the same degradation `/v1/region` already applies. A
+        `dimensions` of null therefore means either that, or a region Realty has
+        registered which WorldGuard no longer holds.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: The world, as a UUID or a name.
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Rows per page, defaulting to 10 and clamped to the operator's
+            configured maximum.
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+      responses:
+        "200":
+          description: One page of the world's registered regions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldGeometryResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER`, `INVALID_PAGE` or `INVALID_PAGE_SIZE`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`WORLD_NOT_FOUND` -- no world of that name or id."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/players/regions:
     get:
       summary: List a player's owned, landlorded and rented regions
@@ -314,12 +885,14 @@ paths:
           in: query
           required: true
           description: >-
-            A player's UUID or their name. A Floodgate (Bedrock) player's name is
-            a `.` followed by their Xbox gamertag, which may itself contain
-            spaces -- send it percent-encoded (for example `.Some Gamertag`
-            becomes `.Some%20Gamertag`). Passing a name currently always fails
-            with 502, because name resolution requires a query-service module
-            that does not exist yet; only a UUID is resolvable in this build.
+            The player, as a UUID or a name. A UUID is answered from the database
+            alone, so this form keeps working while the query-service module is
+            down -- the returned `name` is simply null, as every other
+            module-sourced field degrades. A name is resolved through the module,
+            so it answers 404 for an unknown name and 502 when the module is
+            unreachable. A Floodgate (Bedrock) player's name is a `.` followed by
+            their Xbox gamertag, which may itself contain spaces -- send it
+            percent-encoded, so `.Some Gamertag` becomes `.Some%20Gamertag`.
           schema:
             type: string
         - name: category
@@ -358,31 +931,147 @@ paths:
                 $ref: "#/components/schemas/PlayerRegionsResponse"
         "400":
           description: >-
-            `MISSING_PARAMETER` when `player` is absent or blank; `MALFORMED_UUID`
-            when `player` looks UUID-shaped but does not parse; `INVALID_PAGE` or
+            `MISSING_PARAMETER` when `player` was not given; `MALFORMED_UUID` when
+            a UUID-shaped `player` does not parse; `INVALID_PAGE` or
             `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`;
-            `INVALID_CATEGORY` when `category` is present but not one of
-            `all`, `owned`, `rented`.
+            `INVALID_CATEGORY` when `category` is present but not one of `all`,
+            `owned`, `rented`.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: "`PLAYER_NOT_FOUND` -- `player` was given as a name the server does not know."
+          description: "`PLAYER_NOT_FOUND` -- `player` names a player the server does not know."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: >-
-            `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name, and the
-            query-service module is not reachable.
+            `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name and the
+            query-service module is not reachable. Never returned for a
+            UUID-shaped `player`, which needs no module.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/players/summary:
+    get:
+      summary: One player's holdings, as counts
+      operationId: getPlayerSummary
+      description: >-
+        The counts behind `/realty list <player>`, which accepts any target and is
+        granted by default, so this exposes nothing a passer-by could not already
+        enumerate in game. It exists because counting via that listing means paging
+        it to the last page purely to read a total. A player holding nothing is a
+        200 with zeroes, not a 404: "nothing" is an answer, and there is no player
+        resource here that could be missing.
+      parameters:
+        - name: player
+          in: query
+          required: true
+          description: >-
+            The player, as a UUID or a name. A UUID is answered from the database
+            alone, so this form keeps working while the query-service module is
+            down -- the returned `name` is simply null, as every other
+            module-sourced field degrades. A name is resolved through the module,
+            so it answers 404 for an unknown name and 502 when the module is
+            unreachable. A Floodgate (Bedrock) player's name is a `.` followed by
+            their Xbox gamertag, which may itself contain spaces -- send it
+            percent-encoded, so `.Some Gamertag` becomes `.Some%20Gamertag`.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The player's holdings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerSummaryResponse"
+        "400":
+          description: >-
+            `MISSING_PARAMETER` when `player` was not given, or `MALFORMED_UUID`
+            when a UUID-shaped `player` does not parse.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`PLAYER_NOT_FOUND` -- the module knows no player by that name."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: >-
+            `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name and the
+            module is unreachable. Never returned for a UUID-shaped `player`,
+            which needs no module.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/players/lookup:
+    get:
+      summary: Resolve a player name to a UUID
+      operationId: lookupPlayer
+      description: >-
+        Bare name-to-UUID resolution, so a client holding only a name can resolve
+        once and cache the UUID rather than paying the module hop on every
+        player-scoped call. This is the one route whose entire answer comes from
+        the query-service module: there is no partial answer to degrade to, so an
+        unreachable module is a 502 rather than a null name.
+      parameters:
+        - name: playerName
+          in: query
+          required: true
+          description: >-
+            The player name to resolve. Percent-encode a name containing a space;
+            a Floodgate player is its gamertag behind a leading `.`. This route
+            always takes a name -- resolving a UUID you already hold has no
+            purpose -- so it keeps its own parameter name rather than the `player`
+            every other player-scoped route takes, which accepts either.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The resolved player.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerRef"
+        "400":
+          description: "`MISSING_PARAMETER` -- `playerName` was absent or blank."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`PLAYER_NOT_FOUND` -- the module knows no player by that name."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: "`NAME_LOOKUP_UNAVAILABLE` -- the query-service module is disabled or unreachable."
           content:
             application/json:
               schema:
@@ -454,6 +1143,275 @@ components:
           nullable: true
           description: From the query-service module; null when it is disabled or unreachable.
       required: [ id ]
+    PlayerSummaryResponse:
+      type: object
+      properties:
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        titleHeld:
+          type: integer
+        landlordOf:
+          type: integer
+        occupiedLandlordOf:
+          type: integer
+          description: >-
+            The subset of `landlordOf` that currently has a tenant, so a caller can
+            show let versus vacant without a second call.
+        renting:
+          type: integer
+        authorityOver:
+          type: integer
+      required: [ player, titleHeld, landlordOf, occupiedLandlordOf, renting, authorityOver ]
+    HistoryResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, entries ]
+    HistoryResponse_Entry:
+      type: object
+      description: >-
+        One event. `kind` decides which of the remaining fields are present; the
+        others are omitted rather than sent as null, so a consumer cannot mistake
+        "this kind has no such field" for "this field happened to be empty".
+        Switch on `kind`: freehold carries buyer, authority and price; leasehold
+        carries tenant, landlord and the lease terms; agent carries agent and actor.
+      properties:
+        kind:
+          type: string
+          enum: [ freehold, leasehold, agent ]
+        eventType:
+          type: string
+        eventTime:
+          type: string
+          format: date-time
+        buyer:
+          $ref: "#/components/schemas/PlayerRef"
+        authority:
+          $ref: "#/components/schemas/PlayerRef"
+        tenant:
+          $ref: "#/components/schemas/PlayerRef"
+        landlord:
+          $ref: "#/components/schemas/PlayerRef"
+        agent:
+          $ref: "#/components/schemas/PlayerRef"
+        actor:
+          $ref: "#/components/schemas/PlayerRef"
+        price:
+          type: number
+        durationSeconds:
+          type: integer
+          format: int64
+        extensionsRemaining:
+          type: integer
+      required: [ kind, eventType, eventTime ]
+    ActivityResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityResponse_Event"
+      required: [ page, pageSize, totalCount, totalPages, events ]
+    ActivityResponse_Event:
+      type: object
+      description: >-
+        The same polymorphic shape as HistoryResponse_Entry, with the region and world
+        added since a server-wide feed must say where each event happened. `kind`
+        decides which party and detail fields are present; the others are omitted
+        rather than sent as null.
+      properties:
+        kind:
+          type: string
+          enum: [ freehold, leasehold, agent ]
+        eventType:
+          type: string
+        eventTime:
+          type: string
+          format: date-time
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        buyer:
+          $ref: "#/components/schemas/PlayerRef"
+        authority:
+          $ref: "#/components/schemas/PlayerRef"
+        tenant:
+          $ref: "#/components/schemas/PlayerRef"
+        landlord:
+          $ref: "#/components/schemas/PlayerRef"
+        agent:
+          $ref: "#/components/schemas/PlayerRef"
+        actor:
+          $ref: "#/components/schemas/PlayerRef"
+        price:
+          type: number
+        durationSeconds:
+          type: integer
+          format: int64
+        extensionsRemaining:
+          type: integer
+      required: [ kind, eventType, eventTime, worldGuardRegionId, world ]
+    AuctionsResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        auctions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuctionsResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, auctions ]
+    AuctionsResponse_Entry:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        auctioneer:
+          $ref: "#/components/schemas/PlayerRef"
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+          description: When bidding closes.
+        minBid:
+          type: number
+        minStep:
+          type: number
+        biddingDurationSeconds:
+          type: integer
+          format: int64
+        paymentDurationSeconds:
+          type: integer
+          format: int64
+        highestBid:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/AuctionsResponse_Bid"
+        bidderCount:
+          type: integer
+          description: How many distinct players have bid. Names nobody.
+      required: [ worldGuardRegionId, world, auctioneer, startDate, endDate, minBid,
+                  minStep, biddingDurationSeconds, paymentDurationSeconds, bidderCount ]
+    AuctionsResponse_Bid:
+      type: object
+      properties:
+        bidder:
+          $ref: "#/components/schemas/PlayerRef"
+        amount:
+          type: number
+        bidTime:
+          type: string
+          format: date-time
+      required: [ bidder, amount, bidTime ]
+    OwnersLeaderboardResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+          description: How many distinct players hold at least one plot.
+        totalPages:
+          type: integer
+        owners:
+          type: array
+          items:
+            $ref: "#/components/schemas/OwnersLeaderboardResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, owners ]
+    OwnersLeaderboardResponse_Entry:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: >-
+            The row's 1-based position across the whole leaderboard, not within the
+            page, so page 2 at pageSize 10 starts at 11.
+        player:
+          $ref: "#/components/schemas/PlayerRef"
+        plotCount:
+          type: integer
+      required: [ rank, player, plotCount ]
+    StatsResponse:
+      type: object
+      properties:
+        regions:
+          type: integer
+        freehold:
+          $ref: "#/components/schemas/StatsResponse_Freehold"
+        leasehold:
+          $ref: "#/components/schemas/StatsResponse_Leasehold"
+        activeOffers:
+          type: integer
+        activeAuctions:
+          type: integer
+      required: [ regions, freehold, leasehold, activeOffers, activeAuctions ]
+    StatsResponse_Freehold:
+      type: object
+      properties:
+        contracts:
+          type: integer
+        occupied:
+          type: integer
+          description: Freehold contracts that currently have a title holder.
+        averagePrice:
+          type: number
+      required: [ contracts, occupied, averagePrice ]
+    StatsResponse_Leasehold:
+      type: object
+      properties:
+        contracts:
+          type: integer
+        occupied:
+          type: integer
+          description: Leasehold contracts that currently have a tenant.
+        averagePrice:
+          type: number
+        averageDurationSeconds:
+          type: integer
+          format: int64
+          description: The mean lease term, in whole seconds.
+      required: [ contracts, occupied, averagePrice, averageDurationSeconds ]
+    TagResponse:
+      type: object
+      description: A tag id in use, and how many regions carry it.
+      properties:
+        id:
+          type: string
+        regionCount:
+          type: integer
+      required: [ id, regionCount ]
     ErrorResponse:
       type: object
       properties:
@@ -512,7 +1470,10 @@ components:
         lastSoldPrice:
           type: number
           nullable: true
-      required: [ authority ]
+        acceptingOffers:
+          type: boolean
+          description: Whether the title holder is currently taking offers on this plot.
+      required: [ authority, acceptingOffers ]
     RegionResponse_Leasehold:
       type: object
       properties:
@@ -542,7 +1503,21 @@ components:
           type: integer
           nullable: true
           description: Null means unlimited extensions.
-      required: [ landlord, price, durationSeconds ]
+        terminationEffectiveDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Null unless a party has given notice. The lease still runs until this
+            date, so a consumer should read it as "ending", not "ended".
+        terminatedByRole:
+          type: string
+          nullable: true
+          description: Which party gave notice. Null alongside a null terminationEffectiveDate.
+        acceptingTenants:
+          type: boolean
+          description: Whether the landlord is currently taking a new tenant.
+      required: [ landlord, price, durationSeconds, acceptingTenants ]
     RegionResponse_Auction:
       type: object
       properties:
@@ -554,6 +1529,27 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/RegionResponse_Bid"
+        auctioneer:
+          $ref: "#/components/schemas/PlayerRef"
+        startDate:
+          type: string
+          format: date-time
+        minBid:
+          type: number
+        minStep:
+          type: number
+          description: The smallest amount by which a new bid must beat the standing one.
+        biddingDurationSeconds:
+          type: integer
+          format: int64
+          description: >-
+            How long bidding stays open past the last bid. `endDate` is this added
+            to the last bid's time, or to `startDate` when nobody has bid.
+        paymentDurationSeconds:
+          type: integer
+          format: int64
+          description: How long the winner then has to pay.
+      required: [ auctioneer, startDate, minBid, minStep, biddingDurationSeconds, paymentDurationSeconds ]
     RegionResponse_Bid:
       type: object
       properties:
@@ -691,7 +1687,14 @@ components:
           description: >-
             The asking price, or null for a freehold that is not currently for
             sale. Null only appears under `type=freehold`.
-      required: [ worldGuardRegionId, world, contractType, price ]
+        state:
+          type: string
+          enum: [ FOR_SALE, SOLD, FOR_LEASE, LEASED ]
+          description: >-
+            Never null here: a search result matched on a contract, so it always
+            has a state. Contrast `/v1/regions`, which lists contractless regions
+            too and reports null for them.
+      required: [ worldGuardRegionId, world, contractType, price, state ]
     RegionListResponse:
       type: object
       description: >-
@@ -718,4 +1721,98 @@ components:
           type: string
         world:
           $ref: "#/components/schemas/WorldRef"
+        state:
+          type: [ string, "null" ]
+          description: >-
+            The region's state, so a browse grid need not call `/v1/region` once
+            per row to learn it. Null for a registered region carrying no
+            contract at all -- which `/v1/regions` lists and `/v1/regions/search`
+            does not.
+      required: [ worldGuardRegionId, world, state ]
+    RegionsAtResponse:
+      type: object
+      properties:
+        test:
+          type: string
+          enum: [ point, column ]
+          description: >-
+            Which question was answered. `point` when the request carried a `y`,
+            `column` when it did not.
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RegionsAtResponse_Entry"
+      required: [ test, regions ]
+    RegionsAtResponse_Entry:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        world:
+          $ref: "#/components/schemas/WorldRef"
       required: [ worldGuardRegionId, world ]
+    RegionMembersResponse:
+      type: object
+      properties:
+        owners:
+          $ref: "#/components/schemas/RegionMembersResponse_Party"
+        members:
+          $ref: "#/components/schemas/RegionMembersResponse_Party"
+      required: [ owners, members ]
+    RegionMembersResponse_Party:
+      type: object
+      description: >-
+        One WorldGuard domain, with its three kinds of entry kept apart because
+        WorldGuard stores three kinds and flattening them loses information.
+      properties:
+        players:
+          type: array
+          description: UUID entries, with a name where the module could supply one.
+          items:
+            $ref: "#/components/schemas/PlayerRef"
+        playerNames:
+          type: array
+          description: >-
+            Legacy name entries, which carry no UUID and so cannot be a
+            PlayerRef. WorldGuard lower-cases these on the way in and they are
+            reported as it holds them.
+          items:
+            type: string
+        groups:
+          type: array
+          description: Permission group names, which are not players.
+          items:
+            type: string
+      required: [ players, playerNames, groups ]
+    WorldGeometryResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        world:
+          $ref: "#/components/schemas/WorldRef"
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorldGeometryResponse_Entry"
+      required: [ page, pageSize, totalCount, totalPages, world, regions ]
+    WorldGeometryResponse_Entry:
+      type: object
+      properties:
+        worldGuardRegionId:
+          type: string
+        dimensions:
+          oneOf:
+            - $ref: "#/components/schemas/Dimensions"
+            - type: "null"
+          description: >-
+            Null when the query-service module is disabled or unreachable, or
+            when Realty has the region registered but WorldGuard no longer holds
+            it. The row is still reported in either case.
+      required: [ worldGuardRegionId, dimensions ]

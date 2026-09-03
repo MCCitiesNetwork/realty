@@ -32,12 +32,16 @@ public record SearchResponse(
      *                     consumer grouping rows by world needs no second lookup
      * @param price        null for a freehold with no asking price, which only
      *                     appears under {@code type=freehold}
+     * @param state        the row's {@code RegionState} name. Never null here: a
+     *                     search result is a row that matched on a contract, so it
+     *                     always has one
      */
     public record Result(
             @NotNull String worldGuardRegionId,
             @NotNull WorldRef world,
             @NotNull String contractType,
-            @Nullable Double price
+            @Nullable Double price,
+            @NotNull String state
     ) {
     }
 
