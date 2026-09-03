@@ -46,10 +46,9 @@ public final class RealtyRestMain {
                 IsoDates::format,
                 () -> 0L);
 
+        // from(...) logs what it chose. Asking the client here instead would mean a
+        // blocking probe of the module before the port is even bound.
         ModuleClient moduleClient = HttpModuleClient.from(config.rest());
-        LOGGER.info("query-service enrichment: " + (moduleClient.status() == ModuleClient.Status.DISABLED
-                ? "disabled (REALTY_REST_MODULE_URL unset or no secret)"
-                : "enabled against " + config.rest().moduleUrl()));
 
         RealtyRestServer server = new RealtyRestServer(backend, database, config.rest(), moduleClient);
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));

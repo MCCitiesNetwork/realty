@@ -38,6 +38,13 @@ public record RestConfiguration(
                     + " exceeds the hard limit of " + RestSettings.MAX_PAGE_SIZE_LIMIT
                     + "; using " + RestSettings.MAX_PAGE_SIZE_LIMIT);
         }
+        int moduleTimeoutMs = integer(env, "REALTY_REST_MODULE_TIMEOUT_MS", 1500);
+        if (moduleTimeoutMs <= 0) {
+            // A non-positive timeout is not a slow client, it is a broken one: the HTTP
+            // client rejects it at call time, so failing here names the variable instead.
+            throw new IllegalStateException("Environment variable REALTY_REST_MODULE_TIMEOUT_MS"
+                    + " must be a positive number of milliseconds, was: " + moduleTimeoutMs);
+        }
         RestSettings rest = new RestSettings(
                 optional(env, "REALTY_REST_HOST", "0.0.0.0"),
                 integer(env, "REALTY_REST_PORT", 8080),
@@ -45,7 +52,7 @@ public record RestConfiguration(
                 originList(env, "REALTY_REST_CORS_ORIGINS"),
                 env.apply("REALTY_REST_MODULE_URL"),
                 env.apply("REALTY_REST_MODULE_SECRET"),
-                integer(env, "REALTY_REST_MODULE_TIMEOUT_MS", 1500));
+                moduleTimeoutMs);
         if (rest.moduleUrl() != null && !rest.moduleUrl().isBlank()
                 && (rest.moduleSecret() == null || rest.moduleSecret().isBlank())) {
             LOGGER.warning("REALTY_REST_MODULE_URL is set but REALTY_REST_MODULE_SECRET is not; the module "

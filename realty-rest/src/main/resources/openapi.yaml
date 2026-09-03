@@ -26,6 +26,7 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [ status, module ]
                 properties:
                   status:
                     type: string
@@ -369,7 +370,7 @@ paths:
         "502":
           description: >-
             `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name, and the
-            query-service module not reachable.
+            query-service module is not reachable.
           content:
             application/json:
               schema:

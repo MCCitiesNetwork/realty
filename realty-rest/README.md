@@ -44,8 +44,12 @@ resolve a player name to a UUID. Without it -- or if it stops answering --
 those fields degrade to `null` rather than failing the whole response, and
 `/v1/health`'s `module` field reports `disabled` or `unreachable` accordingly.
 The one exception is `?player=<name>`: since a name lookup has nothing else to
-return, an unreachable module fails that request with `502
-NAME_LOOKUP_UNAVAILABLE`; looking a player up by UUID still works.
+return, a module that is unreachable *or not configured* fails that request with
+`502 NAME_LOOKUP_UNAVAILABLE`; looking a player up by UUID still works.
+
+A wedged module therefore adds at most `REALTY_REST_MODULE_TIMEOUT_MS` to a
+request, not a multiple of it: `/v1/region` needs two module calls and issues
+them concurrently, so the two share one timeout budget.
 
 ## Endpoints
 

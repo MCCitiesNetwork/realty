@@ -139,6 +139,45 @@ final class TestServers {
         };
     }
 
+    /**
+     * A module whose two enrichment calls each take {@code stallMillis}, for asserting
+     * that a handler overlaps them rather than paying for both in series.
+     */
+    static @NotNull ModuleClient stallingModule(long stallMillis) {
+        return new ModuleClient() {
+            @Override
+            public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
+                                                                            @NotNull String regionId) {
+                stall();
+                return Optional.empty();
+            }
+
+            @Override
+            public @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids) {
+                stall();
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull NameLookup uuidOf(@NotNull String name) {
+                return new NameLookup.Unavailable();
+            }
+
+            @Override
+            public @NotNull Status status() {
+                return Status.OK;
+            }
+
+            private void stall() {
+                try {
+                    Thread.sleep(stallMillis);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+    }
+
     static @NotNull ModuleClient unreachableModule() {
         return new ModuleClient() {
             @Override
