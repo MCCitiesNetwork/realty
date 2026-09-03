@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.adapter.query;
 
 import io.javalin.testtools.JavalinTest;
-import okhttp3.Request;
-import okhttp3.Response;
+import io.javalin.testtools.Request;
+import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

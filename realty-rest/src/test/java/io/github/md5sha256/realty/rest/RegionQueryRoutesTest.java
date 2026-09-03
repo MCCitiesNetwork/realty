@@ -7,7 +7,7 @@ import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.github.md5sha256.realty.rest.module.RegionMembers;
 import io.github.md5sha256.realty.rest.module.RegionsAt;
 import io.javalin.testtools.JavalinTest;
-import okhttp3.Response;
+import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

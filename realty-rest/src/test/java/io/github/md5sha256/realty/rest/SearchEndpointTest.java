@@ -5,10 +5,15 @@ import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
 import io.github.md5sha256.realty.database.entity.SearchSort;
 import io.javalin.testtools.JavalinTest;
-import okhttp3.Response;
+import io.javalin.testtools.Response;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.UUID;
 
@@ -432,31 +437,30 @@ class SearchEndpointTest {
      * The SPA is served from a different origin, so every one of its requests is
      * preceded by this preflight. Without the allowlist the browser blocks the
      * real request, and nothing on the server side ever reports an error.
+     *
+     * <p>Sent with the raw JDK {@link HttpClient} rather than the test harness's own
+     * wrapper: unlike OkHttp, {@code io.javalin.testtools.Request.Builder} exposes no
+     * way to build an arbitrary-method request such as {@code OPTIONS}, only the
+     * named HTTP-verb convenience methods.</p>
      */
     @Test
-    void allowsAPreflightFromAConfiguredOrigin() {
+    void allowsAPreflightFromAConfiguredOrigin() throws Exception {
         RealtyRestServer server = TestServers.withSearch(
                 stubWithOneResult(), worlds(), 100, List.of("http://localhost:5173"));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.request("/v1/regions/search", builder -> builder
-                    .method("OPTIONS", null)
-                    .header("Origin", "http://localhost:5173")
-                    .header("Access-Control-Request-Method", "GET"));
-            Assertions.assertEquals("http://localhost:5173",
-                    response.header("Access-Control-Allow-Origin"));
+            HttpResponse<Void> response = preflight(jsonServer.port(), "http://localhost:5173");
+            Assertions.assertEquals(List.of("http://localhost:5173"),
+                    response.headers().allValues("Access-Control-Allow-Origin"));
         });
     }
 
     @Test
-    void refusesAPreflightFromAnUnlistedOrigin() {
+    void refusesAPreflightFromAnUnlistedOrigin() throws Exception {
         RealtyRestServer server = TestServers.withSearch(
                 stubWithOneResult(), worlds(), 100, List.of("http://localhost:5173"));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.request("/v1/regions/search", builder -> builder
-                    .method("OPTIONS", null)
-                    .header("Origin", "http://evil.example")
-                    .header("Access-Control-Request-Method", "GET"));
-            Assertions.assertNull(response.header("Access-Control-Allow-Origin"),
+            HttpResponse<Void> response = preflight(jsonServer.port(), "http://evil.example");
+            Assertions.assertTrue(response.headers().allValues("Access-Control-Allow-Origin").isEmpty(),
                     "an unlisted origin must not be echoed back as allowed");
         });
     }
@@ -465,12 +469,19 @@ class SearchEndpointTest {
     void sendsNoCorsHeadersWhenNoOriginsAreConfigured() {
         RealtyRestServer server = TestServers.withSearch(stubWithOneResult(), worlds());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.request("/v1/regions/search", builder -> builder
-                    .get()
-                    .header("Origin", "http://localhost:5173"));
-            Assertions.assertNull(response.header("Access-Control-Allow-Origin"),
+            Response response = client.get("/v1/regions/search", req -> req.header("Origin", "http://localhost:5173"));
+            Assertions.assertTrue(response.headers().get("Access-Control-Allow-Origin") == null,
                     "CORS is off by default; nothing should be allowed implicitly");
         });
+    }
+
+    private static @NotNull HttpResponse<Void> preflight(int port, @NotNull String origin) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v1/regions/search"))
+                .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                .header("Origin", origin)
+                .header("Access-Control-Request-Method", "GET")
+                .build();
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.discarding());
     }
 
 }
