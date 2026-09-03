@@ -133,7 +133,7 @@ caller can distinguish "no name" from "not asked".
 
 ### `POST /players/uuids`
 
-The reverse direction, name → UUID, backing the public API's `?player=` lookup.
+The reverse direction, name → UUID, backing the public API's `?playerName=` lookup.
 
 A body rather than a query string, deliberately: player names are not reliably
 URL-safe. Java Edition names are (`[a-zA-Z0-9_]`, 3–16 characters), but Floodgate
