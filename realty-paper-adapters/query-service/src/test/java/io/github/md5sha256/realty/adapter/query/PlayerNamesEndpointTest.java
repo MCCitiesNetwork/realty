@@ -85,6 +85,22 @@ class PlayerNamesEndpointTest {
     }
 
     @Test
+    void batchNamesWithANullIdElementIs400() {
+        JavalinTest.test(TestServers.standard().javalin(), (server, client) -> {
+            Response response = client.post("/players/names", "{\"ids\":[null]}", PlayerNamesEndpointTest::auth);
+            Assertions.assertEquals(400, response.code());
+        });
+    }
+
+    @Test
+    void batchUuidsWithANullNameElementIs400() {
+        JavalinTest.test(TestServers.standard().javalin(), (server, client) -> {
+            Response response = client.post("/players/uuids", "{\"names\":[null]}", PlayerNamesEndpointTest::auth);
+            Assertions.assertEquals(400, response.code());
+        });
+    }
+
+    @Test
     void batchRequiresTheSecretToo() {
         JavalinTest.test(TestServers.standard().javalin(), (server, client) -> {
             Assertions.assertEquals(401, client.post("/players/names", "{\"ids\":[]}").code());
