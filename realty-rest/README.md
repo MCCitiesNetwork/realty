@@ -204,7 +204,29 @@ declares a container `HEALTHCHECK` against `/v1/health`.
 ### 3. Docker Compose
 
 `compose.yml` at the repository root brings up `mariadb:11.7` and the API together,
-with the API's `depends_on` gated on the database's `service_healthy` condition:
+with the API's `depends_on` gated on the database's `service_healthy` condition.
+
+**It holds no credentials itself.** Every value that matters -- the database URL,
+username, password, and the query-service module's URL and secret -- is a
+`${VARIABLE}` reference, substituted from a `.env` file that Compose reads
+automatically from the same directory. That file is exactly what let a real
+password get committed once already (see git history for `compose.yml` around
+2026-09-03/04): a value that lives only in a gitignored `.env` cannot be
+committed by accident, because it is never written into a tracked file in the
+first place.
+
+Set it up once:
+
+```bash
+cp .env.example .env
+$EDITOR .env          # fill in REALTY_DB_PASSWORD etc.
+```
+
+`.env.example` is the tracked template, documenting every variable; `.env` is
+your real copy, and `.gitignore` excludes it by name. **Never put a real
+credential in `.env.example`** -- it is the file that ends up in a commit.
+
+Then, to run the bundled database and the API together:
 
 ```bash
 docker compose up -d
@@ -212,12 +234,51 @@ curl -s http://localhost:8080/v1/health
 docker compose down
 ```
 
+To point the API at a database you already manage -- a remote host, or one
+`realty-paper` has already migrated -- instead of the bundled empty one, set
+`REALTY_DB_URL` in `.env` to that database's address and skip starting the
+bundled `mariadb` service:
+
+```bash
+docker compose up -d --no-deps realty-rest
+```
+
+`--no-deps` is required here: `realty-rest`'s `depends_on: mariadb` would
+otherwise start the bundled database anyway even though nothing points at it.
+
 This is a separate file from `compose.dev.yml`, which exists only for
-`./gradlew runServer` and is not used here. `compose.yml` stands up its own empty
-database -- point it at a database `realty-paper` has already migrated (or run the
-plugin against it once) before expecting `/v1/regions` or `/v1/players/regions` to
-return real data; `/v1/health` and `/v1/worlds` work against a migrated-but-empty
-schema.
+`./gradlew runServer` and is not used here. When the bundled `mariadb` is used,
+it stands up its own empty database -- point `REALTY_DB_URL` at a database
+`realty-paper` has already migrated (or run the plugin against it once) before
+expecting `/v1/regions` or `/v1/players/regions` to return real data;
+`/v1/health` and `/v1/worlds` work against a migrated-but-empty schema.
+
+#### How `.env` actually reaches the container
+
+Three mechanisms look similar and are easy to conflate:
+
+- **Compose's automatic `.env` substitution** (what `compose.yml` uses): Compose
+  reads `.env` from the project directory before parsing the compose file, and
+  replaces every `${VARIABLE}` in the YAML with that value. This happens at
+  `docker compose` parse time -- it is not a Docker feature, and a plain
+  `docker run` never sees it. `docker compose config` (used above to validate
+  this file) prints the compose document with every substitution already
+  applied, which is the fastest way to check `.env` is being read correctly.
+- **A service's `env_file:` key** (not used by `compose.yml`, but worth
+  knowing): lists a file whose `KEY=value` lines are injected directly into
+  that container's environment, without touching the YAML at all. This is the
+  right tool when you want to hand a container a whole file of variables the
+  compose file never names individually.
+- **`docker run --env-file`**: the plain-Docker equivalent of `env_file:`,
+  for the "2. Docker" section above -- `docker run --env-file .env realty-rest`
+  loads every line of `.env` as a container environment variable, replacing
+  the individual `-e` flags shown there.
+
+`compose.yml` uses only the first. If you add a variable to `.env.example`
+that the YAML does not reference as `${THAT_VARIABLE}`, Compose reads it but
+never uses it -- and the reverse, a `${VARIABLE}` with nothing in `.env`,
+substitutes an empty string with a warning rather than failing, which is why
+`docker compose config` is worth running after editing either file.
 
 ### 4. Pterodactyl egg
 
