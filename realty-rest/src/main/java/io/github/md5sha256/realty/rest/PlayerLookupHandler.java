@@ -5,7 +5,7 @@ import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * {@code GET /v1/players/lookup?name=...} -- bare name-to-UUID resolution.
+ * {@code GET /v1/players/lookup?playerName=...} -- bare name-to-UUID resolution.
  *
  * <p>Every other player-scoped route accepts a name and resolves it internally, which
  * makes a client that only has a name pay the module hop on every call. This route lets
@@ -24,8 +24,8 @@ final class PlayerLookupHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        String name = QueryParams.required(ctx, "name");
-        ctx.json(PlayerNameResolution.byName(this.moduleClient, name, "name"));
+        String name = QueryParams.required(ctx, "playerName");
+        ctx.json(PlayerNameResolution.byName(this.moduleClient, name, "playerName"));
     }
 
 }

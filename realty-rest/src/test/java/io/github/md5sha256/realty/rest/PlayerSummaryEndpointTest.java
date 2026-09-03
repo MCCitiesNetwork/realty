@@ -21,7 +21,7 @@ class PlayerSummaryEndpointTest {
                 "countRegionsByTenant", 1,
                 "countRegionsByAuthority", 0), Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/summary?player=" + PLAYER);
+            Response response = client.get("/v1/players/summary?playerId=" + PLAYER);
             Assertions.assertEquals(200, response.code());
             String body = response.body().string();
             Assertions.assertTrue(body.contains("\"titleHeld\":7"), body);
@@ -36,7 +36,7 @@ class PlayerSummaryEndpointTest {
     void carriesThePlayerIdentityAlongsideTheCounters() {
         RealtyRestServer server = TestServers.withPlayerSummary(Map.of(), Map.of(PLAYER, "Notch"));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/summary?player=" + PLAYER);
+            Response response = client.get("/v1/players/summary?playerId=" + PLAYER);
             String body = response.body().string();
             Assertions.assertTrue(body.contains("\"id\":\"" + PLAYER + "\""), body);
             Assertions.assertTrue(body.contains("\"name\":\"Notch\""), body);
@@ -44,17 +44,17 @@ class PlayerSummaryEndpointTest {
     }
 
     @Test
-    void acceptsAPlayerNameAsWellAsAUuid() {
+    void resolvesAPlayerNameThroughTheModule() {
         RealtyRestServer server = TestServers.withPlayerSummaryByName("Notch", PLAYER);
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/summary?player=Notch");
+            Response response = client.get("/v1/players/summary?playerName=Notch");
             Assertions.assertEquals(200, response.code());
             Assertions.assertTrue(response.body().string().contains(PLAYER.toString()));
         });
     }
 
     @Test
-    void rejectsAMissingPlayerParameter() {
+    void rejectsARequestNamingNoPlayer() {
         RealtyRestServer server = TestServers.withPlayerSummary(Map.of(), Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get("/v1/players/summary");
@@ -67,7 +67,7 @@ class PlayerSummaryEndpointTest {
     void rejectsAMalformedUuid() {
         RealtyRestServer server = TestServers.withPlayerSummary(Map.of(), Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/summary?player=zzzzzzzz-0000-0000-0000-000000000099");
+            Response response = client.get("/v1/players/summary?playerId=zzzzzzzz-0000-0000-0000-000000000099");
             Assertions.assertEquals(400, response.code());
             Assertions.assertTrue(response.body().string().contains("MALFORMED_UUID"));
         });
@@ -82,7 +82,7 @@ class PlayerSummaryEndpointTest {
                 "countRegionsByTenant", 0,
                 "countRegionsByAuthority", 0), Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/summary?player=" + PLAYER);
+            Response response = client.get("/v1/players/summary?playerId=" + PLAYER);
             Assertions.assertEquals(200, response.code(),
                     "a player who owns nothing is a valid answer, not a missing resource");
             Assertions.assertTrue(response.body().string().contains("\"titleHeld\":0"));

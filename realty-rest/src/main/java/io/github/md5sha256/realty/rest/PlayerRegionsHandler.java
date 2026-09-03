@@ -48,8 +48,8 @@ final class PlayerRegionsHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        String playerParam = QueryParams.required(ctx, "player");
-        PlayerRef player = resolvePlayer(playerParam);
+        PlayerRef player = Objects.requireNonNull(
+                PlayerNameResolution.fromRequest(ctx, this.moduleClient, true));
         UUID playerId = UUID.fromString(player.id());
 
         String category = ctx.queryParam("category");
@@ -70,17 +70,6 @@ final class PlayerRegionsHandler {
         };
 
         ctx.json(response);
-    }
-
-    /**
-     * Determines whether {@code param} should be resolved as a UUID or a player
-     * name. A UUID-shaped value (36 characters, hyphens at the standard positions)
-     * that fails to parse is treated as a malformed UUID and rejected with 400; a
-     * name resolves through the query-service module -- unknown is 404, and an
-     * unreachable module is 502.
-     */
-    private @NotNull PlayerRef resolvePlayer(@NotNull String param) {
-        return PlayerNameResolution.byUuidOrName(this.moduleClient, param, "player");
     }
 
     private @NotNull PlayerRegionsResponse handleOwned(@NotNull PlayerRef player, @NotNull UUID playerId,

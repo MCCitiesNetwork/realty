@@ -4,10 +4,11 @@ import io.github.md5sha256.realty.rest.json.PlayerRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.github.md5sha256.realty.rest.module.NameLookup;
 import io.github.md5sha256.realty.rest.module.PlayerNames;
+import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -25,36 +26,64 @@ final class PlayerNameResolution {
     }
 
     /**
-     * Resolves a parameter that may be either a UUID or a player name.
+     * Reads the {@code playerId} / {@code playerName} pair a route was given.
      *
-     * <p>A UUID-shaped value that fails to parse is a malformed UUID (400) rather than
-     * a name to look up: a caller who sent 36 characters with hyphens in the standard
-     * places meant a UUID, and looking it up as a name would answer the less useful
-     * "no player called that".</p>
+     * <p>They are separate parameters because they do not cost the same thing.
+     * {@code playerId} is answered from the database alone and cannot fail on a module
+     * outage; {@code playerName} needs the query-service module, so it can answer 404
+     * or 502 where {@code playerId} never will. A single polymorphic {@code player}
+     * hid that difference behind the shape of the value, leaving a caller unable to
+     * tell from its own request whether the module was on the critical path -- and
+     * leaving the OpenAPI document unable to say so either.</p>
+     *
+     * <p>Giving both is rejected rather than resolved by a precedence rule. A request
+     * carrying two answers to one question is a caller mistake, and silently picking
+     * one would hide it.</p>
+     *
+     * @param required whether one of the two must be present. False where the pair is
+     *                 an optional filter, in which case absent means "do not filter"
+     * @return the resolved player, or {@code null} only when {@code required} is false
+     *         and neither parameter was given
      */
-    static @NotNull PlayerRef byUuidOrName(@NotNull ModuleClient moduleClient,
-                                           @NotNull String param,
-                                           @NotNull String parameterName) {
-        if (isUuidShaped(param)) {
-            UUID id;
-            try {
-                id = UUID.fromString(param);
-            } catch (IllegalArgumentException ex) {
-                throw ApiException.badRequest("MALFORMED_UUID",
-                        "Query parameter '" + parameterName + "' is not a valid UUID");
-            }
-            return Objects.requireNonNull(
-                    PlayerNames.ref(id, PlayerNames.resolve(moduleClient, List.of(id))));
+    static @Nullable PlayerRef fromRequest(@NotNull Context ctx,
+                                           @NotNull ModuleClient moduleClient,
+                                           boolean required) {
+        String id = QueryParams.optional(ctx, "playerId");
+        String name = QueryParams.optional(ctx, "playerName");
+        if (id != null && name != null) {
+            throw ApiException.badRequest("AMBIGUOUS_PARAMETER",
+                    "Give either 'playerId' or 'playerName', not both");
         }
-        return byName(moduleClient, param, parameterName);
+        if (id != null) {
+            UUID parsed = parseId(id);
+            return new PlayerRef(parsed.toString(), nameOf(moduleClient, parsed));
+        }
+        if (name != null) {
+            return byName(moduleClient, name, "playerName");
+        }
+        if (required) {
+            throw ApiException.badRequest("MISSING_PARAMETER",
+                    "Query parameter 'playerId' or 'playerName' is required");
+        }
+        return null;
     }
 
-    private static boolean isUuidShaped(@NotNull String value) {
-        return value.length() == 36
-                && value.charAt(8) == '-'
-                && value.charAt(13) == '-'
-                && value.charAt(18) == '-'
-                && value.charAt(23) == '-';
+    private static @NotNull UUID parseId(@NotNull String raw) {
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ex) {
+            throw ApiException.badRequest("MALFORMED_UUID",
+                    "Query parameter 'playerId' is not a valid UUID");
+        }
+    }
+
+    /**
+     * The display name for an id, or null when the module cannot supply one. Unlike a
+     * name lookup this never fails the request: the name is enrichment, and every other
+     * module-sourced field already degrades to null.
+     */
+    private static @Nullable String nameOf(@NotNull ModuleClient moduleClient, @NotNull UUID id) {
+        return PlayerNames.resolve(moduleClient, List.of(id)).get(id);
     }
 
     static @NotNull PlayerRef byName(@NotNull ModuleClient moduleClient,

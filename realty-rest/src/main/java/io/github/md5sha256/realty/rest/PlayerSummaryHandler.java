@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -27,8 +28,8 @@ final class PlayerSummaryHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        String param = QueryParams.required(ctx, "player");
-        PlayerRef player = PlayerNameResolution.byUuidOrName(this.moduleClient, param, "player");
+        PlayerRef player = Objects.requireNonNull(
+                PlayerNameResolution.fromRequest(ctx, this.moduleClient, true));
         UUID playerId = UUID.fromString(player.id());
 
         ctx.json(new PlayerSummaryResponse(

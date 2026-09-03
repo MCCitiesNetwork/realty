@@ -39,13 +39,15 @@ The resolved configuration (secrets redacted) is logged once at startup.
 The last three variables point this service at a query-service module running
 inside the Paper process. When configured, it supplies a region's `dimensions`
 (in `/v1/region` responses) and every player `name` (in `/v1/region` and
-`/v1/players/regions` responses), and lets `/v1/players/regions?player=<name>`
-resolve a player name to a UUID. Without it -- or if it stops answering --
+`/v1/players/regions` responses), and backs every `playerName` parameter and
+`/v1/players/lookup`. Without it -- or if it stops answering --
 those fields degrade to `null` rather than failing the whole response, and
 `/v1/health`'s `module` field reports `disabled` or `unreachable` accordingly.
-The one exception is `?player=<name>`: since a name lookup has nothing else to
+The one exception is `?playerName=`: since a name lookup has nothing else to
 return, a module that is unreachable *or not configured* fails that request with
-`502 NAME_LOOKUP_UNAVAILABLE`; looking a player up by UUID still works.
+`502 NAME_LOOKUP_UNAVAILABLE`. `?playerId=` is unaffected -- it is answered from
+the database alone, and that is precisely why the two are separate parameters
+rather than one that behaves differently depending on what you put in it.
 
 A wedged module therefore adds at most `REALTY_REST_MODULE_TIMEOUT_MS` to a
 request, not a multiple of it: `/v1/region` needs two module calls and issues
@@ -60,7 +62,13 @@ them concurrently, so the two share one timeout budget.
   in a fixed total order.
 - `GET /v1/regions/search?type=&world=&minPrice=&maxPrice=&tag=&occupancy=&sort=&page=&pageSize=` --
   browse and filter regions (the HTTP form of `/realty search`). Every filter is optional.
-- `GET /v1/players/regions?player=&category=&page=&pageSize=` -- a player's owned/landlord/rented regions (the HTTP form of `/realty list`).
+- `GET /v1/players/regions?playerId=|playerName=&category=&page=&pageSize=` -- a player's owned/landlord/rented regions (the HTTP form of `/realty list`).
+- `GET /v1/players/summary?playerId=|playerName=` -- one player's holdings as counts.
+- `GET /v1/players/lookup?playerName=` -- resolve a name to a UUID, so a client can cache it.
+- `GET /v1/region/history?world=&region=&type=&since=&playerId=|playerName=&page=&pageSize=` -- one region's history (the HTTP form of `/realty history`).
+- `GET /v1/tags` -- every tag in use, with its region count.
+- `GET /v1/stats` -- server-wide totals.
+- `GET /v1/leaderboard/owners?page=&pageSize=` -- title holders ranked by plot count.
 - `GET /v1/openapi.yaml`, `GET /v1/openapi.json` -- the OpenAPI document.
 - `GET /v1/docs` -- an interactive Swagger UI page.
 
@@ -77,10 +85,15 @@ in `/v1/regions` and never in `/v1/regions/search`.
 `world` and `player` are **query parameters**, never path segments, and their values
 are frequently not URL-safe:
 
+Every route that identifies a player takes **`playerId` or `playerName`, never
+both** -- giving both is `400 AMBIGUOUS_PARAMETER`. `playerId` needs only the
+database; `playerName` needs the query-service module. Resolve a name once with
+`/v1/players/lookup` and use the UUID thereafter.
+
 - A **world name is a folder name on disk** and may contain spaces or other characters
   needing encoding -- `My World` becomes `?world=My%20World`.
 - A **Floodgate (Bedrock) player name** is a leading `.` followed by an Xbox gamertag,
-  which may itself contain spaces -- `.Some Gamertag` becomes `?player=.Some%20Gamertag`.
+  which may itself contain spaces -- `.Some Gamertag` becomes `?playerName=.Some%20Gamertag`.
 
 Send the raw name percent-encoded; do not pre-decode it.
 
@@ -131,7 +144,7 @@ curl -s "http://localhost:8080/v1/regions/search?type=sale&maxPrice=10000"
 curl -s "http://localhost:8080/v1/regions/search?type=freehold"
 
 # A player's regions, paged
-curl -s "http://localhost:8080/v1/players/regions?player=069a79f4-44e9-4726-a5be-fca90e38aaf5&category=all&page=1&pageSize=25"
+curl -s "http://localhost:8080/v1/players/regions?playerId=069a79f4-44e9-4726-a5be-fca90e38aaf5&category=all&page=1&pageSize=25"
 
 # The OpenAPI document and interactive docs
 curl -s http://localhost:8080/v1/openapi.yaml
