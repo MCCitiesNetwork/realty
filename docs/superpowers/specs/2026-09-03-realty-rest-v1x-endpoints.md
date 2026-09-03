@@ -287,8 +287,24 @@ needs.
 A server-wide feed of recent history events, newest first. **New query**: the same
 three-table `UNION` as the player history endpoint, without a player filter. A
 default `type` set of `BUY`, `AUCTION_BUY`, `OFFER_BUY`, `RENT` gives a "recent
-sales and lettings" ticker; the full set gives an audit trail. This is the single
-most useful route for a Discord bot polling for announcements.
+sales and lettings" ticker; naming types explicitly gives the audit trail. This is
+the single most useful route for a Discord bot polling for announcements.
+
+Three things the union settles, now that it is written:
+
+- Every history table already carries `worldGuardRegionId` and `worldId`, so the feed
+  needs no join back to `RealtyRegion`.
+- The branches disagree on who the parties are -- buyer/authority, tenant/landlord,
+  agent/actor -- so the projected row carries **positional** player columns and lets
+  `kind` say which pair they hold. Naming them for one table's meaning would make them
+  lies in the other two.
+- The `ORDER BY` and the `LIMIT` sit outside the union, on the combined result.
+  Ordering within each branch and merging afterwards pages each table separately and
+  interleaves three partial pages, which is a different feed from the one asked for.
+
+It lives on its own `ActivityMapper` rather than on one of the history mappers: every
+query on it unions all three tables, and hanging it off `FreeholdHistoryMapper` would
+imply a primacy that table does not have.
 
 ### `GET /v1/leaderboard/owners?page=&pageSize=`
 
