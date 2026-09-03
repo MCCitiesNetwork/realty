@@ -64,7 +64,7 @@ public final class QueryServiceModule extends SimplePluginModule<Realty> {
         QueryServiceServer server = new QueryServiceServer(
                 config.sharedSecret(),
                 config.requestTimeout(),
-                new MainThreadDimensionsSource(
+                new MainThreadRegionSource(
                         plugin.executorState().mainThreadExec(),
                         plugin.getServer()::getWorld,
                         world -> regionContainer.get(BukkitAdapter.adapt(world))),

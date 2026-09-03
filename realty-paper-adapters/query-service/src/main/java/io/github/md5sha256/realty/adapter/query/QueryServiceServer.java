@@ -29,29 +29,38 @@ public final class QueryServiceServer {
     public static final List<String> ROUTES = List.of(
             "/health",
             "/regions/{worldId}/{regionId}/dimensions",
+            "/regions/{worldId}/{regionId}/members",
+            "/regions/{worldId}/dimensions",
+            "/regions/{worldId}/at",
             "/players/{uuid}/name",
             "/players/names",
             "/players/uuids");
+
+    /**
+     * Cap on any batch route. Every entry can cost a main-thread hop and, in the worst case, a
+     * Mojang round trip, so an unbounded list is a way to tie up the server from one request.
+     */
+    public static final int MAX_BATCH = 256;
 
     private static final Logger LOGGER = Logger.getLogger(QueryServiceServer.class.getName());
     private static final String HANDLED_ATTRIBUTE = "realty.handled";
 
     private final byte[] secret;
     private final Duration requestTimeout;
-    private final RegionDimensionsSource dimensions;
+    private final RegionSource regions;
     private final PlayerNameService names;
     private final Javalin javalin;
 
     public QueryServiceServer(@NotNull String secret,
                               @NotNull Duration requestTimeout,
-                              @NotNull RegionDimensionsSource dimensions,
+                              @NotNull RegionSource regions,
                               @NotNull PlayerNameService names) {
         if (secret.isBlank()) {
             throw new IllegalArgumentException("secret must not be blank");
         }
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
         this.requestTimeout = Objects.requireNonNull(requestTimeout, "requestTimeout");
-        this.dimensions = Objects.requireNonNull(dimensions, "dimensions");
+        this.regions = Objects.requireNonNull(regions, "regions");
         this.names = Objects.requireNonNull(names, "names");
         ObjectMapper objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -73,8 +82,15 @@ public final class QueryServiceServer {
 
         this.javalin.get("/health", ctx -> ctx.json(Map.of("status", "ok")));
 
-        DimensionsHandler dimensionsHandler = new DimensionsHandler(this.dimensions, this.requestTimeout);
+        DimensionsHandler dimensionsHandler = new DimensionsHandler(this.regions, this.requestTimeout);
         this.javalin.get("/regions/{worldId}/{regionId}/dimensions", dimensionsHandler::handle);
+        this.javalin.post("/regions/{worldId}/dimensions", dimensionsHandler::batch);
+
+        MembersHandler membersHandler = new MembersHandler(this.regions, this.requestTimeout);
+        this.javalin.get("/regions/{worldId}/{regionId}/members", membersHandler::handle);
+
+        RegionsAtHandler regionsAtHandler = new RegionsAtHandler(this.regions, this.requestTimeout);
+        this.javalin.get("/regions/{worldId}/at", regionsAtHandler::handle);
 
         PlayerNamesHandler playerNames = new PlayerNamesHandler(this.names, this.requestTimeout);
         this.javalin.get("/players/{uuid}/name", playerNames::single);
