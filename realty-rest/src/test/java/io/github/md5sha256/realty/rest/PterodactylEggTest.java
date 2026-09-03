@@ -227,19 +227,23 @@ class PterodactylEggTest {
     }
 
     /**
-     * The module secret stays hidden for now, which it can afford to be: unlike the database
-     * password it is optional, so leaving it unset is a supported deployment -- the service
-     * simply runs without module enrichment rather than failing to start. It carries the same
-     * unenterable-field problem for anyone who does want enrichment, and the second assertion
-     * here is what forces the question to be revisited if it ever becomes required.
+     * {@code user_viewable: false, user_editable: true} is the exact pair that made
+     * {@code REALTY_DB_PASSWORD} uneditable in the first place: Pterodactyl's client-facing
+     * startup tab renders a field only for viewable variables, so a hidden-but-editable
+     * variable is really just hidden. No variable on this egg is allowed that combination --
+     * hidden means uneditable, so a field kept secret from the operator must also be one
+     * they never need to set themselves.
      */
     @Test
-    void theModuleSecretRemainsHidden() throws IOException {
-        JsonNode secret = variable("REALTY_REST_MODULE_SECRET");
-        Assertions.assertFalse(secret.get("user_viewable").asBoolean(),
-                "the module secret is optional, so it need not be exposed to panel viewers");
-        Assertions.assertFalse(secret.get("rules").asText().contains("required"),
-                "if the module secret ever becomes required it must become viewable too");
+    void noEditableVariableIsHidden() throws IOException {
+        for (JsonNode variable : egg().get("variables")) {
+            String name = variable.get("env_variable").asText();
+            if (variable.get("user_editable").asBoolean()) {
+                Assertions.assertTrue(variable.get("user_viewable").asBoolean(),
+                        name + " is editable but hidden, which in Pterodactyl means it cannot"
+                                + " actually be edited from the panel");
+            }
+        }
     }
 
     private static JsonNode variable(String envVariable) throws IOException {
