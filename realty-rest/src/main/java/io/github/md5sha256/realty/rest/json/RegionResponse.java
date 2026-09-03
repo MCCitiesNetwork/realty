@@ -30,12 +30,17 @@ public record RegionResponse(
             @Nullable PlayerRef titleHolder,
             @NotNull PlayerRef authority,
             @Nullable Double price,
-            @Nullable Double lastSoldPrice
+            @Nullable Double lastSoldPrice,
+            boolean acceptingOffers
     ) {
     }
 
     /**
-     * @param maxExtensions null means unlimited extensions
+     * @param maxExtensions           null means unlimited extensions
+     * @param terminationEffectiveDate null unless one party has given notice; the
+     *                                lease still runs until this date
+     * @param terminatedByRole        which party gave that notice, null alongside a
+     *                                null {@code terminationEffectiveDate}
      */
     public record Leasehold(
             @NotNull PlayerRef landlord,
@@ -45,13 +50,26 @@ public record RegionResponse(
             @Nullable String startDate,
             @Nullable String endDate,
             @Nullable Integer extensionsUsed,
-            @Nullable Integer maxExtensions
+            @Nullable Integer maxExtensions,
+            @Nullable String terminationEffectiveDate,
+            @Nullable String terminatedByRole,
+            boolean acceptingTenants
     ) {
     }
 
+    /**
+     * @param endDate the computed bidding deadline -- the last bid, or the start,
+     *                plus {@code biddingDurationSeconds}
+     */
     public record Auction(
             @Nullable String endDate,
-            @Nullable Bid highestBid
+            @Nullable Bid highestBid,
+            @NotNull PlayerRef auctioneer,
+            @NotNull String startDate,
+            double minBid,
+            double minStep,
+            long biddingDurationSeconds,
+            long paymentDurationSeconds
     ) {
     }
 

@@ -55,4 +55,11 @@ public interface RealtyRegionMapper {
 
     int countAll();
 
+    /**
+     * The same page as {@link #selectPage(int, int)}, narrowed to one world.
+     */
+    @NotNull List<RealtyRegionEntity> selectPageByWorld(@NotNull UUID worldId, int limit, int offset);
+
+    int countByWorld(@NotNull UUID worldId);
+
 }

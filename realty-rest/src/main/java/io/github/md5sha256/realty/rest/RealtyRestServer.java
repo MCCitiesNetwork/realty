@@ -60,7 +60,9 @@ public final class RealtyRestServer {
             "/v1/region",
             "/v1/regions",
             "/v1/regions/search",
+            "/v1/tags",
             "/v1/players/regions",
+            "/v1/players/lookup",
             "/v1/openapi.yaml",
             "/v1/openapi.json",
             "/v1/docs"
@@ -163,6 +165,12 @@ public final class RealtyRestServer {
         PlayerRegionsHandler playerRegionsHandler = new PlayerRegionsHandler(
                 this.backend, this.database, this.worldLookup, this.settings, this.moduleClient);
         this.javalin.get("/v1/players/regions", playerRegionsHandler::handle);
+
+        PlayerLookupHandler playerLookupHandler = new PlayerLookupHandler(this.moduleClient);
+        this.javalin.get("/v1/players/lookup", playerLookupHandler::handle);
+
+        TagsHandler tagsHandler = new TagsHandler(this.backend);
+        this.javalin.get("/v1/tags", tagsHandler::handle);
 
         this.javalin.get("/v1/openapi.yaml", ctx -> ctx.contentType("application/yaml")
                 .result(OpenApiRoutes.rawDocument()));

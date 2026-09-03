@@ -9,7 +9,6 @@ import io.github.md5sha256.realty.rest.json.PlayerRef;
 import io.github.md5sha256.realty.rest.json.PlayerRegionsResponse;
 import io.github.md5sha256.realty.rest.json.WorldRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
-import io.github.md5sha256.realty.rest.module.NameLookup;
 import io.github.md5sha256.realty.rest.module.PlayerNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
@@ -90,13 +89,7 @@ final class PlayerRegionsHandler {
             }
             return Objects.requireNonNull(PlayerNames.ref(id, PlayerNames.resolve(this.moduleClient, List.of(id))));
         }
-        return switch (this.moduleClient.uuidOf(param)) {
-            case NameLookup.Resolved resolved -> new PlayerRef(resolved.id().toString(), resolved.name());
-            case NameLookup.Unknown unknown -> throw ApiException.notFound("PLAYER_NOT_FOUND",
-                    "No player named '" + param + "'");
-            case NameLookup.Unavailable unavailable -> throw ApiException.badGateway("NAME_LOOKUP_UNAVAILABLE",
-                    "Player name lookup requires the query-service module, which is not reachable");
-        };
+        return PlayerNameResolution.byName(this.moduleClient, param, "player");
     }
 
     private static boolean isUuidShaped(@NotNull String value) {

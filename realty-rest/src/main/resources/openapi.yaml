@@ -295,6 +295,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/tags:
+    get:
+      summary: List every tag in use with its region count
+      operationId: listTags
+      description: >-
+        Every tag id currently attached to at least one region, with how many
+        regions carry it, so a consumer of `/v1/regions/search?tag=` can discover
+        which values that filter accepts. Display names are deliberately absent --
+        they live in the plugin's RealtyTags config, which this service does not
+        read, and the `tags` array on a region reports raw ids for the same reason.
+        Always 200; an empty array means no tag is in use.
+      responses:
+        "200":
+          description: Every tag in use, in the order the backend reports them.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TagResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/players/regions:
     get:
       summary: List a player's owned, landlorded and rented regions
@@ -387,6 +413,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/players/lookup:
+    get:
+      summary: Resolve a player name to a UUID
+      operationId: lookupPlayer
+      description: >-
+        Bare name-to-UUID resolution, so a client holding only a name can resolve
+        once and cache the UUID rather than paying the module hop on every
+        player-scoped call. This is the one route whose entire answer comes from
+        the query-service module: there is no partial answer to degrade to, so an
+        unreachable module is a 502 rather than a null name.
+      parameters:
+        - name: name
+          in: query
+          required: true
+          description: >-
+            The player name to resolve. Percent-encode a name containing a space;
+            a Floodgate player is its gamertag behind a leading `.`.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The resolved player.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerRef"
+        "400":
+          description: "`MISSING_PARAMETER` -- `name` was absent or blank."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`PLAYER_NOT_FOUND` -- the module knows no player by that name."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: "`NAME_LOOKUP_UNAVAILABLE` -- the query-service module is disabled or unreachable."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/openapi.yaml:
     get:
       summary: This document, as YAML
@@ -454,6 +530,15 @@ components:
           nullable: true
           description: From the query-service module; null when it is disabled or unreachable.
       required: [ id ]
+    TagResponse:
+      type: object
+      description: A tag id in use, and how many regions carry it.
+      properties:
+        id:
+          type: string
+        regionCount:
+          type: integer
+      required: [ id, regionCount ]
     ErrorResponse:
       type: object
       properties:
@@ -512,7 +597,10 @@ components:
         lastSoldPrice:
           type: number
           nullable: true
-      required: [ authority ]
+        acceptingOffers:
+          type: boolean
+          description: Whether the title holder is currently taking offers on this plot.
+      required: [ authority, acceptingOffers ]
     RegionResponse_Leasehold:
       type: object
       properties:
@@ -542,7 +630,21 @@ components:
           type: integer
           nullable: true
           description: Null means unlimited extensions.
-      required: [ landlord, price, durationSeconds ]
+        terminationEffectiveDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Null unless a party has given notice. The lease still runs until this
+            date, so a consumer should read it as "ending", not "ended".
+        terminatedByRole:
+          type: string
+          nullable: true
+          description: Which party gave notice. Null alongside a null terminationEffectiveDate.
+        acceptingTenants:
+          type: boolean
+          description: Whether the landlord is currently taking a new tenant.
+      required: [ landlord, price, durationSeconds, acceptingTenants ]
     RegionResponse_Auction:
       type: object
       properties:
@@ -554,6 +656,27 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/RegionResponse_Bid"
+        auctioneer:
+          $ref: "#/components/schemas/PlayerRef"
+        startDate:
+          type: string
+          format: date-time
+        minBid:
+          type: number
+        minStep:
+          type: number
+          description: The smallest amount by which a new bid must beat the standing one.
+        biddingDurationSeconds:
+          type: integer
+          format: int64
+          description: >-
+            How long bidding stays open past the last bid. `endDate` is this added
+            to the last bid's time, or to `startDate` when nobody has bid.
+        paymentDurationSeconds:
+          type: integer
+          format: int64
+          description: How long the winner then has to pay.
+      required: [ auctioneer, startDate, minBid, minStep, biddingDurationSeconds, paymentDurationSeconds ]
     RegionResponse_Bid:
       type: object
       properties:

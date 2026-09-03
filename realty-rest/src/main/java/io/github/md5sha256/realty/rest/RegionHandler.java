@@ -72,6 +72,9 @@ final class RegionHandler {
             playerIds.add(info.leasehold().landlordId());
             playerIds.add(info.leasehold().tenantId());
         }
+        if (info.auction() != null) {
+            playerIds.add(info.auction().auctioneerId());
+        }
         if (info.highestBid() != null) {
             playerIds.add(info.highestBid().bidderId());
         }
@@ -103,7 +106,8 @@ final class RegionHandler {
         }
         PlayerRef titleHolder = PlayerNames.ref(freehold.titleHolderId(), names);
         PlayerRef authority = Objects.requireNonNull(PlayerNames.ref(freehold.authorityId(), names));
-        return new RegionResponse.Freehold(titleHolder, authority, freehold.price(), lastSoldPrice);
+        return new RegionResponse.Freehold(titleHolder, authority, freehold.price(), lastSoldPrice,
+                freehold.acceptingOffers());
     }
 
     private static @Nullable RegionResponse.Leasehold toLeasehold(@Nullable LeaseholdContractEntity leasehold,
@@ -121,7 +125,10 @@ final class RegionHandler {
                 formatOrNull(leasehold.startDate()),
                 formatOrNull(leasehold.endDate()),
                 leasehold.currentMaxExtensions(),
-                leasehold.maxExtensions());
+                leasehold.maxExtensions(),
+                formatOrNull(leasehold.terminationEffectiveDate()),
+                leasehold.terminatedByRole(),
+                leasehold.acceptingTenants());
     }
 
     private static @Nullable RegionResponse.Auction toAuction(@Nullable FreeholdContractAuctionEntity auction,
@@ -135,7 +142,15 @@ final class RegionHandler {
         RegionResponse.Bid bid = highestBid == null
                 ? null
                 : new RegionResponse.Bid(Objects.requireNonNull(PlayerNames.ref(highestBid.bidderId(), names)), highestBid.bidAmount());
-        return new RegionResponse.Auction(IsoDates.format(endDate), bid);
+        return new RegionResponse.Auction(
+                IsoDates.format(endDate),
+                bid,
+                Objects.requireNonNull(PlayerNames.ref(auction.auctioneerId(), names)),
+                IsoDates.format(auction.startDate()),
+                auction.minBid(),
+                auction.minStep(),
+                auction.biddingDurationSeconds(),
+                auction.paymentDurationSeconds());
     }
 
     private static @Nullable String formatOrNull(@Nullable LocalDateTime dateTime) {

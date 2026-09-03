@@ -27,6 +27,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,6 +69,26 @@ final class TestServers {
     }
 
     /**
+     * A server whose backend reports exactly {@code tagIds} in that order, and the
+     * given per-tag region counts. A tag absent from {@code counts} counts zero, so
+     * a test naming one tag need not populate the other.
+     */
+    static @NotNull RealtyRestServer withTags(@NotNull List<String> tagIds,
+                                              @NotNull Map<String, Integer> counts) {
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "getAllTagIds" -> List.copyOf(tagIds);
+            case "countRegionsByTag" -> counts.getOrDefault((String) args[0], 0);
+            default -> throw new UnsupportedOperationException(
+                    "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
+                handler);
+        return new RealtyRestServer(backend, new StubDatabase(false), defaultSettings());
+    }
+
+    /**
      * A world lookup that throws a {@link RuntimeException} carrying the given
      * message when its table is queried -- for pinning that the server's catch-all
      * 500 handler never echoes an exception's message back to the client.
@@ -102,6 +123,18 @@ final class TestServers {
         FreeholdContractEntity freehold = new FreeholdContractEntity(1, AUTHORITY, null, 25000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
+                new StubDatabase(false, worlds), defaultSettings(), module);
+    }
+
+    /**
+     * A server serving exactly {@code info} for region {@code downtown_plot_14} in
+     * world {@code WORLD_ID}, for tests asserting on one contract's serialised fields.
+     */
+    static @NotNull RealtyRestServer withRegionInfo(@NotNull RealtyBackend.RegionInfo info,
+                                                    @Nullable RegionState state,
+                                                    @NotNull ModuleClient module) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
+        return new RealtyRestServer(regionBackend(info, state),
                 new StubDatabase(false, worlds), defaultSettings(), module);
     }
 
@@ -493,9 +526,16 @@ final class TestServers {
                 case "selectPage" -> {
                     int limit = (int) args[0];
                     int offset = (int) args[1];
-                    int from = Math.min(offset, allRegions.size());
-                    int to = Math.min(from + limit, allRegions.size());
-                    return List.copyOf(allRegions.subList(from, to));
+                    return page(allRegions, limit, offset);
+                }
+                case "countByWorld" -> {
+                    return inWorld(allRegions, (UUID) args[0]).size();
+                }
+                case "selectPageByWorld" -> {
+                    List<RealtyRegionEntity> scoped = inWorld(allRegions, (UUID) args[0]);
+                    int limit = (int) args[1];
+                    int offset = (int) args[2];
+                    return page(scoped, limit, offset);
                 }
                 default -> throw new UnsupportedOperationException(
                         "RealtyRegionMapper#" + method.getName() + " is not stubbed for this test");
@@ -505,6 +545,25 @@ final class TestServers {
                 RealtyRegionMapper.class.getClassLoader(),
                 new Class<?>[]{RealtyRegionMapper.class},
                 handler);
+    }
+
+    private static @NotNull List<RealtyRegionEntity> inWorld(@NotNull List<RealtyRegionEntity> regions,
+                                                            @NotNull UUID worldId) {
+        List<RealtyRegionEntity> scoped = new ArrayList<>();
+        for (RealtyRegionEntity region : regions) {
+            if (region.worldId().equals(worldId)) {
+                scoped.add(region);
+            }
+        }
+        return scoped;
+    }
+
+    private static @NotNull List<RealtyRegionEntity> page(@NotNull List<RealtyRegionEntity> regions,
+                                                          int limit,
+                                                          int offset) {
+        int from = Math.min(offset, regions.size());
+        int to = Math.min(from + limit, regions.size());
+        return List.copyOf(regions.subList(from, to));
     }
 
     private static @NotNull RestSettings defaultSettings() {
