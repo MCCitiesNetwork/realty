@@ -119,4 +119,23 @@ class HttpModuleClientTest {
                     client(server.port(), FakeModule.SECRET, Duration.ofSeconds(2)).status());
         });
     }
+
+    @Test
+    void aMalformedPlayerIdIsSkippedNotThrown() {
+        JavalinTest.test(FakeModule.malformedIdApp(), (server, http) -> {
+            HttpModuleClient client = client(server.port(), FakeModule.SECRET, Duration.ofSeconds(2));
+            Assertions.assertTrue(client.names(List.of(FakeModule.NOTCH)).isEmpty());
+            Assertions.assertInstanceOf(NameLookup.Unavailable.class, client.uuidOf("Notch"));
+        });
+    }
+
+    @Test
+    void aRegionIdWithAPlusIsEncodedAsALiteralPlus() {
+        JavalinTest.test(new FakeModule(0).app(), (server, http) -> {
+            Optional<RegionResponse.Dimensions> dims =
+                    client(server.port(), FakeModule.SECRET, Duration.ofSeconds(2))
+                            .dimensions(FakeModule.WORLD, "plot+1");
+            Assertions.assertTrue(dims.isPresent());
+        });
+    }
 }

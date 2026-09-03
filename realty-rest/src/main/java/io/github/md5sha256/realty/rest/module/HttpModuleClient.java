@@ -77,17 +77,22 @@ public final class HttpModuleClient implements ModuleClient {
     @Override
     public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
                                                                    @NotNull String regionId) {
-        String path = "/regions/" + worldId + "/" + URLEncoder.encode(regionId, StandardCharsets.UTF_8) + "/dimensions";
+        String path = "/regions/" + worldId + "/" + pathSegment(regionId) + "/dimensions";
         JsonNode body = get(path);
         if (body == null || !body.has("shape")) {
             return Optional.empty();
         }
-        List<RegionResponse.Point> points = new ArrayList<>();
-        for (JsonNode point : body.path("points")) {
-            points.add(new RegionResponse.Point(point.path("x").asInt(), point.path("z").asInt()));
+        try {
+            List<RegionResponse.Point> points = new ArrayList<>();
+            for (JsonNode point : body.path("points")) {
+                points.add(new RegionResponse.Point(point.path("x").asInt(), point.path("z").asInt()));
+            }
+            return Optional.of(new RegionResponse.Dimensions(
+                    body.path("shape").asText(), body.path("minY").asInt(), body.path("maxY").asInt(), points));
+        } catch (RuntimeException ex) {
+            failed(path, ex);
+            return Optional.empty();
         }
-        return Optional.of(new RegionResponse.Dimensions(
-                body.path("shape").asText(), body.path("minY").asInt(), body.path("maxY").asInt(), points));
     }
 
     @Override
@@ -99,32 +104,69 @@ public final class HttpModuleClient implements ModuleClient {
         if (distinct.size() > MAX_BATCH) {
             distinct = distinct.subList(0, MAX_BATCH);
         }
-        JsonNode body = post("/players/names", Map.of("ids", distinct.stream().map(UUID::toString).toList()));
+        String path = "/players/names";
+        JsonNode body = post(path, Map.of("ids", distinct.stream().map(UUID::toString).toList()));
         Map<UUID, String> names = new LinkedHashMap<>();
         if (body == null) {
             return names;
         }
-        for (JsonNode player : body.path("players")) {
-            JsonNode name = player.path("name");
-            if (!name.isNull() && name.isTextual()) {
-                names.put(UUID.fromString(player.path("id").asText()), name.asText());
+        try {
+            for (JsonNode player : body.path("players")) {
+                JsonNode name = player.path("name");
+                if (name.isNull() || !name.isTextual()) {
+                    continue;
+                }
+                JsonNode id = player.path("id");
+                if (id.isNull() || !id.isTextual()) {
+                    continue;
+                }
+                try {
+                    names.put(UUID.fromString(id.asText()), name.asText());
+                } catch (IllegalArgumentException ex) {
+                    LOGGER.log(Level.FINE, "module returned a malformed player id in " + path, ex);
+                }
             }
+            return names;
+        } catch (RuntimeException ex) {
+            failed(path, ex);
+            return Map.of();
         }
-        return names;
     }
 
     @Override
     public @NotNull NameLookup uuidOf(@NotNull String name) {
-        JsonNode body = post("/players/uuids", Map.of("names", List.of(name)));
+        String path = "/players/uuids";
+        JsonNode body = post(path, Map.of("names", List.of(name)));
         if (body == null) {
             return new NameLookup.Unavailable();
         }
-        JsonNode player = body.path("players").path(0);
-        JsonNode id = player.path("id");
-        if (id.isNull() || !id.isTextual()) {
-            return new NameLookup.Unknown();
+        try {
+            JsonNode player = body.path("players").path(0);
+            JsonNode id = player.path("id");
+            if (id.isNull() || !id.isTextual()) {
+                return new NameLookup.Unknown();
+            }
+            try {
+                return new NameLookup.Resolved(UUID.fromString(id.asText()), player.path("name").asText(name));
+            } catch (IllegalArgumentException ex) {
+                failed(path, ex);
+                return new NameLookup.Unavailable();
+            }
+        } catch (RuntimeException ex) {
+            failed(path, ex);
+            return new NameLookup.Unavailable();
         }
-        return new NameLookup.Resolved(UUID.fromString(id.asText()), player.path("name").asText(name));
+    }
+
+    /**
+     * URL-encodes a region id for use as a path segment. {@link URLEncoder} performs
+     * form encoding, which turns a space into {@code +}; a path router does not decode
+     * that back, and WorldGuard region ids may themselves contain a literal {@code +}
+     * (already safely escaped to {@code %2B} by the encoder), so the space-to-plus
+     * substitution has to be undone afterwards rather than left in place.
+     */
+    private static @NotNull String pathSegment(@NotNull String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     @Override
