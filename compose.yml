@@ -42,6 +42,12 @@ services:
       REALTY_REST_HOST: "0.0.0.0"
       REALTY_REST_PORT: "8080"
       REALTY_REST_MAX_PAGE_SIZE: "100"
+      # Point at the query-service module inside the game server to enrich
+      # responses with live geometry and player names. Both values must match the
+      # module's config.yml; unset leaves those fields null.
+      # REALTY_REST_MODULE_URL: "http://game-server:8123"
+      # REALTY_REST_MODULE_SECRET: "change-me"
+      # REALTY_REST_MODULE_TIMEOUT_MS: "1500"
     depends_on:
       mariadb:
         condition: service_healthy

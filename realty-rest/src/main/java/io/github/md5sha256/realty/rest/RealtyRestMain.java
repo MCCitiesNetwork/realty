@@ -4,6 +4,8 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
+import io.github.md5sha256.realty.rest.module.HttpModuleClient;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.SQLException;
@@ -44,7 +46,11 @@ public final class RealtyRestMain {
                 IsoDates::format,
                 () -> 0L);
 
-        RealtyRestServer server = new RealtyRestServer(backend, database, config.rest());
+        // from(...) logs what it chose. Asking the client here instead would mean a
+        // blocking probe of the module before the port is even bound.
+        ModuleClient moduleClient = HttpModuleClient.from(config.rest());
+
+        RealtyRestServer server = new RealtyRestServer(backend, database, config.rest(), moduleClient);
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
         server.start();
     }

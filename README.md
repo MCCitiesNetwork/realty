@@ -70,6 +70,7 @@ immutable: republishing a version that already exists fails with a 409, so bump 
 | `realty-paper-adapters/chat-adapter` | Notification delivery to online players via chat |
 | `realty-paper-adapters/essentials-adapter` | Notification delivery via EssentialsX mail |
 | `realty-paper-adapters/player-notifications-adapter` | Notification delivery via [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) |
+| `realty-paper-adapters/query-service` | Private HTTP endpoint serving live WorldGuard geometry and player names to `realty-rest` |
 
 The adapter modules are **not bundled in the plugin jar**. Each is published as its own jar; install
 the ones you want by placing them in `plugins/Realty/modules` and restarting the server. Realty
@@ -102,6 +103,38 @@ A Realty message key that no category claims still reaches players, routed to th
 stops Realty notifications being delivered as EssentialsX mail — useful when another delivery module
 already covers offline players and you do not want the same notification arriving twice. The module's
 teleport-safety integration is not affected by the setting and always applies.
+
+### query-service
+
+`realty-rest` runs outside the game server and can only read MariaDB, which holds neither
+WorldGuard geometry nor player names. `query-service` answers for both from inside the server over a
+private, secret-gated HTTP endpoint. Its `config.yml` (`plugins/Realty/modules/query-service/config.yml`):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `shared-secret` | *(empty)* | Required in every request's `X-Realty-Secret` header. **Empty disables the endpoint** rather than running it open; set the same value in `realty-rest`'s `REALTY_REST_MODULE_SECRET`. |
+| `bind-host` | `127.0.0.1` | Localhost by default. Widen only if `realty-rest` runs on another host, and put a reverse proxy (with TLS) in front if that crosses a network you do not control. |
+| `port` | `8123` | |
+| `request-timeout-ms` | `1000` | Geometry is read on the main thread and names are resolved through it too; a request that cannot get an answer within this budget returns `504`. |
+
+Routes (all require the secret; unversioned because both sides ship from this repository):
+
+| Route | Answers |
+|---|---|
+| `GET /health` | `{"status":"ok"}` |
+| `GET /regions/{worldId}/{regionId}/dimensions` | `shape` (`CUBOID`/`POLYGONAL`), `minY`, `maxY`, ordered footprint `points` — read live, never cached. `404` if WorldGuard has no such region. |
+| `GET /players/{uuid}/name` | `{"id","name"}`, `name` null when unknown |
+| `POST /players/names` `{"ids":[…]}` | `{"players":[{"id","name"}]}` in request order, unknowns kept with null `name`. At most **256** ids per request; more is `400 BATCH_TOO_LARGE`. |
+| `POST /players/uuids` `{"names":[…]}` | `{"players":[{"id","name"}]}` in request order, unknowns kept with null `id`. At most **256** names per request; more is `400 BATCH_TOO_LARGE`. A body, not a query string, because Floodgate names like `.Cool Guy 123` are not URL-safe. |
+
+Names come from the server's own usercache first, so Bedrock/Floodgate players resolve; Mojang is
+only consulted for a UUID the server has never seen. The same lookups are available in-process to
+other plugins as the `PlayerNameService` Bukkit service.
+
+`/realty module reload query-service` re-reads the config and restarts the endpoint. If the edited
+config fails to read or the new server fails to start, the previous configuration keeps running and
+the failure is logged. The reload runs on the main thread and waits for the HTTP server to drain, so
+it can pause the tick for up to `request-timeout-ms` if a request is in flight when it happens.
 
 ## Documentation
 

@@ -53,6 +53,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final SignCache signCache;
     private final java.util.function.LongSupplier terminationNoticeSeconds;
     private final SafeLocationFinder safeLocationFinder;
+    private final PlayerNameService playerNameService;
 
     /**
      * Per-region serialisation chains. Each entry is the tail of a queue of
@@ -70,7 +71,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull SignTextApplicator signTextApplicator,
                               @NotNull SignCache signCache,
                               @NotNull java.util.function.LongSupplier terminationNoticeSeconds,
-                              @NotNull SafeLocationFinder safeLocationFinder) {
+                              @NotNull SafeLocationFinder safeLocationFinder,
+                              @NotNull PlayerNameService playerNameService) {
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
         this.executorState = executorState;
@@ -80,11 +82,17 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.signCache = signCache;
         this.terminationNoticeSeconds = terminationNoticeSeconds;
         this.safeLocationFinder = safeLocationFinder;
+        this.playerNameService = playerNameService;
     }
 
     @Override
     public void setSafeBlockPredicate(@NotNull Predicate<Block> predicate) {
         this.safeLocationFinder.setSafetyPredicate(predicate);
+    }
+
+    @Override
+    public @NotNull PlayerNameService playerNameService() {
+        return this.playerNameService;
     }
 
     /**

@@ -17,15 +17,23 @@ paths:
         orchestrator health probes, not for consumers of the data endpoints below.
       responses:
         "200":
-          description: The service is up and the database is reachable.
+          description: >-
+            The service is up and the database is reachable. `module` reports the
+            query-service module's own status separately -- an unreachable module
+            is a degraded enrichment source, not an unhealthy service, so it never
+            turns this response into a 503.
           content:
             application/json:
               schema:
                 type: object
+                required: [ status, module ]
                 properties:
                   status:
                     type: string
                     enum: [ ok ]
+                  module:
+                    type: string
+                    enum: [ ok, unreachable, disabled ]
         "503":
           description: The database could not be reached.
           content:
@@ -353,11 +361,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`PLAYER_NOT_FOUND` -- `player` was given as a name the server does not know."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: >-
-            `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name rather than
-            a UUID; name resolution is not available until the query-service
-            module ships.
+            `NAME_LOOKUP_UNAVAILABLE` -- `player` was given as a name, and the
+            query-service module is not reachable.
           content:
             application/json:
               schema:
@@ -425,10 +438,7 @@ components:
       required: [ id ]
     PlayerRef:
       type: object
-      description: >-
-        A player identity. `id` is always present; `name` is always null in this
-        build -- it is filled by a separate query-service module that does not
-        exist yet.
+      description: A player identity. `id` is always present.
       properties:
         id:
           type: string
@@ -436,6 +446,7 @@ components:
         name:
           type: string
           nullable: true
+          description: From the query-service module; null when it is disabled or unreachable.
       required: [ id ]
     ErrorResponse:
       type: object
@@ -472,10 +483,8 @@ components:
             - $ref: "#/components/schemas/RegionResponse_Auction"
         dimensions:
           nullable: true
-          description: >-
-            Always null in this build. Filled by a separate query-service module
-            that does not exist yet; present-and-null rather than absent so adding
-            it later is not a breaking change.
+          allOf:
+            - $ref: "#/components/schemas/Dimensions"
         tags:
           type: array
           items:
@@ -547,6 +556,33 @@ components:
         amount:
           type: number
       required: [ bidder, amount ]
+    Dimensions:
+      type: object
+      nullable: true
+      description: >-
+        A region's WorldGuard geometry. Null when the query-service module is
+        disabled or unreachable.
+      properties:
+        shape:
+          type: string
+          enum: [ CUBOID, POLYGONAL ]
+        minY:
+          type: integer
+        maxY:
+          type: integer
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dimensions_Point"
+      required: [ shape, minY, maxY, points ]
+    Dimensions_Point:
+      type: object
+      properties:
+        x:
+          type: integer
+        z:
+          type: integer
+      required: [ x, z ]
     PlayerRegionsResponse:
       type: object
       description: >-

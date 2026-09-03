@@ -7,11 +7,14 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.rest.json.ErrorResponse;
+import io.github.md5sha256.realty.rest.json.HealthResponse;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.Javalin;
 import io.javalin.json.JavalinJackson;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -91,13 +94,22 @@ public final class RealtyRestServer {
     private final RestSettings settings;
     private final Javalin javalin;
     private final WorldLookup worldLookup;
+    private final ModuleClient moduleClient;
 
     public RealtyRestServer(@NotNull RealtyBackend backend,
                             @NotNull Database database,
                             @NotNull RestSettings settings) {
+        this(backend, database, settings, ModuleClient.disabled());
+    }
+
+    public RealtyRestServer(@NotNull RealtyBackend backend,
+                            @NotNull Database database,
+                            @NotNull RestSettings settings,
+                            @NotNull ModuleClient moduleClient) {
         this.backend = backend;
         this.database = database;
         this.settings = settings;
+        this.moduleClient = moduleClient;
         this.worldLookup = new WorldLookup(database);
         this.javalin = buildJavalin(settings);
         registerRoutes();
@@ -128,7 +140,8 @@ public final class RealtyRestServer {
     private void registerRoutes() {
         this.javalin.get("/v1/health", ctx -> {
             if (databaseReachable()) {
-                ctx.status(200).json(Map.of("status", "ok"));
+                ctx.status(200).json(new HealthResponse("ok",
+                        this.moduleClient.status().name().toLowerCase(Locale.ROOT)));
             } else {
                 ctx.status(503).json(Map.of("status", "degraded"));
             }
@@ -136,7 +149,8 @@ public final class RealtyRestServer {
 
         this.javalin.get("/v1/worlds", ctx -> ctx.json(this.worldLookup.all()));
 
-        RegionHandler regionHandler = new RegionHandler(this.backend, this.database, this.worldLookup);
+        RegionHandler regionHandler =
+                new RegionHandler(this.backend, this.database, this.worldLookup, this.moduleClient);
         this.javalin.get("/v1/region", regionHandler::handle);
 
         RegionListHandler regionListHandler =
@@ -146,8 +160,8 @@ public final class RealtyRestServer {
         SearchHandler searchHandler = new SearchHandler(this.database, this.worldLookup, this.settings);
         this.javalin.get("/v1/regions/search", searchHandler::handle);
 
-        PlayerRegionsHandler playerRegionsHandler =
-                new PlayerRegionsHandler(this.backend, this.database, this.worldLookup, this.settings);
+        PlayerRegionsHandler playerRegionsHandler = new PlayerRegionsHandler(
+                this.backend, this.database, this.worldLookup, this.settings, this.moduleClient);
         this.javalin.get("/v1/players/regions", playerRegionsHandler::handle);
 
         this.javalin.get("/v1/openapi.yaml", ctx -> ctx.contentType("application/yaml")
@@ -204,6 +218,10 @@ public final class RealtyRestServer {
 
     public @NotNull Database database() {
         return this.database;
+    }
+
+    public @NotNull ModuleClient moduleClient() {
+        return this.moduleClient;
     }
 
     @NotNull WorldLookup worldLookup() {
