@@ -189,24 +189,26 @@ class PterodactylEggTest {
      * {@code viewable: false, editable: true} describes a field nobody can type into. That is
      * how the database password ended up unenterable by anyone short of a panel root admin.
      *
-     * <p>A required variable with an empty default is one the operator must supply, so it is
-     * exactly the set that has to be reachable. Deriving the set from the egg's own rules
-     * rather than listing names keeps a future required variable from repeating this.</p>
+     * <p>A required variable is, by definition, one every deployment must set correctly --
+     * whether or not it ships a default. A dummy default (the database credentials below
+     * ship "change-me"-style placeholders so panel server creation doesn't block on an empty
+     * required field) is a value the operator is expected to overwrite, not one that makes
+     * the field optional, so it must stay reachable regardless. Deriving the set from the
+     * egg's own rules rather than listing names keeps a future required variable from
+     * repeating this.</p>
      */
     @Test
-    void everyVariableTheOperatorMustSupplyIsReachableFromThePanel() throws IOException {
+    void everyRequiredVariableIsReachableFromThePanel() throws IOException {
         for (JsonNode variable : egg().get("variables")) {
             String name = variable.get("env_variable").asText();
-            boolean required = variable.get("rules").asText().contains("required");
-            boolean hasDefault = !variable.get("default_value").asText().isEmpty();
-            if (!required || hasDefault) {
+            if (!variable.get("rules").asText().contains("required")) {
                 continue;
             }
             Assertions.assertTrue(variable.get("user_viewable").asBoolean(),
-                    name + " must be supplied by the operator but is not viewable, so the panel"
-                            + " never renders a field for it");
+                    name + " is required but is not viewable, so the panel never renders a"
+                            + " field for it");
             Assertions.assertTrue(variable.get("user_editable").asBoolean(),
-                    name + " must be supplied by the operator but is not editable");
+                    name + " is required but is not editable");
         }
     }
 

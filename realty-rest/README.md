@@ -290,6 +290,12 @@ declares every variable from the table above as a panel variable except
 |---|---|---|
 | `REALTY_REST_VERSION` | `required|string|max:32` | The released version to install, e.g. `1.5.1`. Tags carry no `v` prefix; typing one is tolerated. |
 
+`REALTY_DB_URL`, `REALTY_DB_USERNAME` and `REALTY_DB_PASSWORD` ship dummy default
+values (`mariadb://db-host:3306/realty`, `realty`, `change-me`) rather than blank ones,
+purely so creating the server in the panel doesn't block on an empty required field --
+they are placeholders, not working credentials, and must be overwritten with the real
+database's address before the server is worth starting.
+
 The install step **downloads a prebuilt jar** from the matching GitHub Release —
 `https://github.com/MCCitiesNetwork/realty/releases/download/<version>/realty-rest-<version>-all.jar`
 — rather than cloning and compiling the project on the panel. Installs are therefore
@@ -329,7 +335,9 @@ upload).
 The **tag drives the version**: the workflow builds with
 `-PreleaseVersion=<tag>`, so no version-bump commit is needed to
 cut a release and the tag cannot disagree with the artifact. `realty-conventions.gradle.kts`
-keeps `1.5.1` as the default every local and CI build uses.
+keeps its own literal as the default every local and CI build uses instead -- bumped by
+hand to the next `-SNAPSHOT` after each release, so local builds don't keep reporting a
+version that already shipped.
 
 ```bash
 git tag 1.6.0 && git push origin 1.6.0
