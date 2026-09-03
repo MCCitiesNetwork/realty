@@ -76,7 +76,7 @@ public final class QueryServiceServer {
         DimensionsHandler dimensionsHandler = new DimensionsHandler(this.dimensions, this.requestTimeout);
         this.javalin.get("/regions/{worldId}/{regionId}/dimensions", dimensionsHandler::handle);
 
-        PlayerNamesHandler playerNames = new PlayerNamesHandler(this.names);
+        PlayerNamesHandler playerNames = new PlayerNamesHandler(this.names, this.requestTimeout);
         this.javalin.get("/players/{uuid}/name", playerNames::single);
         this.javalin.post("/players/names", playerNames::names);
         this.javalin.post("/players/uuids", playerNames::uuids);

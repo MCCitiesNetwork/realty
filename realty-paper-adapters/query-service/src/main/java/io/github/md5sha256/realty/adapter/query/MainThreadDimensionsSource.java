@@ -29,7 +29,15 @@ public final class MainThreadDimensionsSource implements RegionDimensionsSource 
     @Override
     public @NotNull CompletableFuture<Optional<RegionDimensions>> dimensions(@NotNull UUID worldId,
                                                                              @NotNull String regionId) {
-        return CompletableFuture.supplyAsync(() -> readOnMainThread(worldId, regionId), this.mainThread);
+        try {
+            return CompletableFuture.supplyAsync(() -> readOnMainThread(worldId, regionId), this.mainThread);
+        } catch (RuntimeException ex) {
+            // Bukkit's main-thread executor rejects tasks once the plugin is disabling, throwing
+            // synchronously (Paper's IllegalPluginAccessException, a RuntimeException). Returning a
+            // failed future instead lets it surface through the handler's normal exception path as a
+            // logged 500, rather than escaping out of a method that promises a future.
+            return CompletableFuture.failedFuture(ex);
+        }
     }
 
     private static @NotNull Optional<RegionDimensions> readOnMainThread(@NotNull UUID worldId,

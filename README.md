@@ -115,7 +115,7 @@ private, secret-gated HTTP endpoint. Its `config.yml` (`plugins/Realty/modules/q
 | `shared-secret` | *(empty)* | Required in every request's `X-Realty-Secret` header. **Empty disables the endpoint** rather than running it open; set the same value in `realty-rest`'s `REALTY_REST_MODULE_SECRET`. |
 | `bind-host` | `127.0.0.1` | Localhost by default. Widen only if `realty-rest` runs on another host, and put a reverse proxy (with TLS) in front if that crosses a network you do not control. |
 | `port` | `8123` | |
-| `request-timeout-ms` | `1000` | Geometry is read on the main thread; a request that cannot get a tick within this budget returns `504`. |
+| `request-timeout-ms` | `1000` | Geometry is read on the main thread and names are resolved through it too; a request that cannot get an answer within this budget returns `504`. |
 
 Routes (all require the secret; unversioned because both sides ship from this repository):
 
@@ -124,8 +124,8 @@ Routes (all require the secret; unversioned because both sides ship from this re
 | `GET /health` | `{"status":"ok"}` |
 | `GET /regions/{worldId}/{regionId}/dimensions` | `shape` (`CUBOID`/`POLYGONAL`), `minY`, `maxY`, ordered footprint `points` — read live, never cached. `404` if WorldGuard has no such region. |
 | `GET /players/{uuid}/name` | `{"id","name"}`, `name` null when unknown |
-| `POST /players/names` `{"ids":[…]}` | `{"players":[{"id","name"}]}` in request order, unknowns kept with null `name` |
-| `POST /players/uuids` `{"names":[…]}` | `{"players":[{"id","name"}]}` in request order, unknowns kept with null `id`. A body, not a query string, because Floodgate names like `.Cool Guy 123` are not URL-safe. |
+| `POST /players/names` `{"ids":[…]}` | `{"players":[{"id","name"}]}` in request order, unknowns kept with null `name`. At most **256** ids per request; more is `400 BATCH_TOO_LARGE`. |
+| `POST /players/uuids` `{"names":[…]}` | `{"players":[{"id","name"}]}` in request order, unknowns kept with null `id`. At most **256** names per request; more is `400 BATCH_TOO_LARGE`. A body, not a query string, because Floodgate names like `.Cool Guy 123` are not URL-safe. |
 
 Names come from the server's own usercache first, so Bedrock/Floodgate players resolve; Mojang is
 only consulted for a UUID the server has never seen. The same lookups are available in-process to
@@ -133,7 +133,8 @@ other plugins as the `PlayerNameService` Bukkit service.
 
 `/realty module reload query-service` re-reads the config and restarts the endpoint. If the edited
 config fails to read or the new server fails to start, the previous configuration keeps running and
-the failure is logged.
+the failure is logged. The reload runs on the main thread and waits for the HTTP server to drain, so
+it can pause the tick for up to `request-timeout-ms` if a request is in flight when it happens.
 
 ## Documentation
 

@@ -26,8 +26,14 @@ public final class ApiException extends RuntimeException {
         return new ApiException(404, code, message);
     }
 
-    public static @NotNull ApiException gatewayTimeout(@NotNull String message) {
-        return new ApiException(504, "MAIN_THREAD_TIMEOUT", message);
+    /** The main thread did not answer a geometry request within the budget. */
+    public static final String MAIN_THREAD_TIMEOUT = "MAIN_THREAD_TIMEOUT";
+    /** A dependency this module calls out to — name resolution — did not answer in time. */
+    public static final String UPSTREAM_TIMEOUT = "UPSTREAM_TIMEOUT";
+
+    public static @NotNull ApiException gatewayTimeout(@NotNull String code,
+                                                       @NotNull String message) {
+        return new ApiException(504, code, message);
     }
 
     public int status() {
