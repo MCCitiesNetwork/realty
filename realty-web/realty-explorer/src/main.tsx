@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { createApiClient } from "./api/client";
 import { loadConfig } from "./config";
 import { AppRoutes } from "./router";
+import "./styles.css";
 
 /**
  * Resolves configuration before the first render, so no screen has to cope with a

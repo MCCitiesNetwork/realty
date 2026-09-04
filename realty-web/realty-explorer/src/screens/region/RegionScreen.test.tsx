@@ -37,7 +37,8 @@ describe("RegionScreen", () => {
   it("renders the region's details", async () => {
     renderScreen(clientReturning(region));
     await waitFor(() => expect(screen.getByRole("heading", { name: "plot_a" })).toBeInTheDocument());
-    expect(screen.getByText("FOR_SALE")).toBeInTheDocument();
+    // The badge humanises the enum: FOR_SALE reads "FOR SALE".
+    expect(screen.getByText("FOR SALE")).toHaveClass("badge-for_sale");
     expect(screen.getByText("shop")).toBeInTheDocument();
   });
 

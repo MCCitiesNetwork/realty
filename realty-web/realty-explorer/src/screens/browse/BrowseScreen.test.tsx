@@ -56,12 +56,12 @@ describe("BrowseScreen", () => {
   it("asks for the first page at the configured page size", async () => {
     type SearchOptions = { params: { query: Record<string, unknown> } };
     const get = vi.fn(async (_path: string, _options: SearchOptions) => ({
-      data: { results: [], totalCount: 0, page: 1, pageSize: 25, totalPages: 0 },
+      data: { results: [], totalCount: 0, page: 1, pageSize: 24, totalPages: 0 },
       error: undefined,
     }));
     renderScreen(({ GET: get }) as unknown as ApiClient);
 
     await waitFor(() => expect(get).toHaveBeenCalled());
-    expect(get.mock.calls[0]?.[1].params.query).toMatchObject({ page: 1, pageSize: 25 });
+    expect(get.mock.calls[0]?.[1].params.query).toMatchObject({ page: 1, pageSize: 24 });
   });
 });
