@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ApiClient } from "../../api/client";
 import type { components, paths } from "../../api/schema";
+import { prefetchViewer } from "../../viewer/lazyViewer";
 import { StateBadge } from "../../ui/StateBadge";
 import { formatPrice } from "../../ui/format";
 
@@ -173,6 +174,11 @@ export function BrowseScreen({ client }: { client: ApiClient }) {
                   <StateBadge state={result.state} />
                   <Link
                     className="card-name"
+                    // The viewer chunk is ~12 MB and is what makes a region page feel
+                    // slow on a cold cache. Pointing at a card is a good enough signal
+                    // to start fetching it, and by the click it is usually there.
+                    onMouseEnter={prefetchViewer}
+                    onFocus={prefetchViewer}
                     to={`/region/${encodeURIComponent(world)}/${encodeURIComponent(result.worldGuardRegionId)}`}
                   >
                     {result.worldGuardRegionId}

@@ -1,5 +1,5 @@
 import createClient, { type Client } from "openapi-fetch";
-import type { paths } from "./schema";
+import type { components, paths } from "./schema";
 
 export type ApiClient = Client<paths>;
 
@@ -54,21 +54,6 @@ export function fetchSchematic(
   };
 }
 
-/**
- * Fetches the server's resource pack for the renderer, or null when there is nothing
- * usable to fetch.
- *
- * Three ways this legitimately yields null, none of them an error worth showing:
- * the server configures no pack (the default), the query-service module is not
- * reachable (a 502 here), or the pack is hosted somewhere that does not send CORS
- * headers -- which is common, since those hosts only ever expected the game client,
- * which is not a browser and does not enforce CORS.
- *
- * In every case the caller falls back to no pack. Note that this is a real loss of
- * fidelity, not a cosmetic one: without a pack the renderer draws almost nothing --
- * only block entities such as chests survive -- so a plot looks like a failed capture.
- * The viewer can still drop their own pack onto the canvas.
- */
 /** One credit line for the resource pack, with a link that has been vetted. */
 export type Attribution = {
   text: string;
@@ -79,6 +64,27 @@ export type Attribution = {
 /** Bounds on operator input, so a malformed setting cannot produce an unusable page. */
 const MAX_CREDITS = 8;
 const MAX_CREDIT_TEXT = 120;
+
+type PackResponse = components["schemas"]["ResourcePackResponse"];
+type PackDescription = { data?: PackResponse; error?: unknown };
+
+/**
+ * Asks the API about the pack, once per client.
+ *
+ * Both the credit line and the renderer want this, and every region page asked again as
+ * it mounted. It describes a server setting that cannot change while the page is open,
+ * so the first request's promise is the answer for the life of the client.
+ */
+const packDescriptions = new WeakMap<ApiClient, Promise<PackDescription>>();
+
+function describeResourcePack(client: ApiClient): Promise<PackDescription> {
+  let described = packDescriptions.get(client);
+  if (!described) {
+    described = client.GET("/v1/resource-pack", {}) as Promise<PackDescription>;
+    packDescriptions.set(client, described);
+  }
+  return described;
+}
 
 /**
  * Fetches the credits owed for the configured resource pack, or an empty list.
@@ -94,12 +100,12 @@ const MAX_CREDIT_TEXT = 120;
  * unreachable module, and the credit's absence is already visible to the operator.
  */
 export async function fetchResourcePackAttribution(client: ApiClient): Promise<Attribution[]> {
-  const { data, error } = await client.GET("/v1/resource-pack", {});
+  const { data, error } = await describeResourcePack(client);
   if (error || !data?.attribution) return [];
 
   return data.attribution
     .slice(0, MAX_CREDITS)
-    .map((credit) => {
+    .map((credit): Attribution | null => {
       const text = typeof credit.text === "string" ? credit.text.trim() : "";
       if (!text) return null;
       return { text: text.slice(0, MAX_CREDIT_TEXT), ...safeHref(credit.url) };
@@ -119,8 +125,39 @@ function safeHref(url: unknown): { href?: string } {
   }
 }
 
-export async function fetchResourcePack(client: ApiClient): Promise<Blob | null> {
-  const { data, error } = await client.GET("/v1/resource-pack", {});
+/**
+ * The pack itself, fetched and decoded once per client, or null when there is nothing
+ * usable to fetch.
+ *
+ * A pack is tens of megabytes -- 18 MB is an ordinary size for a 64x one. The HTTP cache
+ * spares the network on a return visit but not the decode, and every region page was
+ * paying for both again, which is most of why the preview was quick on one visit and
+ * slow on the next. Holding the Blob makes the first region page the only slow one.
+ *
+ * Three ways this legitimately yields null, none of them an error worth showing: the
+ * server configures no pack (the default), the query-service module is not reachable
+ * (a 502 here), or the pack is hosted somewhere that does not send CORS headers --
+ * which is common, since those hosts only ever expected the game client, which is not
+ * a browser and does not enforce CORS.
+ *
+ * In every case the caller falls back to no pack. That is a real loss of fidelity, not
+ * a cosmetic one: without a pack the renderer draws almost nothing -- only block
+ * entities such as chests survive -- so a plot looks like a failed capture. The viewer
+ * can still drop their own pack onto the canvas.
+ */
+const packBlobs = new WeakMap<ApiClient, Promise<Blob | null>>();
+
+export function fetchResourcePack(client: ApiClient): Promise<Blob | null> {
+  let pack = packBlobs.get(client);
+  if (!pack) {
+    pack = loadResourcePack(client);
+    packBlobs.set(client, pack);
+  }
+  return pack;
+}
+
+async function loadResourcePack(client: ApiClient): Promise<Blob | null> {
+  const { data, error } = await describeResourcePack(client);
   if (error || !data?.url) return null;
 
   try {
@@ -128,7 +165,6 @@ export async function fetchResourcePack(client: ApiClient): Promise<Blob | null>
     if (!response.ok) return null;
     return await response.blob();
   } catch {
-    // Almost always CORS. Not worth surfacing: the page still renders.
     return null;
   }
 }
