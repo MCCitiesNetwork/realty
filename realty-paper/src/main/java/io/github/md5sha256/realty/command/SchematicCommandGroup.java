@@ -160,13 +160,10 @@ public record SchematicCommandGroup(
                          @NotNull String regionId,
                          @NotNull UUID worldId,
                          @NotNull Clipboard clipboard) {
-        UUID capturedBy = sender instanceof Player player
-                ? player.getUniqueId()
-                : new UUID(0L, 0L);
         this.executors.dbExec().execute(() -> {
             try {
                 byte[] bytes = RegionSchematicWriter.writeClipboard(clipboard);
-                boolean stored = this.backend.storeSchematic(regionId, worldId, bytes, capturedBy);
+                boolean stored = this.backend.storeSchematic(regionId, worldId, bytes);
                 this.executors.mainThreadExec().execute(() -> {
                     if (stored) {
                         this.cooldown.record(regionId, worldId);
