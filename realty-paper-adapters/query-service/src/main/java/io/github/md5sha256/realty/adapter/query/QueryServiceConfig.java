@@ -2,11 +2,13 @@ package io.github.md5sha256.realty.adapter.query;
 
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -31,20 +33,42 @@ public final class QueryServiceConfig {
     private static final String BIND_HOST = "bind-host";
     private static final String PORT = "port";
     private static final String REQUEST_TIMEOUT_MS = "request-timeout-ms";
+    private static final String RESOURCE_PACK_URL = "resource-pack-url";
 
     private final String sharedSecret;
     private final String bindHost;
     private final int port;
     private final Duration requestTimeout;
+    private final String resourcePackUrl;
 
     QueryServiceConfig(@NotNull String sharedSecret,
                        @NotNull String bindHost,
                        int port,
-                       @NotNull Duration requestTimeout) {
+                       @NotNull Duration requestTimeout,
+                       @Nullable String resourcePackUrl) {
         this.sharedSecret = sharedSecret;
         this.bindHost = bindHost;
         this.port = port;
         this.requestTimeout = requestTimeout;
+        this.resourcePackUrl = resourcePackUrl;
+    }
+
+    /**
+     * The resource pack a browser-side renderer should texture previews with, or
+     * {@code null} when the operator has configured none.
+     *
+     * <p>Deliberately its own setting rather than the {@code resource-pack} from
+     * {@code server.properties}. That one is sent to the game client, which loads it on
+     * top of its own copy of the game, so it is usually an override pack and would leave
+     * a browser preview with no textures for vanilla blocks. This one names a pack that
+     * stands on its own.</p>
+     *
+     * <p>Only the URL is configured, never a file: Realty does not host or serve the pack,
+     * so it redistributes nothing. The browser fetches it from wherever the operator
+     * already publishes it.</p>
+     */
+    public @Nullable String resourcePackUrl() {
+        return this.resourcePackUrl;
     }
 
     /** The shared secret; blank when unset. Blank means the HTTP server is not started. */
@@ -100,7 +124,42 @@ public final class QueryServiceConfig {
                 config.getString(SHARED_SECRET, ""),
                 config.getString(BIND_HOST, "127.0.0.1"),
                 config.getInt(PORT, 8123),
-                Duration.ofMillis(config.getLong(REQUEST_TIMEOUT_MS, 1000L)));
+                Duration.ofMillis(config.getLong(REQUEST_TIMEOUT_MS, 1000L)),
+                resourcePackUrl(config.getString(RESOURCE_PACK_URL, "")));
+    }
+
+    /**
+     * Validates the configured pack URL, or {@code null} when none is set.
+     *
+     * <p>Checked here rather than left to the browser: a path or a bare filename is an easy
+     * mistake, and its only symptom would be a preview that never textures, with nothing
+     * anywhere naming the cause. {@code file://} is rejected for the same reason -- the
+     * fetch happens in the viewer's browser, not on the server, so a local path can never
+     * resolve.</p>
+     */
+    private static @Nullable String resourcePackUrl(@Nullable String configured) {
+        if (configured == null || configured.isBlank()) {
+            return null;
+        }
+        String trimmed = configured.trim();
+        URI uri;
+        try {
+            uri = URI.create(trimmed);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException(
+                    RESOURCE_PACK_URL + " is not a valid URL: " + trimmed, ex);
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null || uri.getHost() == null) {
+            throw new IllegalStateException(RESOURCE_PACK_URL
+                    + " must be an absolute http(s) URL the browser can fetch, was: " + trimmed);
+        }
+        if (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")) {
+            throw new IllegalStateException(RESOURCE_PACK_URL
+                    + " must use http or https -- the pack is fetched by the viewer's browser,"
+                    + " not by the server -- was: " + trimmed);
+        }
+        return trimmed;
     }
 
     /**

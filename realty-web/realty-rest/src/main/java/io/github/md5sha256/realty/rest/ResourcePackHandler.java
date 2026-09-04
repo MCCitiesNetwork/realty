@@ -10,8 +10,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * {@code GET /v1/resource-pack} -- the resource pack the game server asks clients to use.
  *
- * <p>Answered entirely by the query-service module, because {@code server.properties} lives
- * with the game server and not in the database this service reads. An unreachable module is
+ * <p>Answered entirely by the query-service module, because the setting lives with the game
+ * server and not in the database this service reads. An unreachable module is
  * therefore a 502, not an empty pack: "no pack configured" and "could not ask" are different
  * answers, and a renderer should not treat the second as the first.</p>
  */

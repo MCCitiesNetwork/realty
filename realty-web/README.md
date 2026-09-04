@@ -89,12 +89,21 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   still appear, so a plot renders as a few objects floating in space and looks like a
   failed capture.
 
-  Realty ships no textures: `GET /v1/resource-pack` reports the URL from the game
-  server's `server.properties`, which is already public, and the browser fetches it
-  from wherever the operator hosts it. Two caveats: an override pack will not cover
-  vanilla blocks, and many pack hosts send no CORS headers, since they only ever
-  expected the game client. A viewer can also drop their own pack (`.zip`) onto the
-  canvas -- resource packs only; a dropped schematic is refused, so nobody can swap
-  out what a region's preview shows.
+  Realty ships and serves no textures. Set `resource-pack-url` in the query-service
+  module's `config.yml` to a pack the browser can fetch; `GET /v1/resource-pack`
+  passes that URL on and the browser fetches it directly.
+
+  **This is not `server.properties`' `resource-pack`.** That pack is sent to the game
+  client, which applies it over its own copy of the game, so it is usually an override
+  pack -- a browser has no vanilla assets underneath it. Name a pack that stands on its
+  own, and one you have the right to publish.
+
+  Two things to check when a preview stays untextured: the pack host must send CORS
+  headers (many do not, having only ever served the game client), and the URL must be
+  absolute `http`/`https` -- the module rejects anything else at startup rather than
+  letting it fail silently in a browser.
+
+  A viewer can also drop their own pack (`.zip`) onto the canvas. Resource packs only:
+  a dropped schematic is refused, so nobody can swap out what a region's preview shows.
 - A region with no captured schematic is the normal case — capture is on demand via
   `/realty schematic capture`. The detail screen shows a panel, not an error.
