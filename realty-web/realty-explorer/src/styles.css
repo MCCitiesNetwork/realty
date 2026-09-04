@@ -540,3 +540,16 @@ button:disabled { opacity: 0.45; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
 }
+
+/* ---------- resource pack credit ---------- */
+
+.viewer-credit {
+  margin: 0;
+  padding: 0.55rem 1.1rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.viewer-credit a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.viewer-credit a:hover { color: var(--accent); }

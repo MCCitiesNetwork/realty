@@ -291,6 +291,14 @@ public final class RealtyRestServer {
             // a client uses precisely when it wants the status and not the body.
             routes.get("/v1/*", ctx -> ctx.status(404));
             routes.head("/v1/*", ctx -> ctx.status(404));
+
+            if (this.staticSite.configJson() != null) {
+                // Registered as a route, not shipped as a file: a bundled front end lives
+                // inside the jar, so an operator has nothing to edit. Ahead of the static
+                // handler, which would otherwise 404 a path with no file behind it.
+                routes.get("/config.json", ctx ->
+                        ctx.contentType("application/json").result(this.staticSite.configJson()));
+            }
         }
 
         // Javalin's error() callback fires for every response with a matching status,

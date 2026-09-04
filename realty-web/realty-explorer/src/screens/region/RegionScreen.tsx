@@ -2,6 +2,8 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchSchematic, type ApiClient } from "../../api/client";
 import type { components } from "../../api/schema";
+import type { Attribution } from "../../config";
+import { ResourcePackCredit } from "../../ui/ResourcePackCredit";
 import { StateBadge } from "../../ui/StateBadge";
 import { formatPrice } from "../../ui/format";
 
@@ -27,6 +29,8 @@ type Props = {
    * not, because whether a schematic exists is something only the API knows.
    */
   hasSchematic?: boolean;
+  /** Credits for the pack the preview is textured with; shown only when one renders. */
+  resourcePackAttribution?: Attribution[];
 };
 
 /** Absent is the common case -- capture is on demand -- so it is a state, not an error. */
@@ -41,7 +45,13 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-export function RegionScreen({ client, world, region, hasSchematic }: Props) {
+export function RegionScreen({
+  client,
+  world,
+  region,
+  hasSchematic,
+  resourcePackAttribution = [],
+}: Props) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [preview, setPreview] = useState<Preview>(
     hasSchematic === undefined ? "probing" : hasSchematic ? "present" : "absent",
@@ -200,11 +210,16 @@ export function RegionScreen({ client, world, region, hasSchematic }: Props) {
           )}
 
           {preview === "present" && (
-            <div className="viewer-body">
-              <Suspense fallback={<div className="viewer-empty">Loading preview…</div>}>
-                <SchematicViewer client={client} world={world} region={region} />
-              </Suspense>
-            </div>
+            <>
+              <div className="viewer-body">
+                <Suspense fallback={<div className="viewer-empty">Loading preview…</div>}>
+                  <SchematicViewer client={client} world={world} region={region} />
+                </Suspense>
+              </div>
+              {/* Only here: the credit is owed for the pack, and this is the only place
+                  the pack is used. */}
+              <ResourcePackCredit attribution={resourcePackAttribution} />
+            </>
           )}
 
           {preview === "absent" && (
