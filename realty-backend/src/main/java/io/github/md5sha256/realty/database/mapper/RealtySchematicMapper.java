@@ -27,8 +27,7 @@ public interface RealtySchematicMapper {
     int upsert(@NotNull String worldGuardRegionId,
                @NotNull UUID worldId,
                byte @NotNull [] data,
-               @NotNull LocalDateTime capturedAt,
-               @NotNull UUID capturedBy);
+               @NotNull LocalDateTime capturedAt);
 
     @Nullable RealtySchematicEntity selectByWorldGuardRegion(@NotNull String worldGuardRegionId,
                                                             @NotNull UUID worldId);

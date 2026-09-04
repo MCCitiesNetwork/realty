@@ -8,14 +8,13 @@ import java.util.UUID;
 class RealtySchematicBackendTest extends AbstractDatabaseTest {
 
     private static final UUID WORLD_ID = UUID.fromString("8f4d1c2e-0000-0000-0000-0000000000dd");
-    private static final UUID CAPTURED_BY = UUID.fromString("8f4d1c2e-0000-0000-0000-0000000000ee");
 
     @Test
     void storeThenGetReturnsTheBytes() {
         try (SqlSessionWrapper session = database.openSession(true)) {
             session.realtyRegionMapper().registerWorldGuardRegion("plot_b", WORLD_ID);
         }
-        Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{4, 5}, CAPTURED_BY));
+        Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{4, 5}));
         Assertions.assertArrayEquals(new byte[]{4, 5}, logic.getSchematic("plot_b", WORLD_ID));
     }
 
@@ -29,7 +28,7 @@ class RealtySchematicBackendTest extends AbstractDatabaseTest {
 
     @Test
     void storeReportsFailureForAnUnregisteredRegion() {
-        Assertions.assertFalse(logic.storeSchematic("nope", WORLD_ID, new byte[]{1}, CAPTURED_BY));
+        Assertions.assertFalse(logic.storeSchematic("nope", WORLD_ID, new byte[]{1}));
     }
 
     @Test
@@ -40,8 +39,8 @@ class RealtySchematicBackendTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper session = database.openSession(true)) {
             session.realtyRegionMapper().registerWorldGuardRegion("plot_b", WORLD_ID);
         }
-        Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{1}, CAPTURED_BY));
-        Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{2, 2}, CAPTURED_BY));
+        Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{1}));
+        Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{2, 2}));
         Assertions.assertArrayEquals(new byte[]{2, 2}, logic.getSchematic("plot_b", WORLD_ID));
     }
 }
