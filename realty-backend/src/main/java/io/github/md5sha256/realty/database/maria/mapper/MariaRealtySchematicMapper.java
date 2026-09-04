@@ -27,24 +27,22 @@ public interface MariaRealtySchematicMapper extends RealtySchematicMapper {
      */
     @Override
     @Insert("""
-            INSERT INTO RealtySchematic (realtyRegionId, data, capturedAt, capturedBy)
-            SELECT r.realtyRegionId, #{data}, #{capturedAt}, #{capturedBy}
+            INSERT INTO RealtySchematic (realtyRegionId, data, capturedAt)
+            SELECT r.realtyRegionId, #{data}, #{capturedAt}
             FROM RealtyRegion r
             WHERE r.worldGuardRegionId = #{worldGuardRegionId}
               AND r.worldId = #{worldId}
             ON DUPLICATE KEY UPDATE data = #{data},
-                                    capturedAt = #{capturedAt},
-                                    capturedBy = #{capturedBy}
+                                    capturedAt = #{capturedAt}
             """)
     int upsert(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                @Param("worldId") @NotNull UUID worldId,
                @Param("data") byte @NotNull [] data,
-               @Param("capturedAt") @NotNull LocalDateTime capturedAt,
-               @Param("capturedBy") @NotNull UUID capturedBy);
+               @Param("capturedAt") @NotNull LocalDateTime capturedAt);
 
     @Override
     @Select("""
-            SELECT s.realtyRegionId, s.data, s.capturedAt, s.capturedBy
+            SELECT s.realtyRegionId, s.data, s.capturedAt
             FROM RealtySchematic s
             JOIN RealtyRegion r ON r.realtyRegionId = s.realtyRegionId
             WHERE r.worldGuardRegionId = #{worldGuardRegionId}
@@ -53,8 +51,7 @@ public interface MariaRealtySchematicMapper extends RealtySchematicMapper {
     @ConstructorArgs({
             @Arg(column = "realtyRegionId", javaType = int.class),
             @Arg(column = "data", javaType = byte[].class),
-            @Arg(column = "capturedAt", javaType = LocalDateTime.class),
-            @Arg(column = "capturedBy", javaType = UUID.class)
+            @Arg(column = "capturedAt", javaType = LocalDateTime.class)
     })
     @Nullable RealtySchematicEntity selectByWorldGuardRegion(
             @Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
