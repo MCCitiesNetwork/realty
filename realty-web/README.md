@@ -106,29 +106,26 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   A viewer can also drop their own pack (`.zip`) onto the canvas. Resource packs only:
   a dropped schematic is refused, so nobody can swap out what a region's preview shows.
 - **Credit the pack you configured.** Most packs are licensed on the condition that
-  they are attributed, and the pack's URL is set on the server where nobody browsing
-  the site can see it. Set `resourcePackAttribution` and the credit renders under the
-  preview -- and only there, since that is the only place the pack is used:
+  they are attributed, and the pack's URL is set on the game server where nobody
+  browsing the site can see it. So the credit is configured in the same place, in the
+  query-service module's `config.yml`:
 
-  ```json
-  {
-    "resourcePackAttribution": [
-      { "text": "Textures: Faithful 64x", "href": "https://faithfulpack.net/" },
-      { "text": "CC BY 4.0" }
-    ]
-  }
+  ```yaml
+  resource-pack-url: "https://cdn.example.com/pack.zip"
+  resource-pack-attribution:
+    - text: "Textures: Faithful 64x"
+      url: "https://faithfulpack.net/"
+    - "CC BY 4.0"
   ```
 
-  `href` is optional, and a link is dropped unless it is an absolute `http`/`https`
-  URL -- this value is operator-supplied and rendered into the page. Leave the list
-  out and nothing renders.
+  `GET /v1/resource-pack` reports the list beside the URL, and the credit renders under
+  a region's preview -- and only there, since that is the only place the pack is used.
+  A link must be an absolute `http`/`https` URL; the module rejects anything else at
+  startup, and the front end re-checks before rendering, because the value is
+  operator-supplied and ends up in a page. An empty list renders nothing.
 
-  The bundled build has no `config.json` to edit, so it takes the same list from
-  `REALTY_WEB_RESOURCE_PACK_ATTRIBUTION` and serves the document itself. Entries are
-  `Text|URL`, separated by `;`, and the URL half is optional:
-
-  ```
-  REALTY_WEB_RESOURCE_PACK_ATTRIBUTION=Textures: Faithful 64x|https://faithfulpack.net/;CC BY 4.0
-  ```
+  Nothing about the pack is configured on the web host. One setting, in the file where
+  the pack itself was chosen -- splitting the two across two hosts is how one of them
+  ends up stale.
 - A region with no captured schematic is the normal case — capture is on demand via
   `/realty schematic capture`. The detail screen shows a panel, not an error.

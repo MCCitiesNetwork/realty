@@ -1,4 +1,4 @@
-import type { Attribution } from "../config";
+import type { Attribution } from "../api/client";
 
 /**
  * Credits for the resource pack a preview is textured with.
@@ -8,7 +8,7 @@ import type { Attribution } from "../config";
  * schematic have nothing to credit.</p>
  *
  * <p>Entries render as text, never as markup -- the value comes from whoever runs the
- * server, and the config loader has already dropped any link that is not absolute
+ * game server, and the API client has already dropped any link that is not absolute
  * http(s). Links are off-site, hence `rel="noopener noreferrer"`.</p>
  */
 export function ResourcePackCredit({ attribution }: { attribution: Attribution[] }) {

@@ -14,7 +14,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 class StaticSiteTest {
 
@@ -24,6 +23,7 @@ class StaticSiteTest {
     @BeforeEach
     void writeIndex() throws IOException {
         Files.writeString(this.webRoot.resolve("index.html"), "<html>explorer</html>");
+        Files.writeString(this.webRoot.resolve("config.json"), "{\"apiBaseUrl\":\"\"}");
     }
 
     @Test
@@ -84,23 +84,9 @@ class StaticSiteTest {
     }
 
     @Test
-    void servesTheSynthesisedConfigWhenOneIsGiven() {
-        // The bundled build has no config.json on disk to edit -- it is inside the jar --
-        // so realty-rest serves the document the dist entry point renders instead.
-        String body = "{\"resourcePackAttribution\":[{\"text\":\"Faithful 64x\"}]}";
-        JavalinTest.test(TestServers.withStaticSite(this.webRoot, body).javalin(), (app, client) -> {
-            Response response = client.get("/config.json");
-            Assertions.assertEquals(200, response.code());
-            Assertions.assertEquals(List.of("application/json"), response.headers().get("Content-Type"));
-            Assertions.assertEquals(body, response.body().string());
-        });
-    }
-
-    @Test
-    void withoutAConfigTheFrontEndsOwnFileIsServedIfThereIsOne() throws IOException {
-        // A split deployment ships a real config.json beside index.html and passes none
-        // here; the static handler must still serve the operator's file.
-        Files.writeString(this.webRoot.resolve("config.json"), "{\"apiBaseUrl\":\"\"}");
+    void aFrontEndsOwnConfigJsonIsServedFromDisk() {
+        // A split deployment ships a real config.json beside index.html; nothing about it
+        // is synthesised here, which is why the bundled build needs none.
         JavalinTest.test(TestServers.withStaticSite(this.webRoot).javalin(), (app, client) -> {
             Response response = client.get("/config.json");
             Assertions.assertEquals(200, response.code());

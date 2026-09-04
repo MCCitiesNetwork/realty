@@ -1,6 +1,9 @@
 package io.github.md5sha256.realty.rest.json;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 /**
  * Where the resource pack for previews is hosted, so a browser renderer can texture blocks.
@@ -13,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
  * That is a normal answer, not an error -- the renderer simply draws untextured geometry.</p>
  */
 public record ResourcePackResponse(@Nullable String url,
+                                   @NotNull List<ResourcePackAttribution> attribution,
                                    @Nullable String hash,
                                    boolean required) {
 }

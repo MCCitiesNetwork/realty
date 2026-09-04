@@ -23,7 +23,7 @@ async function bootstrap(): Promise<void> {
   createRoot(container).render(
     <StrictMode>
       <BrowserRouter>
-        <AppRoutes client={client} resourcePackAttribution={config.resourcePackAttribution} />
+        <AppRoutes client={client} />
       </BrowserRouter>
     </StrictMode>,
   );

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.adapter.query;
 
+import io.github.md5sha256.realty.adapter.query.json.ResourcePackAttribution;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -13,6 +14,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -34,23 +38,47 @@ public final class QueryServiceConfig {
     private static final String PORT = "port";
     private static final String REQUEST_TIMEOUT_MS = "request-timeout-ms";
     private static final String RESOURCE_PACK_URL = "resource-pack-url";
+    private static final String RESOURCE_PACK_ATTRIBUTION = "resource-pack-attribution";
 
     private final String sharedSecret;
     private final String bindHost;
     private final int port;
     private final Duration requestTimeout;
     private final String resourcePackUrl;
+    private final List<ResourcePackAttribution> resourcePackAttribution;
 
     QueryServiceConfig(@NotNull String sharedSecret,
                        @NotNull String bindHost,
                        int port,
                        @NotNull Duration requestTimeout,
                        @Nullable String resourcePackUrl) {
+        this(sharedSecret, bindHost, port, requestTimeout, resourcePackUrl, List.of());
+    }
+
+    QueryServiceConfig(@NotNull String sharedSecret,
+                       @NotNull String bindHost,
+                       int port,
+                       @NotNull Duration requestTimeout,
+                       @Nullable String resourcePackUrl,
+                       @NotNull List<ResourcePackAttribution> resourcePackAttribution) {
         this.sharedSecret = sharedSecret;
         this.bindHost = bindHost;
         this.port = port;
         this.requestTimeout = requestTimeout;
         this.resourcePackUrl = resourcePackUrl;
+        this.resourcePackAttribution = List.copyOf(resourcePackAttribution);
+    }
+
+    /**
+     * Credits to show wherever the pack's textures are used, or empty when none are set.
+     *
+     * <p>Configured beside the pack URL on purpose. Most packs are licensed on condition
+     * that they are credited, and the operator choosing a pack is the one who knows what
+     * its licence asks for -- so the credit is stated in the same file as the choice,
+     * rather than in the web front end's own config on what may be a different host.</p>
+     */
+    public @NotNull List<ResourcePackAttribution> resourcePackAttribution() {
+        return this.resourcePackAttribution;
     }
 
     /**
@@ -125,7 +153,67 @@ public final class QueryServiceConfig {
                 config.getString(BIND_HOST, "127.0.0.1"),
                 config.getInt(PORT, 8123),
                 Duration.ofMillis(config.getLong(REQUEST_TIMEOUT_MS, 1000L)),
-                resourcePackUrl(config.getString(RESOURCE_PACK_URL, "")));
+                resourcePackUrl(config.getString(RESOURCE_PACK_URL, "")),
+                resourcePackAttribution(config.getList(RESOURCE_PACK_ATTRIBUTION, List.of())));
+    }
+
+    /**
+     * Reads the credit list.
+     *
+     * <p>Each entry is either a bare string -- the credit with no link -- or a map of
+     * {@code text} and an optional {@code url}. A malformed entry fails the read rather
+     * than being skipped: this setting exists so a required credit gets published, and
+     * quietly dropping one would defeat the only reason to have it.</p>
+     */
+    private static @NotNull List<ResourcePackAttribution> resourcePackAttribution(
+            @NotNull List<?> configured) {
+        List<ResourcePackAttribution> credits = new ArrayList<>(configured.size());
+        for (Object entry : configured) {
+            if (entry instanceof String text) {
+                credits.add(new ResourcePackAttribution(requireText(text), null));
+            } else if (entry instanceof Map<?, ?> map) {
+                Object text = map.get("text");
+                Object url = map.get("url");
+                credits.add(new ResourcePackAttribution(
+                        requireText(text == null ? null : text.toString()),
+                        attributionUrl(url == null ? null : url.toString())));
+            } else {
+                throw new IllegalStateException(RESOURCE_PACK_ATTRIBUTION
+                        + " entries must be a string or a text/url pair, was: " + entry);
+            }
+        }
+        return credits;
+    }
+
+    private static @NotNull String requireText(@Nullable String text) {
+        if (text == null || text.isBlank()) {
+            throw new IllegalStateException(RESOURCE_PACK_ATTRIBUTION
+                    + " entries must have text -- a credit with none would render as an"
+                    + " empty line and credit nobody");
+        }
+        return text.trim();
+    }
+
+    /** Same rule as the pack URL, and for the same reason: the browser follows this link. */
+    private static @Nullable String attributionUrl(@Nullable String configured) {
+        if (configured == null || configured.isBlank()) {
+            return null;
+        }
+        String trimmed = configured.trim();
+        URI uri;
+        try {
+            uri = URI.create(trimmed);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException(
+                    RESOURCE_PACK_ATTRIBUTION + " has a link that is not a valid URL: " + trimmed, ex);
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null || uri.getHost() == null
+                || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https"))) {
+            throw new IllegalStateException(RESOURCE_PACK_ATTRIBUTION
+                    + " links must be absolute http(s) URLs, was: " + trimmed);
+        }
+        return trimmed;
     }
 
     /**

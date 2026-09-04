@@ -553,3 +553,19 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 .viewer-credit a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
 .viewer-credit a:hover { color: var(--accent); }
+
+/* margin-top:auto pins this to the bottom on short pages without ever overlaying
+   content on long ones -- .app is the flex column that makes that work. */
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--rule);
+  padding: 1.1rem 1.25rem 1.6rem;
+}
+
+.site-footer p {
+  max-width: var(--page);
+  margin: 0 auto;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}

@@ -1,11 +1,14 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.rest.json.ResourcePackAttribution;
 import io.github.md5sha256.realty.rest.json.ResourcePackResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.github.md5sha256.realty.rest.module.ModuleResult;
 import io.github.md5sha256.realty.rest.module.ResourcePack;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
 
 /**
  * {@code GET /v1/resource-pack} -- the resource pack the game server asks clients to use.
@@ -35,6 +38,13 @@ final class ResourcePackHandler {
                             + "which is not reachable");
         };
 
-        ctx.json(new ResourcePackResponse(pack.url(), pack.hash(), pack.required()));
+        ctx.json(new ResourcePackResponse(pack.url(), attribution(pack), pack.hash(), pack.required()));
+    }
+
+    /** Crosses the module record into this service's own JSON record. */
+    private static @NotNull List<ResourcePackAttribution> attribution(@NotNull ResourcePack pack) {
+        return pack.attribution().stream()
+                .map(credit -> new ResourcePackAttribution(credit.text(), credit.url()))
+                .toList();
     }
 }

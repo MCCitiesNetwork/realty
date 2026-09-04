@@ -75,6 +75,60 @@ class QueryServiceConfigTest {
     }
 
     @Test
+    void readsPackAttributionWithAndWithoutLinks() {
+        // The credit lives here rather than with the front end because the pack it credits
+        // is chosen here: two files on two hosts is how one of them ends up stale.
+        QueryServiceConfig config = parse("""
+                resource-pack-attribution:
+                  - text: "Textures: Faithful 64x"
+                    url: "https://faithfulpack.net/"
+                  - text: "CC BY 4.0"
+                """);
+        Assertions.assertEquals(2, config.resourcePackAttribution().size());
+        Assertions.assertEquals("Textures: Faithful 64x", config.resourcePackAttribution().get(0).text());
+        Assertions.assertEquals("https://faithfulpack.net/", config.resourcePackAttribution().get(0).url());
+        Assertions.assertEquals("CC BY 4.0", config.resourcePackAttribution().get(1).text());
+        Assertions.assertNull(config.resourcePackAttribution().get(1).url());
+    }
+
+    @Test
+    void absentAttributionIsAnEmptyListRatherThanNull() {
+        Assertions.assertTrue(parse("# nothing\n").resourcePackAttribution().isEmpty());
+        Assertions.assertTrue(parse("resource-pack-attribution: []\n").resourcePackAttribution().isEmpty());
+    }
+
+    @Test
+    void anAttributionEntryWithNoTextIsRejected() {
+        // Silently skipping it would drop a credit the operator meant to publish, which is
+        // the one failure mode this setting exists to prevent.
+        IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
+                () -> parse("resource-pack-attribution:\n  - url: \"https://example.com/\"\n"));
+        Assertions.assertTrue(ex.getMessage().contains("resource-pack-attribution"), ex.getMessage());
+    }
+
+    @Test
+    void anAttributionLinkMustBeHttpOrHttps() {
+        Assertions.assertThrows(IllegalStateException.class,
+                () -> parse("""
+                        resource-pack-attribution:
+                          - text: "Click"
+                            url: "javascript:alert(1)"
+                        """));
+    }
+
+    @Test
+    void aBareStringEntryIsCreditWithNoLink() {
+        // The shorthand an operator writes first, and there is nothing wrong with it.
+        QueryServiceConfig config = parse("""
+                resource-pack-attribution:
+                  - "CC BY 4.0"
+                """);
+        Assertions.assertEquals(1, config.resourcePackAttribution().size());
+        Assertions.assertEquals("CC BY 4.0", config.resourcePackAttribution().get(0).text());
+        Assertions.assertNull(config.resourcePackAttribution().get(0).url());
+    }
+
+    @Test
     void aBlankSecretDisablesHttp() {
         Assertions.assertFalse(parse("shared-secret: \"\"\n").httpEnabled());
         Assertions.assertFalse(parse("shared-secret: \"   \"\n").httpEnabled());

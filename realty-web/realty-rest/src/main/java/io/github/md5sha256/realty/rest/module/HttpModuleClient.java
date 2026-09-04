@@ -337,11 +337,35 @@ public final class HttpModuleClient implements ModuleClient {
                 return new ModuleResult.Unavailable<>();
             }
             return new ModuleResult.Found<>(new ResourcePack(
-                    text(body, "url"), text(body, "hash"), body.path("required").asBoolean(false)));
+                    text(body, "url"),
+                    attribution(body.path("attribution")),
+                    text(body, "hash"),
+                    body.path("required").asBoolean(false)));
         } catch (RuntimeException ex) {
             failed(path, ex);
             return new ModuleResult.Unavailable<>();
         }
+    }
+
+    /**
+     * Reads the credit list, skipping any entry with no text.
+     *
+     * <p>The module rejects a textless credit at startup, so one arriving here means a
+     * module older than this field -- in which case the array is absent entirely and this
+     * yields empty, which is the right answer.</p>
+     */
+    private static @NotNull List<ResourcePackAttribution> attribution(@NotNull JsonNode node) {
+        if (!node.isArray()) {
+            return List.of();
+        }
+        List<ResourcePackAttribution> credits = new ArrayList<>(node.size());
+        for (JsonNode entry : node) {
+            String text = text(entry, "text");
+            if (text != null && !text.isBlank()) {
+                credits.add(new ResourcePackAttribution(text, text(entry, "url")));
+            }
+        }
+        return credits;
     }
 
     /** Jackson reports a missing or JSON-null field as a null node, not as absent. */

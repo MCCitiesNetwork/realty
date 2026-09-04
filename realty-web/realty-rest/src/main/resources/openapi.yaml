@@ -1527,12 +1527,25 @@ components:
       required: [ id, regionCount ]
     ResourcePackResponse:
       type: object
-      required: [url, hash, required]
+      required: [url, attribution, hash, required]
       properties:
         url:
           type: string
           nullable: true
           description: Where the pack is hosted, or null when the server sets none.
+        attribution:
+          type: array
+          description: >-
+            Credits for the pack, to render wherever its textures are used and nowhere
+            else. Empty when the operator configures none.
+
+
+            Configured beside the pack URL, in the query-service module, because the
+            operator who picks a pack is the one who knows what its licence asks for --
+            and most pack licences ask for a credit. Splitting the two across two files
+            on two hosts is how one of them goes stale.
+          items:
+            $ref: "#/components/schemas/ResourcePackAttribution"
         hash:
           type: string
           nullable: true
@@ -1542,6 +1555,22 @@ components:
         required:
           type: boolean
           description: Reserved; always false. A preview cannot compel a download.
+    ResourcePackAttribution:
+      type: object
+      required: [text, url]
+      description: One credit line for the resource pack.
+      properties:
+        text:
+          type: string
+          description: The credit, rendered as text and never as markup.
+        url:
+          type: string
+          nullable: true
+          description: >-
+            Where the credit links, or null for plain text. Always an absolute http(s)
+            URL -- the module rejects anything else at startup, and a client should
+            re-check rather than trust it, since the value is operator-supplied and
+            ends up in a page.
     ErrorResponse:
       type: object
       properties:

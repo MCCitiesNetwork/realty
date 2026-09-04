@@ -1,8 +1,11 @@
 package io.github.md5sha256.realty.adapter.query;
 
+import io.github.md5sha256.realty.adapter.query.json.ResourcePackAttribution;
 import io.github.md5sha256.realty.adapter.query.json.ResourcePackResponse;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 /**
  * Reports the pack named by the module's {@code resource-pack-url} setting.
@@ -16,12 +19,14 @@ import org.jetbrains.annotations.Nullable;
  * <p>The URL alone is configured. Realty never hosts or serves the pack, so it redistributes
  * nothing; the browser fetches it from wherever the operator already publishes it.</p>
  */
-public record ConfiguredResourcePackSource(@Nullable String url) implements ResourcePackSource {
+public record ConfiguredResourcePackSource(@Nullable String url,
+                                           @NotNull List<ResourcePackAttribution> attribution)
+        implements ResourcePackSource {
 
     @Override
     public @NotNull ResourcePackResponse current() {
         // No hash: unlike the game client, a browser has nothing to verify it against, and
         // reporting one the operator never supplied would be a fiction.
-        return new ResourcePackResponse(this.url, null, false);
+        return new ResourcePackResponse(this.url, this.attribution, null, false);
     }
 }

@@ -34,3 +34,21 @@ request-timeout-ms: 1000
 # send CORS headers (pack hosts often do not, having only ever served the game client),
 # and the pack must be one you have the right to publish.
 resource-pack-url: ""
+
+# Credit for the pack above, shown in the web explorer wherever that pack's textures are
+# used -- under a region's 3D preview, and nowhere else, since that is the only place the
+# pack does anything.
+#
+# Most packs are licensed on condition that they are credited, and the pack is named here,
+# on the game server, where nobody browsing the site can see it. So the credit is stated
+# here too: one file, next to the choice it credits.
+#
+# Each entry is either a plain string, or text with a link. Links must be absolute http(s)
+# URLs -- they are followed by the viewer's browser -- and a missing or empty text fails
+# the read rather than publishing a blank credit.
+#
+#   resource-pack-attribution:
+#     - text: "Textures: Faithful 64x"
+#       url: "https://faithfulpack.net/"
+#     - "CC BY 4.0"
+resource-pack-attribution: []

@@ -304,14 +304,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The game server's configured resource pack
-         * @description Where the game server asks joining clients to fetch its resource pack, so a browser-side renderer can texture blocks with the same pack the game uses.
+         * The resource pack for texturing previews
+         * @description Where to fetch the resource pack a browser-side renderer should texture previews with, named by the query-service module's `resource-pack-url` setting.
          *
          *     A location only -- the URL and its advertised SHA-1 -- never the pack's bytes. That URL is already public, since every joining player receives it, so reporting it redistributes nothing; serving the pack through this service would mean redistributing whatever assets it contains.
          *
-         *     `url` is null when the server configures no pack, which is the default. That is a normal answer rather than an error: a renderer simply draws untextured geometry. Note also that a server pack usually overrides only some textures, so it may not cover vanilla blocks on its own.
+         *     `url` is null when the operator has configured no pack, which is the default. That is a normal answer rather than an error, but note what it costs: without a pack a renderer does not draw blocks untextured, it does not draw most of them at all, because their block models carry no geometry. A plot then looks like a failed capture.
          *
-         *     Answered entirely by the query-service module, because server.properties lives with the game server and not in this service's database. An unreachable module is therefore a 502 rather than an empty pack: "none configured" and "could not ask" are different answers.
+         *     This is deliberately not server.properties' `resource-pack`. That pack is sent to the game client, which applies it over its own copy of the game, so it is usually an override pack; a browser has no vanilla assets underneath it. Name a pack that stands on its own.
+         *
+         *     Answered entirely by the query-service module, because the setting lives with the game server and not in this service's database. An unreachable module is therefore a 502 rather than an empty pack: "none configured" and "could not ask" are different answers.
          */
         get: operations["resourcePack"];
         put?: never;
@@ -622,10 +624,23 @@ export interface components {
         ResourcePackResponse: {
             /** @description Where the pack is hosted, or null when the server sets none. */
             url: string | null;
-            /** @description The SHA-1 the server advertises, or null. */
+            /**
+             * @description Credits for the pack, to render wherever its textures are used and nowhere else. Empty when the operator configures none.
+             *
+             *     Configured beside the pack URL, in the query-service module, because the operator who picks a pack is the one who knows what its licence asks for -- and most pack licences ask for a credit. Splitting the two across two files on two hosts is how one of them goes stale.
+             */
+            attribution: components["schemas"]["ResourcePackAttribution"][];
+            /** @description Reserved; always null. A browser has nothing to verify a pack against, so no hash is configured or reported. */
             hash: string | null;
-            /** @description Whether the server refuses players who decline the pack. */
+            /** @description Reserved; always false. A preview cannot compel a download. */
             required: boolean;
+        };
+        /** @description One credit line for the resource pack. */
+        ResourcePackAttribution: {
+            /** @description The credit, rendered as text and never as markup. */
+            text: string;
+            /** @description Where the credit links, or null for plain text. Always an absolute http(s) URL -- the module rejects anything else at startup, and a client should re-check rather than trust it, since the value is operator-supplied and ends up in a page. */
+            url: string | null;
         };
         ErrorResponse: {
             /** @description A stable, machine-readable error code (e.g. `WORLD_NOT_FOUND`). */
