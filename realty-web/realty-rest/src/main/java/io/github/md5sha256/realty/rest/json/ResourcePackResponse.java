@@ -3,8 +3,7 @@ package io.github.md5sha256.realty.rest.json;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Where the game server's resource pack is hosted, so a browser renderer can texture blocks
- * with the same pack the game client uses.
+ * Where the resource pack for previews is hosted, so a browser renderer can texture blocks.
  *
  * <p>A location, never the pack's bytes: the URL is already handed to every joining player,
  * so reporting it redistributes nothing, whereas proxying the pack through this service would

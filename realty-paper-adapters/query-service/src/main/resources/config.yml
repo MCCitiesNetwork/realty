@@ -19,3 +19,18 @@ port: 8123
 # for a main-thread tick. If one does not come within this many milliseconds the request fails
 # with 504 rather than holding an HTTP worker while the server is stalled.
 request-timeout-ms: 1000
+
+# Resource pack the web explorer textures previews with, as a URL the viewer's browser
+# can fetch. Empty means none, and previews then render with no textures at all -- not
+# merely untextured blocks: most blocks have no geometry of their own and simply do not
+# appear, so a plot looks like a failed capture.
+#
+# This is NOT server.properties' resource-pack. That pack is sent to the game client,
+# which loads it over its own copy of the game, so it is usually an override pack; a
+# browser has no vanilla assets underneath it. Name a pack that stands on its own.
+#
+# Realty never hosts or serves the pack -- only this URL is passed on, and the browser
+# fetches it directly. Two things to check when a preview stays untextured: the host must
+# send CORS headers (pack hosts often do not, having only ever served the game client),
+# and the pack must be one you have the right to publish.
+resource-pack-url: ""
