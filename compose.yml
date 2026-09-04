@@ -42,7 +42,7 @@ services:
   realty-rest:
     build:
       context: .
-      dockerfile: realty-rest/Dockerfile
+      dockerfile: realty-web/realty-rest/Dockerfile
     restart: unless-stopped
     ports:
       - "8080:8080"

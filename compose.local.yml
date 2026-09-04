@@ -31,7 +31,7 @@ services:
       # The whole project: realty-rest depends on realty-backend through Gradle
       # project references, so a context of realty-rest/ alone cannot build.
       context: .
-      dockerfile: realty-rest/Dockerfile
+      dockerfile: realty-web/realty-rest/Dockerfile
     container_name: realty-rest-local
     restart: "no"
     ports:
