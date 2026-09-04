@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 class StaticSiteTest {
 
@@ -79,6 +80,31 @@ class StaticSiteTest {
     void aRealApiRouteStillWorks() {
         JavalinTest.test(TestServers.withStaticSite(this.webRoot).javalin(), (app, client) -> {
             Assertions.assertEquals(200, client.get("/v1/health").code());
+        });
+    }
+
+    @Test
+    void servesTheSynthesisedConfigWhenOneIsGiven() {
+        // The bundled build has no config.json on disk to edit -- it is inside the jar --
+        // so realty-rest serves the document the dist entry point renders instead.
+        String body = "{\"resourcePackAttribution\":[{\"text\":\"Faithful 64x\"}]}";
+        JavalinTest.test(TestServers.withStaticSite(this.webRoot, body).javalin(), (app, client) -> {
+            Response response = client.get("/config.json");
+            Assertions.assertEquals(200, response.code());
+            Assertions.assertEquals(List.of("application/json"), response.headers().get("Content-Type"));
+            Assertions.assertEquals(body, response.body().string());
+        });
+    }
+
+    @Test
+    void withoutAConfigTheFrontEndsOwnFileIsServedIfThereIsOne() throws IOException {
+        // A split deployment ships a real config.json beside index.html and passes none
+        // here; the static handler must still serve the operator's file.
+        Files.writeString(this.webRoot.resolve("config.json"), "{\"apiBaseUrl\":\"\"}");
+        JavalinTest.test(TestServers.withStaticSite(this.webRoot).javalin(), (app, client) -> {
+            Response response = client.get("/config.json");
+            Assertions.assertEquals(200, response.code());
+            Assertions.assertTrue(response.body().string().contains("apiBaseUrl"));
         });
     }
 

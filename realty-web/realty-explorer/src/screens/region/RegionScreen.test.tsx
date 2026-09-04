@@ -82,4 +82,35 @@ describe("RegionScreen", () => {
     await waitFor(() => expect(screen.getByText(/no region named/i)).toBeInTheDocument());
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("credits the resource pack only where a schematic actually renders", async () => {
+    const credit = [{ text: "Faithful 64x", href: "https://faithfulpack.net/" }];
+
+    const withPreview = render(
+      <MemoryRouter>
+        <RegionScreen client={clientReturning(region)} world="world" region="plot_a"
+                      hasSchematic resourcePackAttribution={credit} />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(withPreview.getByRole("link", { name: "Faithful 64x" }))
+        .toHaveAttribute("href", "https://faithfulpack.net/"));
+    withPreview.unmount();
+
+    // No schematic means no pack was used, so there is nothing to credit.
+    const withoutPreview = render(
+      <MemoryRouter>
+        <RegionScreen client={clientReturning(region)} world="world" region="plot_a"
+                      hasSchematic={false} resourcePackAttribution={credit} />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(withoutPreview.getByText(/no preview captured/i)).toBeInTheDocument());
+    expect(withoutPreview.queryByText("Faithful 64x")).toBeNull();
+  });
+
+  it("renders nothing extra when no credit is configured", async () => {
+    renderScreen(clientReturning(region), true);
+    await waitFor(() => expect(screen.getByTestId("viewer")).toBeInTheDocument());
+    expect(document.querySelector(".viewer-credit")).toBeNull();
+  });
 });

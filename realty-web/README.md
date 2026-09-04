@@ -105,5 +105,30 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
 
   A viewer can also drop their own pack (`.zip`) onto the canvas. Resource packs only:
   a dropped schematic is refused, so nobody can swap out what a region's preview shows.
+- **Credit the pack you configured.** Most packs are licensed on the condition that
+  they are attributed, and the pack's URL is set on the server where nobody browsing
+  the site can see it. Set `resourcePackAttribution` and the credit renders under the
+  preview -- and only there, since that is the only place the pack is used:
+
+  ```json
+  {
+    "resourcePackAttribution": [
+      { "text": "Textures: Faithful 64x", "href": "https://faithfulpack.net/" },
+      { "text": "CC BY 4.0" }
+    ]
+  }
+  ```
+
+  `href` is optional, and a link is dropped unless it is an absolute `http`/`https`
+  URL -- this value is operator-supplied and rendered into the page. Leave the list
+  out and nothing renders.
+
+  The bundled build has no `config.json` to edit, so it takes the same list from
+  `REALTY_WEB_RESOURCE_PACK_ATTRIBUTION` and serves the document itself. Entries are
+  `Text|URL`, separated by `;`, and the URL half is optional:
+
+  ```
+  REALTY_WEB_RESOURCE_PACK_ATTRIBUTION=Textures: Faithful 64x|https://faithfulpack.net/;CC BY 4.0
+  ```
 - A region with no captured schematic is the normal case — capture is on demand via
   `/realty schematic capture`. The detail screen shows a panel, not an error.

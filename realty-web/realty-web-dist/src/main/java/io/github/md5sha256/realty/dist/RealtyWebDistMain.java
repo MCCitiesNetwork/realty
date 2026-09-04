@@ -23,7 +23,10 @@ public final class RealtyWebDistMain {
     }
 
     public static void main(@NotNull String[] args) {
-        RealtyRestMain.run(new StaticSite("/web", Location.CLASSPATH));
+        // The bundled front end has no config.json to edit, so it is synthesised from
+        // the environment and served as a route. See WebConfig.
+        RealtyRestMain.run(new StaticSite("/web", Location.CLASSPATH,
+                WebConfig.render(System::getenv)));
     }
 
 }
