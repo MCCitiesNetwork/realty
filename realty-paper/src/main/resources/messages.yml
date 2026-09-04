@@ -624,6 +624,19 @@ unrent:
     update-failed: <prefix> Failed to unrent region <yellow><region>.</yellow>
     refund-failed: '<prefix> Failed to process refund: <error>'
     error: '<prefix> Failed to unrent region: <error>'
+schematic:
+    started: <prefix> Capturing <yellow><region></yellow> (<volume> blocks). This runs in
+        the background.
+    captured: <prefix> Captured a schematic of <yellow><region></yellow> (<size> bytes).
+    cooldown: <prefix> <yellow><region></yellow> was captured recently. Try again in
+        <green><remaining></green>.
+    failed: '<prefix> Failed to capture <yellow><region></yellow>: <error>'
+    aborted: '<prefix> Capture of <yellow><region></yellow> stopped: <reason>'
+    not-registered: <prefix> <yellow><region></yellow> is not registered with Realty.
+    force-no-permission: <prefix> You do not have permission to bypass the capture cooldown.
+    too-large: <prefix> <yellow><region></yellow> is <volume> blocks, over the <cap> limit.
+        Ask an operator to raise <green>schematic-max-volume</green>.
+    already-running: <prefix> <yellow><region></yellow> is already being captured.
 set:
     no-permission: <prefix> You do not have permission to modify this region.
     check-permissions-error: '<prefix> Failed to check permissions: <error>'

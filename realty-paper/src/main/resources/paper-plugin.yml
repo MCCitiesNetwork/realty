@@ -142,6 +142,12 @@ permissions:
   realty.command.unrent:
     description: Allows using /realty unrent
     default: true
+  realty.command.schematic.capture:
+    description: Allows using /realty schematic capture
+    default: op
+  realty.command.schematic.capture.force:
+    description: Allows bypassing the /realty schematic capture cooldown with --force
+    default: op
   realty.command.set.price:
     description: Allows using /realty set price on own regions
     default: op

@@ -799,6 +799,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/region/schematic:
+    get:
+      summary: A region's captured schematic
+      operationId: regionSchematic
+      description: >-
+        The raw Sponge Schematic v3 bytes for the region, as captured in game by
+        `/realty schematic capture`. Served as bytes rather than JSON because the
+        browser-side renderers read an `ArrayBuffer` directly; base64 in JSON
+        would cost a third more bytes and a decode step for nothing.
+
+
+        The schematic records block state only -- a stair's facing, a slab's half
+        -- and deliberately not block entity NBT. Chests render as chests, but
+        their contents are never captured and so are never served here.
+
+
+        Capturing is on demand, so a region Realty manages may legitimately have
+        no schematic yet; that is a 404 rather than an empty body.
+      parameters:
+        - name: world
+          in: query
+          required: true
+          description: The world, as a UUID or a name.
+          schema:
+            type: string
+        - name: region
+          in: query
+          required: true
+          description: The WorldGuard region id.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The schematic bytes.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: "`MISSING_PARAMETER` -- `world` or `region` was not given."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: >-
+            `WORLD_NOT_FOUND`, or `SCHEMATIC_NOT_FOUND` when the region has never
+            been captured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/worlds/geometry:
     get:
       summary: Every registered region's footprint in one world
