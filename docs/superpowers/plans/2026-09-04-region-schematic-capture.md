@@ -729,7 +729,22 @@ git commit -m "feat(paper): add in-memory per-region capture cooldown"
 
 This class serialises a clipboard someone else has already filled — Task 5's `TickSlicedCopy` owns the world read. That split is what lets the encode run off the main thread (it touches no world state) and lets this test run with no server at all.
 
-- [ ] **Step 1: Write the failing test**
+> **Executed 2026-09-04 — this task ships without a unit test, deliberately.**
+>
+> The planned test could not be made to run. `BlockTypes.STONE` needs an initialised
+> WorldEdit platform (`IllegalStateException: WorldEdit is not initialized yet`), which
+> `WorldEditTestPlatform` (added in Task 5) now provides — but `SpongeSchematicV3Writer`
+> then fails on `WorldEdit.getVersion()` returning null while writing its metadata
+> header, and making *that* non-null means reproducing most of a WorldEdit install.
+>
+> The judgement: `writeClipboard` is six lines delegating to WorldEdit's own writer, so
+> such a test would exercise WorldEdit's serialiser rather than our code. It is covered
+> instead by Task 7's `runServer` step, which asserts a non-zero `LENGTH(data)` in the
+> database — an end-to-end check that the bytes are real.
+>
+> Skip steps 1 and 2; implement step 3 and move on.
+
+- [ ] **Step 1: Write the failing test** *(skipped — see the note above)*
 
 The test writes a clipboard-backed region rather than a live world, so it needs no server. It asserts the bytes are a gzipped NBT document (Sponge v3 is gzipped NBT, magic bytes `0x1f 0x8b`) and that WorldEdit can read them back.
 
