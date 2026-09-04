@@ -132,6 +132,43 @@ describe("RegionScreen", () => {
         .toHaveAttribute("href", "https://packs.example.com/"));
   });
 
+  it("shows the region's own page while the details are still loading", async () => {
+    // Following a card used to blank the page until /v1/region answered, which read as a
+    // slow navigation even though the name and the way back were known from the URL.
+    const client = ({
+      GET: vi.fn(() => new Promise(() => {})),
+    }) as unknown as ApiClient;
+
+    render(
+      <MemoryRouter>
+        <RegionScreen client={client} world="world" region="plot_a" hasSchematic={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "plot_a" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /all regions/i })).toBeInTheDocument();
+  });
+
+  it("hands the probed bytes to the viewer instead of fetching them twice", async () => {
+    // The probe downloads the schematic to learn whether there is one. Discarding it
+    // meant the viewer fetched the same megabytes again before drawing anything.
+    const bytes = new ArrayBuffer(8);
+    const get = vi.fn(async (path: string) => ({
+      data: path === "/v1/region/schematic" ? bytes : region,
+      error: undefined,
+      response: { status: 200 },
+    }));
+
+    render(
+      <MemoryRouter>
+        <RegionScreen client={({ GET: get }) as unknown as ApiClient} world="world" region="plot_a" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("viewer")).toBeInTheDocument());
+    expect(get.mock.calls.filter((call) => call[0] === "/v1/region/schematic")).toHaveLength(1);
+  });
+
   it("renders nothing extra when no credit is configured", async () => {
     renderScreen(clientReturning(region), true);
     await waitFor(() => expect(screen.getByTestId("viewer")).toBeInTheDocument());

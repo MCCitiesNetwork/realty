@@ -3,7 +3,20 @@ import type { DragEvent } from "react";
 import { SchematicRenderer } from "schematic-renderer";
 import { fetchResourcePack, fetchSchematic, type ApiClient } from "../api/client";
 
-type Props = { client: ApiClient; world: string; region: string };
+type Props = {
+  client: ApiClient;
+  world: string;
+  region: string;
+  /**
+   * The schematic's bytes, when the caller already has them.
+   *
+   * <p>The detail screen downloads the schematic to find out whether there is one to
+   * show, so without this the same megabytes were fetched a second time the moment the
+   * viewer mounted -- the preview appeared at roughly half the speed the network
+   * allowed. Omitted, the viewer fetches for itself and stands alone.</p>
+   */
+  schematic?: ArrayBuffer;
+};
 
 /** The parts of the renderer instance this component actually uses. */
 type Renderer = {
@@ -31,7 +44,7 @@ type Renderer = {
  * <p>A viewer may drop their own resource pack onto the canvas. Resource packs only --
  * see the drop handler.</p>
  */
-export function SchematicViewer({ client, world, region }: Props) {
+export function SchematicViewer({ client, world, region, schematic }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | undefined>(undefined);
   const [packNote, setPackNote] = useState<string | null>(null);
@@ -48,7 +61,7 @@ export function SchematicViewer({ client, world, region }: Props) {
       if (disposed) return;
       rendererRef.current = new SchematicRenderer(
         canvas,
-        { [region]: fetchSchematic(client, world, region) },
+        { [region]: schematic ? async () => schematic : fetchSchematic(client, world, region) },
         pack ? { server: async () => pack } : {},
         {
           showGrid: true,
@@ -71,7 +84,7 @@ export function SchematicViewer({ client, world, region }: Props) {
       rendererRef.current?.dispose?.();
       rendererRef.current = undefined;
     };
-  }, [client, world, region]);
+  }, [client, world, region, schematic]);
 
   /**
    * Accepts a dropped resource pack, and nothing else.
