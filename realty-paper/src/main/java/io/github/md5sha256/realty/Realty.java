@@ -11,6 +11,9 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.schematic.CaptureCooldown;
+import io.github.md5sha256.realty.schematic.CaptureRegistry;
+import io.github.md5sha256.realty.schematic.TickScheduler;
 import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.PlayerNameService;
@@ -53,6 +56,7 @@ import io.github.md5sha256.realty.command.RentableCommand;
 import io.github.md5sha256.realty.command.SearchCommand;
 import io.github.md5sha256.realty.command.SearchDialog;
 import io.github.md5sha256.realty.command.ModifyCommandGroup;
+import io.github.md5sha256.realty.command.SchematicCommandGroup;
 import io.github.md5sha256.realty.command.SetCommandGroup;
 import io.github.md5sha256.realty.command.TerminateCommand;
 import io.github.md5sha256.realty.command.SignCommand;
@@ -127,6 +131,7 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.HashMap;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -152,6 +157,7 @@ public final class Realty extends JavaPlugin {
     private SquirrelIdUsernameResolver nameResolver;
     private PlayerNameService playerNameService;
     private ExecutorState executorState;
+    private final CaptureRegistry captureRegistry = new CaptureRegistry();
     private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
     private DatabaseSettings databaseSettings;
@@ -345,6 +351,11 @@ public final class Realty extends JavaPlugin {
     @Override
     public void onDisable() {
         // Plugin shutdown logic
+        // Before anything else: a capture still running would hold a scheduled task
+        // against a disabled plugin and deliver a partial clipboard into a closing
+        // database. A half-region schematic is worse than none -- nothing downstream
+        // could tell the difference.
+        this.captureRegistry.cancelAll();
         if (this.moduleManager != null) {
             // Shut modules down first: they may still be using the executors and database below.
             this.moduleManager.stop();
@@ -844,6 +855,14 @@ public final class Realty extends JavaPlugin {
                 new RentCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentableCommand(paperApi, messageContainer),
                 new UnrentCommand(paperApi, messageContainer, this.eventDispatch),
+                new SchematicCommandGroup(this.logic,
+                        this.executorState,
+                        new TickScheduler.Bukkit(this),
+                        new CaptureCooldown(Instant::now),
+                        this.captureRegistry,
+                        this.settings,
+                        messageContainer,
+                        getLogger()),
                 new SetCommandGroup(paperApi, messageContainer, this.eventDispatch),
                 new ModifyCommandGroup(paperApi, messageContainer, this.eventDispatch),
                 new TerminateCommand(paperApi, messageContainer, this.eventDispatch),
