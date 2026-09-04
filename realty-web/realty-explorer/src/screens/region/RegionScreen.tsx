@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { ApiClient } from "../../api/client";
+import { fetchSchematic, type ApiClient } from "../../api/client";
 import type { components } from "../../api/schema";
 
 type Region = components["schemas"]["RegionResponse"];
@@ -20,12 +20,21 @@ type Props = {
   client: ApiClient;
   world: string;
   region: string;
-  /** Whether a schematic was captured. Absent is the common case, not a failure. */
+  /**
+   * Forces the preview state instead of probing for one. Tests set it; the app
+   * does not, because whether a schematic exists is something only the API knows.
+   */
   hasSchematic?: boolean;
 };
 
-export function RegionScreen({ client, world, region, hasSchematic = false }: Props) {
+/** Absent is the common case -- capture is on demand -- so it is a state, not an error. */
+type Preview = "probing" | "present" | "absent";
+
+export function RegionScreen({ client, world, region, hasSchematic }: Props) {
   const [state, setState] = useState<State>({ status: "loading" });
+  const [preview, setPreview] = useState<Preview>(
+    hasSchematic === undefined ? "probing" : hasSchematic ? "present" : "absent",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +59,27 @@ export function RegionScreen({ client, world, region, hasSchematic = false }: Pr
       cancelled = true;
     };
   }, [client, world, region]);
+
+  useEffect(() => {
+    if (hasSchematic !== undefined) return;
+    let cancelled = false;
+    setPreview("probing");
+
+    // Ask before mounting the viewer. Mounting it unconditionally downloads ~12 MB
+    // of Three.js and WASM and then fails to initialise for the many regions that
+    // have no capture -- which is the normal case, not an error.
+    fetchSchematic(client, world, region)()
+      .then(() => {
+        if (!cancelled) setPreview("present");
+      })
+      .catch(() => {
+        if (!cancelled) setPreview("absent");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, world, region, hasSchematic]);
 
   if (state.status === "loading") return <main><p>Loading {region}…</p></main>;
 
@@ -91,11 +121,13 @@ export function RegionScreen({ client, world, region, hasSchematic = false }: Pr
 
       <section>
         <h2>Preview</h2>
-        {hasSchematic ? (
+        {preview === "probing" && <p>Checking for a preview…</p>}
+        {preview === "present" && (
           <Suspense fallback={<p>Loading preview…</p>}>
             <SchematicViewer client={client} world={world} region={region} />
           </Suspense>
-        ) : (
+        )}
+        {preview === "absent" && (
           // Capture is on demand, so most regions have none. This is expected, and
           // must never read as an error.
           <p>No preview captured for this region yet.</p>

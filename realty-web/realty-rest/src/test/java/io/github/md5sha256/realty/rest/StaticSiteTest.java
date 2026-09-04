@@ -8,6 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -51,6 +55,23 @@ class StaticSiteTest {
             String body = response.body().string();
             Assertions.assertTrue(body.contains("\"error\""), "expected a JSON error, got: " + body);
             Assertions.assertFalse(body.contains("explorer"), "index.html was served for an API path");
+        });
+    }
+
+    @Test
+    void anUnknownApiPathIs404ForHeadToo() {
+        // A client that only wants the status uses HEAD, and Jetty answers HEAD from
+        // the static handler unless a route claims the path -- so this returned 200
+        // while the GET above returned 404, which is worse than either alone.
+        // javalin-testtools cannot issue HEAD, so this goes through java.net.http
+        // against the same started server.
+        JavalinTest.test(TestServers.withStaticSite(this.webRoot).javalin(), (app, client) -> {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(client.getOrigin() + "/v1/nope"))
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                    .build();
+            HttpResponse<Void> response = HttpClient.newHttpClient()
+                    .send(request, HttpResponse.BodyHandlers.discarding());
+            Assertions.assertEquals(404, response.statusCode());
         });
     }
 
