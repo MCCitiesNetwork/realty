@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createApiClient, fetchResourcePack, fetchSchematic, type ApiClient } from "./client";
+import {
+  createApiClient,
+  fetchResourcePack,
+  fetchResourcePackAttribution,
+  fetchSchematic,
+  type ApiClient,
+} from "./client";
 
 /** Captures the URL openapi-fetch actually requested. */
 const requestedUrl = (spy: ReturnType<typeof vi.fn>): string => {
@@ -116,5 +122,61 @@ describe("fetchResourcePack", () => {
       clientReturning({ url: "https://cdn.example.com/gone.zip", hash: null, required: false }));
     expect(pack).toBeNull();
     vi.unstubAllGlobals();
+  });
+});
+
+describe("resource pack caching", () => {
+  const packUrl = "https://cdn.example.com/p.zip";
+
+  const countingClient = () => {
+    const get = vi.fn(async () => ({
+      data: { url: packUrl, attribution: [{ text: "Example Pack 32x", url: null }], hash: null, required: false },
+      error: undefined,
+    }));
+    return { client: { GET: get } as unknown as ApiClient, get };
+  };
+
+  it("asks the API about the pack once, however many callers want it", async () => {
+    // The credit line and the renderer both want this, and each region page asked
+    // again on mount. It describes a server setting that cannot change while the page
+    // is open.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("zip", { status: 200 })));
+    const { client, get } = countingClient();
+
+    await Promise.all([
+      fetchResourcePackAttribution(client),
+      fetchResourcePack(client),
+      fetchResourcePackAttribution(client),
+    ]);
+    await fetchResourcePack(client);
+
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("downloads the pack itself only once", async () => {
+    // A 64x pack is around 18 MB. The HTTP cache spares the network on a return visit
+    // but not the decode, and that cost landed on every region page.
+    const download = vi.fn(async (_url: string) => new Response("zip", { status: 200 }));
+    vi.stubGlobal("fetch", download);
+    const { client } = countingClient();
+
+    const first = await fetchResourcePack(client);
+    const second = await fetchResourcePack(client);
+
+    expect(download.mock.calls.filter((call) => call[0] === packUrl)).toHaveLength(1);
+    // The same Blob, not merely an equal one -- that is what makes it free.
+    expect(second).toBe(first);
+  });
+
+  it("caches per client, so a different client is not served a stale pack", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("zip", { status: 200 })));
+    const a = countingClient();
+    const b = countingClient();
+
+    await fetchResourcePack(a.client);
+    await fetchResourcePack(b.client);
+
+    expect(a.get).toHaveBeenCalledTimes(1);
+    expect(b.get).toHaveBeenCalledTimes(1);
   });
 });

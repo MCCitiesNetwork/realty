@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   fetchResourcePackAttribution,
@@ -14,9 +14,7 @@ import { formatPrice } from "../../ui/format";
 type Region = components["schemas"]["RegionResponse"];
 
 // Lazy, so the browse screen never downloads Three.js or the WASM mesh pipeline.
-const SchematicViewer = lazy(() =>
-  import("../../viewer/SchematicViewer").then((module) => ({ default: module.SchematicViewer })),
-);
+import { SchematicViewer } from "../../viewer/lazyViewer";
 
 type State =
   | { status: "loading" }
