@@ -326,6 +326,30 @@ public final class HttpModuleClient implements ModuleClient {
         }
     }
 
+    @Override
+    public @NotNull ModuleResult<ResourcePack> resourcePack() {
+        String path = "/resource-pack";
+        try {
+            JsonNode body = get(path);
+            if (body == null) {
+                // get() maps 404 to null, but this route always answers when the module is
+                // reachable -- so a null here means it was not.
+                return new ModuleResult.Unavailable<>();
+            }
+            return new ModuleResult.Found<>(new ResourcePack(
+                    text(body, "url"), text(body, "hash"), body.path("required").asBoolean(false)));
+        } catch (RuntimeException ex) {
+            failed(path, ex);
+            return new ModuleResult.Unavailable<>();
+        }
+    }
+
+    /** Jackson reports a missing or JSON-null field as a null node, not as absent. */
+    private static @Nullable String text(@NotNull JsonNode body, @NotNull String field) {
+        JsonNode node = body.path(field);
+        return node.isMissingNode() || node.isNull() ? null : node.asText();
+    }
+
     private @Nullable JsonNode get(@NotNull String path) {
         return send(HttpRequest.newBuilder(URI.create(this.baseUrl + path)).GET(), path);
     }

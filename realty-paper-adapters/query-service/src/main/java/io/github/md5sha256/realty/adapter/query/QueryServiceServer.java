@@ -35,7 +35,8 @@ public final class QueryServiceServer {
             "/regions/{worldId}/at",
             "/players/{uuid}/name",
             "/players/names",
-            "/players/uuids");
+            "/players/uuids",
+            "/resource-pack");
 
     /**
      * Cap on any batch route. Every entry can cost a main-thread hop and, in the worst case, a
@@ -50,12 +51,14 @@ public final class QueryServiceServer {
     private final Duration requestTimeout;
     private final RegionSource regions;
     private final PlayerNameService names;
+    private final ResourcePackSource resourcePack;
     private final Javalin javalin;
 
     public QueryServiceServer(@NotNull String secret,
                               @NotNull Duration requestTimeout,
                               @NotNull RegionSource regions,
-                              @NotNull PlayerNameService names) {
+                              @NotNull PlayerNameService names,
+                              @NotNull ResourcePackSource resourcePack) {
         if (secret.isBlank()) {
             throw new IllegalArgumentException("secret must not be blank");
         }
@@ -63,6 +66,7 @@ public final class QueryServiceServer {
         this.requestTimeout = Objects.requireNonNull(requestTimeout, "requestTimeout");
         this.regions = Objects.requireNonNull(regions, "regions");
         this.names = Objects.requireNonNull(names, "names");
+        this.resourcePack = Objects.requireNonNull(resourcePack, "resourcePack");
         ObjectMapper objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         // Javalin 7 removed routing methods (get, post, before, exception, error, ...) from
@@ -100,6 +104,11 @@ public final class QueryServiceServer {
         routes.get("/players/{uuid}/name", playerNames::single);
         routes.post("/players/names", playerNames::names);
         routes.post("/players/uuids", playerNames::uuids);
+
+        // The URL only, never the pack itself: realty-rest and the browser learn where the
+        // operator already hosts it, so Realty redistributes nothing.
+        ResourcePackHandler resourcePackHandler = new ResourcePackHandler(this.resourcePack);
+        routes.get("/resource-pack", resourcePackHandler::handle);
 
         routes.exception(ApiException.class, (ex, ctx) -> {
             ctx.attribute(HANDLED_ATTRIBUTE, true);
