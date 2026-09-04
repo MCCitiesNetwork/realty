@@ -31,6 +31,7 @@ as the source of truth for configuration.
 | `REALTY_REST_MODULE_URL` | no | -- | Base URL of a query-service module used to enrich responses. Unset disables enrichment. |
 | `REALTY_REST_MODULE_SECRET` | no | -- | Shared secret sent to that module. |
 | `REALTY_REST_MODULE_TIMEOUT_MS` | no | `1500` | Per-call timeout before a module-sourced field degrades to `null`. |
+| `REALTY_REST_WEB_ROOT` | no | *(empty)* | Directory of a built front end to serve alongside the API, at `/`. **Empty serves nothing**, which is the default: an API-only deployment stays API-only. Set this to run one process instead of two — or use the bundled `realty-web-dist` jar, which carries the front end inside it and needs no path. |
 
 The resolved configuration (secrets redacted) is logged once at startup.
 
