@@ -69,6 +69,25 @@ final class TestServers {
         return new RealtyRestServer(stubBackend(), new StubDatabase(true), defaultSettings());
     }
 
+    /**
+     * A server whose backend answers {@code getSchematic} with {@code schematic}
+     * (null meaning "never captured"), in a world named "world".
+     */
+    static @NotNull RealtyRestServer withSchematic(byte @Nullable [] schematic) {
+        List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(
+                UUID.fromString("8f4d1c2e-0000-0000-0000-000000000099"), "world"));
+        InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+            case "getSchematic" -> schematic;
+            default -> throw new UnsupportedOperationException(
+                    "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(),
+                new Class<?>[]{RealtyBackend.class},
+                handler);
+        return new RealtyRestServer(backend, new StubDatabase(false, worlds), defaultSettings());
+    }
+
     static @NotNull RealtyRestServer withWorlds() {
         List<RealtyWorldEntity> worlds = List.of(
                 new RealtyWorldEntity(UUID.randomUUID(), "world"),
