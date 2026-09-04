@@ -756,4 +756,21 @@ public interface RealtyBackend {
                                          @Nullable UUID playerId,
                                          int limit,
                                          int offset);
+
+    // --- Schematics ---
+
+    /**
+     * Stores {@code data} as the region's schematic, replacing any previous capture.
+     *
+     * @return {@code false} when no such region is registered, so nothing was stored
+     */
+    boolean storeSchematic(@NotNull String worldGuardRegionId,
+                           @NotNull UUID worldId,
+                           byte @NotNull [] data,
+                           @NotNull UUID capturedBy);
+
+    /**
+     * The region's most recent schematic, or {@code null} if it has never been captured.
+     */
+    byte @Nullable [] getSchematic(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 }
