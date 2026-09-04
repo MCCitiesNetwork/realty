@@ -1360,7 +1360,7 @@ and, in the compact constructor alongside the other defaults:
 
 ```java
         if (schematicCaptureCooldownSeconds < 0) {
-            schematicCaptureCooldownSeconds = 300;
+            schematicCaptureCooldownSeconds = 3600;
         }
         if (schematicMaxVolume < 0) {
             schematicMaxVolume = 1_000_000L;
@@ -1378,8 +1378,9 @@ In `realty-paper/src/main/resources/config.yml`, next to the other duration sett
 
 ```yaml
 # How long a region must wait between /realty schematic capture runs.
-# 0 disables the cooldown. Bypassed by --force (realty.command.schematic.capture.force).
-schematic-capture-cooldown-seconds: 300
+# 3600 = one hour. 0 disables the cooldown.
+# Bypassed by --force (realty.command.schematic.capture.force).
+schematic-capture-cooldown-seconds: 3600
 
 # Largest region, in blocks (width x height x length), that may be captured.
 # 0 disables the check. This is a hard limit: --force does NOT lift it, because an

@@ -84,9 +84,12 @@ the existing `WorldGuardRegionResolver`.
 
 **Cooldown.** An in-memory `Map<RegionKey, Instant>` (last capture time),
 held by the command group, resets on plugin restart — no persistence, per
-the "in memory" requirement. The cooldown duration is a new `Settings` key
-(`schematic-capture-cooldown`), parsed with the existing
-`DurationParserUtil`. On capture, if `now - lastCapture < cooldown` and
+the "in memory" requirement. The cooldown duration is a new `Settings` key,
+`schematic-capture-cooldown-seconds`, defaulting to `3600` — one hour. It is
+a `long` of seconds rather than a parsed duration string, matching the
+existing `offer-payment-duration-seconds` and
+`lease-termination-notice-seconds` keys. Zero disables the cooldown; only a
+negative is corrected to the default. On capture, if `now - lastCapture < cooldown` and
 `--force` was not passed, the command rejects with the remaining time
 rendered via `DurationFormatter` (never `Duration.toString()`, per existing
 project convention).
