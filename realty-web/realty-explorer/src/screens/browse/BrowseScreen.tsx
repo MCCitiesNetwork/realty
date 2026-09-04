@@ -1,16 +1,39 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ApiClient } from "../../api/client";
-import type { components } from "../../api/schema";
+import type { components, paths } from "../../api/schema";
 import { StateBadge } from "../../ui/StateBadge";
 import { formatPrice } from "../../ui/format";
 
 type SearchResult = components["schemas"]["SearchResponse_Result"];
+type WorldRef = components["schemas"]["WorldRef"];
+
+/** The API's own `type` values, so the filter cannot offer one the search rejects. */
+type ContractFilter = NonNullable<
+  NonNullable<paths["/v1/regions/search"]["get"]["parameters"]["query"]>["type"]
+>;
 
 type Filters = {
-  type: "all" | "sale" | "rent";
+  type: ContractFilter;
   world: string;
 };
+
+/**
+ * Every value the search accepts, labelled as the API describes it.
+ *
+ * `sale`/`rent` are the market view -- what is actually listed -- while `freehold` and
+ * `leasehold` widen to every contract of that kind, including sold or never-listed
+ * regions, which come back with a null price. `leasehold` covers the same rows as
+ * `rent`, since a lease always carries a price; it is offered anyway because the API
+ * accepts it and a filter that silently omits an option is one nobody can find.
+ */
+const CONTRACT_FILTERS: ReadonlyArray<{ value: ContractFilter; label: string }> = [
+  { value: "all", label: "All listings" },
+  { value: "sale", label: "For sale" },
+  { value: "rent", label: "For rent" },
+  { value: "freehold", label: "All freeholds" },
+  { value: "leasehold", label: "All leaseholds" },
+];
 
 type State =
   | { status: "loading" }
@@ -23,6 +46,26 @@ export function BrowseScreen({ client }: { client: ApiClient }) {
   const [filters, setFilters] = useState<Filters>({ type: "all", world: "" });
   const [page, setPage] = useState(1);
   const [state, setState] = useState<State>({ status: "loading" });
+  const [worlds, setWorlds] = useState<WorldRef[]>([]);
+
+  useEffect(() => {
+    // The world list comes from the database rather than from typing: a world name is a
+    // folder name, so a filter that had to be spelled exactly was a filter that mostly
+    // returned nothing. Fetched once -- worlds are registered when a region in them is,
+    // which does not happen while someone is looking at this page.
+    let cancelled = false;
+
+    client.GET("/v1/worlds", {}).then(({ data, error }) => {
+      // Array-checked rather than trusted: the filter is chrome, and a surprising body
+      // here must not take the page it sits on down with it.
+      if (cancelled || error || !Array.isArray(data)) return;
+      setWorlds(data);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,24 +120,32 @@ export function BrowseScreen({ client }: { client: ApiClient }) {
             value={filters.type}
             onChange={(event) => {
               setPage(1);
-              setFilters({ ...filters, type: event.target.value as Filters["type"] });
+              setFilters({ ...filters, type: event.target.value as ContractFilter });
             }}
           >
-            <option value="all">All</option>
-            <option value="sale">For sale</option>
-            <option value="rent">For rent</option>
+            {CONTRACT_FILTERS.map((filter) => (
+              <option key={filter.value} value={filter.value}>{filter.label}</option>
+            ))}
           </select>
         </label>
         <label className="field">
           <span>World</span>
-          <input
+          <select
             value={filters.world}
-            placeholder="Any world"
             onChange={(event) => {
               setPage(1);
               setFilters({ ...filters, world: event.target.value });
             }}
-          />
+          >
+            <option value="">Any world</option>
+            {/* No option is invented: an empty or unreachable list leaves just the one
+                above, which filters nothing and is the honest state. */}
+            {worlds.map((world) => (
+              <option key={world.id} value={world.name ?? world.id}>
+                {world.name ?? world.id}
+              </option>
+            ))}
+          </select>
         </label>
       </form>
 

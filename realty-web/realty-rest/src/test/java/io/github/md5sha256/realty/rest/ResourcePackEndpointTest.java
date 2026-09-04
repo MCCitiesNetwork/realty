@@ -58,13 +58,13 @@ class ResourcePackEndpointTest {
         // condition most packs attach goes unmet on the page that uses them.
         RealtyRestServer server = TestServers.withModule(moduleReturning(
                 new ModuleResult.Found<>(new ResourcePack("https://cdn.example.com/p.zip",
-                        List.of(new ResourcePackAttribution("Faithful 64x", "https://faithfulpack.net/"),
+                        List.of(new ResourcePackAttribution("Example Pack 32x", "https://packs.example.com/"),
                                 new ResourcePackAttribution("CC BY 4.0", null)),
                         null, false))));
         JavalinTest.test(server.javalin(), (app, client) -> {
             String body = client.get("/v1/resource-pack").body().string();
-            Assertions.assertTrue(body.contains("\"text\":\"Faithful 64x\""), body);
-            Assertions.assertTrue(body.contains("https://faithfulpack.net/"), body);
+            Assertions.assertTrue(body.contains("\"text\":\"Example Pack 32x\""), body);
+            Assertions.assertTrue(body.contains("https://packs.example.com/"), body);
             Assertions.assertTrue(body.contains("\"text\":\"CC BY 4.0\""), body);
         });
     }

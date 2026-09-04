@@ -84,7 +84,7 @@ describe("RegionScreen", () => {
   });
 
   it("credits the resource pack only where a schematic actually renders", async () => {
-    const credit = [{ text: "Faithful 64x", href: "https://faithfulpack.net/" }];
+    const credit = [{ text: "Example Pack 32x", href: "https://packs.example.com/" }];
 
     const withPreview = render(
       <MemoryRouter>
@@ -93,8 +93,8 @@ describe("RegionScreen", () => {
       </MemoryRouter>,
     );
     await waitFor(() =>
-      expect(withPreview.getByRole("link", { name: "Faithful 64x" }))
-        .toHaveAttribute("href", "https://faithfulpack.net/"));
+      expect(withPreview.getByRole("link", { name: "Example Pack 32x" }))
+        .toHaveAttribute("href", "https://packs.example.com/"));
     withPreview.unmount();
 
     // No schematic means no pack was used, so there is nothing to credit.
@@ -105,7 +105,7 @@ describe("RegionScreen", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(withoutPreview.getByText(/no preview captured/i)).toBeInTheDocument());
-    expect(withoutPreview.queryByText("Faithful 64x")).toBeNull();
+    expect(withoutPreview.queryByText("Example Pack 32x")).toBeNull();
   });
 
   it("takes the credit from the API, since the pack is the game server's setting", async () => {
@@ -114,7 +114,7 @@ describe("RegionScreen", () => {
     const client = {
       GET: vi.fn(async (path: string) => ({
         data: path === "/v1/resource-pack"
-          ? { url: null, attribution: [{ text: "Faithful 64x", url: "https://faithfulpack.net/" }] }
+          ? { url: null, attribution: [{ text: "Example Pack 32x", url: "https://packs.example.com/" }] }
           : region,
         error: undefined,
         response: { status: 200 },
@@ -128,8 +128,8 @@ describe("RegionScreen", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Faithful 64x" }))
-        .toHaveAttribute("href", "https://faithfulpack.net/"));
+      expect(screen.getByRole("link", { name: "Example Pack 32x" }))
+        .toHaveAttribute("href", "https://packs.example.com/"));
   });
 
   it("renders nothing extra when no credit is configured", async () => {

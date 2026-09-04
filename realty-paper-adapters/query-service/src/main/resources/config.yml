@@ -48,7 +48,7 @@ resource-pack-url: ""
 # the read rather than publishing a blank credit.
 #
 #   resource-pack-attribution:
-#     - text: "Textures: Faithful 64x"
-#       url: "https://faithfulpack.net/"
+#     - text: "Textures: Example Pack 32x"
+#       url: "https://packs.example.com/"
 #     - "CC BY 4.0"
 resource-pack-attribution: []
