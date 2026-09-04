@@ -145,10 +145,22 @@ a repeating task. The budget is a new `Settings` key,
 the existing `profile-reapply-per-tick` setting, which already establishes
 per-tick budgeted work as this plugin's way of spreading a large job.
 
-Blocks are read with `getFullBlock`, not `getBlock`, so block entities
-(chests, signs, banners) keep their NBT. A preview that renders every chest as
-an empty box would be a silent correctness loss, and the cost is paid only
-once per capture.
+Blocks are read with `getBlock`, not `getFullBlock`: block state (type plus
+properties — a stair's facing, a slab's half) is what a preview renders, and
+block entity NBT is not. A chest renders as a chest either way; only its
+contents differ, and the preview does not show them.
+
+This is a deliberate exclusion rather than an oversight, and it pays for
+itself three times: schematics are markedly smaller, which is the same
+pressure the volume cap exists to relieve; the copy holds less per block, so
+a large region costs less memory mid-capture; and the stored bytes carry no
+inventory contents, so a preview served over a public endpoint cannot leak
+what players kept in their chests.
+
+The consequence to accept: signs come back blank and item frames empty. If a
+later version wants sign text in previews, it should read it deliberately for
+that purpose rather than switching to `getFullBlock` wholesale and picking up
+every chest's inventory along with it.
 
 Three lifecycle concerns the implementation must handle, none of which existed
 when the copy was atomic:

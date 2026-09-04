@@ -22,7 +22,7 @@
 - **Bukkit permission checks (`hasPermission`) run on the main thread**, never inside an async callback.
 - **World and block reads run on the main thread.** Paper's `AsyncCatcher` throws `IllegalStateException` on chunk access from any other thread. Only the encode (`RegionSchematicWriter.writeClipboard`) and the database write may run off-thread — neither touches the world.
 - **"Non-blocking", not "async".** The tick-sliced copy spreads main-thread work; it does not move it off-thread. Do not name classes, methods, messages or comments `async`.
-- **Blocks are read with `getFullBlock`, not `getBlock`**, so chests, signs and other block entities keep their NBT.
+- **Blocks are read with `getBlock`, not `getFullBlock`.** A preview renders block state, not block entity NBT. Excluding NBT keeps schematics small, cuts memory held during a capture, and keeps chest inventories out of bytes served over a public endpoint. Signs come back blank; that is accepted.
 - **The volume cap is hard.** `--force` bypasses the cooldown only. Never add a permission or flag that waives the cap.
 - **Durations rendered for players use `DurationFormatter`**, never `Duration.toString()`.
 - **Column type for UUIDs is `UUID`**, matching `V16__realty_worlds.sql` — not `BINARY(16)`.
@@ -1234,9 +1234,10 @@ public final class TickSlicedCopy {
         try {
             for (int i = 0; i < this.blocksPerTick && this.positions.hasNext(); i++) {
                 BlockVector3 pos = this.positions.next();
-                // getFullBlock, not getBlock: block entities keep their NBT, so a
-                // preview renders chests and signs as themselves.
-                this.clipboard.setBlock(pos, this.source.getFullBlock(pos));
+                // getBlock, not getFullBlock: a preview renders block state, not
+                // block entity NBT. Skipping NBT keeps the schematic small and
+                // keeps chest inventories out of what the REST endpoint serves.
+                this.clipboard.setBlock(pos, this.source.getBlock(pos));
             }
         } catch (WorldEditException e) {
             stop();
@@ -1827,7 +1828,7 @@ git commit -m "docs: describe region schematic capture"
 | Live main-thread block reads | 5, 7 |
 | Tick-sliced copy on a per-tick budget | 5 |
 | Encode + DB write off the main thread | 7 (step 7) |
-| `getFullBlock` so block entities keep NBT | 5 (Global Constraints restate it) |
+| `getBlock`, excluding block entity NBT from previews | 5 (Global Constraints restate it) |
 | Hard volume cap, checked before any copy, not waivable by `--force` | 5, 7 (step 4) |
 | In-flight guard against concurrent captures of one region | 5, 7 (step 6) |
 | Cancel running captures on plugin disable | 5, 7 (step 5) |
