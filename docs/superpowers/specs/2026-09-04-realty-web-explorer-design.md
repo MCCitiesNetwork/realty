@@ -190,6 +190,35 @@ URL cannot promise.
 In development, Vite proxies `/v1` to a local `realty-rest`, so development has
 no cross-origin traffic and needs no CORS configuration at all.
 
+### Deployment shape: two Pterodactyl eggs, not one
+
+`realty-rest` ships as a Pterodactyl egg, so the obvious question is whether one
+egg could host both services. It could — and the answer is deliberately no.
+
+A Pterodactyl egg is one server, one container, one **foreground** startup
+command. The existing egg's contract shows where that binds: `config.stop` is
+`^C`, which reaches the foreground process only, and `config.startup.done` is a
+single readiness regex. Backgrounding a static file server beside the jar
+therefore leaves it unreachable by the stop signal, invisible when it dies (the
+panel still reports "running"), and outside the readiness marker — and the
+`java_25` Yolk image ships a JRE and nothing else, so a file server would have
+to be supplied as well.
+
+The workable single-egg option is different: Javalin 7.2.3 can serve the bundle
+itself via `staticFiles.add(dir, Location.EXTERNAL)` and
+`spaRoot.addFile(...)`, giving one process, one port, and no CORS or
+`config.json` at all, since everything is same-origin.
+
+**Two eggs is chosen anyway**, keeping `realty-rest` a pure API and letting the
+frontend deploy on its own cadence. The explorer can use an off-the-shelf
+static/nginx egg rather than a custom one. The costs accepted: a second server
+to operate, `REALTY_REST_CORS_ORIGINS` to configure, and the `config.json`
+indirection.
+
+This is recorded because the single-egg option is attractive on first look and
+will be proposed again; the reasoning above is what to weigh it against, not a
+claim that it cannot work.
+
 ## Testing
 
 - **API client:** Vitest against a mocked fetch — parameter serialisation, and
