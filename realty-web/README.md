@@ -1,0 +1,90 @@
+# realty-web
+
+The web-facing half of Realty: a read-only HTTP API over the Realty database, and a
+browser front end for it.
+
+| Project | What it is |
+|---|---|
+| `realty-rest` | The API. A standalone JVM service reading MariaDB. Serves `/v1`. |
+| `realty-explorer` | The front end. React + Vite, built to static files. |
+| `realty-web-dist` | Both of the above in one jar, for a single-process deployment. |
+
+## Two ways to deploy
+
+Pick one. The same explorer bundle works in both — it asks for `/config.json`, and
+falls back to same-origin when there is none.
+
+### Bundled — one process
+
+`realty-web-dist-<version>-all.jar` serves the API under `/v1` and the front end at
+`/`, from a single artifact.
+
+```bash
+REALTY_DB_URL=mariadb://db:3306/realty \
+REALTY_DB_USERNAME=realty \
+REALTY_DB_PASSWORD=... \
+  java -jar realty-web-dist-all.jar
+```
+
+No CORS to configure and no `config.json` to write: the browser only ever sees one
+origin. On Pterodactyl this is one server and one allocation — use the
+**Realty Web (bundled)** egg.
+
+This is the only single-egg option. Pterodactyl supervises one foreground command,
+so a second process backgrounded beside the jar would be unreachable by the stop
+signal and invisible when it died; the bundled build sidesteps that by being one
+process rather than two.
+
+### Split — API and front end deployed separately
+
+Run `realty-rest-<version>-all.jar` for the API, and serve `realty-explorer`'s
+`dist/` from any static host. Use this when the front end should deploy on its own
+cadence, or belongs on a CDN rather than a game-server host.
+
+The front end then needs to know where the API is. Write a `config.json` beside
+`index.html`:
+
+```json
+{ "apiBaseUrl": "https://api.example.com" }
+```
+
+**Recommended: put the two behind one origin anyway.** If the static host is nginx,
+proxy `/v1` through to the API and no CORS or `config.json` is needed at all:
+
+```nginx
+location /v1/ { proxy_pass http://realty-rest-host:8080/v1/; }
+location /    { try_files $uri /index.html; }
+```
+
+The `try_files` line is not optional: the explorer routes client-side, so a deep
+link like `/region/world/plot_a` must return `index.html` rather than a 404.
+
+If the two really are on different origins, set `REALTY_REST_CORS_ORIGINS` on the
+API to the front end's origin. It is empty by default, which disables CORS — a
+service that allowed every origin by default is one nobody chose.
+
+## Developing the front end
+
+```bash
+cd realty-explorer
+npm install
+npm run dev        # proxies /v1 to localhost:8080, so no CORS in development
+npm run test
+npm run generate:api   # after changing openapi.yaml
+```
+
+`npm run generate:api` regenerates `src/api/schema.d.ts` from
+`realty-rest/src/main/resources/openapi.yaml`. That file is **committed**, and CI
+fails if regenerating it produces a diff — so changing the API without regenerating
+breaks the build rather than silently shipping a client that misdescribes it.
+
+`./gradlew build` runs all of this too: the Node plugin provisions its own Node,
+installs, tests and builds. The first run downloads a toolchain and is slow.
+
+## Notes
+
+- The explorer renders schematics **untextured**. `schematic-renderer` accepts a
+  resource pack, but shipping one means shipping copyrighted Minecraft textures, so
+  that is left as a deployment decision rather than baked in.
+- A region with no captured schematic is the normal case — capture is on demand via
+  `/realty schematic capture`. The detail screen shows a panel, not an error.

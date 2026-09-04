@@ -51,3 +51,37 @@ jobs:
           path: jars/*.jar
           if-no-files-found: error
           retention-days: 14
+
+  # The generated API client is committed so it is reviewable in diffs and so a
+  # checkout builds without a generation step. That is only trustworthy if a stale
+  # one fails the build -- otherwise committing it is just noise, and the client
+  # silently drifts from the spec it claims to describe.
+  api-client-drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install
+        working-directory: realty-web/realty-explorer
+        run: npm ci
+
+      - name: Regenerate the API client
+        working-directory: realty-web/realty-explorer
+        run: npm run generate:api
+
+      - name: Fail if the committed client is stale
+        run: |
+          if ! git diff --exit-code -- realty-web/realty-explorer/src/api/schema.d.ts; then
+            echo "::error::openapi.yaml changed without regenerating the API client."
+            echo "Run: cd realty-web/realty-explorer && npm run generate:api"
+            exit 1
+          fi

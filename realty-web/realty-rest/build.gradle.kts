@@ -1,11 +1,15 @@
 plugins {
+    `java-library`
     `realty-conventions`
     id("com.gradleup.shadow") version "9.3.1"
 }
 
 dependencies {
     implementation(project(":realty-backend"))
-    implementation("io.javalin:javalin:7.2.3")
+    // api, not implementation: StaticSite.location() returns a Javalin type, so
+    // Javalin is part of this module's public surface and consumers -- realty-web-dist
+    // -- need it on their compile classpath.
+    api("io.javalin:javalin:7.2.3")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2")
     implementation("org.slf4j:slf4j-simple:2.0.16")
