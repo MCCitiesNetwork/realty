@@ -13,6 +13,7 @@ import io.javalin.Javalin;
 import io.javalin.config.RoutesConfig;
 import io.javalin.json.JavalinJackson;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Locale;
@@ -108,6 +109,7 @@ public final class RealtyRestServer {
     private final Javalin javalin;
     private final WorldLookup worldLookup;
     private final ModuleClient moduleClient;
+    private final @Nullable StaticSite staticSite;
 
     public RealtyRestServer(@NotNull RealtyBackend backend,
                             @NotNull Database database,
@@ -119,10 +121,23 @@ public final class RealtyRestServer {
                             @NotNull Database database,
                             @NotNull RestSettings settings,
                             @NotNull ModuleClient moduleClient) {
+        this(backend, database, settings, moduleClient, null);
+    }
+
+    /**
+     * @param staticSite a built front end to serve alongside the API, or {@code null}
+     *                   for a pure API -- which is what the standalone service passes
+     */
+    public RealtyRestServer(@NotNull RealtyBackend backend,
+                            @NotNull Database database,
+                            @NotNull RestSettings settings,
+                            @NotNull ModuleClient moduleClient,
+                            @Nullable StaticSite staticSite) {
         this.backend = backend;
         this.database = database;
         this.settings = settings;
         this.moduleClient = moduleClient;
+        this.staticSite = staticSite;
         this.worldLookup = new WorldLookup(database);
         this.javalin = buildJavalin();
     }
@@ -151,6 +166,19 @@ public final class RealtyRestServer {
                         rule.allowHost(origin);
                     }
                 }));
+            }
+            if (this.staticSite != null) {
+                config.staticFiles.add(staticFile -> {
+                    staticFile.directory = this.staticSite.directory();
+                    staticFile.location = this.staticSite.location();
+                    // Without this, the spaRoot below answers /v1/nope with index.html
+                    // and a 200 -- correct-looking in a browser, wrong for every client
+                    // that checks status codes.
+                    staticFile.skipFileFunction =
+                            request -> request.getRequestURI().startsWith("/v1");
+                });
+                config.spaRoot.addFile("/", this.staticSite.directory() + "/index.html",
+                        this.staticSite.location());
             }
             registerRoutes(config.routes);
         });
@@ -246,6 +274,15 @@ public final class RealtyRestServer {
             ctx.status(500).json(new ErrorResponse("INTERNAL_ERROR",
                     "An unexpected error occurred"));
         });
+
+        if (this.staticSite != null) {
+            // Registered last, and only when a front end is served: spaRoot does not
+            // consult staticFiles' skipFileFunction, so without a real route claiming
+            // the path an API client asking for a bad endpoint would get index.html
+            // and a 200. Setting the status only lets the error(404) handler below
+            // write the same JSON body every other unmatched path gets.
+            routes.get("/v1/*", ctx -> ctx.status(404));
+        }
 
         // Javalin's error() callback fires for every response with a matching status,
         // including one an exception handler above already wrote a body for -- not just

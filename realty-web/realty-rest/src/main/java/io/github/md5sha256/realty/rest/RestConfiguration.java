@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.DatabaseSettings;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +53,8 @@ public record RestConfiguration(
                 originList(env, "REALTY_REST_CORS_ORIGINS"),
                 env.apply("REALTY_REST_MODULE_URL"),
                 env.apply("REALTY_REST_MODULE_SECRET"),
-                moduleTimeoutMs);
+                moduleTimeoutMs,
+                blankToNull(env.apply("REALTY_REST_WEB_ROOT")));
         if (rest.moduleUrl() != null && !rest.moduleUrl().isBlank()
                 && (rest.moduleSecret() == null || rest.moduleSecret().isBlank())) {
             LOGGER.warning("REALTY_REST_MODULE_URL is set but REALTY_REST_MODULE_SECRET is not; the module "
@@ -76,7 +78,8 @@ public record RestConfiguration(
                 REALTY_REST_CORS_ORIGINS=%s
                 REALTY_REST_MODULE_URL=%s
                 REALTY_REST_MODULE_SECRET=%s
-                REALTY_REST_MODULE_TIMEOUT_MS=%d"""
+                REALTY_REST_MODULE_TIMEOUT_MS=%d
+                REALTY_REST_WEB_ROOT=%s"""
                 .formatted(this.database.url(),
                         this.database.username(),
                         "<redacted>",
@@ -88,7 +91,15 @@ public record RestConfiguration(
                                 : String.join(",", this.rest.corsOrigins()),
                         this.rest.moduleUrl() == null ? "<unset>" : this.rest.moduleUrl(),
                         this.rest.moduleSecret() == null ? "<unset>" : "<redacted>",
-                        this.rest.moduleTimeoutMs());
+                        this.rest.moduleTimeoutMs(),
+                        this.rest.webRoot() == null
+                                ? "<unset -- API only>"
+                                : this.rest.webRoot());
+    }
+
+    /** Treats an unset and an empty variable alike, per the "empty disables" convention. */
+    private static @Nullable String blankToNull(@Nullable String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private static @NotNull String required(@NotNull Function<String, String> env,
