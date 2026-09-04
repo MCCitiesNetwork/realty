@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.adapter.query;
 
+import io.github.md5sha256.realty.adapter.query.json.ResourcePackAttribution;
 import io.github.md5sha256.realty.adapter.query.json.ResourcePackResponse;
 import io.github.md5sha256.realty.api.PlayerNameService;
 import org.jetbrains.annotations.NotNull;
@@ -21,14 +22,20 @@ final class TestServers {
 
     /** The common case: server.properties leaves resource-pack empty. */
     static @NotNull ResourcePackSource noPack() {
-        return () -> new ResourcePackResponse(null, null, false);
+        return () -> new ResourcePackResponse(null, List.of(), null, false);
     }
 
     static @NotNull QueryServiceServer withResourcePack(@NotNull String url,
                                                         @NotNull String hash,
                                                         boolean required) {
         return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(),
-                () -> new ResourcePackResponse(url, hash, required));
+                () -> new ResourcePackResponse(url, List.of(), hash, required));
+    }
+
+    static @NotNull QueryServiceServer withResourcePackAttribution(
+            @NotNull String url, @NotNull List<ResourcePackAttribution> attribution) {
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(),
+                () -> new ResourcePackResponse(url, attribution, null, false));
     }
 
     static @NotNull QueryServiceServer withoutResourcePack() {

@@ -99,16 +99,6 @@
             "field_type": "text"
         },
         {
-            "name": "Resource Pack Attribution",
-            "description": "Credit line(s) shown under a region's 3D preview, where the resource pack's textures are actually used. Entries are Text|URL separated by ; -- the URL is optional, e.g. Textures: Faithful 64x|https://faithfulpack.net/;CC BY 4.0. Most packs are licensed on condition of attribution, and the pack URL is configured server-side where no visitor can see it. Leave blank to show no credit. Only http/https links render.",
-            "env_variable": "REALTY_WEB_RESOURCE_PACK_ATTRIBUTION",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
             "name": "Query Module URL",
             "description": "Base URL of the query-service module used to enrich responses (e.g. world dimension, player display name). Leave blank to disable enrichment -- those fields are returned as null.",
             "env_variable": "REALTY_REST_MODULE_URL",

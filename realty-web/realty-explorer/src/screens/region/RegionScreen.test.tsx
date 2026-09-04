@@ -108,6 +108,30 @@ describe("RegionScreen", () => {
     expect(withoutPreview.queryByText("Faithful 64x")).toBeNull();
   });
 
+  it("takes the credit from the API, since the pack is the game server's setting", async () => {
+    // The operator picks the pack in query-service's config.yml and states its credit
+    // in the same file. Nothing about it is configured on the web host.
+    const client = {
+      GET: vi.fn(async (path: string) => ({
+        data: path === "/v1/resource-pack"
+          ? { url: null, attribution: [{ text: "Faithful 64x", url: "https://faithfulpack.net/" }] }
+          : region,
+        error: undefined,
+        response: { status: 200 },
+      })),
+    } as unknown as ApiClient;
+
+    render(
+      <MemoryRouter>
+        <RegionScreen client={client} world="world" region="plot_a" hasSchematic />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Faithful 64x" }))
+        .toHaveAttribute("href", "https://faithfulpack.net/"));
+  });
+
   it("renders nothing extra when no credit is configured", async () => {
     renderScreen(clientReturning(region), true);
     await waitFor(() => expect(screen.getByTestId("viewer")).toBeInTheDocument());

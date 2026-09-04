@@ -70,12 +70,6 @@ final class TestServers {
                 new StaticSite(directory.toAbsolutePath().toString(), Location.EXTERNAL));
     }
 
-    static @NotNull RealtyRestServer withStaticSite(@NotNull Path directory, @NotNull String configJson) {
-        return new RealtyRestServer(stubBackend(), new StubDatabase(false), defaultSettings(),
-                ModuleClient.disabled(),
-                new StaticSite(directory.toAbsolutePath().toString(), Location.EXTERNAL, configJson));
-    }
-
     static @NotNull RealtyRestServer withHealthyDatabase() {
         return new RealtyRestServer(stubBackend(), new StubDatabase(false), defaultSettings());
     }

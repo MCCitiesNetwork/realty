@@ -1,8 +1,12 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchSchematic, type ApiClient } from "../../api/client";
+import {
+  fetchResourcePackAttribution,
+  fetchSchematic,
+  type ApiClient,
+  type Attribution,
+} from "../../api/client";
 import type { components } from "../../api/schema";
-import type { Attribution } from "../../config";
 import { ResourcePackCredit } from "../../ui/ResourcePackCredit";
 import { StateBadge } from "../../ui/StateBadge";
 import { formatPrice } from "../../ui/format";
@@ -29,7 +33,10 @@ type Props = {
    * not, because whether a schematic exists is something only the API knows.
    */
   hasSchematic?: boolean;
-  /** Credits for the pack the preview is textured with; shown only when one renders. */
+  /**
+   * Overrides the credits instead of asking the API for them. Tests set it; the app does
+   * not, because the pack -- and so what is owed for it -- is the game server's setting.
+   */
   resourcePackAttribution?: Attribution[];
 };
 
@@ -50,8 +57,9 @@ export function RegionScreen({
   world,
   region,
   hasSchematic,
-  resourcePackAttribution = [],
+  resourcePackAttribution,
 }: Props) {
+  const [credits, setCredits] = useState<Attribution[]>(resourcePackAttribution ?? []);
   const [state, setState] = useState<State>({ status: "loading" });
   const [preview, setPreview] = useState<Preview>(
     hasSchematic === undefined ? "probing" : hasSchematic ? "present" : "absent",
@@ -101,6 +109,21 @@ export function RegionScreen({
       cancelled = true;
     };
   }, [client, world, region, hasSchematic]);
+
+  useEffect(() => {
+    // Only once a preview is actually rendering: the credit is owed for the pack, and a
+    // page that draws nothing with it owes nothing.
+    if (resourcePackAttribution !== undefined || preview !== "present") return;
+    let cancelled = false;
+
+    void fetchResourcePackAttribution(client).then((fetched) => {
+      if (!cancelled) setCredits(fetched);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, preview, resourcePackAttribution]);
 
   if (state.status === "loading") {
     return (
@@ -218,7 +241,7 @@ export function RegionScreen({
               </div>
               {/* Only here: the credit is owed for the pack, and this is the only place
                   the pack is used. */}
-              <ResourcePackCredit attribution={resourcePackAttribution} />
+              <ResourcePackCredit attribution={credits} />
             </>
           )}
 
