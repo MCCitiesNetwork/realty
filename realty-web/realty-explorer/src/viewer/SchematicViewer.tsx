@@ -33,7 +33,16 @@ export function SchematicViewer({ client, world, region }: Props) {
         canvas,
         { [region]: fetchSchematic(client, world, region) },
         pack ? { server: async () => pack } : {},
-        { showGrid: true },
+        {
+          showGrid: true,
+          // Both default to false in schematic-renderer. Without the first the
+          // camera cannot be moved at all -- the preview is a fixed still, and the
+          // "drag to orbit" hint beside it is untrue. Without the second, dropping
+          // a resource pack onto the canvas silently does nothing, even though the
+          // library's own console message suggests it.
+          enableInteraction: true,
+          enableDragAndDrop: true,
+        },
       ) as unknown as { dispose?: () => void };
     });
 
