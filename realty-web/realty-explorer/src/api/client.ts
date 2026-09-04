@@ -64,8 +64,10 @@ export function fetchSchematic(
  * headers -- which is common, since those hosts only ever expected the game client,
  * which is not a browser and does not enforce CORS.
  *
- * In every case the renderer simply draws untextured geometry, exactly as it does
- * today. A missing texture set is a downgrade, not a failure.
+ * In every case the caller falls back to no pack. Note that this is a real loss of
+ * fidelity, not a cosmetic one: without a pack the renderer draws almost nothing --
+ * only block entities such as chests survive -- so a plot looks like a failed capture.
+ * The viewer can still drop their own pack onto the canvas.
  */
 export async function fetchResourcePack(client: ApiClient): Promise<Blob | null> {
   const { data, error } = await client.GET("/v1/resource-pack", {});
