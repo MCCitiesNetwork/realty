@@ -255,6 +255,8 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 
 .card {
+  /* Anchors the stretched link below, which is what makes the whole card the target. */
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
@@ -284,7 +286,32 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   overflow-wrap: anywhere;
 }
 
+/* The name was the only thing you could click -- about a seventh of the card -- so a
+   click anywhere else did nothing at all, which read as the page ignoring you. This
+   spreads the anchor's hit area over the whole card while leaving one real link in the
+   markup, so it stays keyboard-reachable and announces itself once. */
+.card-name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
 .card-name:hover { text-decoration: none; }
+
+/* The pointer must say the whole card is a target, not just the name. */
+.card { cursor: pointer; }
+
+/* Focus follows the card, since the card is what the link now covers. */
+.card:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card-name:focus-visible { outline: none; }
+
+/* Nothing inside the card is raised above the overlay. Lifting the price or the badge
+   back out would carve the dead zones straight back into the middle of the target. */
 
 .card-world {
   font-size: 0.78rem;
