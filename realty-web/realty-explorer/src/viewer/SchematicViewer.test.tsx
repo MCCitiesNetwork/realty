@@ -36,6 +36,18 @@ describe("SchematicViewer", () => {
     expect(typeof (schematics as Record<string, unknown>)["plot_a"]).toBe("function");
   });
 
+  it("enables interaction and drag-and-drop, which both default to off", async () => {
+    // enableInteraction false means the camera cannot move; enableDragAndDrop false
+    // means dropping a resource pack does nothing. Neither failure is visible except
+    // by trying it, so they are pinned here.
+    render(<SchematicViewer client={client} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+
+    const options = constructorSpy.mock.calls[0][3] as Record<string, unknown>;
+    expect(options.enableInteraction).toBe(true);
+    expect(options.enableDragAndDrop).toBe(true);
+  });
+
   it("passes no resource packs, so geometry renders untextured", async () => {
     render(<SchematicViewer client={client} world="world" region="plot_a" />);
     await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
