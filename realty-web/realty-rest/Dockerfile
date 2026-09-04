@@ -2,7 +2,7 @@
 #
 # Multi-stage build for realty-rest, a standalone read-only HTTP service over
 # the Realty database. Configured entirely by environment variables (see
-# realty-rest/README.md) -- there is no config file to bake in or mount.
+# realty-web/realty-rest/README.md) -- there is no config file to bake in or mount.
 
 # ---- build stage --------------------------------------------------------
 FROM eclipse-temurin:25-jdk-noble AS build
@@ -13,7 +13,7 @@ WORKDIR /workspace
 # needs the full source tree, not just the realty-rest subdirectory.
 COPY . .
 
-RUN ./gradlew --no-daemon :realty-rest:shadowJar
+RUN ./gradlew --no-daemon :realty-web:realty-rest:shadowJar
 
 # ---- runtime stage -------------------------------------------------------
 FROM eclipse-temurin:25-jre-noble AS runtime
@@ -27,7 +27,7 @@ RUN apt-get update \
 RUN groupadd --system realty && useradd --system --gid realty --no-create-home realty
 
 WORKDIR /app
-COPY --from=build /workspace/realty-rest/build/libs/*-all.jar app.jar
+COPY --from=build /workspace/realty-web/realty-rest/build/libs/*-all.jar app.jar
 RUN chown realty:realty app.jar
 
 USER realty

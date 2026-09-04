@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew --no-daemon :realty-rest:shadowJar \
+          ./gradlew --no-daemon :realty-web:realty-rest:shadowJar \
             -PreleaseVersion=${{ steps.version.outputs.version }}
 
       - name: Verify the expected asset exists
@@ -83,10 +83,10 @@ jobs:
           # The egg builds its download URL from the version alone, so the file
           # name is part of the published contract -- not an incidental build
           # output. Fail here rather than let a renamed jar 404 on every install.
-          JAR="realty-rest/build/libs/realty-rest-${VERSION}-all.jar"
+          JAR="realty-web/realty-rest/build/libs/realty-rest-${VERSION}-all.jar"
           if [ ! -f "${JAR}" ]; then
             echo "::error::Expected ${JAR}, found:"
-            ls -1 realty-rest/build/libs/ >&2 || true
+            ls -1 realty-web/realty-rest/build/libs/ >&2 || true
             exit 1
           fi
           echo "path=${JAR}" >> "$GITHUB_OUTPUT"
