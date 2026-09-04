@@ -49,6 +49,21 @@ describe("SchematicViewer", () => {
     expect(typeof (schematics as Record<string, unknown>)["plot_a"]).toBe("function");
   });
 
+  it("uses bytes it is handed rather than fetching the schematic again", async () => {
+    // The detail screen downloads the schematic to learn whether one exists. Fetching it
+    // a second time here halved the speed at which the preview could appear.
+    const bytes = new ArrayBuffer(16);
+    const get = vi.fn(async (_path: string) => ({ data: new ArrayBuffer(8), error: undefined }));
+
+    render(<SchematicViewer client={({ GET: get }) as unknown as ApiClient}
+                            world="world" region="plot_a" schematic={bytes} />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+
+    const loaders = constructorSpy.mock.calls[0][1] as Record<string, () => Promise<ArrayBuffer>>;
+    await expect(loaders["plot_a"]()).resolves.toBe(bytes);
+    expect(get.mock.calls.filter((call) => call[0] === "/v1/region/schematic")).toHaveLength(0);
+  });
+
   it("enables interaction, which defaults to off and leaves the camera fixed", async () => {
     render(<SchematicViewer client={client} world="world" region="plot_a" />);
     await waitFor(() => expect(constructorSpy).toHaveBeenCalled());

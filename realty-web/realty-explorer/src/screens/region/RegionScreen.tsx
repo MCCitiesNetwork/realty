@@ -60,6 +60,9 @@ export function RegionScreen({
   resourcePackAttribution,
 }: Props) {
   const [credits, setCredits] = useState<Attribution[]>(resourcePackAttribution ?? []);
+  // Kept, not discarded: this is the schematic itself, and handing it to the viewer is
+  // what stops the same megabytes being fetched twice.
+  const [schematic, setSchematic] = useState<ArrayBuffer | undefined>(undefined);
   const [state, setState] = useState<State>({ status: "loading" });
   const [preview, setPreview] = useState<Preview>(
     hasSchematic === undefined ? "probing" : hasSchematic ? "present" : "absent",
@@ -98,8 +101,10 @@ export function RegionScreen({
     // Three.js and WASM and then fails to initialise for the many regions that have no
     // capture -- which is the normal case, not an error.
     fetchSchematic(client, world, region)()
-      .then(() => {
-        if (!cancelled) setPreview("present");
+      .then((bytes) => {
+        if (cancelled) return;
+        setSchematic(bytes);
+        setPreview("present");
       })
       .catch(() => {
         if (!cancelled) setPreview("absent");
@@ -109,6 +114,9 @@ export function RegionScreen({
       cancelled = true;
     };
   }, [client, world, region, hasSchematic]);
+
+  // A different region means the bytes in hand belong to the previous one.
+  useEffect(() => setSchematic(undefined), [world, region]);
 
   useEffect(() => {
     // Only once a preview is actually rendering: the credit is owed for the pack, and a
@@ -126,12 +134,30 @@ export function RegionScreen({
   }, [client, preview, resourcePackAttribution]);
 
   if (state.status === "loading") {
+    // The frame is drawn from what the URL already says, so following a card lands on
+    // the region's own page immediately and the facts fill in. Blanking the whole page
+    // until /v1/region answers made every click feel like a wait, even though the name
+    // and the way back were known before the request was sent.
     return (
       <div className="page">
-        <div className="skeleton" style={{ height: "1.5rem", width: "12rem", marginBottom: "1rem" }} />
+        <Link className="back" to="/">&larr; All regions</Link>
+
+        <header className="page-head">
+          <h1>{region}</h1>
+          <p className="sub">{world}</p>
+        </header>
+
         <div className="detail">
-          <div className="skeleton" style={{ height: "12rem" }} />
-          <div className="skeleton" style={{ height: "18rem" }} />
+          <section className="panel">
+            <h2>Details</h2>
+            <div className="skeleton" style={{ height: "9rem" }} />
+          </section>
+          <section className="panel viewer-panel">
+            <div className="viewer-head"><h2>Preview</h2></div>
+            <div className="viewer-body is-empty">
+              <div className="viewer-empty">Checking for a preview…</div>
+            </div>
+          </section>
         </div>
       </div>
     );
@@ -236,7 +262,12 @@ export function RegionScreen({
             <>
               <div className="viewer-body">
                 <Suspense fallback={<div className="viewer-empty">Loading preview…</div>}>
-                  <SchematicViewer client={client} world={world} region={region} />
+                  <SchematicViewer
+                    client={client}
+                    world={world}
+                    region={region}
+                    schematic={schematic}
+                  />
                 </Suspense>
               </div>
               {/* Only here: the credit is owed for the pack, and this is the only place
