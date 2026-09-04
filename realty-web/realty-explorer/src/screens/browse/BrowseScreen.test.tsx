@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { BrowseScreen } from "./BrowseScreen";
 import type { ApiClient } from "../../api/client";
@@ -53,6 +53,92 @@ describe("BrowseScreen", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
   });
 
+  it("offers the worlds the database knows, and invents none", async () => {
+    // A world name is a folder name on disk, so a typed filter mostly returned nothing.
+    const client = ({
+      GET: vi.fn(async (path: string) => ({
+        data: path === "/v1/worlds"
+          ? [{ id: "8f4d1c2e-0000-0000-0000-000000000099", name: "world" },
+             { id: "8f4d1c2e-0000-0000-0000-000000000100", name: "My World" }]
+          : { results: [], totalCount: 0, page: 1, pageSize: 24, totalPages: 0 },
+        error: undefined,
+      })),
+    }) as unknown as ApiClient;
+    renderScreen(client);
+
+    const select = await screen.findByLabelText("World");
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: "My World" })).toBeInTheDocument());
+    // Any world, plus exactly the two the API reported. Nothing is made up.
+    expect(select.querySelectorAll("option")).toHaveLength(3);
+  });
+
+  it("falls back to Any world alone when no world is registered", async () => {
+    const client = ({
+      GET: vi.fn(async (path: string) => ({
+        data: path === "/v1/worlds"
+          ? []
+          : { results: [], totalCount: 0, page: 1, pageSize: 24, totalPages: 0 },
+        error: undefined,
+      })),
+    }) as unknown as ApiClient;
+    renderScreen(client);
+
+    const select = await screen.findByLabelText("World");
+    expect(select.querySelectorAll("option")).toHaveLength(1);
+  });
+
+  it("sends the chosen world to the search", async () => {
+    type SearchOptions = { params: { query: Record<string, unknown> } };
+    const get = vi.fn(async (path: string, _options?: SearchOptions) => ({
+      data: path === "/v1/worlds"
+        ? [{ id: "8f4d1c2e-0000-0000-0000-000000000099", name: "world" }]
+        : { results: [], totalCount: 0, page: 1, pageSize: 24, totalPages: 0 },
+      error: undefined,
+    }));
+    renderScreen(({ GET: get }) as unknown as ApiClient);
+
+    await waitFor(() => expect(screen.getByRole("option", { name: "world" })).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("World"), { target: { value: "world" } });
+
+    await waitFor(() => {
+      const searches = get.mock.calls.filter((call) => call[0] === "/v1/regions/search");
+      expect(searches.at(-1)?.[1]?.params.query).toMatchObject({ world: "world" });
+    });
+  });
+
+  it("offers every contract type the search accepts", async () => {
+    // The filter is generated from the API's own enum, so an option added there cannot
+    // go missing here -- and one offered here cannot be rejected there.
+    const client = clientReturning({ results: [], totalCount: 0, page: 1, pageSize: 24, totalPages: 0 });
+    renderScreen(client);
+
+    const select = await screen.findByLabelText("Type");
+    expect([...select.querySelectorAll("option")].map((option) => option.getAttribute("value")))
+      .toEqual(["all", "sale", "rent", "freehold", "leasehold"]);
+  });
+
+  it("sends the chosen contract type, and omits it for all", async () => {
+    type SearchOptions = { params: { query: Record<string, unknown> } };
+    const get = vi.fn(async (_path: string, _options?: SearchOptions) => ({
+      data: { results: [], totalCount: 0, page: 1, pageSize: 24, totalPages: 0 },
+      error: undefined,
+    }));
+    renderScreen(({ GET: get }) as unknown as ApiClient);
+
+    // The screen also fetches the world list, so the search is picked out by path
+    // rather than by call order.
+    const searchQuery = () => get.mock.calls
+      .filter((call) => call[0] === "/v1/regions/search").at(-1)?.[1]?.params.query;
+
+    await waitFor(() => expect(searchQuery()).toBeDefined());
+    // "all" is the API's own default, so sending it would only restate it.
+    expect(searchQuery()).not.toHaveProperty("type");
+
+    fireEvent.change(await screen.findByLabelText("Type"), { target: { value: "freehold" } });
+    await waitFor(() => expect(searchQuery()).toMatchObject({ type: "freehold" }));
+  });
+
   it("asks for the first page at the configured page size", async () => {
     type SearchOptions = { params: { query: Record<string, unknown> } };
     const get = vi.fn(async (_path: string, _options: SearchOptions) => ({
@@ -62,6 +148,7 @@ describe("BrowseScreen", () => {
     renderScreen(({ GET: get }) as unknown as ApiClient);
 
     await waitFor(() => expect(get).toHaveBeenCalled());
-    expect(get.mock.calls[0]?.[1].params.query).toMatchObject({ page: 1, pageSize: 24 });
+    const search = get.mock.calls.find((call) => call[0] === "/v1/regions/search");
+    expect(search?.[1].params.query).toMatchObject({ page: 1, pageSize: 24 });
   });
 });

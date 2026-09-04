@@ -84,13 +84,13 @@ describe("SchematicViewer", () => {
     const view = render(<SchematicViewer client={client} world="world" region="plot_a" />);
     await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
 
-    const pack = new File(["zip"], "faithful.zip", { type: "application/zip" });
+    const pack = new File(["zip"], "pack.zip", { type: "application/zip" });
     fireEvent.drop(view.container.querySelector(".viewer-drop")!, {
       dataTransfer: { files: [pack] },
     });
 
     await waitFor(() => expect(addPackSpy).toHaveBeenCalledWith(pack));
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/faithful\.zip/));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/pack\.zip/));
   });
 
   it("refuses a dropped schematic rather than replacing the region's preview", async () => {

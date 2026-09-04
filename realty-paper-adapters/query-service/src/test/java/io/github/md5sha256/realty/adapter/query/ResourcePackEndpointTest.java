@@ -35,14 +35,14 @@ class ResourcePackEndpointTest {
         QueryServiceServer server = TestServers.withResourcePackAttribution(
                 "https://cdn.example.com/pack.zip",
                 List.of(
-                        new ResourcePackAttribution("Faithful 64x", "https://faithfulpack.net/"),
+                        new ResourcePackAttribution("Example Pack 32x", "https://packs.example.com/"),
                         new ResourcePackAttribution("CC BY 4.0", null)));
         JavalinTest.test(server.javalin(), (app, client) -> {
             Response response = client.get("/resource-pack", ResourcePackEndpointTest::auth);
             Assertions.assertEquals(200, response.code());
             String body = response.body().string();
-            Assertions.assertTrue(body.contains("\"text\":\"Faithful 64x\""), body);
-            Assertions.assertTrue(body.contains("https://faithfulpack.net/"), body);
+            Assertions.assertTrue(body.contains("\"text\":\"Example Pack 32x\""), body);
+            Assertions.assertTrue(body.contains("https://packs.example.com/"), body);
             Assertions.assertTrue(body.contains("\"text\":\"CC BY 4.0\""), body);
         });
     }

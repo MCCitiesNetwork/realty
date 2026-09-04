@@ -63,7 +63,7 @@ class QueryServiceConfigTest {
         // A path or a bare filename is a common mistake and produces a preview that
         // silently never textures; failing loudly at read time names the setting.
         IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
-                () -> parse("resource-pack-url: \"packs/faithful.zip\"\n"));
+                () -> parse("resource-pack-url: \"packs/pack.zip\"\n"));
         Assertions.assertTrue(ex.getMessage().contains("resource-pack-url"), ex.getMessage());
     }
 
@@ -71,7 +71,7 @@ class QueryServiceConfigTest {
     void aResourcePackUrlMustBeHttpOrHttps() {
         // file:// would be read by the browser, not the server, so it can never work.
         Assertions.assertThrows(IllegalStateException.class,
-                () -> parse("resource-pack-url: \"file:///packs/faithful.zip\"\n"));
+                () -> parse("resource-pack-url: \"file:///packs/pack.zip\"\n"));
     }
 
     @Test
@@ -80,13 +80,13 @@ class QueryServiceConfigTest {
         // is chosen here: two files on two hosts is how one of them ends up stale.
         QueryServiceConfig config = parse("""
                 resource-pack-attribution:
-                  - text: "Textures: Faithful 64x"
-                    url: "https://faithfulpack.net/"
+                  - text: "Textures: Example Pack 32x"
+                    url: "https://packs.example.com/"
                   - text: "CC BY 4.0"
                 """);
         Assertions.assertEquals(2, config.resourcePackAttribution().size());
-        Assertions.assertEquals("Textures: Faithful 64x", config.resourcePackAttribution().get(0).text());
-        Assertions.assertEquals("https://faithfulpack.net/", config.resourcePackAttribution().get(0).url());
+        Assertions.assertEquals("Textures: Example Pack 32x", config.resourcePackAttribution().get(0).text());
+        Assertions.assertEquals("https://packs.example.com/", config.resourcePackAttribution().get(0).url());
         Assertions.assertEquals("CC BY 4.0", config.resourcePackAttribution().get(1).text());
         Assertions.assertNull(config.resourcePackAttribution().get(1).url());
     }

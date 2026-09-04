@@ -113,8 +113,8 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   ```yaml
   resource-pack-url: "https://cdn.example.com/pack.zip"
   resource-pack-attribution:
-    - text: "Textures: Faithful 64x"
-      url: "https://faithfulpack.net/"
+    - text: "Textures: Example Pack 32x"
+      url: "https://packs.example.com/"
     - "CC BY 4.0"
   ```
 
