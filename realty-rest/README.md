@@ -72,6 +72,12 @@ them concurrently, so the two share one timeout budget.
 - `GET /v1/players/summary?player=` -- one player's holdings as counts.
 - `GET /v1/players/lookup?playerName=` -- resolve a name to a UUID, so a client can cache it.
 - `GET /v1/region/history?world=&region=&type=&since=&player=&page=&pageSize=` -- one region's history (the HTTP form of `/realty history`).
+- `GET /v1/region/schematic?world=&region=` -- the region's captured schematic as raw
+  Sponge Schematic v3 bytes (`application/octet-stream`), for a browser-side renderer
+  that reads an `ArrayBuffer` directly. Captured in game by `/realty schematic capture`,
+  so a region Realty manages may legitimately have none yet: that is a `404`
+  `SCHEMATIC_NOT_FOUND`. Records block state only, never block entity NBT -- chests
+  render as chests, but their contents are never captured and never served.
 - `GET /v1/tags` -- every tag in use, with its region count.
 - `GET /v1/stats` -- server-wide totals.
 - `GET /v1/leaderboard/owners?page=&pageSize=` -- title holders ranked by plot count.
