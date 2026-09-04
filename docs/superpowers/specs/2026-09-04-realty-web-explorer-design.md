@@ -26,6 +26,8 @@ In scope for v1:
   (loading, empty, not-found).
 - A 3D schematic viewer on the detail screen.
 - A typed API client generated from `openapi.yaml`.
+- A new `realty-web/realty-web-dist`: a single jar bundling the API and the
+  built front end, so an operator can deploy one process instead of two.
 
 Out of scope for v1, each a deliberate omission: the 2-D world map
 (`/v1/worlds/geometry`, `/v1/regions/at`); player-centric screens
@@ -171,12 +173,18 @@ a Gradle property without changing anything else in this design.
 
 ## Configuration and serving
 
-The build produces static files, deployed to any static host. The browser calls
-`realty-rest` cross-origin, using the **existing** `REALTY_REST_CORS_ORIGINS`
-setting — the API needs no change to support this.
+The build produces static files. Where they are served from is a deployment
+choice — a static host, or the `realty-web-dist` jar — and the same bundle
+covers both.
 
-**Runtime configuration, not build-time.** The app fetches `/config.json`
-before first render:
+In the split deployment the browser calls `realty-rest` cross-origin, using the
+**existing** `REALTY_REST_CORS_ORIGINS` setting, so the API needs no change to
+support it. (If the static host reverse-proxies `/v1`, even that is
+unnecessary; see *Deployment shape*.) In `realty-web-dist` everything is
+same-origin and CORS never enters the picture.
+
+**Runtime configuration, not build-time, and optional.** The app fetches
+`/config.json` before first render:
 
 ```json
 { "apiBaseUrl": "https://api.example.com" }
@@ -187,37 +195,110 @@ One built artefact therefore works in development, staging and production — th
 artefact that was tested is the artefact deployed, which a `VITE_`-baked base
 URL cannot promise.
 
+**A missing or empty `apiBaseUrl` means "same origin", and requests go to a
+relative `/v1`.** This is not a convenience: it is what lets *one* bundle serve
+both deployment shapes. In `realty-web-dist` the API is same-origin by
+construction, so no config file is written and none is needed; in the split
+deployment the entrypoint writes one. Without this fallback the dist build
+would need its own frontend variant, and the single-artefact property would be
+lost.
+
+A 404 on `/config.json` is therefore expected traffic, not an error, and must
+not surface as one.
+
 In development, Vite proxies `/v1` to a local `realty-rest`, so development has
 no cross-origin traffic and needs no CORS configuration at all.
 
-### Deployment shape: two Pterodactyl eggs, not one
+### `realty-web-dist` — the bundled single-process build
 
-`realty-rest` ships as a Pterodactyl egg, so the obvious question is whether one
-egg could host both services. It could — and the answer is deliberately no.
+A third project, `realty-web/realty-web-dist`, produces one fat jar containing
+the API and the built front end. It exists so the deployment shape is the
+operator's choice rather than the architecture's:
 
-A Pterodactyl egg is one server, one container, one **foreground** startup
-command. The existing egg's contract shows where that binds: `config.stop` is
-`^C`, which reaches the foreground process only, and `config.startup.done` is a
-single readiness regex. Backgrounding a static file server beside the jar
-therefore leaves it unreachable by the stop signal, invisible when it dies (the
-panel still reports "running"), and outside the readiness marker — and the
-`java_25` Yolk image ships a JRE and nothing else, so a file server would have
-to be supplied as well.
+| Deployment | Artifacts | Processes | CORS | `config.json` |
+|---|---|---|---|---|
+| Split | API jar + static bundle | 2 | required | required |
+| **Dist** | one jar | 1 | none | none |
 
-The workable single-egg option is different: Javalin 7.2.3 can serve the bundle
-itself via `staticFiles.add(dir, Location.EXTERNAL)` and
-`spaRoot.addFile(...)`, giving one process, one port, and no CORS or
-`config.json` at all, since everything is same-origin.
+**How it bundles.** The explorer's Vite output is copied into the dist jar's
+resources under `/web`, and served with `Location.CLASSPATH`. One artifact
+means the egg's install script stays the shape it already has — download a jar,
+run it — rather than growing a second asset to stage. Swapping the front end
+means shipping a new jar, which is acceptable because the two are already
+version-locked (see *Versioning*).
 
-**Two eggs is chosen anyway**, keeping `realty-rest` a pure API and letting the
-frontend deploy on its own cadence. The explorer can use an off-the-shelf
-static/nginx egg rather than a custom one. The costs accepted: a second server
-to operate, `REALTY_REST_CORS_ORIGINS` to configure, and the `config.json`
-indirection.
+**The seam in `realty-rest`.** Serving static files needs a hook, because
+`RealtyRestServer` owns the Javalin configuration. It gains one optional
+constructor parameter:
 
-This is recorded because the single-egg option is attractive on first look and
-will be proposed again; the reasoning above is what to weigh it against, not a
-claim that it cannot work.
+```java
+record StaticSite(@NotNull String directory, @NotNull Location location) {}
+```
+
+`null` means "pure API", and that is what `realty-rest`'s own main passes
+unless `REALTY_REST_WEB_ROOT` is set — so the standalone service's behaviour is
+byte-identical to today's, and the "empty disables" convention already used by
+`REALTY_REST_CORS_ORIGINS` and `REALTY_REST_MODULE_URL` holds here too. The
+dist main passes `new StaticSite("/web", Location.CLASSPATH)`.
+
+That parameter is also what makes the split deployment able to serve a bundle
+from disk if an operator wants it, without a second code path.
+
+**The trap this must not fall into.** `spaRoot` catches every unmatched GET,
+including `/v1/nope` — so a naive implementation returns `index.html` with a
+`200` to an API client asking for a bad endpoint. That looks correct in a
+browser and breaks every consumer that checks status codes.
+
+Javalin's `StaticFileConfig.skipFileFunction` is the fix: static handling is
+skipped for any request whose path starts with `/v1`, leaving the existing JSON
+error handling intact.
+
+`HealthEndpointTest.anUnknownPathReturnsAJsonErrorBody` already asserts
+`/v1/nope` is a JSON `404` — but it runs with static serving **off**, so it
+would keep passing while this was broken. The mitigation is therefore a
+*second* test with static serving **on**, asserting the same thing. A guard
+that cannot fail in the configuration it guards is not a guard.
+
+**Versioning.** The dist jar carries the same version as `realty-rest`. The
+existing egg already pins `REALTY_REST_VERSION` deliberately, because the
+service refuses to boot unless the database schema matches exactly — so API and
+front end already ship in lockstep, and bundling them changes nothing about
+that.
+
+**Build wiring.** `realty-web-dist` depends on `:realty-web:realty-rest` and on
+the explorer's npm build output, copying it into resources before `shadowJar`.
+Its `archiveBaseName` is set explicitly, as `realty-rest`'s already is, so the
+release asset name does not follow the project path.
+
+### Deployment shape: two eggs by default, one if you want it
+
+Both shapes are supported, and the operator picks. What is *not* supported is
+running two processes under one egg, which is worth writing down because it is
+the first thing anyone tries.
+
+**Why not two processes in one egg.** A Pterodactyl egg is one server, one
+container, one **foreground** startup command. The existing egg's contract
+shows where that binds: `config.stop` is `^C`, which reaches the foreground
+process only, and `config.startup.done` is a single readiness regex.
+Backgrounding a static file server beside the jar therefore leaves it
+unreachable by the stop signal, invisible when it dies (the panel still reports
+"running"), and outside the readiness marker — and the `java_25` Yolk image
+ships a JRE and nothing else, so a file server would have to be supplied too.
+
+`realty-web-dist` sidesteps all of that by being **one process**, not two in a
+trench coat. One jar, one foreground command, one readiness marker, one
+allocation — the egg is the existing one with a different asset name.
+
+**Two eggs stays the default** for anyone who wants the front end to deploy on
+its own cadence, or to sit on a CDN rather than a game-server host. That
+deployment uses an off-the-shelf static or nginx egg for the explorer.
+
+**A note on the split deployment's CORS.** If the static egg runs nginx, it can
+reverse-proxy `/v1` through to `realty-rest`, which makes the browser see one
+origin and removes the need for `REALTY_REST_CORS_ORIGINS` and `config.json`
+entirely. That is a deployment recipe rather than a code path — nothing in
+either project changes to enable it — so it belongs in the README rather than
+here, but it is the recommended way to run the split.
 
 ## Testing
 
@@ -230,6 +311,13 @@ claim that it cannot work.
   worthwhile assertion is that the viewer is constructed with the right canvas
   and loader, not that Three.js draws correctly — that belongs to a human
   looking at a screen.
+- **Same-origin fallback:** that a missing or empty `apiBaseUrl` resolves to a
+  relative `/v1`. This is the single `if` the whole one-bundle-two-deployments
+  property rests on.
+- **Static serving, in `realty-rest`'s own suite:** with a `StaticSite`
+  configured, `/v1/nope` must still return a JSON `404` and `/` must return
+  `index.html`. The existing unknown-path test runs with static serving off and
+  would not catch a regression here.
 - `npm test` runs under `./gradlew check` via the Node plugin.
 
 ## Alternatives considered
@@ -247,10 +335,20 @@ Neither imposes a data-fetching library on the app.
 and Next.js in particular pushes toward a Node hosting target when static files
 suffice.
 
-**Serving the SPA from `realty-rest` itself.** Rejected: it would make the API
-process responsible for static assets, couple frontend releases to API
-releases, and undo the deliberate separation in the REST design. CORS already
-exists and costs nothing.
+**Serving the SPA from `realty-rest` unconditionally.** Rejected — but only the
+*unconditionally*. Making the API always responsible for static assets would
+undo the separation the REST design chose deliberately. `realty-web-dist`
+instead makes it an opt-in packaging: the standalone service keeps its
+behaviour byte-for-byte, and the bundling lives in a project whose whole
+purpose is bundling.
+
+**A second frontend build for the bundled deployment.** Rejected: the
+same-origin fallback described under *Configuration* means one bundle serves
+both shapes. Two builds would double the release surface to save one `if`.
+
+**Two processes under one Pterodactyl egg.** Rejected on the panel's own terms
+— see *Deployment shape*. `realty-web-dist` reaches the same goal by being one
+process rather than by fighting the supervisor.
 
 **Build-time API base URL.** Rejected: it means one build per environment, so
 the artefact under test is never the artefact deployed.
