@@ -6,12 +6,10 @@ import { RegionScreen } from "./screens/region/RegionScreen";
 function RegionRoute({ client }: { client: ApiClient }) {
   const params = useParams<{ world: string; region: string }>();
   return (
-    <RegionScreen
-      client={client}
-      world={params.world ?? ""}
-      region={params.region ?? ""}
-      hasSchematic
-    />
+    // hasSchematic is deliberately not passed: the screen probes for one. Passing a
+    // hardcoded true here mounted the viewer for every region, including those with
+    // no capture at all.
+    <RegionScreen client={client} world={params.world ?? ""} region={params.region ?? ""} />
   );
 }
 

@@ -54,6 +54,28 @@ describe("RegionScreen", () => {
     await waitFor(() => expect(screen.getByTestId("viewer")).toBeInTheDocument());
   });
 
+  it("probes for a preview when not told, and shows the panel when there is none", async () => {
+    // The router passes no hasSchematic: whether a capture exists is the API's to
+    // answer. Hardcoding it mounted the viewer for every region, downloading ~12 MB
+    // and failing to initialise on the many that have none.
+    const client = ({
+      GET: vi.fn(async (path: string) =>
+        path === "/v1/region/schematic"
+          ? { data: undefined, error: { error: "SCHEMATIC_NOT_FOUND" }, response: { status: 404 } }
+          : { data: region, error: undefined, response: { status: 200 } }),
+    }) as unknown as ApiClient;
+
+    render(
+      <MemoryRouter>
+        <RegionScreen client={client} world="world" region="plot_a" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText(/no preview captured/i)).toBeInTheDocument());
+    expect(screen.queryByTestId("viewer")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("reports an unknown region as missing rather than as a failure", async () => {
     renderScreen(clientReturning(null, 404));
     await waitFor(() => expect(screen.getByText(/no region named/i)).toBeInTheDocument());

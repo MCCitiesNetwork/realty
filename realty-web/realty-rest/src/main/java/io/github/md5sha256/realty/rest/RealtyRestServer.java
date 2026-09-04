@@ -281,7 +281,12 @@ public final class RealtyRestServer {
             // the path an API client asking for a bad endpoint would get index.html
             // and a 200. Setting the status only lets the error(404) handler below
             // write the same JSON body every other unmatched path gets.
+            //
+            // HEAD as well as GET. Serving a front end otherwise makes HEAD /v1/nope
+            // answer 200 while GET answers 404 -- the same bug, reached by the method
+            // a client uses precisely when it wants the status and not the body.
             routes.get("/v1/*", ctx -> ctx.status(404));
+            routes.head("/v1/*", ctx -> ctx.status(404));
         }
 
         // Javalin's error() callback fires for every response with a matching status,
