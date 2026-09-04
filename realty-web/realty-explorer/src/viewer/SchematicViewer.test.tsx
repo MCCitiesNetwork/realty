@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const constructorSpy = vi.fn();
 const disposeSpy = vi.fn();
+const addPackSpy = vi.fn(async (_file: File) => undefined);
 
 // WebGL and WASM do not run under jsdom. The worthwhile assertion is that the
 // renderer is constructed correctly and torn down, not that Three.js draws.
@@ -15,6 +16,10 @@ vi.mock("schematic-renderer", () => ({
     dispose() {
       disposeSpy();
     }
+
+    addResourcePack(file: File) {
+      return addPackSpy(file);
+    }
   },
 }));
 
@@ -26,6 +31,14 @@ const client = ({
 }) as unknown as ApiClient;
 
 describe("SchematicViewer", () => {
+  // Module-scoped spies persist across tests, so a later assertion would otherwise
+  // see an earlier test's calls.
+  beforeEach(() => {
+    constructorSpy.mockClear();
+    disposeSpy.mockClear();
+    addPackSpy.mockClear();
+  });
+
   it("constructs the renderer with a canvas and a loader keyed by region", async () => {
     render(<SchematicViewer client={client} world="world" region="plot_a" />);
     await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
@@ -36,16 +49,20 @@ describe("SchematicViewer", () => {
     expect(typeof (schematics as Record<string, unknown>)["plot_a"]).toBe("function");
   });
 
-  it("enables interaction and drag-and-drop, which both default to off", async () => {
-    // enableInteraction false means the camera cannot move; enableDragAndDrop false
-    // means dropping a resource pack does nothing. Neither failure is visible except
-    // by trying it, so they are pinned here.
+  it("enables interaction, which defaults to off and leaves the camera fixed", async () => {
     render(<SchematicViewer client={client} world="world" region="plot_a" />);
     await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+    expect((constructorSpy.mock.calls[0][3] as Record<string, unknown>).enableInteraction)
+      .toBe(true);
+  });
 
-    const options = constructorSpy.mock.calls[0][3] as Record<string, unknown>;
-    expect(options.enableInteraction).toBe(true);
-    expect(options.enableDragAndDrop).toBe(true);
+  it("leaves the library's own drag-and-drop off, because it accepts schematics", async () => {
+    // The library branches on the dropped file's type and will load a schematic,
+    // which would let a visitor replace this region's preview with their own file.
+    render(<SchematicViewer client={client} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+    expect((constructorSpy.mock.calls[0][3] as Record<string, unknown>).enableDragAndDrop)
+      .toBe(false);
   });
 
   it("passes no resource packs, so geometry renders untextured", async () => {
@@ -61,5 +78,32 @@ describe("SchematicViewer", () => {
     view.unmount();
 
     expect(disposeSpy).toHaveBeenCalled();
+  });
+
+  it("loads a dropped resource pack", async () => {
+    const view = render(<SchematicViewer client={client} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+
+    const pack = new File(["zip"], "faithful.zip", { type: "application/zip" });
+    fireEvent.drop(view.container.querySelector(".viewer-drop")!, {
+      dataTransfer: { files: [pack] },
+    });
+
+    await waitFor(() => expect(addPackSpy).toHaveBeenCalledWith(pack));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/faithful\.zip/));
+  });
+
+  it("refuses a dropped schematic rather than replacing the region's preview", async () => {
+    // This canvas shows one region's capture. Loading a visitor's own file would make
+    // it show something that is not the region.
+    const view = render(<SchematicViewer client={client} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+
+    fireEvent.drop(view.container.querySelector(".viewer-drop")!, {
+      dataTransfer: { files: [new File(["nbt"], "castle.schem")] },
+    });
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/only resource packs/i));
+    expect(addPackSpy).not.toHaveBeenCalled();
   });
 });
