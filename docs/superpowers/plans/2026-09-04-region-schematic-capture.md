@@ -4,7 +4,7 @@
 
 **Goal:** Let an operator capture a WorldGuard region's blocks as a Sponge Schematic v3, store it in MariaDB, and serve the raw bytes over `realty-rest` for a TypeScript frontend to render.
 
-**Architecture:** A new `/realty schematic capture <region> [--force]` command in `realty-paper` copies the region's bounds into a WorldEdit `BlockArrayClipboard` on the main thread and writes Sponge v3 bytes; `realty-backend` persists them as a `LONGBLOB` in a new `RealtySchematic` table keyed by `realtyRegionId`; `realty-rest` serves them at `GET /v1/region/schematic?world=&region=`.
+**Architecture:** A new `/realty schematic capture <region> [--force]` command in `realty-paper` copies the region into a WorldEdit `BlockArrayClipboard` across ticks on the main thread, then encodes Sponge v3 bytes and persists them off-thread; `realty-backend` stores them as a `LONGBLOB` in a new `RealtySchematic` table keyed by `realtyRegionId`; `realty-rest` serves them at `GET /v1/region/schematic?world=&region=`.
 
 **Tech Stack:** Java 25, Gradle (multi-module), MyBatis + MariaDB, Incendo Cloud commands, WorldEdit clipboard API (already on the classpath), Javalin, JUnit 5, Testcontainers.
 
@@ -20,6 +20,10 @@
 - **Permissions must be declared.** Every new permission node goes in `realty-paper/src/main/resources/paper-plugin.yml`.
 - **Command-facing mapper methods take `(String worldGuardRegionId, UUID worldId)`** and JOIN through `RealtyRegion` internally — never make the caller resolve `realtyRegionId` first.
 - **Bukkit permission checks (`hasPermission`) run on the main thread**, never inside an async callback.
+- **World and block reads run on the main thread.** Paper's `AsyncCatcher` throws `IllegalStateException` on chunk access from any other thread. Only the encode (`RegionSchematicWriter.writeClipboard`) and the database write may run off-thread — neither touches the world.
+- **"Non-blocking", not "async".** The tick-sliced copy spreads main-thread work; it does not move it off-thread. Do not name classes, methods, messages or comments `async`.
+- **Blocks are read with `getFullBlock`, not `getBlock`**, so chests, signs and other block entities keep their NBT.
+- **The volume cap is hard.** `--force` bypasses the cooldown only. Never add a permission or flag that waives the cap.
 - **Durations rendered for players use `DurationFormatter`**, never `Duration.toString()`.
 - **Column type for UUIDs is `UUID`**, matching `V16__realty_worlds.sql` — not `BINARY(16)`.
 - **Permission node shape is `realty.command.<group>.<sub>`**, e.g. `realty.command.set.price`.
@@ -47,8 +51,12 @@
 - Modify `realty-backend/src/main/java/io/github/md5sha256/realty/database/RealtyBackendImpl.java` — implement them.
 
 **`realty-paper`**
-- Create `src/main/java/io/github/md5sha256/realty/schematic/RegionSchematicWriter.java` — bounds → Sponge v3 bytes. Pure WorldEdit, no Bukkit command plumbing, so it is unit-testable on its own.
+- Create `src/main/java/io/github/md5sha256/realty/schematic/RegionSchematicWriter.java` — clipboard → Sponge v3 bytes. Pure WorldEdit, no Bukkit command plumbing, so it is unit-testable on its own.
 - Create `src/main/java/io/github/md5sha256/realty/schematic/CaptureCooldown.java` — the in-memory per-region cooldown. Split out so cooldown logic is testable without Bukkit.
+- Create `src/main/java/io/github/md5sha256/realty/schematic/RegionVolume.java` — volume from bounds, and the cap check. Tiny and pure; separate because both the command and its tests need it without a world.
+- Create `src/main/java/io/github/md5sha256/realty/schematic/TickSlicedCopy.java` — drains a block iterator into a clipboard on a per-tick budget. Takes a `TickScheduler` seam rather than Bukkit's scheduler directly, so it is testable without a server.
+- Create `src/main/java/io/github/md5sha256/realty/schematic/TickScheduler.java` — the one-method seam over `BukkitScheduler.runTaskTimer`, plus its Bukkit implementation.
+- Create `src/main/java/io/github/md5sha256/realty/schematic/CaptureRegistry.java` — the in-flight guard, so one region cannot be captured twice at once.
 - Create `src/main/java/io/github/md5sha256/realty/command/SchematicCommandGroup.java` — the command bean.
 - Modify `src/main/java/io/github/md5sha256/realty/settings/Settings.java` — new cooldown key.
 - Modify `src/main/resources/config.yml` — new key + regenerate `defaults/`.
@@ -56,6 +64,8 @@
 - Modify `src/main/resources/paper-plugin.yml` — two permissions.
 - Modify `src/main/java/io/github/md5sha256/realty/Realty.java` — register the bean.
 - Create `src/test/java/io/github/md5sha256/realty/schematic/CaptureCooldownTest.java`.
+- Create `src/test/java/io/github/md5sha256/realty/schematic/RegionVolumeTest.java`.
+- Create `src/test/java/io/github/md5sha256/realty/schematic/TickSlicedCopyTest.java` — with a fake `TickScheduler` that runs ticks on demand.
 
 **`realty-rest`**
 - Create `src/main/java/io/github/md5sha256/realty/rest/RegionSchematicHandler.java`.
@@ -715,9 +725,9 @@ git commit -m "feat(paper): add in-memory per-region capture cooldown"
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `RegionSchematicWriter.write(com.sk89q.worldedit.world.World weWorld, com.sk89q.worldedit.regions.Region weRegion)` returning `byte[]`, throwing `java.io.IOException` / `com.sk89q.worldedit.WorldEditException`.
+- Produces: `RegionSchematicWriter.writeClipboard(com.sk89q.worldedit.extent.clipboard.Clipboard clipboard)` returning `byte[]`, throwing `java.io.IOException`.
 
-This class holds no Bukkit types — the caller adapts Bukkit and WorldGuard objects into WorldEdit ones. That keeps it unit-testable, since WorldEdit's `BlockArrayClipboard` and clipboard writer work without a running server.
+This class serialises a clipboard someone else has already filled — Task 5's `TickSlicedCopy` owns the world read. That split is what lets the encode run off the main thread (it touches no world state) and lets this test run with no server at all.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -788,28 +798,20 @@ If it instead fails on a missing WorldEdit class at test runtime, add `testImple
 ```java
 package io.github.md5sha256.realty.schematic;
 
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
-import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
-import com.sk89q.worldedit.function.operation.Operations;
-import com.sk89q.worldedit.regions.Region;
-import com.sk89q.worldedit.world.World;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 /**
- * Copies a region's blocks into a clipboard and serialises it as Sponge Schematic v3.
+ * Serialises a populated clipboard as Sponge Schematic v3.
  *
- * <p>Deliberately free of Bukkit and WorldGuard types: the caller adapts those into
- * WorldEdit's {@link World} and {@link Region} first, which leaves this testable
- * without a running server.</p>
+ * <p>Deliberately free of Bukkit and WorldGuard types, and of the world read that
+ * fills the clipboard ({@code TickSlicedCopy} owns that), which leaves this testable
+ * without a running server and safe to call off the main thread.</p>
  *
  * <p>Written against the WorldEdit API rather than FastAsyncWorldEdit's, so one
  * implementation serves either install — FAWE provides the same classes.</p>
@@ -820,25 +822,11 @@ public final class RegionSchematicWriter {
     }
 
     /**
-     * Copies {@code region} out of {@code world} and returns its Sponge v3 bytes.
+     * Serialises an already-populated clipboard.
      *
-     * <p>Reads live world state, so it must be called on the main thread.</p>
-     */
-    public static byte @NotNull [] write(@NotNull World world, @NotNull Region region)
-            throws IOException, WorldEditException {
-        BlockArrayClipboard clipboard = new BlockArrayClipboard(region);
-        try (EditSession session = WorldEdit.getInstance().newEditSession(world)) {
-            ForwardExtentCopy copy = new ForwardExtentCopy(
-                    session, region, clipboard, region.getMinimumPoint());
-            copy.setCopyingEntities(false);
-            Operations.complete(copy);
-        }
-        return writeClipboard(clipboard);
-    }
-
-    /**
-     * Serialises an already-populated clipboard. Split out so the serialisation half
-     * can be tested without a world.
+     * <p>Touches no world state, so unlike the copy that fills the clipboard this may
+     * run off the main thread — which is where the command calls it, since encoding is
+     * the expensive half.</p>
      */
     public static byte @NotNull [] writeClipboard(@NotNull Clipboard clipboard) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -860,12 +848,490 @@ Expected: PASS, 2 tests.
 ```bash
 git add realty-paper/src/main/java/io/github/md5sha256/realty/schematic/RegionSchematicWriter.java \
         realty-paper/src/test/java/io/github/md5sha256/realty/schematic/RegionSchematicWriterTest.java
-git commit -m "feat(paper): write a region's blocks as Sponge v3 schematic bytes"
+git commit -m "feat(paper): serialise a clipboard as Sponge v3 schematic bytes"
 ```
 
 ---
 
-### Task 5: Settings key and messages
+### Task 5: Volume cap and tick-sliced copy
+
+**Files:**
+- Create: `realty-paper/src/main/java/io/github/md5sha256/realty/schematic/RegionVolume.java`
+- Create: `realty-paper/src/main/java/io/github/md5sha256/realty/schematic/TickScheduler.java`
+- Create: `realty-paper/src/main/java/io/github/md5sha256/realty/schematic/TickSlicedCopy.java`
+- Create: `realty-paper/src/main/java/io/github/md5sha256/realty/schematic/CaptureRegistry.java`
+- Test: `realty-paper/src/test/java/io/github/md5sha256/realty/schematic/RegionVolumeTest.java`
+- Test: `realty-paper/src/test/java/io/github/md5sha256/realty/schematic/TickSlicedCopyTest.java`
+
+**Interfaces:**
+- Consumes: nothing (`RegionSchematicWriter` from Task 4 is called by the command in Task 7, not here).
+- Produces:
+  - `RegionVolume.of(Region region)` returning `long`
+  - `RegionVolume.exceedsCap(Region region, long cap)` returning `boolean`
+  - `TickScheduler` — `Cancellable repeating(Runnable task)`, with `BukkitTickScheduler` implementing it over `BukkitScheduler.runTaskTimer(plugin, task, 1L, 1L)`
+  - `TickSlicedCopy.start(Extent source, Region region, int blocksPerTick, TickScheduler scheduler, Consumer<Clipboard> onComplete, Consumer<String> onAborted)` returning `TickSlicedCopy`
+  - `TickSlicedCopy.cancel()`
+  - `CaptureRegistry.begin(String worldGuardRegionId, UUID worldId)` returning `boolean`, `CaptureRegistry.finish(...)`, `CaptureRegistry.cancelAll()`
+
+`TickSlicedCopy` takes a WorldEdit `Extent` rather than a Bukkit `World`, so a test can pass a `BlockArrayClipboard` as the source — a clipboard is an `Extent`. That is what makes this testable with no server and no mocking.
+
+- [ ] **Step 1: Write the failing volume test**
+
+`realty-paper/src/test/java/io/github/md5sha256/realty/schematic/RegionVolumeTest.java`:
+
+```java
+package io.github.md5sha256.realty.schematic;
+
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.CuboidRegion;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+class RegionVolumeTest {
+
+    @Test
+    void volumeCountsBothEndpoints() {
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(1, 1, 1));
+        Assertions.assertEquals(8L, RegionVolume.of(region));
+    }
+
+    @Test
+    void aSingleBlockRegionHasVolumeOne() {
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.ZERO);
+        Assertions.assertEquals(1L, RegionVolume.of(region));
+    }
+
+    @Test
+    void aRegionAtTheCapIsNotOverIt() {
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(1, 1, 1));
+        Assertions.assertFalse(RegionVolume.exceedsCap(region, 8L));
+    }
+
+    @Test
+    void aRegionOneBlockOverTheCapExceedsIt() {
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(1, 1, 1));
+        Assertions.assertTrue(RegionVolume.exceedsCap(region, 7L));
+    }
+
+    @Test
+    void aZeroOrNegativeCapDisablesTheCheck() {
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(99, 99, 99));
+        Assertions.assertFalse(RegionVolume.exceedsCap(region, 0L));
+        Assertions.assertFalse(RegionVolume.exceedsCap(region, -1L));
+    }
+
+    @Test
+    void aLargeRegionDoesNotOverflowAnInt() {
+        // 2000^3 is 8e9, well past Integer.MAX_VALUE -- the arithmetic must be long.
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(1999, 1999, 1999));
+        Assertions.assertEquals(8_000_000_000L, RegionVolume.of(region));
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `./gradlew :realty-paper:test --tests "*RegionVolumeTest*"`
+Expected: FAIL — `RegionVolume` does not exist.
+
+- [ ] **Step 3: Implement `RegionVolume`**
+
+```java
+package io.github.md5sha256.realty.schematic;
+
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.Region;
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * The block count of a region, computed from its bounds alone.
+ *
+ * <p>No blocks are read, so this is cheap enough to gate a capture on before any
+ * expensive work starts -- which is the point: an oversized region should be refused
+ * before it is copied, not after.</p>
+ */
+public final class RegionVolume {
+
+    private RegionVolume() {
+    }
+
+    /**
+     * Block count inclusive of both bounds, in {@code long} arithmetic -- a 2000-block
+     * cube overflows an {@code int}.
+     */
+    public static long of(@NotNull Region region) {
+        BlockVector3 min = region.getMinimumPoint();
+        BlockVector3 max = region.getMaximumPoint();
+        long width = (long) max.x() - min.x() + 1L;
+        long height = (long) max.y() - min.y() + 1L;
+        long length = (long) max.z() - min.z() + 1L;
+        return width * height * length;
+    }
+
+    /**
+     * Whether the region is larger than {@code cap}. A cap of zero or less disables
+     * the check, matching how the cooldown treats a zero duration.
+     */
+    public static boolean exceedsCap(@NotNull Region region, long cap) {
+        return cap > 0L && of(region) > cap;
+    }
+}
+```
+
+Check the accessor names on `BlockVector3` in WorldEdit 7.3.18 before finalising — older releases used `getX()`/`getY()`/`getZ()` and newer ones `x()`/`y()`/`z()`. Match what `CreateCommand` or `SubregionState` already calls.
+
+- [ ] **Step 4: Run it to verify it passes**
+
+Run: `./gradlew :realty-paper:test --tests "*RegionVolumeTest*"`
+Expected: PASS, 6 tests.
+
+- [ ] **Step 5: Write the failing tick-slicing test**
+
+`realty-paper/src/test/java/io/github/md5sha256/realty/schematic/TickSlicedCopyTest.java`. The fake scheduler runs ticks on demand, so nothing sleeps and the slicing is directly observable:
+
+```java
+package io.github.md5sha256.realty.schematic;
+
+import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
+import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.world.block.BlockTypes;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+
+class TickSlicedCopyTest {
+
+    /** Runs queued tasks only when the test says so. */
+    private static final class FakeScheduler implements TickScheduler {
+        private final List<Runnable> tasks = new ArrayList<>();
+        private boolean cancelled;
+
+        @Override
+        public TickScheduler.Cancellable repeating(Runnable task) {
+            this.tasks.add(task);
+            return () -> {
+                this.cancelled = true;
+                this.tasks.clear();
+            };
+        }
+
+        void runTicks(int count) {
+            for (int i = 0; i < count && !this.tasks.isEmpty(); i++) {
+                new ArrayList<>(this.tasks).forEach(Runnable::run);
+            }
+        }
+
+        boolean cancelled() {
+            return this.cancelled;
+        }
+
+        boolean idle() {
+            return this.tasks.isEmpty();
+        }
+    }
+
+    /** A 3x3x3 source (27 blocks), stone throughout. */
+    private static BlockArrayClipboard source() throws Exception {
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(2, 2, 2));
+        BlockArrayClipboard clipboard = new BlockArrayClipboard(region);
+        for (BlockVector3 pos : region) {
+            clipboard.setBlock(pos, BlockTypes.STONE.getDefaultState());
+        }
+        return clipboard;
+    }
+
+    @Test
+    void aCopyLargerThanTheBudgetSpansMultipleTicks() throws Exception {
+        BlockArrayClipboard src = source();
+        FakeScheduler scheduler = new FakeScheduler();
+        AtomicReference<Clipboard> done = new AtomicReference<>();
+
+        TickSlicedCopy.start(src, src.getRegion(), 10, scheduler, done::set, reason -> {});
+
+        scheduler.runTicks(1);
+        Assertions.assertNull(done.get(), "27 blocks at 10/tick must not finish in one tick");
+
+        scheduler.runTicks(2);
+        Assertions.assertNotNull(done.get(), "three ticks at 10/tick covers 27 blocks");
+    }
+
+    @Test
+    void theCopiedClipboardMatchesTheSource() throws Exception {
+        BlockArrayClipboard src = source();
+        FakeScheduler scheduler = new FakeScheduler();
+        AtomicReference<Clipboard> done = new AtomicReference<>();
+
+        TickSlicedCopy.start(src, src.getRegion(), 10, scheduler, done::set, reason -> {});
+        scheduler.runTicks(5);
+
+        Clipboard result = done.get();
+        Assertions.assertNotNull(result);
+        for (BlockVector3 pos : src.getRegion()) {
+            Assertions.assertEquals(BlockTypes.STONE, result.getBlock(pos).getBlockType(),
+                    "block mismatch at " + pos);
+        }
+    }
+
+    @Test
+    void aBudgetCoveringEverythingFinishesInOneTick() throws Exception {
+        BlockArrayClipboard src = source();
+        FakeScheduler scheduler = new FakeScheduler();
+        AtomicReference<Clipboard> done = new AtomicReference<>();
+
+        TickSlicedCopy.start(src, src.getRegion(), 1000, scheduler, done::set, reason -> {});
+        scheduler.runTicks(1);
+
+        Assertions.assertNotNull(done.get());
+    }
+
+    @Test
+    void theTaskStopsRescheduleingOnceComplete() throws Exception {
+        BlockArrayClipboard src = source();
+        FakeScheduler scheduler = new FakeScheduler();
+
+        TickSlicedCopy.start(src, src.getRegion(), 1000, scheduler, clipboard -> {}, reason -> {});
+        scheduler.runTicks(1);
+
+        Assertions.assertTrue(scheduler.idle(), "a finished copy must cancel its own task");
+    }
+
+    @Test
+    void cancellingPartWayCompletesNothing() throws Exception {
+        BlockArrayClipboard src = source();
+        FakeScheduler scheduler = new FakeScheduler();
+        AtomicReference<Clipboard> done = new AtomicReference<>();
+        AtomicReference<String> aborted = new AtomicReference<>();
+
+        TickSlicedCopy copy =
+                TickSlicedCopy.start(src, src.getRegion(), 5, scheduler, done::set, aborted::set);
+        scheduler.runTicks(1);
+        copy.cancel();
+        scheduler.runTicks(10);
+
+        Assertions.assertNull(done.get(), "a cancelled copy must not deliver a clipboard");
+        Assertions.assertTrue(scheduler.cancelled());
+    }
+}
+```
+
+- [ ] **Step 6: Run it to verify it fails**
+
+Run: `./gradlew :realty-paper:test --tests "*TickSlicedCopyTest*"`
+Expected: FAIL — `TickScheduler` and `TickSlicedCopy` do not exist.
+
+- [ ] **Step 7: Write the scheduler seam**
+
+`TickScheduler.java`:
+
+```java
+package io.github.md5sha256.realty.schematic;
+
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * The one thing {@link TickSlicedCopy} needs from Bukkit's scheduler, narrowed to a
+ * single method so the copy can be tested by driving ticks by hand.
+ */
+public interface TickScheduler {
+
+    @FunctionalInterface
+    interface Cancellable {
+        void cancel();
+    }
+
+    @NotNull Cancellable repeating(@NotNull Runnable task);
+
+    /** Runs {@code task} every tick on the main thread. */
+    record Bukkit(@NotNull Plugin plugin) implements TickScheduler {
+
+        @Override
+        public @NotNull Cancellable repeating(@NotNull Runnable task) {
+            BukkitTask handle = org.bukkit.Bukkit.getScheduler()
+                    .runTaskTimer(this.plugin, task, 1L, 1L);
+            return handle::cancel;
+        }
+    }
+}
+```
+
+The nested `Bukkit` record shadows `org.bukkit.Bukkit`, which is why the call above is qualified. If the codebase's injection convention (constructor-injected `Plugin`, per its standing preference over static `Bukkit.get*()`) makes a different shape cleaner — for instance taking the `BukkitScheduler` itself — follow that instead and drop the qualification.
+
+- [ ] **Step 8: Write the tick-sliced copy**
+
+`TickSlicedCopy.java`:
+
+```java
+package io.github.md5sha256.realty.schematic;
+
+import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.extent.Extent;
+import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
+import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.Region;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Iterator;
+import java.util.function.Consumer;
+
+/**
+ * Copies a region into a clipboard a fixed number of blocks per tick.
+ *
+ * <p>The blocks are read on whatever thread the scheduler runs on -- the main thread,
+ * in production -- because Paper forbids chunk access anywhere else. Slicing does not
+ * move the work off the main thread; it stops the work occupying one whole tick.</p>
+ *
+ * <p>The source is an {@link Extent} rather than a world so that a clipboard can stand
+ * in for one in tests.</p>
+ */
+public final class TickSlicedCopy {
+
+    private final Extent source;
+    private final BlockArrayClipboard clipboard;
+    private final Iterator<BlockVector3> positions;
+    private final int blocksPerTick;
+    private final Consumer<Clipboard> onComplete;
+    private final Consumer<String> onAborted;
+
+    private TickScheduler.Cancellable handle;
+    private boolean finished;
+
+    private TickSlicedCopy(@NotNull Extent source,
+                           @NotNull Region region,
+                           int blocksPerTick,
+                           @NotNull Consumer<Clipboard> onComplete,
+                           @NotNull Consumer<String> onAborted) {
+        this.source = source;
+        this.clipboard = new BlockArrayClipboard(region);
+        this.positions = region.iterator();
+        this.blocksPerTick = Math.max(1, blocksPerTick);
+        this.onComplete = onComplete;
+        this.onAborted = onAborted;
+    }
+
+    public static @NotNull TickSlicedCopy start(@NotNull Extent source,
+                                                @NotNull Region region,
+                                                int blocksPerTick,
+                                                @NotNull TickScheduler scheduler,
+                                                @NotNull Consumer<Clipboard> onComplete,
+                                                @NotNull Consumer<String> onAborted) {
+        TickSlicedCopy copy = new TickSlicedCopy(source, region, blocksPerTick, onComplete, onAborted);
+        copy.handle = scheduler.repeating(copy::tick);
+        return copy;
+    }
+
+    private void tick() {
+        if (this.finished) {
+            return;
+        }
+        try {
+            for (int i = 0; i < this.blocksPerTick && this.positions.hasNext(); i++) {
+                BlockVector3 pos = this.positions.next();
+                // getFullBlock, not getBlock: block entities keep their NBT, so a
+                // preview renders chests and signs as themselves.
+                this.clipboard.setBlock(pos, this.source.getFullBlock(pos));
+            }
+        } catch (WorldEditException e) {
+            stop();
+            this.onAborted.accept(e.getMessage());
+            return;
+        }
+        if (!this.positions.hasNext()) {
+            stop();
+            this.onComplete.accept(this.clipboard);
+        }
+    }
+
+    /** Stops the copy and delivers nothing -- a partial clipboard is never handed on. */
+    public void cancel() {
+        stop();
+    }
+
+    private void stop() {
+        this.finished = true;
+        if (this.handle != null) {
+            this.handle.cancel();
+        }
+    }
+}
+```
+
+- [ ] **Step 9: Write the in-flight registry**
+
+`CaptureRegistry.java`:
+
+```java
+package io.github.md5sha256.realty.schematic;
+
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Tracks captures currently running, so one region cannot be captured twice at once.
+ *
+ * <p>The cooldown usually prevents overlap, but {@code --force} bypasses the cooldown,
+ * so overlap has to be refused separately rather than assumed away.</p>
+ */
+public final class CaptureRegistry {
+
+    private final Map<Key, TickSlicedCopy> inFlight = new ConcurrentHashMap<>();
+
+    /** @return {@code false} if a capture of this region is already running */
+    public boolean begin(@NotNull String worldGuardRegionId,
+                         @NotNull UUID worldId,
+                         @NotNull TickSlicedCopy copy) {
+        return this.inFlight.putIfAbsent(new Key(worldGuardRegionId, worldId), copy) == null;
+    }
+
+    public void finish(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        this.inFlight.remove(new Key(worldGuardRegionId, worldId));
+    }
+
+    /** Cancels every running capture. Called from {@code onDisable}. */
+    public void cancelAll() {
+        this.inFlight.values().forEach(TickSlicedCopy::cancel);
+        this.inFlight.clear();
+    }
+
+    private record Key(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+    }
+}
+```
+
+Note `begin` takes the copy, so the signature differs from the sketch in **Interfaces** above; use this one. The command starts the copy, then registers it.
+
+- [ ] **Step 10: Run the tests to verify they pass**
+
+Run: `./gradlew :realty-paper:test --tests "*TickSlicedCopyTest*" --tests "*RegionVolumeTest*"`
+Expected: PASS, 11 tests total.
+
+If `theCopiedClipboardMatchesTheSource` fails on a position mismatch, check whether `BlockArrayClipboard.setBlock` expects world coordinates or clipboard-relative ones for a clipboard constructed over that same region — copy into the same absolute positions the iterator yields, as above.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add realty-paper/src/main/java/io/github/md5sha256/realty/schematic/RegionVolume.java \
+        realty-paper/src/main/java/io/github/md5sha256/realty/schematic/TickScheduler.java \
+        realty-paper/src/main/java/io/github/md5sha256/realty/schematic/TickSlicedCopy.java \
+        realty-paper/src/main/java/io/github/md5sha256/realty/schematic/CaptureRegistry.java \
+        realty-paper/src/test/java/io/github/md5sha256/realty/schematic/RegionVolumeTest.java \
+        realty-paper/src/test/java/io/github/md5sha256/realty/schematic/TickSlicedCopyTest.java
+git commit -m "feat(paper): cap region volume and copy blocks across ticks"
+```
+
+---
+
+### Task 6: Settings key and messages
 
 **Files:**
 - Modify: `realty-paper/src/main/java/io/github/md5sha256/realty/settings/Settings.java`
@@ -885,6 +1351,8 @@ In `Settings.java`, add a component to the record after `terminationNoticeSecond
 
 ```java
         @Setting("schematic-capture-cooldown-seconds") long schematicCaptureCooldownSeconds,
+        @Setting("schematic-max-volume") long schematicMaxVolume,
+        @Setting("schematic-capture-blocks-per-tick") int schematicCaptureBlocksPerTick,
 ```
 
 and, in the compact constructor alongside the other defaults:
@@ -893,9 +1361,15 @@ and, in the compact constructor alongside the other defaults:
         if (schematicCaptureCooldownSeconds < 0) {
             schematicCaptureCooldownSeconds = 300;
         }
+        if (schematicMaxVolume < 0) {
+            schematicMaxVolume = 1_000_000L;
+        }
+        if (schematicCaptureBlocksPerTick <= 0) {
+            schematicCaptureBlocksPerTick = 20_000;
+        }
 ```
 
-A zero is left as zero deliberately — it is how an operator disables the cooldown. Only a negative is corrected.
+Zero is left as zero for the cooldown and the volume cap deliberately — it is how an operator disables each. Only a negative is corrected. The per-tick budget is different: a zero there would mean a copy that never advances, so it is corrected like `profileReapplyPerTick` already is.
 
 - [ ] **Step 2: Add the key to the shipped config**
 
@@ -905,6 +1379,16 @@ In `realty-paper/src/main/resources/config.yml`, next to the other duration sett
 # How long a region must wait between /realty schematic capture runs.
 # 0 disables the cooldown. Bypassed by --force (realty.command.schematic.capture.force).
 schematic-capture-cooldown-seconds: 300
+
+# Largest region, in blocks (width x height x length), that may be captured.
+# 0 disables the check. This is a hard limit: --force does NOT lift it, because an
+# oversized schematic is rejected by MariaDB's max_allowed_packet on write. Raise
+# this setting if you genuinely need larger captures.
+schematic-max-volume: 1000000
+
+# Blocks copied per tick while capturing. Higher finishes sooner and costs more per
+# tick; lower is gentler and takes longer. The capture never blocks a whole tick.
+schematic-capture-blocks-per-tick: 20000
 ```
 
 The `defaults/default-config.yml` reference copy is rewritten on every start by `copyResourceTemplate` in `onLoad`, so it needs no separate edit — but confirm that is still how core seeds it before assuming.
@@ -919,6 +1403,10 @@ In `MessageKeys.java`, alongside the other groups:
     public static final String SCHEMATIC_FAILED = "schematic.failed";
     public static final String SCHEMATIC_NOT_REGISTERED = "schematic.not-registered";
     public static final String SCHEMATIC_FORCE_NO_PERMISSION = "schematic.force-no-permission";
+    public static final String SCHEMATIC_TOO_LARGE = "schematic.too-large";
+    public static final String SCHEMATIC_STARTED = "schematic.started";
+    public static final String SCHEMATIC_ALREADY_RUNNING = "schematic.already-running";
+    public static final String SCHEMATIC_ABORTED = "schematic.aborted";
 ```
 
 - [ ] **Step 4: Add the messages**
@@ -927,12 +1415,18 @@ In `realty-paper/src/main/resources/messages.yml`, add a `schematic:` block in t
 
 ```yaml
 schematic:
+    started: <prefix> Capturing <region> (<volume> blocks). This runs in the background.
     captured: <prefix> Captured a schematic of <region> (<size> bytes).
     cooldown: <prefix> <region> was captured recently. Try again in <remaining>.
     failed: '<prefix> Failed to capture <region>: <error>'
+    aborted: '<prefix> Capture of <region> stopped: <reason>'
     not-registered: <prefix> <region> is not registered with Realty.
     force-no-permission: <prefix> You do not have permission to bypass the capture cooldown.
+    too-large: <prefix> <region> is <volume> blocks, over the <cap> limit. Ask an operator to raise schematic-max-volume.
+    already-running: <prefix> <region> is already being captured.
 ```
+
+Note `too-large` names the setting rather than suggesting a flag: the cap is hard, and a message hinting at `--force` would send the player down a path that does not exist.
 
 - [ ] **Step 5: Verify the module still compiles and its tests pass**
 
@@ -961,7 +1455,7 @@ git commit -m "feat(paper): add schematic capture cooldown setting and messages"
 
 ---
 
-### Task 6: The capture command
+### Task 7: The capture command
 
 **Files:**
 - Create: `realty-paper/src/main/java/io/github/md5sha256/realty/command/SchematicCommandGroup.java`
@@ -969,7 +1463,7 @@ git commit -m "feat(paper): add schematic capture cooldown setting and messages"
 - Modify: `realty-paper/src/main/java/io/github/md5sha256/realty/Realty.java:817-887`
 
 **Interfaces:**
-- Consumes: `CaptureCooldown` (Task 3), `RegionSchematicWriter` (Task 4), `Settings.schematicCaptureCooldownSeconds()` and the `MessageKeys.SCHEMATIC_*` constants (Task 5), `RealtyBackend.storeSchematic` (Task 2).
+- Consumes: `CaptureCooldown` (Task 3), `RegionSchematicWriter.writeClipboard` (Task 4), `RegionVolume` / `TickScheduler` / `TickSlicedCopy` / `CaptureRegistry` (Task 5), the `Settings` getters and `MessageKeys.SCHEMATIC_*` constants (Task 6), `RealtyBackend.storeSchematic` (Task 2).
 - Produces: `SchematicCommandGroup`, a `CustomCommandBean` registering `/realty schematic capture`.
 
 - [ ] **Step 1: Read the surrounding conventions**
@@ -984,13 +1478,16 @@ Check how an existing command declares a flag in Cloud (`grep -rn "flag(" realty
 
 1. Resolve region and sender.
 2. If `--force` was passed and the sender is a `Player` lacking `realty.command.schematic.capture.force`, send `SCHEMATIC_FORCE_NO_PERMISSION` and stop — **before** the cooldown check, so an unauthorised `--force` is refused rather than silently ignored.
-3. If `--force` was not passed, ask `CaptureCooldown.remaining(...)`; if non-null, send `SCHEMATIC_COOLDOWN` with the remaining time formatted by `DurationFormatter` and stop.
-4. Capture on the main thread via `RegionSchematicWriter.write(...)`, adapting the Bukkit world with `BukkitAdapter.adapt(world)` and the WorldGuard region with the existing conversion used elsewhere in this package (see `SubregionState` / `CreateCommand` for the `ProtectedRegion` → WorldEdit `Region` pattern; a cuboid becomes `new CuboidRegion(weWorld, region.getMinimumPoint(), region.getMaximumPoint())`).
-5. Persist via `api.backend().storeSchematic(...)` — if it returns `false`, send `SCHEMATIC_NOT_REGISTERED` and do **not** record the cooldown.
-6. On success, `cooldown.record(...)` and send `SCHEMATIC_CAPTURED` with the region and byte count.
-7. Wrap the capture in a `try`/`catch (IOException | WorldEditException e)` and send `SCHEMATIC_FAILED` with the message, logging the throwable.
+3. Adapt the Bukkit world with `BukkitAdapter.adapt(world)` and the WorldGuard region into a WorldEdit `Region` using the pattern already in this package (see `SubregionState` / `CreateCommand`; a cuboid becomes `new CuboidRegion(weWorld, region.getMinimumPoint(), region.getMaximumPoint())`).
+4. **Volume cap.** If `RegionVolume.exceedsCap(weRegion, settings.schematicMaxVolume())`, send `SCHEMATIC_TOO_LARGE` with the region's volume and the cap, and stop. This runs regardless of `--force` — the cap is hard.
+5. If `--force` was not passed, ask `CaptureCooldown.remaining(...)`; if non-null, send `SCHEMATIC_COOLDOWN` with the remaining time formatted by `DurationFormatter` and stop.
+6. **Start the copy.** `TickSlicedCopy.start(weWorld, weRegion, settings.schematicCaptureBlocksPerTick(), tickScheduler, onComplete, onAborted)`, then `captureRegistry.begin(...)` with the returned copy. If `begin` returns `false` a capture is already running: `copy.cancel()`, send `SCHEMATIC_ALREADY_RUNNING`, and stop. Otherwise send `SCHEMATIC_STARTED` with the region and volume, so the player knows work began.
+7. **On completion** (`onComplete`, still on the main thread — the scheduler runs there): hop off-thread for the expensive half. Encode with `RegionSchematicWriter.writeClipboard(clipboard)`, then `api.backend().storeSchematic(...)`. Neither touches the world, so both are safe off the main thread; nothing else in this callback may touch Bukkit.
+8. **Back on the main thread** to report: on a `false` from `storeSchematic`, send `SCHEMATIC_NOT_REGISTERED` and do **not** record the cooldown; on success `cooldown.record(...)` and send `SCHEMATIC_CAPTURED` with the region and byte count. Either way, `captureRegistry.finish(...)`.
+9. **On abort** (`onAborted`): send `SCHEMATIC_ABORTED` with the reason and `captureRegistry.finish(...)`.
+10. Wrap the encode/store in a `try`/`catch (IOException e)` and send `SCHEMATIC_FAILED` with the message, logging the throwable — and `finish(...)` in a `finally`, so a thrown capture does not wedge the region as permanently in-flight.
 
-The permission checks are Bukkit `hasPermission` calls and must stay on the main thread — do not move them inside an async callback. Console senders (non-`Player`) are trusted, matching `SetCommandGroup.authorizeLeaseholdSet`.
+The permission checks are Bukkit `hasPermission` calls and must stay on the main thread — do not move them into step 7's off-thread work. Console senders (non-`Player`) are trusted, matching `SetCommandGroup.authorizeLeaseholdSet`. Use whatever off-thread and back-to-main scheduling helper the codebase already uses (`grep -rn "runTaskAsynchronously\|thenAcceptAsync" realty-paper/src/main/java`) rather than introducing a new executor.
 
 Register the subcommand with `.permission("realty.command.schematic.capture")`, an optional `region` argument via `WorldGuardRegionResolver.worldGuardRegionResolver()`, and the `force` flag.
 
@@ -1009,23 +1506,46 @@ In `realty-paper/src/main/resources/paper-plugin.yml`, in the permissions block:
 
 - [ ] **Step 4: Register the command bean**
 
-In `Realty.java`, add the import and a new entry in the `List.of(...)` at line 817, following the `new SetCommandGroup(paperApi, messageContainer, this.eventDispatch)` form. The group needs the settings reference the other groups receive (`this.settings`, an `AtomicReference<Settings>`) plus a `CaptureCooldown` instance constructed with `Instant::now`.
+In `Realty.java`, add the import and a new entry in the `List.of(...)` at line 817, following the `new SetCommandGroup(paperApi, messageContainer, this.eventDispatch)` form. The group needs the settings reference the other groups receive (`this.settings`, an `AtomicReference<Settings>`), a `CaptureCooldown` constructed with `Instant::now`, a `CaptureRegistry`, and a `TickScheduler.Bukkit(this)`.
 
-- [ ] **Step 5: Compile**
+Hold the `CaptureRegistry` as a field on `Realty`, not only inside the command group, because `onDisable` must call it.
+
+- [ ] **Step 5: Cancel running captures on disable**
+
+In `Realty.onDisable`, before modules stop, cancel any capture still in flight:
+
+```java
+        this.captureRegistry.cancelAll();
+```
+
+Without this, a capture running at shutdown keeps a scheduled task against a disabled plugin and delivers a partial clipboard into a closing database. A half-region schematic is worse than no schematic, because nothing downstream could tell the difference.
+
+- [ ] **Step 6: Compile**
 
 Run: `./gradlew :realty-paper:compileJava`
 Expected: PASS.
 
-- [ ] **Step 6: Run the paper test suite**
+- [ ] **Step 7: Run the paper test suite**
 
 Run: `./gradlew :realty-paper:test`
 Expected: PASS.
 
-- [ ] **Step 7: Verify in a running server**
+- [ ] **Step 8: Verify in a running server**
 
 Run: `./gradlew runServer`
 
-In the server console: create or pick a WorldGuard region registered with Realty, then run `realty schematic capture <region>`. Expect the captured message with a non-zero byte count. Run it again immediately and expect the cooldown message with a remaining time. Run `realty schematic capture <region> --force` and expect it to succeed.
+Pick a WorldGuard region registered with Realty, then walk the paths:
+
+| Command | Expect |
+|---|---|
+| `realty schematic capture <region>` | started message, then captured with a non-zero byte count |
+| immediately again | cooldown message naming a remaining time |
+| `... --force` | succeeds, bypassing the cooldown |
+| set `schematic-max-volume: 10`, reload, capture | too-large message naming volume and cap |
+| `... --force` with that low cap still set | **still** refused — the cap is hard |
+| set `schematic-capture-blocks-per-tick: 1`, capture a large region, then `stop` mid-capture | server shuts down cleanly, no partial row |
+
+Watch the tick timing while a large capture runs — `/tps` (or the server's timings) should stay flat, which is the entire point of slicing. If TPS drops, the per-tick budget is too high for that hardware.
 
 Confirm the row landed:
 
@@ -1034,9 +1554,9 @@ docker compose -f compose.dev.yml exec -T mariadb \
   mariadb -urealty -prealty realty -e "SELECT realtyRegionId, LENGTH(data), capturedAt FROM RealtySchematic;"
 ```
 
-Expected: one row with a non-zero length.
+Expected: one row with a non-zero length, and no row from the interrupted capture.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add realty-paper/src/main/java/io/github/md5sha256/realty/command/SchematicCommandGroup.java \
@@ -1047,7 +1567,7 @@ git commit -m "feat(paper): add /realty schematic capture with a per-region cool
 
 ---
 
-### Task 7: REST endpoint
+### Task 8: REST endpoint
 
 **Files:**
 - Create: `realty-rest/src/main/java/io/github/md5sha256/realty/rest/RegionSchematicHandler.java`
@@ -1267,7 +1787,7 @@ git commit -m "feat(rest): serve a region's captured schematic bytes"
 
 ---
 
-### Task 8: Whole-build verification and documentation
+### Task 9: Whole-build verification and documentation
 
 **Files:**
 - Modify: `CLAUDE.md` (schematic capture note)
@@ -1280,7 +1800,7 @@ Expected: PASS across every module. This is the first point the whole graph is c
 
 - [ ] **Step 2: Document the feature**
 
-In `CLAUDE.md`, add a short note under *Domain Patterns* — the capture is on-demand, one row per region, WorldEdit's clipboard API is used (no new dependency, FAWE-compatible), and `realty-rest`'s `EXPECTED_VERSION` must be bumped with every migration.
+In `CLAUDE.md`, add a short note under *Domain Patterns* — the capture is on-demand, one row per region, WorldEdit's clipboard API is used (no new dependency, FAWE-compatible), the copy is tick-sliced on the main thread with only the encode and DB write off-thread, the volume cap is hard, and `realty-rest`'s `EXPECTED_VERSION` must be bumped with every migration.
 
 If `realty-rest/README.md` lists endpoints, add `/v1/region/schematic` there in the same style.
 
@@ -1304,24 +1824,33 @@ git commit -m "docs: describe region schematic capture"
 | Spec requirement | Task |
 |---|---|
 | WorldEdit clipboard API, no new dependency | 4 (Global Constraints restate it) |
-| Live main-thread capture | 4, 6 |
-| `/realty schematic capture <region> [--force]` | 6 |
-| In-memory per-region cooldown from `Settings` | 3, 5, 6 |
-| `--force` bypasses cooldown only; gated by its own permission; refused before the cooldown check | 6 (step 2 ordering), 3 |
-| Permissions in `paper-plugin.yml`, `realty.command.*` shape | 6 |
+| Live main-thread block reads | 5, 7 |
+| Tick-sliced copy on a per-tick budget | 5 |
+| Encode + DB write off the main thread | 7 (step 7) |
+| `getFullBlock` so block entities keep NBT | 5 (Global Constraints restate it) |
+| Hard volume cap, checked before any copy, not waivable by `--force` | 5, 7 (step 4) |
+| In-flight guard against concurrent captures of one region | 5, 7 (step 6) |
+| Cancel running captures on plugin disable | 5, 7 (step 5) |
+| Abort on world unload / copy failure | 5 (`onAborted`), 7 (step 9) |
+| `/realty schematic capture <region> [--force]` | 7 |
+| In-memory per-region cooldown from `Settings` | 3, 6, 7 |
+| `--force` bypasses cooldown only; gated by its own permission; refused before the cooldown check | 7 (step 2 ordering), 3 |
+| Permissions in `paper-plugin.yml`, `realty.command.*` shape | 7 |
 | `RealtySchematic` table keyed on `realtyRegionId`, `UUID` column type | 1 |
 | V17 registered in `DEFAULT_MIGRATIONS` | 1 |
 | Mapper split (base interface + Maria impl), registered on both session types | 1 |
 | Mapper methods take `(worldGuardRegionId, worldId)` and JOIN | 1 |
 | Two `RealtyBackend` methods | 2 |
-| `GET /v1/region/schematic?world=&region=` returning octet-stream | 7 |
-| `404 SCHEMATIC_NOT_FOUND` vs `404 REGION_NOT_FOUND` | 7 |
-| Route added to `ROUTES` + `openapi.yaml` | 7 |
-| `EXPECTED_VERSION` bumped to 17 | 7 |
-| Tests: mapper round-trip, replace-on-recapture, cooldown, REST 200/404 | 1, 2, 3, 7 |
+| `GET /v1/region/schematic?world=&region=` returning octet-stream | 8 |
+| `404 SCHEMATIC_NOT_FOUND` vs `404 REGION_NOT_FOUND` | 8 |
+| Route added to `ROUTES` + `openapi.yaml` | 8 |
+| `EXPECTED_VERSION` bumped to 17 | 8 |
+| Tests: mapper round-trip, replace-on-recapture, cooldown, volume cap, tick-slicing, REST 200/404 | 1, 2, 3, 5, 8 |
 
 No spec requirement is unassigned.
 
-**Placeholder scan:** no TBDs. Tasks 6 and 7 direct the implementer to read specific neighbouring files before finalising (Cloud's flag API and `ApiException`/`WorldLookup` signatures) rather than guessing at an API this plan has not verified line-by-line — that is a deliberate instruction to check, not a deferred decision, and the surrounding behaviour is fully specified either way.
+**Placeholder scan:** no TBDs. Tasks 5, 7 and 8 direct the implementer to read specific neighbouring files before finalising (`BlockVector3`'s accessor naming, Cloud's flag API, the codebase's off-thread scheduling helper, and `ApiException`/`WorldLookup` signatures) rather than guessing at an API this plan has not verified line-by-line — that is a deliberate instruction to check, not a deferred decision, and the surrounding behaviour is fully specified either way.
 
-**Type consistency:** `storeSchematic`/`getSchematic` are named identically in Tasks 2, 6 and 7. `CaptureCooldown.remaining`/`record` match between Tasks 3 and 6. `RealtySchematicEntity`'s four components are identical in Task 1's entity, mapper `@ConstructorArgs`, and DDL column order. `upsert` returns `int` in Task 1 and is compared `> 0` in Task 2.
+**Type consistency:** `storeSchematic`/`getSchematic` are named identically in Tasks 2, 7 and 8. `CaptureCooldown.remaining`/`record` match between Tasks 3 and 7. `RealtySchematicEntity`'s four components are identical in Task 1's entity, mapper `@ConstructorArgs`, and DDL column order. `upsert` returns `int` in Task 1 and is compared `> 0` in Task 2. `RegionSchematicWriter` exposes only `writeClipboard` after Task 4's revision, and Task 7 calls exactly that — the earlier `write(World, Region)` was removed when the copy became tick-sliced, so no task still refers to it. `CaptureRegistry.begin` takes the `TickSlicedCopy` in both Task 5's implementation and Task 7's step 6; the three-argument sketch in Task 5's **Interfaces** block is explicitly corrected there.
+
+**One deliberate imprecision, flagged:** the user asked for "async reading". What this plan builds is non-blocking, not asynchronous — the world reads stay on the main thread because Paper's `AsyncCatcher` forbids anything else without FAWE. The Global Constraints say so, and forbid naming anything `async`, so the distinction survives into the code rather than living only here.
