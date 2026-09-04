@@ -24,3 +24,15 @@ subregion-wand-material: "GOLDEN_AXE"
 # Y-level at which the safe location finder will start looking in the case of very tall plots.
 # It's advisable to set this just above the average ground level of your map.
 teleportation-starting-height: 80
+# How long a region must wait between /realty schematic capture runs.
+# 3600 = one hour. 0 disables the cooldown.
+# Bypassed by --force (realty.command.schematic.capture.force).
+schematic-capture-cooldown-seconds: 3600
+# Largest region, in blocks (width x height x length), that may be captured.
+# 0 disables the check. This is a hard limit: --force does NOT lift it, because an
+# oversized schematic is rejected by MariaDB's max_allowed_packet on write. Raise
+# this setting if you genuinely need larger captures.
+schematic-max-volume: 1000000
+# Blocks copied per tick while capturing. Higher finishes sooner and costs more per
+# tick; lower is gentler and takes longer. The capture never blocks a whole tick.
+schematic-capture-blocks-per-tick: 20000
