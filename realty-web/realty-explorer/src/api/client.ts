@@ -53,3 +53,30 @@ export function fetchSchematic(
     return data as ArrayBuffer;
   };
 }
+
+/**
+ * Fetches the server's resource pack for the renderer, or null when there is nothing
+ * usable to fetch.
+ *
+ * Three ways this legitimately yields null, none of them an error worth showing:
+ * the server configures no pack (the default), the query-service module is not
+ * reachable (a 502 here), or the pack is hosted somewhere that does not send CORS
+ * headers -- which is common, since those hosts only ever expected the game client,
+ * which is not a browser and does not enforce CORS.
+ *
+ * In every case the renderer simply draws untextured geometry, exactly as it does
+ * today. A missing texture set is a downgrade, not a failure.
+ */
+export async function fetchResourcePack(client: ApiClient): Promise<Blob | null> {
+  const { data, error } = await client.GET("/v1/resource-pack", {});
+  if (error || !data?.url) return null;
+
+  try {
+    const response = await fetch(data.url);
+    if (!response.ok) return null;
+    return await response.blob();
+  } catch {
+    // Almost always CORS. Not worth surfacing: the page still renders.
+    return null;
+  }
+}

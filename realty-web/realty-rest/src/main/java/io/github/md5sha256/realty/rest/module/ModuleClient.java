@@ -44,6 +44,13 @@ public interface ModuleClient {
     /** A region's WorldGuard owner and member domains. */
     @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId, @NotNull String regionId);
 
+    /**
+     * The game server's configured resource pack, so a browser renderer can texture blocks
+     * with the same pack the game client uses. The whole answer comes from the module, so an
+     * unreachable one is {@code Unavailable} rather than a silently empty pack.
+     */
+    @NotNull ModuleResult<ResourcePack> resourcePack();
+
     /** A live probe of the module's {@code /health}; never cached. */
     @NotNull Status status();
 
@@ -81,6 +88,11 @@ public interface ModuleClient {
             @Override
             public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
                                                                 @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<ResourcePack> resourcePack() {
                 return new ModuleResult.Unavailable<>();
             }
 

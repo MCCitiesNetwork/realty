@@ -296,6 +296,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/resource-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The game server's configured resource pack
+         * @description Where the game server asks joining clients to fetch its resource pack, so a browser-side renderer can texture blocks with the same pack the game uses.
+         *
+         *     A location only -- the URL and its advertised SHA-1 -- never the pack's bytes. That URL is already public, since every joining player receives it, so reporting it redistributes nothing; serving the pack through this service would mean redistributing whatever assets it contains.
+         *
+         *     `url` is null when the server configures no pack, which is the default. That is a normal answer rather than an error: a renderer simply draws untextured geometry. Note also that a server pack usually overrides only some textures, so it may not cover vanilla blocks on its own.
+         *
+         *     Answered entirely by the query-service module, because server.properties lives with the game server and not in this service's database. An unreachable module is therefore a 502 rather than an empty pack: "none configured" and "could not ask" are different answers.
+         */
+        get: operations["resourcePack"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/worlds/geometry": {
         parameters: {
             query?: never;
@@ -592,6 +618,14 @@ export interface components {
         TagResponse: {
             id: string;
             regionCount: number;
+        };
+        ResourcePackResponse: {
+            /** @description Where the pack is hosted, or null when the server sets none. */
+            url: string | null;
+            /** @description The SHA-1 the server advertises, or null. */
+            hash: string | null;
+            /** @description Whether the server refuses players who decline the pack. */
+            required: boolean;
         };
         ErrorResponse: {
             /** @description A stable, machine-readable error code (e.g. `WORLD_NOT_FOUND`). */
@@ -1445,6 +1479,44 @@ export interface operations {
             };
             /** @description `INTERNAL_ERROR` -- a generic message only, never the underlying exception. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resourcePack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The configured pack, or nulls when none is set. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePackResponse"];
+                };
+            };
+            /** @description `INTERNAL_ERROR` -- a generic message only, never the underlying exception. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `RESOURCE_PACK_UNAVAILABLE` -- the query-service module is disabled or unreachable. */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

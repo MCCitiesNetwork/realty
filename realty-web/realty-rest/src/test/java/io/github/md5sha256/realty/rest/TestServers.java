@@ -28,6 +28,7 @@ import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import io.github.md5sha256.realty.rest.json.RegionResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.github.md5sha256.realty.rest.module.ModuleResult;
+import io.github.md5sha256.realty.rest.module.ResourcePack;
 import io.github.md5sha256.realty.rest.module.RegionMembers;
 import io.github.md5sha256.realty.rest.module.RegionsAt;
 import io.github.md5sha256.realty.rest.module.NameLookup;
@@ -493,6 +494,11 @@ final class TestServers {
             }
 
             @Override
+            public @NotNull ModuleResult<ResourcePack> resourcePack() {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
             public @NotNull Status status() {
                 return Status.OK;
             }
@@ -538,6 +544,11 @@ final class TestServers {
             @Override
             public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
                                                                 @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<ResourcePack> resourcePack() {
                 return new ModuleResult.Unavailable<>();
             }
 
@@ -589,6 +600,11 @@ final class TestServers {
             @Override
             public @NotNull ModuleResult<RegionMembers> members(@NotNull UUID worldId,
                                                                 @NotNull String regionId) {
+                return new ModuleResult.Unavailable<>();
+            }
+
+            @Override
+            public @NotNull ModuleResult<ResourcePack> resourcePack() {
                 return new ModuleResult.Unavailable<>();
             }
 
@@ -965,6 +981,11 @@ final class TestServers {
                                                                 @NotNull String regionId) {
                 return members == null ? new ModuleResult.NotFound<>()
                         : new ModuleResult.Found<>(members);
+            }
+
+            @Override
+            public @NotNull ModuleResult<ResourcePack> resourcePack() {
+                return new ModuleResult.Unavailable<>();
             }
 
             @Override

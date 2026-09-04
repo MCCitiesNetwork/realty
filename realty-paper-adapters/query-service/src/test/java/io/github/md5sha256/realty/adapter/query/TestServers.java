@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.adapter.query;
 
+import io.github.md5sha256.realty.adapter.query.json.ResourcePackResponse;
 import io.github.md5sha256.realty.api.PlayerNameService;
 import org.jetbrains.annotations.NotNull;
 
@@ -17,6 +18,23 @@ import java.util.concurrent.CompletableFuture;
 final class TestServers {
 
     static final String SECRET = "hunter2";
+
+    /** The common case: server.properties leaves resource-pack empty. */
+    static @NotNull ResourcePackSource noPack() {
+        return () -> new ResourcePackResponse(null, null, false);
+    }
+
+    static @NotNull QueryServiceServer withResourcePack(@NotNull String url,
+                                                        @NotNull String hash,
+                                                        boolean required) {
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(),
+                () -> new ResourcePackResponse(url, hash, required));
+    }
+
+    static @NotNull QueryServiceServer withoutResourcePack() {
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(),
+                noPack());
+    }
     static final UUID WORLD = UUID.fromString("8f4d0000-0000-0000-0000-000000000001");
     static final UUID NOTCH = UUID.fromString("069a79f4-44e9-4726-a5be-fca90e38aaf5");
     static final UUID BEDROCK = UUID.fromString("00000000-0000-0000-0009-01f64f65c7e1");
@@ -129,11 +147,11 @@ final class TestServers {
     }
 
     static @NotNull QueryServiceServer standard() {
-        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers());
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(), noPack());
     }
 
     static @NotNull QueryServiceServer withStalledMainThread(@NotNull Duration timeout) {
-        return new QueryServiceServer(SECRET, timeout, stalledMainThread(), twoPlayers());
+        return new QueryServiceServer(SECRET, timeout, stalledMainThread(), twoPlayers(), noPack());
     }
 
     /** A name service that never answers, standing in for a wedged resolver. */
@@ -152,7 +170,7 @@ final class TestServers {
     }
 
     static @NotNull QueryServiceServer withStalledNames(@NotNull Duration timeout) {
-        return new QueryServiceServer(SECRET, timeout, twoRegions(), stalledNames());
+        return new QueryServiceServer(SECRET, timeout, twoRegions(), stalledNames(), noPack());
     }
 
     /** Answers every id and name as unknown; enough to exercise batch-size limits. */
@@ -171,6 +189,6 @@ final class TestServers {
     }
 
     static @NotNull QueryServiceServer withNoPlayers() {
-        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), noPlayers());
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), noPlayers(), noPack());
     }
 }
