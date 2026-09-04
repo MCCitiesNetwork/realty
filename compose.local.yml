@@ -24,7 +24,13 @@
 #
 # Then:
 #   docker compose -f compose.local.yml up --build
-#   curl -s localhost:8080/v1/health
+#   curl -s localhost:8080/v1/health          the API
+#   open http://localhost:8090                the explorer
+# Distinct project name: see the note in compose.yml. Without it, bringing this
+# harness up would remove the dev database container compose.dev.yml owns -- the
+# very database this file points at.
+name: realty-local
+
 services:
   realty-rest:
     build:
@@ -58,3 +64,19 @@ services:
       # Docker Desktop resolves host.docker.internal already; this line is what
       # makes the same file work on plain Linux Docker.
       - "host.docker.internal:host-gateway"
+
+  # The built front end, with nginx forwarding /v1 to the service above so the
+  # browser sees one origin. Use this to exercise the production bundle; use
+  # `npm run dev` when you want live reload.
+  realty-explorer:
+    build:
+      # The repo root, because the Dockerfile also reads openapi.yaml from the
+      # sibling realty-rest module to generate the API client.
+      context: .
+      dockerfile: realty-web/realty-explorer/Dockerfile
+    container_name: realty-explorer-local
+    restart: "no"
+    ports:
+      - "8090:80"
+    depends_on:
+      - realty-rest
