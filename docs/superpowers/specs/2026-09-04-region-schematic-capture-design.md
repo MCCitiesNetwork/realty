@@ -184,8 +184,21 @@ tick. Calling it async in code or messages would misdescribe it.
 
 ## Persistence
 
-New table, one row per region (replaced on re-capture — the same
-one-row-per-region shape used for contracts). It keys on `realtyRegionId`,
+New table, one row per region. **A re-capture always replaces the previous
+schematic, silently and unconditionally** — there is no confirmation, no
+flag, and no versioning. The latest snapshot is the only one that matters to
+a preview, so keeping older ones would grow the table without a reader; and
+requiring a flag to overwrite would make the common case (refresh a plot
+after building on it) the awkward one. The same one-row-per-region shape used
+for contracts.
+
+Only `capturedAt` accompanies the bytes. An earlier draft also stored
+`capturedBy`, but nothing ever read it — the REST endpoint does not expose it
+and no command consults it — so it was removed rather than kept as an audit
+trail nobody consults. It also forced a nil-UUID sentinel for console
+captures, which had no meaning beyond "not a player".
+
+It keys on `realtyRegionId`,
 matching how every other Realty table references a region — `RealtyRegion`
 has an `INT AUTO_INCREMENT` primary key, not a region UUID — and uses the
 `UUID` column type the existing migrations use (`V16__realty_worlds.sql`),
@@ -196,8 +209,7 @@ CREATE TABLE IF NOT EXISTS RealtySchematic
 (
     realtyRegionId INT      NOT NULL PRIMARY KEY,
     data           LONGBLOB NOT NULL,
-    capturedAt     DATETIME NOT NULL,
-    capturedBy     UUID     NOT NULL
+    capturedAt     DATETIME NOT NULL
 );
 ```
 

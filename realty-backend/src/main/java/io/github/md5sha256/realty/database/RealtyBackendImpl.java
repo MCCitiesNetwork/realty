@@ -2181,14 +2181,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public boolean storeSchematic(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,
-                                  byte @NotNull [] data,
-                                  @NotNull UUID capturedBy) {
+                                  byte @NotNull [] data) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             // MariaDB reports two affected rows when ON DUPLICATE KEY UPDATE updates
             // rather than inserts, so a re-capture counts as success too.
             int rows = wrapper.realtySchematicMapper()
-                    .upsert(worldGuardRegionId, worldId, data, LocalDateTime.now(), capturedBy);
+                    .upsert(worldGuardRegionId, worldId, data, LocalDateTime.now());
             session.commit();
             return rows > 0;
         }

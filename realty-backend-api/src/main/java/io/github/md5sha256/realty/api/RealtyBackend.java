@@ -766,8 +766,7 @@ public interface RealtyBackend {
      */
     boolean storeSchematic(@NotNull String worldGuardRegionId,
                            @NotNull UUID worldId,
-                           byte @NotNull [] data,
-                           @NotNull UUID capturedBy);
+                           byte @NotNull [] data);
 
     /**
      * The region's most recent schematic, or {@code null} if it has never been captured.

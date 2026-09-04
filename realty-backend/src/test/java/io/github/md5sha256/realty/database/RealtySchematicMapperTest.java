@@ -10,7 +10,6 @@ import java.util.UUID;
 class RealtySchematicMapperTest extends AbstractDatabaseTest {
 
     private static final UUID WORLD_ID = UUID.fromString("8f4d1c2e-0000-0000-0000-0000000000aa");
-    private static final UUID CAPTURED_BY = UUID.fromString("8f4d1c2e-0000-0000-0000-0000000000bb");
     private static final LocalDateTime CAPTURED_AT = LocalDateTime.of(2026, 9, 4, 12, 30, 0);
 
     @Test
@@ -19,7 +18,7 @@ class RealtySchematicMapperTest extends AbstractDatabaseTest {
             session.realtyRegionMapper().registerWorldGuardRegion("plot_a", WORLD_ID);
 
             int rows = session.realtySchematicMapper()
-                    .upsert("plot_a", WORLD_ID, new byte[]{1, 2, 3}, CAPTURED_AT, CAPTURED_BY);
+                    .upsert("plot_a", WORLD_ID, new byte[]{1, 2, 3}, CAPTURED_AT);
             Assertions.assertEquals(1, rows);
 
             RealtySchematicEntity found =
@@ -27,7 +26,6 @@ class RealtySchematicMapperTest extends AbstractDatabaseTest {
             Assertions.assertNotNull(found);
             Assertions.assertArrayEquals(new byte[]{1, 2, 3}, found.data());
             Assertions.assertEquals(CAPTURED_AT, found.capturedAt());
-            Assertions.assertEquals(CAPTURED_BY, found.capturedBy());
         }
     }
 
@@ -36,9 +34,9 @@ class RealtySchematicMapperTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper session = database.openSession(true)) {
             session.realtyRegionMapper().registerWorldGuardRegion("plot_a", WORLD_ID);
             session.realtySchematicMapper()
-                    .upsert("plot_a", WORLD_ID, new byte[]{1}, CAPTURED_AT, CAPTURED_BY);
+                    .upsert("plot_a", WORLD_ID, new byte[]{1}, CAPTURED_AT);
             session.realtySchematicMapper()
-                    .upsert("plot_a", WORLD_ID, new byte[]{9, 9}, CAPTURED_AT.plusHours(1), CAPTURED_BY);
+                    .upsert("plot_a", WORLD_ID, new byte[]{9, 9}, CAPTURED_AT.plusHours(1));
 
             RealtySchematicEntity found =
                     session.realtySchematicMapper().selectByWorldGuardRegion("plot_a", WORLD_ID);
@@ -61,7 +59,7 @@ class RealtySchematicMapperTest extends AbstractDatabaseTest {
     void upsertAffectsNoRowsForAnUnregisteredRegion() {
         try (SqlSessionWrapper session = database.openSession(true)) {
             int rows = session.realtySchematicMapper()
-                    .upsert("never_registered", WORLD_ID, new byte[]{1}, CAPTURED_AT, CAPTURED_BY);
+                    .upsert("never_registered", WORLD_ID, new byte[]{1}, CAPTURED_AT);
             Assertions.assertEquals(0, rows);
         }
     }
@@ -73,7 +71,7 @@ class RealtySchematicMapperTest extends AbstractDatabaseTest {
             session.realtyRegionMapper().registerWorldGuardRegion("plot_a", WORLD_ID);
             session.realtyRegionMapper().registerWorldGuardRegion("plot_a", otherWorld);
             session.realtySchematicMapper()
-                    .upsert("plot_a", WORLD_ID, new byte[]{7}, CAPTURED_AT, CAPTURED_BY);
+                    .upsert("plot_a", WORLD_ID, new byte[]{7}, CAPTURED_AT);
 
             Assertions.assertNull(
                     session.realtySchematicMapper().selectByWorldGuardRegion("plot_a", otherWorld));
@@ -91,7 +89,7 @@ class RealtySchematicMapperTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper session = database.openSession(true)) {
             session.realtyRegionMapper().registerWorldGuardRegion("plot_a", WORLD_ID);
             session.realtySchematicMapper()
-                    .upsert("plot_a", WORLD_ID, large, CAPTURED_AT, CAPTURED_BY);
+                    .upsert("plot_a", WORLD_ID, large, CAPTURED_AT);
 
             RealtySchematicEntity found =
                     session.realtySchematicMapper().selectByWorldGuardRegion("plot_a", WORLD_ID);
