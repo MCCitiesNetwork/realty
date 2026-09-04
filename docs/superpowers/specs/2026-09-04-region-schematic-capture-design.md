@@ -30,12 +30,23 @@ the frontend in); automatic/triggered capture on region create or modify;
 historical versions of a schematic (only the latest is kept); write/delete
 endpoints on `realty-rest` (v1 there is read-only by design).
 
-## Why FAWE, live capture, and BLOB storage
+## Why the WorldEdit clipboard API, live capture, and BLOB storage
 
-**Capture library — FastAsyncWorldEdit (FAWE).** Added as a `compileOnly` /
-softdepend, the same shape as the existing WorldGuard dependency. FAWE's
-`Clipboard` API writes a spec-correct Sponge Schematic v3 in one call, so
-Realty does not reimplement the NBT/palette format itself.
+**Capture library — the WorldEdit clipboard API, already on the classpath.**
+No new dependency is added. WorldEdit 7.3.18 already resolves transitively
+through the existing `compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.18")`
+in `realty-paper/build.gradle.kts`, and `realty-paper` already imports
+`com.sk89q.worldedit` types directly (`BukkitAdapter`, `CuboidRegion`,
+`BlockVector3` in `CreateCommand`, `SubregionState`, `SignCommand`). That jar
+contains `BlockArrayClipboard`, `ForwardExtentCopy`, `ClipboardFormats`, and
+`BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC` — verified directly against the
+resolved artifact.
+
+Compiling against the WorldEdit API rather than FAWE specifically is
+deliberate: FAWE is a drop-in that provides the same `com.sk89q.worldedit`
+classes at runtime, so one implementation works whether the operator runs
+WorldEdit or FAWE. Either way Realty does not reimplement the NBT/palette
+format itself.
 
 **Live capture, not reading `.mca` files directly.** Reading Anvil region
 files directly was considered (see exploration below) and rejected for the
@@ -78,8 +89,10 @@ rendered via `DurationFormatter` (never `Duration.toString()`, per existing
 project convention).
 
 **`--force`.** A boolean flag parsed by Cloud, gated behind a second
-permission, `realty.schematic.capture.force`. `--force` bypasses only the
-cooldown check — normal capture still requires `realty.schematic.capture`
+permission, `realty.command.schematic.capture.force` (the
+`realty.command.<group>.<sub>` shape every existing permission uses, e.g.
+`realty.command.set.price`). `--force` bypasses only the cooldown check —
+normal capture still requires `realty.command.schematic.capture`
 regardless of `--force`. Passing `--force` without the force permission is
 rejected outright, before the cooldown check runs, rather than silently
 ignored. Both permission checks run on the main thread, per the existing
@@ -89,44 +102,66 @@ permissions-main-thread convention. Both permissions are added to
 **Capture procedure**, on the main thread:
 1. Resolve the WorldGuard region's bounds in its world via the existing
    region-resolution path.
-2. Build a FAWE `Clipboard` from those bounds; write it to an in-memory
-   Sponge Schematic v3 byte array via FAWE's clipboard writer.
+2. Copy those bounds into a `BlockArrayClipboard` via `ForwardExtentCopy`,
+   then write it to an in-memory byte array with
+   `BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC.getWriter(...)`.
 3. Pass the bytes to `RealtyBackend` to persist (replacing any existing row
    for that region).
 
 ## Persistence
 
 New table, one row per region (replaced on re-capture — the same
-one-row-per-region shape used for contracts):
+one-row-per-region shape used for contracts). It keys on `realtyRegionId`,
+matching how every other Realty table references a region — `RealtyRegion`
+has an `INT AUTO_INCREMENT` primary key, not a region UUID — and uses the
+`UUID` column type the existing migrations use (`V16__realty_worlds.sql`),
+not `BINARY(16)`:
 
 ```sql
-CREATE TABLE RealtySchematic (
-    regionId    BINARY(16)   NOT NULL,
-    worldId     BINARY(16)   NOT NULL,
-    data        LONGBLOB     NOT NULL,
-    capturedAt  DATETIME     NOT NULL,
-    capturedBy  BINARY(16)   NOT NULL,
-    PRIMARY KEY (regionId, worldId)
+CREATE TABLE IF NOT EXISTS RealtySchematic
+(
+    realtyRegionId INT      NOT NULL PRIMARY KEY,
+    data           LONGBLOB NOT NULL,
+    capturedAt     DATETIME NOT NULL,
+    capturedBy     UUID     NOT NULL
 );
 ```
 
 New migration `V17__realty_schematics.sql`, registered as the next entry in
 `MariaSchemaMigrator.DEFAULT_MIGRATIONS`. New `RealtySchematicMapper`
 (base interface, method signatures only) plus a `MariaRealtySchematicMapper`
-implementation with the SQL, following the existing mapper split. A
+implementation with the SQL, following the existing mapper split, and
+registered on both `SqlSessionWrapper` and `MariaSqlSession`. A
 `RealtySchematicEntity` record alongside the other entities.
+
+Mapper methods take `(String worldGuardRegionId, UUID worldId)` and JOIN
+through `RealtyRegion` internally rather than making callers resolve
+`realtyRegionId` first — the established convention for command-facing
+queries in this codebase.
 
 `RealtyBackend` gains two methods: one to upsert a captured schematic, one to
 fetch the current bytes for a region (nullable — no schematic captured yet).
 
 ## REST delivery
 
-`realty-rest` adds `GET /v1/regions/{id}/schematic`:
+`realty-rest` adds `GET /v1/region/schematic?world=...&region=...`. The
+query-parameter form matches every existing region endpoint (`/v1/region`,
+`/v1/region/history`, `/v1/region/members`) — this service does not use path
+parameters for region identity, because a region is identified by a
+world-plus-name pair, not a single id.
+
 - `200` with `Content-Type: application/octet-stream` and the raw `.schem`
   bytes, when a schematic exists for the region.
-- `404` when the region exists but has no captured schematic.
-- The existing region-not-found handling applies unchanged for an unknown
-  `{id}`.
+- `404` `SCHEMATIC_NOT_FOUND` when the region exists but has no captured
+  schematic.
+- `404` `REGION_NOT_FOUND` for an unknown region, via the existing
+  `ApiException.notFound` path used by `RegionHandler`.
+- Missing `world` or `region` params are rejected by the existing
+  `QueryParams.required` handling, unchanged.
+
+The new route is added to `RealtyRestServer.ROUTES`, which
+`OpenApiConformanceTest` asserts in both directions against `openapi.yaml` —
+so the route and its documentation land together or the build fails.
 
 Backed directly by the new `RealtyBackend` fetch method — no new coupling to
 the game server's filesystem or to `query-service`.
@@ -167,9 +202,9 @@ file-path requirement, so this format choice does not constrain the frontend.
 
 ## Alternatives considered
 
-**Reading `.mca` region files directly**, bypassing Bukkit/FAWE entirely.
-Rejected: reimplements Anvil chunk/palette decoding this codebase does not
-otherwise need, and reintroduces the staleness/locking problem that
+**Reading `.mca` region files directly**, bypassing Bukkit and WorldEdit
+entirely. Rejected: reimplements Anvil chunk/palette decoding this codebase
+does not otherwise need, and reintroduces the staleness/locking problem that
 `query-service`'s live-read pattern exists specifically to avoid.
 
 **Automatic capture on region create/update.** Rejected for v1: couples
@@ -177,7 +212,12 @@ capture into every mutation path and costs I/O on writes that do not need a
 preview. An on-demand command is cheaper and sufficient; automatic capture
 remains a candidate for a later version.
 
-**Self-implemented Sponge Schematic NBT writer**, avoiding the FAWE
-dependency. Rejected: FAWE already implements the spec correctly and is
-well maintained; reimplementing it duplicates that work for no benefit,
-and the project already accepts WorldGuard as a comparable soft dependency.
+**Self-implemented Sponge Schematic NBT writer.** Rejected: WorldEdit
+already implements the spec correctly, is well maintained, and is already
+on the compile classpath — reimplementing it would duplicate that work
+while adding no independence, since the plugin depends on WorldGuard (and
+therefore WorldEdit) regardless.
+
+**Adding FAWE as an explicit dependency.** Unnecessary: the clipboard API
+this feature uses is WorldEdit's, which FAWE implements. Compiling against
+WorldEdit covers both installations with no new coordinate in the build.
