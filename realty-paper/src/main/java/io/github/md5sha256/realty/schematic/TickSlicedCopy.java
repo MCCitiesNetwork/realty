@@ -5,6 +5,9 @@ import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.util.concurrency.LazyReference;
+import com.sk89q.worldedit.world.block.BaseBlock;
+import org.enginehub.linbus.tree.LinCompoundTag;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Iterator;
@@ -67,10 +70,7 @@ public final class TickSlicedCopy {
         try {
             for (int i = 0; i < this.blocksPerTick && this.positions.hasNext(); i++) {
                 BlockVector3 pos = this.positions.next();
-                // getBlock, not getFullBlock: a preview renders block state, not block
-                // entity NBT. Skipping NBT keeps the schematic small and keeps chest
-                // inventories out of what the REST endpoint serves.
-                this.clipboard.setBlock(pos, this.source.getBlock(pos));
+                this.clipboard.setBlock(pos, withoutPayload(this.source.getFullBlock(pos)));
             }
         } catch (RuntimeException e) {
             // BlockArrayClipboard#setBlock declares no checked exception, but a live
@@ -85,6 +85,31 @@ public final class TickSlicedCopy {
             stop();
             this.onComplete.accept(this.clipboard);
         }
+    }
+
+    /**
+     * Keeps a block entity's identity and discards everything inside it.
+     *
+     * <p>The identity has to survive: a renderer draws a sign or a chest from its block
+     * entity, and a block state alone gives it no geometry to build -- the vanilla model
+     * for both is empty, existing only to name a particle texture. Capture the state
+     * only and those blocks vanish from the preview entirely.</p>
+     *
+     * <p>The contents must not: a chest's {@code Items} and a sign's text are of no use
+     * to a preview, and this schematic is served over a public, unauthenticated
+     * endpoint. An allowlist rather than a denylist, so a block entity type nobody
+     * anticipated cannot leak a field nobody thought to strip.</p>
+     */
+    private static @NotNull BaseBlock withoutPayload(@NotNull BaseBlock block) {
+        if (block.getNbtReference() == null) {
+            return block;
+        }
+        String id = block.getNbtId();
+        if (id.isEmpty()) {
+            return block.toBaseBlock((LazyReference<LinCompoundTag>) null);
+        }
+        return block.toBaseBlock(LazyReference.computed(
+                LinCompoundTag.builder().putString("id", id).build()));
     }
 
     /** Stops the copy and delivers nothing -- a partial clipboard is never handed on. */

@@ -4,7 +4,11 @@ import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.util.concurrency.LazyReference;
+import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockTypes;
+import org.enginehub.linbus.tree.LinCompoundTag;
+import org.enginehub.linbus.tree.LinTagType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -129,5 +133,33 @@ class TickSlicedCopyTest {
 
         Assertions.assertNull(done.get(), "a cancelled copy must not deliver a clipboard");
         Assertions.assertTrue(scheduler.cancelled());
+    }
+
+    @Test
+    void keepsABlockEntityButDropsItsContents() throws Exception {
+        // A sign or chest needs its block entity to render at all -- the vanilla block
+        // model for both is empty. Its contents, though, are neither useful to a
+        // preview nor safe on a public endpoint.
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.ZERO);
+        BlockArrayClipboard src = new BlockArrayClipboard(region);
+        src.setBlock(BlockVector3.ZERO, BlockTypes.CHEST.getDefaultState().toBaseBlock(
+                LazyReference.computed(LinCompoundTag.builder()
+                        .putString("id", "minecraft:chest")
+                        .putString("CustomName", "Treasure")
+                        .build())));
+
+        FakeScheduler scheduler = new FakeScheduler();
+        AtomicReference<Clipboard> done = new AtomicReference<>();
+        TickSlicedCopy.start(src, region, 10, scheduler, done::set, reason -> { });
+        scheduler.runTicks(2);
+
+        Clipboard result = done.get();
+        Assertions.assertNotNull(result);
+        BaseBlock copied = result.getFullBlock(BlockVector3.ZERO);
+        LinCompoundTag nbt = copied.getNbt();
+        Assertions.assertNotNull(nbt, "the block entity itself must survive");
+        Assertions.assertEquals("minecraft:chest", nbt.getTag("id", LinTagType.stringTag()).value());
+        Assertions.assertNull(nbt.findTag("CustomName", LinTagType.stringTag()),
+                "block entity contents must not be copied");
     }
 }
