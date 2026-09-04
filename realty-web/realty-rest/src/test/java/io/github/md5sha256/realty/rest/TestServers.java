@@ -31,6 +31,7 @@ import io.github.md5sha256.realty.rest.module.ModuleResult;
 import io.github.md5sha256.realty.rest.module.RegionMembers;
 import io.github.md5sha256.realty.rest.module.RegionsAt;
 import io.github.md5sha256.realty.rest.module.NameLookup;
+import io.javalin.http.staticfiles.Location;
 import org.apache.ibatis.session.ExecutorType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -59,6 +60,13 @@ import java.util.UUID;
 final class TestServers {
 
     private TestServers() {
+    }
+
+    /** A server that also serves a built front end from {@code directory} on disk. */
+    static @NotNull RealtyRestServer withStaticSite(@NotNull Path directory) {
+        return new RealtyRestServer(stubBackend(), new StubDatabase(false), defaultSettings(),
+                ModuleClient.disabled(),
+                new StaticSite(directory.toAbsolutePath().toString(), Location.EXTERNAL));
     }
 
     static @NotNull RealtyRestServer withHealthyDatabase() {
@@ -677,7 +685,7 @@ final class TestServers {
         RealtyBackend.SingleCategoryResult rentedResult =
                 new RealtyBackend.SingleCategoryResult(1, List.of());
 
-        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500);
+        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, null);
         return new RealtyRestServer(
                 playerBackend(listResult, ownedResult, rentedResult),
                 new StubDatabase(false, worlds, false, List.of(), List.of(rented)),
@@ -807,7 +815,7 @@ final class TestServers {
                                                 int maxPageSize,
                                                 @NotNull List<String> corsOrigins) {
         RestSettings settings =
-                new RestSettings("localhost", 0, maxPageSize, corsOrigins, null, null, 1500);
+                new RestSettings("localhost", 0, maxPageSize, corsOrigins, null, null, 1500, null);
         return new RealtyRestServer(stubBackend(),
                 new StubDatabase(false, worlds, false, List.of(), List.of(), stub),
                 settings);
@@ -865,7 +873,7 @@ final class TestServers {
                                                     @NotNull List<RealtyWorldEntity> worlds,
                                                     int maxPageSize) {
         RestSettings settings =
-                new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500);
+                new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, null);
         List<RegionStateRow> rows = new ArrayList<>();
         for (RealtyRegionEntity region : regions) {
             rows.add(new RegionStateRow(region.realtyRegionId(),
@@ -1049,7 +1057,7 @@ final class TestServers {
     }
 
     private static @NotNull RestSettings defaultSettings() {
-        return new RestSettings("localhost", 0, 100, List.of(), null, null, 1500);
+        return new RestSettings("localhost", 0, 100, List.of(), null, null, 1500, null);
     }
 
     private static @NotNull RealtyBackend stubBackend() {

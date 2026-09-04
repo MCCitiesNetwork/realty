@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import java.sql.SQLException;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
+import io.javalin.http.staticfiles.Location;
 
 public final class RealtyRestMain {
 
@@ -50,7 +51,13 @@ public final class RealtyRestMain {
         // blocking probe of the module before the port is even bound.
         ModuleClient moduleClient = HttpModuleClient.from(config.rest());
 
-        RealtyRestServer server = new RealtyRestServer(backend, database, config.rest(), moduleClient);
+        // A configured web root turns this into the same service the bundled
+        // realty-web-dist build runs; unset, it stays a pure API.
+        StaticSite staticSite = config.rest().webRoot() == null
+                ? null
+                : new StaticSite(config.rest().webRoot(), Location.EXTERNAL);
+        RealtyRestServer server = new RealtyRestServer(backend, database, config.rest(),
+                moduleClient, staticSite);
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
         server.start();
     }

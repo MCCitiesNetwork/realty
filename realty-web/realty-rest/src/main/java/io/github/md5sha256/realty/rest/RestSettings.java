@@ -18,6 +18,12 @@ import java.util.List;
  *                        disable enrichment entirely
  * @param moduleSecret    shared secret sent to the module, or {@code null}
  * @param moduleTimeoutMs per-call timeout before a module-sourced field degrades to null
+ * @param webRoot         directory of a built front end to serve alongside the API, or
+ *                        {@code null} for a pure API. Empty disables it, matching
+ *                        {@code corsOrigins} and {@code moduleUrl}: serving a front end
+ *                        is a deployment choice, so nothing is served unless asked for.
+ *                        The bundled {@code realty-web-dist} build ignores this and
+ *                        serves from its own classpath instead.
  */
 public record RestSettings(
         @NotNull String host,
@@ -26,7 +32,8 @@ public record RestSettings(
         @NotNull List<String> corsOrigins,
         @Nullable String moduleUrl,
         @Nullable String moduleSecret,
-        int moduleTimeoutMs
+        int moduleTimeoutMs,
+        @Nullable String webRoot
 ) {
 
     /**

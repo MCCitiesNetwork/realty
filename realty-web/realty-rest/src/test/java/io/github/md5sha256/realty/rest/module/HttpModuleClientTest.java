@@ -148,14 +148,14 @@ class HttpModuleClientTest {
     @Test
     void aSchemeLessConfiguredUrlDisablesTheClient() {
         RestSettings settings = new RestSettings("0.0.0.0", 8080, 100, List.of(),
-                "game-server:8123", FakeModule.SECRET, 1500);
+                "game-server:8123", FakeModule.SECRET, 1500, null);
         Assertions.assertEquals(ModuleClient.Status.DISABLED, HttpModuleClient.from(settings).status());
     }
 
     @Test
     void aHostLessConfiguredUrlDisablesTheClient() {
         RestSettings settings = new RestSettings("0.0.0.0", 8080, 100, List.of(),
-                "http:///dimensions", FakeModule.SECRET, 1500);
+                "http:///dimensions", FakeModule.SECRET, 1500, null);
         Assertions.assertEquals(ModuleClient.Status.DISABLED, HttpModuleClient.from(settings).status());
     }
 
