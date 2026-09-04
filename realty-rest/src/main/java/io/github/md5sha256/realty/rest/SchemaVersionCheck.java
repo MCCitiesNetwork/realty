@@ -33,7 +33,7 @@ public final class SchemaVersionCheck {
      * lands in {@code MariaSchemaMigrator.DEFAULT_MIGRATIONS}, whether or not the API
      * reads what it adds -- the check is an equality, not a floor.
      */
-    public static final int EXPECTED_VERSION = 16;
+    public static final int EXPECTED_VERSION = 17;
 
     private static final String SELECT_VERSION = """
             SELECT COALESCE(MAX(version), 0) FROM schema_version

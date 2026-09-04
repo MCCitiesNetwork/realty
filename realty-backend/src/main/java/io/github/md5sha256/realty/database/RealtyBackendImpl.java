@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
+import io.github.md5sha256.realty.database.entity.RealtySchematicEntity;
 import io.github.md5sha256.realty.database.entity.AgentHistoryEntity;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAgentInviteEntity;
@@ -2172,6 +2173,34 @@ public class RealtyBackendImpl implements RealtyBackend {
     public int countRegionsByTag(@NotNull String tagId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             return wrapper.regionTagMapper().countByTagId(tagId);
+        }
+    }
+
+    // --- Schematics ---
+
+    @Override
+    public boolean storeSchematic(@NotNull String worldGuardRegionId,
+                                  @NotNull UUID worldId,
+                                  byte @NotNull [] data,
+                                  @NotNull UUID capturedBy) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            // MariaDB reports two affected rows when ON DUPLICATE KEY UPDATE updates
+            // rather than inserts, so a re-capture counts as success too.
+            int rows = wrapper.realtySchematicMapper()
+                    .upsert(worldGuardRegionId, worldId, data, LocalDateTime.now(), capturedBy);
+            session.commit();
+            return rows > 0;
+        }
+    }
+
+    @Override
+    public byte @Nullable [] getSchematic(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            RealtySchematicEntity entity = wrapper.realtySchematicMapper()
+                    .selectByWorldGuardRegion(worldGuardRegionId, worldId);
+            return entity == null ? null : entity.data();
         }
     }
 

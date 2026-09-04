@@ -24,7 +24,10 @@ public record Settings(
         @Setting("lease-termination-notice-seconds") long terminationNoticeSeconds,
         @Setting("subregion-tag-blacklist") @NotNull List<String> subregionTagBlacklist,
         @Setting("subregion-wand-material") @NotNull String subregionWandMaterial,
-        @Setting("teleportation-starting-height") int teleportStartHeight
+        @Setting("teleportation-starting-height") int teleportStartHeight,
+        @Setting("schematic-capture-cooldown-seconds") long schematicCaptureCooldownSeconds,
+        @Setting("schematic-max-volume") long schematicMaxVolume,
+        @Setting("schematic-capture-blocks-per-tick") int schematicCaptureBlocksPerTick
 ) {
 
     public Settings {
@@ -45,6 +48,19 @@ public record Settings(
         }
         if (subregionWandMaterial == null || subregionWandMaterial.isBlank()) {
             subregionWandMaterial = "GOLDEN_AXE";
+        }
+        // Zero is left alone for the cooldown and the volume cap: it is how an
+        // operator disables each. Only a negative is nonsense and corrected.
+        if (schematicCaptureCooldownSeconds < 0) {
+            schematicCaptureCooldownSeconds = 3600;
+        }
+        if (schematicMaxVolume < 0) {
+            schematicMaxVolume = 1_000_000L;
+        }
+        // A zero budget would mean a copy that never advances, so unlike the two
+        // above this is corrected the way profileReapplyPerTick is.
+        if (schematicCaptureBlocksPerTick <= 0) {
+            schematicCaptureBlocksPerTick = 20_000;
         }
     }
 }

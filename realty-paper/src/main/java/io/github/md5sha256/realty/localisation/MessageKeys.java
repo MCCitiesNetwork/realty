@@ -311,6 +311,17 @@ public final class MessageKeys {
     public static final String RENTABLE_UPDATE_FAILED = "rentable.update-failed";
     public static final String RENTABLE_ERROR = "rentable.error";
 
+    // schematic
+    public static final String SCHEMATIC_STARTED = "schematic.started";
+    public static final String SCHEMATIC_CAPTURED = "schematic.captured";
+    public static final String SCHEMATIC_COOLDOWN = "schematic.cooldown";
+    public static final String SCHEMATIC_FAILED = "schematic.failed";
+    public static final String SCHEMATIC_ABORTED = "schematic.aborted";
+    public static final String SCHEMATIC_NOT_REGISTERED = "schematic.not-registered";
+    public static final String SCHEMATIC_FORCE_NO_PERMISSION = "schematic.force-no-permission";
+    public static final String SCHEMATIC_TOO_LARGE = "schematic.too-large";
+    public static final String SCHEMATIC_ALREADY_RUNNING = "schematic.already-running";
+
     // set (shared)
     public static final String SET_NO_PERMISSION = "set.no-permission";
     public static final String SET_CHECK_PERMISSIONS_ERROR = "set.check-permissions-error";

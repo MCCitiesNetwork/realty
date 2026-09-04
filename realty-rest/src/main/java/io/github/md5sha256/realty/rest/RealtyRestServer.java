@@ -64,6 +64,7 @@ public final class RealtyRestServer {
             "/v1/regions/search",
             "/v1/regions/at",
             "/v1/region/members",
+            "/v1/region/schematic",
             "/v1/worlds/geometry",
             "/v1/tags",
             "/v1/stats",
@@ -212,6 +213,10 @@ public final class RealtyRestServer {
         RegionMembersHandler regionMembersHandler =
                 new RegionMembersHandler(this.database, this.worldLookup, this.moduleClient);
         routes.get("/v1/region/members", regionMembersHandler::handle);
+
+        RegionSchematicHandler regionSchematicHandler =
+                new RegionSchematicHandler(this.backend, this.worldLookup);
+        routes.get("/v1/region/schematic", regionSchematicHandler::handle);
 
         WorldGeometryHandler worldGeometryHandler = new WorldGeometryHandler(
                 this.database, this.worldLookup, this.settings, this.moduleClient);
