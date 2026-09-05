@@ -323,7 +323,30 @@ paths:
           required: false
           description: >-
             Repeatable. A region matches when it carries at least one of the
-            given tags. Omit for no tag filter.
+            given tags, or every one of them under `tagMatch=all`. Omit for no
+            tag filter.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: tagMatch
+          in: query
+          required: false
+          description: >-
+            How the `tag` list is read: `any` (the default) matches a region
+            carrying at least one of the tags, `all` one carrying every one of
+            them. No effect without `tag`.
+          schema:
+            type: string
+            enum: [ any, all ]
+            default: any
+        - name: excludeTag
+          in: query
+          required: false
+          description: >-
+            Repeatable. A region carrying any of these tags is left out, whatever
+            else it matches. Independent of `tag`: on its own it is every region
+            but the tagged ones.
           schema:
             type: array
             items:

@@ -1077,8 +1077,12 @@ export interface operations {
                 minPrice?: number;
                 /** @description Inclusive upper price bound. Defaults to no upper bound. */
                 maxPrice?: number;
-                /** @description Repeatable. A region matches when it carries at least one of the given tags. Omit for no tag filter. */
+                /** @description Repeatable. A region matches when it carries at least one of the given tags, or every one of them under `tagMatch=all`. Omit for no tag filter. */
                 tag?: string[];
+                /** @description How the `tag` list is read: `any` (the default) matches a region carrying at least one of the tags, `all` one carrying every one of them. No effect without `tag`. */
+                tagMatch?: "any" | "all";
+                /** @description Repeatable. A region carrying any of these tags is left out, whatever else it matches. Independent of `tag`: on its own it is every region but the tagged ones. */
+                excludeTag?: string[];
                 /** @description `unoccupied` restricts to regions with no titleholder or tenant, `occupied` to those with one, `any` (the default) does not filter. */
                 occupancy?: "any" | "occupied" | "unoccupied";
                 /** @description Result order. Defaults to most expensive first. */

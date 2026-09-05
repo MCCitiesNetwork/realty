@@ -107,7 +107,7 @@ because the API reports none.
 | Route | What it shows | Backed by |
 |---|---|---|
 | `/` | Search, the market in numbers, tags, what is vacant, recent activity, auctions | `/v1/stats`, `/v1/tags`, `/v1/worlds`, `/v1/regions/search`, `/v1/activity`, `/v1/auctions` |
-| `/listings` | The search, with every filter in the URL so a filter set is a link. "Show" spells the states a visitor thinks in -- for sale, for rent, sold, leased -- from the API's type and occupancy filters | `/v1/regions/search` |
+| `/listings` | The search, with every filter in the URL so a filter set is a link. "Show" spells the states a visitor thinks in -- for sale, for rent, sold, leased -- from the API's type and occupancy filters. Tags are chips of the most-used ones, or, behind "Advanced", the whole list with any-of or all-of matching and tags to leave out | `/v1/regions/search`, `/v1/tags` |
 | `/region/:world/:region` | One listing: 3D preview, price and terms, facts, then its history beside who WorldGuard lets build | `/v1/region`, `/v1/region/schematic`, `/v1/region/history`, `/v1/region/members`, `/v1/resource-pack` |
 | `/map` | Every registered plot in one world, drawn over the server's own BlueMap render, coloured by what it is doing on the market | `/v1/worlds`, `/v1/worlds/geometry`, `/v1/regions/search` |
 | `/auctions` | Every auction taking bids, a card each with a live countdown | `/v1/auctions` |

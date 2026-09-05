@@ -76,7 +76,7 @@ describe("ListingsScreen", () => {
 
   it("turns every filter in the URL into the matching search parameter", async () => {
     const get = renderAt(
-      "/listings?type=freehold&world=My%20World&tag=shop&tag=cbd&minPrice=100&maxPrice=5000&occupancy=unoccupied&sort=price_asc&page=3",
+      "/listings?type=freehold&world=My%20World&tag=shop&tag=cbd&tagMatch=all&excludeTag=derelict&minPrice=100&maxPrice=5000&occupancy=unoccupied&sort=price_asc&page=3",
     );
     await waitFor(() => expect(lastSearch(get)).toMatchObject({ page: 3 }));
     expect(lastSearch(get)).toEqual({
@@ -85,6 +85,8 @@ describe("ListingsScreen", () => {
       type: "freehold",
       world: "My World",
       tag: ["shop", "cbd"],
+      tagMatch: "all",
+      excludeTag: ["derelict"],
       minPrice: 100,
       maxPrice: 5000,
       occupancy: "unoccupied",

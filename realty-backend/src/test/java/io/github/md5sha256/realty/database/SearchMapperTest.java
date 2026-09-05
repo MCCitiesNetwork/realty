@@ -33,14 +33,14 @@ class SearchMapperTest extends AbstractDatabaseTest {
     private static List<SearchResultEntity> search(boolean freehold, boolean leasehold, boolean unpriced,
                                                    double min, double max) {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            return session.searchMapper().search(freehold, leasehold, unpriced, null, null, null,
+            return session.searchMapper().search(freehold, leasehold, unpriced, null, null, null, false,
                     min, max, OccupancyFilter.IGNORE, SearchSort.PRICE_DESC, 50, 0);
         }
     }
 
     private static int count(boolean freehold, boolean leasehold, boolean unpriced, double min, double max) {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            return session.searchMapper().searchCount(freehold, leasehold, unpriced, null, null, null,
+            return session.searchMapper().searchCount(freehold, leasehold, unpriced, null, null, null, false,
                     min, max, OccupancyFilter.IGNORE);
         }
     }

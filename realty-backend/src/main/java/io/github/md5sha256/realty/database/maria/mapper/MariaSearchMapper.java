@@ -44,14 +44,29 @@ public interface MariaSearchMapper extends SearchMapper {
                     AND fc.titleHolderId IS NULL
                     </if>
                     <if test="tagIds != null and tagIds.size() > 0">
-                    AND EXISTS (
-                        SELECT 1 FROM RegionTag rt
-                        WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
-                        AND rt.tagId IN
-                        <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
-                            #{tag}
-                        </foreach>
-                    )
+                    <choose>
+                        <when test="matchAllTags">
+                        <bind name="tagCount" value="tagIds.size()"/>
+                        AND (
+                            SELECT COUNT(*) FROM RegionTag rt
+                            WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.tagId IN
+                            <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
+                                #{tag}
+                            </foreach>
+                        ) = #{tagCount}
+                        </when>
+                        <otherwise>
+                        AND EXISTS (
+                            SELECT 1 FROM RegionTag rt
+                            WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.tagId IN
+                            <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
+                                #{tag}
+                            </foreach>
+                        )
+                        </otherwise>
+                    </choose>
                     </if>
                     <if test="excludedTagIds != null and excludedTagIds.size() > 0">
                     AND NOT EXISTS (
@@ -86,14 +101,29 @@ public interface MariaSearchMapper extends SearchMapper {
                     AND lc.tenantId IS NULL
                     </if>
                     <if test="tagIds != null and tagIds.size() > 0">
-                    AND EXISTS (
-                        SELECT 1 FROM RegionTag rt
-                        WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
-                        AND rt.tagId IN
-                        <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
-                            #{tag}
-                        </foreach>
-                    )
+                    <choose>
+                        <when test="matchAllTags">
+                        <bind name="tagCount" value="tagIds.size()"/>
+                        AND (
+                            SELECT COUNT(*) FROM RegionTag rt
+                            WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.tagId IN
+                            <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
+                                #{tag}
+                            </foreach>
+                        ) = #{tagCount}
+                        </when>
+                        <otherwise>
+                        AND EXISTS (
+                            SELECT 1 FROM RegionTag rt
+                            WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.tagId IN
+                            <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
+                                #{tag}
+                            </foreach>
+                        )
+                        </otherwise>
+                    </choose>
                     </if>
                     <if test="excludedTagIds != null and excludedTagIds.size() > 0">
                     AND NOT EXISTS (
@@ -132,6 +162,7 @@ public interface MariaSearchMapper extends SearchMapper {
                                              @Param("worldId") @Nullable UUID worldId,
                                              @Param("tagIds") @Nullable Collection<String> tagIds,
                                              @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
+                                             @Param("matchAllTags") boolean matchAllTags,
                                              @Param("minPrice") double minPrice,
                                              @Param("maxPrice") double maxPrice,
                                              @Param("occupancy") @NotNull OccupancyFilter occupancy,
@@ -164,14 +195,29 @@ public interface MariaSearchMapper extends SearchMapper {
                     AND fc.titleHolderId IS NULL
                     </if>
                     <if test="tagIds != null and tagIds.size() > 0">
-                    AND EXISTS (
-                        SELECT 1 FROM RegionTag rt
-                        WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
-                        AND rt.tagId IN
-                        <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
-                            #{tag}
-                        </foreach>
-                    )
+                    <choose>
+                        <when test="matchAllTags">
+                        <bind name="tagCount" value="tagIds.size()"/>
+                        AND (
+                            SELECT COUNT(*) FROM RegionTag rt
+                            WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.tagId IN
+                            <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
+                                #{tag}
+                            </foreach>
+                        ) = #{tagCount}
+                        </when>
+                        <otherwise>
+                        AND EXISTS (
+                            SELECT 1 FROM RegionTag rt
+                            WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.tagId IN
+                            <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
+                                #{tag}
+                            </foreach>
+                        )
+                        </otherwise>
+                    </choose>
                     </if>
                     <if test="excludedTagIds != null and excludedTagIds.size() > 0">
                     AND NOT EXISTS (
@@ -204,14 +250,29 @@ public interface MariaSearchMapper extends SearchMapper {
                     AND lc.tenantId IS NULL
                     </if>
                     <if test="tagIds != null and tagIds.size() > 0">
-                    AND EXISTS (
-                        SELECT 1 FROM RegionTag rt
-                        WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
-                        AND rt.tagId IN
-                        <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
-                            #{tag}
-                        </foreach>
-                    )
+                    <choose>
+                        <when test="matchAllTags">
+                        <bind name="tagCount" value="tagIds.size()"/>
+                        AND (
+                            SELECT COUNT(*) FROM RegionTag rt
+                            WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.tagId IN
+                            <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
+                                #{tag}
+                            </foreach>
+                        ) = #{tagCount}
+                        </when>
+                        <otherwise>
+                        AND EXISTS (
+                            SELECT 1 FROM RegionTag rt
+                            WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.tagId IN
+                            <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
+                                #{tag}
+                            </foreach>
+                        )
+                        </otherwise>
+                    </choose>
                     </if>
                     <if test="excludedTagIds != null and excludedTagIds.size() > 0">
                     AND NOT EXISTS (
@@ -233,6 +294,7 @@ public interface MariaSearchMapper extends SearchMapper {
                     @Param("worldId") @Nullable UUID worldId,
                     @Param("tagIds") @Nullable Collection<String> tagIds,
                     @Param("excludedTagIds") @Nullable Collection<String> excludedTagIds,
+                    @Param("matchAllTags") boolean matchAllTags,
                     @Param("minPrice") double minPrice,
                     @Param("maxPrice") double maxPrice,
                     @Param("occupancy") @NotNull OccupancyFilter occupancy);

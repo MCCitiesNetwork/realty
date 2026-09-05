@@ -329,7 +329,7 @@ public final class SearchDialog {
                 // The in-game dialog searches every world and always orders by price
                 // descending; the world filter and sort choice exist for the REST API.
                 int totalCount = mapper.searchCount(includeFreehold, includeLeasehold, false,
-                        null, tagIds, excludedTagIds, minPrice, maxPrice, occupancy);
+                        null, tagIds, excludedTagIds, false, minPrice, maxPrice, occupancy);
 
                 if (totalCount == 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.SEARCH_NO_RESULTS));
@@ -346,7 +346,7 @@ public final class SearchDialog {
 
                 int offset = (page - 1) * PAGE_SIZE;
                 List<SearchResultEntity> results = mapper.search(includeFreehold, includeLeasehold, false,
-                        null, tagIds, excludedTagIds, minPrice, maxPrice, occupancy,
+                        null, tagIds, excludedTagIds, false, minPrice, maxPrice, occupancy,
                         SearchSort.PRICE_DESC, PAGE_SIZE, offset);
 
                 TextComponent.Builder builder = Component.text();

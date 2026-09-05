@@ -25,6 +25,8 @@ export type ListingsQuery = {
   type?: string;
   world?: string;
   tag?: string[];
+  tagMatch?: string;
+  excludeTag?: string[];
   minPrice?: string;
   maxPrice?: string;
   occupancy?: string;

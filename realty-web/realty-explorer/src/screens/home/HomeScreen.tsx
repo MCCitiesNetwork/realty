@@ -13,7 +13,7 @@ import { Page } from "../../ui/Page";
 import { PlayerLink } from "../../ui/PlayerLink";
 import { Price } from "../../ui/Price";
 import { Rows } from "../../ui/Rows";
-import { TagSelect } from "../../ui/TagSelect";
+import { NO_TAGS, TagFilter, type TagQuery } from "../../ui/TagFilter";
 import { WorldSelect } from "../../ui/WorldSelect";
 import { activityVisible, auctionsVisible, searchVisible } from "../../api/scoped";
 import { useVisibility, visibleWorlds } from "../../visibility";
@@ -43,7 +43,7 @@ export function HomeScreen({ client }: { client: ApiClient }) {
   const visibility = useVisibility();
   const [intent, setIntent] = useState<Intent>("all");
   const [world, setWorld] = useState<string | undefined>(undefined);
-  const [tags, setTags] = useState<string[]>([]);
+  const [tagQuery, setTagQuery] = useState<TagQuery>(NO_TAGS);
 
   // Shared with the search bar's selects and remembered across visits to this page:
   // the tag list was asked for twice per visit, and everything again on the way back.
@@ -63,7 +63,9 @@ export function HomeScreen({ client }: { client: ApiClient }) {
     type: intent === "all" ? undefined : intent,
     ...(intent === "rent" ? { occupancy: "unoccupied" } : {}),
     world,
-    tag: tags,
+    tag: tagQuery.tags,
+    tagMatch: tagQuery.matchAll && tagQuery.tags.length > 0 ? "all" : undefined,
+    excludeTag: tagQuery.excluded,
   }));
 
   return (
@@ -90,11 +92,17 @@ export function HomeScreen({ client }: { client: ApiClient }) {
             />
             <WorldSelect client={client} value={world} onChange={setWorld} size="large"
                          style={{ flex: "1 1 200px", width: "auto" }} />
-            <TagSelect client={client} value={tags} onChange={setTags} size="large"
-                       style={{ flex: "2 1 260px", width: "auto" }} />
             <Button type="primary" size="large" icon={<SearchOutlined />} onClick={search}>
               Search
             </Button>
+          </Flex>
+          {/* The tags on their own line: the most-used ones as chips, or the whole
+              list with every option behind "Advanced". */}
+          <Flex gap={12} align="baseline" wrap>
+            <Text type="secondary" style={{ flex: "0 0 auto" }}>Tagged</Text>
+            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+              <TagFilter client={client} value={tagQuery} onChange={setTagQuery} />
+            </div>
           </Flex>
         </Flex>
       </Card>
