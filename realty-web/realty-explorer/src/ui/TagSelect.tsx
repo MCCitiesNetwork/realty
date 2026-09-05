@@ -1,5 +1,6 @@
 import { Select } from "antd";
 import type { ApiClient } from "../api/client";
+import { TTL, remembered } from "../api/remembered";
 import { useQuery } from "../api/useQuery";
 import { formatCount } from "./format";
 
@@ -17,7 +18,7 @@ type Props = {
  * does not read, so none is dressed up here either.
  */
 export function TagSelect({ client, value, onChange, style, size }: Props) {
-  const tags = useQuery(() => client.GET("/v1/tags", {}), [client]);
+  const tags = useQuery(() => remembered(client, "tags", TTL.tags, () => client.GET("/v1/tags", {})), [client]);
   const options = tags.status === "ready" && Array.isArray(tags.data)
     ? tags.data.map((tag) => ({ value: tag.id, label: `${tag.id} (${formatCount(tag.regionCount)})` }))
     : [];
@@ -25,7 +26,7 @@ export function TagSelect({ client, value, onChange, style, size }: Props) {
     <Select
       aria-label="Tags"
       mode="multiple"
-      placeholder="Any tag"
+      placeholder="Select a tag"
       allowClear
       optionFilterProp="label"
       loading={tags.status === "loading"}

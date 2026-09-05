@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { SchematicRenderer } from "schematic-renderer";
 import { fetchResourcePacks, fetchSchematic, type ApiClient } from "../api/client";
+import { forgetRememberedPacksUnless } from "./rememberedPacks";
 
 type Props = {
   client: ApiClient;
@@ -17,34 +18,6 @@ type Props = {
    */
   schematic?: ArrayBuffer;
 };
-
-/**
- * The IndexedDB databases in which the renderer remembers resource packs between visits.
- *
- * <p>It keeps them in two layers, and both put stored packs back on start-up before
- * looking at the pack they are handed: the outer manager keeps a pack under the name it
- * was given -- always "server" here -- and skips fetching a default pack whose name it
- * already holds, while the inner one drops a handed pack whose bytes it has seen. So
- * once a browser had loaded any pack, a change of pack on the server never reached it:
- * the old pack came back from the store under the same name, and the preview built its
- * atlas from whatever that pack had, or from nothing. The server's answer is the only
- * pack this page means -- and it is cached in memory for the session -- so every stored
- * copy is dropped before each renderer starts. The atlas cache is a separate store and
- * is left alone.</p>
- */
-const REMEMBERED_PACK_STORES = ["ResourcePacksDB", "cubane-resource-packs", "cubane-cache"];
-
-async function forgetRememberedPacks(): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
-  await Promise.all(REMEMBERED_PACK_STORES.map((name) => new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(name);
-    // Best effort: a blocked delete finishes once the previous renderer lets go, and a
-    // failure to delete is no reason to show no preview at all.
-    request.onsuccess = () => resolve();
-    request.onerror = () => resolve();
-    request.onblocked = () => resolve();
-  })));
-}
 
 type Point = { x: number; y: number; z: number };
 
@@ -125,7 +98,10 @@ export function SchematicViewer({ client, world, region, schematic }: Props) {
     // texture atlas during initialisation; adding one afterwards means a rebuild.
     let disposed = false;
 
-    void Promise.all([fetchResourcePacks(client), forgetRememberedPacks()]).then(([packs]) => {
+    void fetchResourcePacks(client).then(async (packs) => {
+      // The renderer restores its stored packs ahead of the ones it is handed; they
+      // are dropped first whenever the server's list is not the one they came from.
+      await forgetRememberedPacksUnless(packs.map((pack) => pack.url));
       if (disposed) return;
       rendererRef.current = new SchematicRenderer(
         canvas,

@@ -117,7 +117,17 @@ describe("SchematicViewer", () => {
     expect(() => keepCameraOutside({ cameraManager: { controls: new Map() } })).not.toThrow();
   });
 
-  it("forgets the packs the renderer remembered before constructing it", async () => {
+  /** jsdom offers no localStorage here; a Map stands in for the fingerprint note. */
+  const fakeStorage = () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+      removeItem: (key: string) => void store.delete(key),
+    });
+  };
+
+  it("forgets the packs the renderer remembered when the server's pack list has changed", async () => {
     // The renderer restores packs from IndexedDB ahead of the one it is handed, and drops
     // a handed pack whose bytes it has seen. A browser that had ever loaded a pack was
     // therefore stuck with it whenever the server named a new one.
@@ -130,11 +140,37 @@ describe("SchematicViewer", () => {
         return request;
       },
     });
+    fakeStorage();
 
     render(<SchematicViewer client={client} world="world" region="plot_a" />);
     await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
 
     expect(deleted).toEqual(["ResourcePacksDB", "cubane-resource-packs", "cubane-cache"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the remembered packs while the server's list is unchanged", async () => {
+    // A wipe on every visit threw away a parsed 30 MB pack each time. The list is the
+    // fingerprint: unchanged, what the stores hold is what would be loaded again.
+    const deleted: string[] = [];
+    vi.stubGlobal("indexedDB", {
+      deleteDatabase: (name: string) => {
+        deleted.push(name);
+        const request = {} as { onsuccess?: () => void };
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      },
+    });
+    fakeStorage();
+
+    const first = render(<SchematicViewer client={client} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalledTimes(1));
+    first.unmount();
+    expect(deleted).toHaveLength(3);
+
+    render(<SchematicViewer client={client} world="world" region="plot_b" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalledTimes(2));
+    expect(deleted).toHaveLength(3);
     vi.unstubAllGlobals();
   });
 
