@@ -20,35 +20,43 @@ port: 8123
 # with 504 rather than holding an HTTP worker while the server is stalled.
 request-timeout-ms: 1000
 
-# Resource pack the web explorer textures previews with, as a URL the viewer's browser
+# Resource packs the web explorer textures previews with, as URLs the viewer's browser
 # can fetch. Empty means none, and previews then render with no textures at all -- not
 # merely untextured blocks: most blocks have no geometry of their own and simply do not
 # appear, so a plot looks like a failed capture.
 #
-# This is NOT server.properties' resource-pack. That pack is sent to the game client,
-# which loads it over its own copy of the game, so it is usually an override pack; a
-# browser has no vanilla assets underneath it. Name a pack that stands on its own.
+# FIRST IS HIGHEST PRIORITY. Where two packs provide the same texture the earlier one
+# wins, so write an override pack above the base pack it expects underneath it. That
+# layering is the reason this is a list: the pack you send to the game client with
+# server.properties' resource-pack is applied over the client's own copy of the game, so
+# on its own in a browser it draws almost nothing. Listing a pack that carries the base
+# assets below it is what supplies what the client would otherwise have had.
 #
-# Realty never hosts or serves the pack -- only this URL is passed on, and the browser
-# fetches it directly. Two things to check when a preview stays untextured: the host must
-# send CORS headers (pack hosts often do not, having only ever served the game client),
-# and the pack must be one you have the right to publish.
-resource-pack-url: ""
+# Each entry is either a bare URL string, or a map of `url` and an `attribution` list in
+# the same shape as a credit below. Credits belong to the entry rather than to the file:
+# two packs may be licensed differently, and a credit on the wrong pack credits the wrong
+# author. They are shown in the web explorer wherever that pack's textures are used --
+# under a region's 3D preview, and nowhere else, since that is the only place a pack does
+# anything. Links must be absolute http(s) URLs, and a blank credit fails the read rather
+# than publishing an empty line.
+#
+# Realty never hosts or serves a pack -- only these URLs are passed on, and the browser
+# fetches each directly. Two things to check when a preview stays untextured: every host
+# must send CORS headers (pack hosts often do not, having only ever served the game
+# client), and each pack must be one you have the right to publish.
+#
+#   resource-packs:
+#     - url: "https://packs.example.com/server-override.zip"
+#       attribution:
+#         - text: "Textures: Example Pack 32x"
+#           url: "https://packs.example.com/"
+#     - url: "https://packs.example.com/vanilla-base.zip"
+#       attribution:
+#         - "CC BY 4.0"
+resource-packs: []
 
-# Credit for the pack above, shown in the web explorer wherever that pack's textures are
-# used -- under a region's 3D preview, and nowhere else, since that is the only place the
-# pack does anything.
-#
-# Most packs are licensed on condition that they are credited, and the pack is named here,
-# on the game server, where nobody browsing the site can see it. So the credit is stated
-# here too: one file, next to the choice it credits.
-#
-# Each entry is either a plain string, or text with a link. Links must be absolute http(s)
-# URLs -- they are followed by the viewer's browser -- and a missing or empty text fails
-# the read rather than publishing a blank credit.
-#
-#   resource-pack-attribution:
-#     - text: "Textures: Example Pack 32x"
-#       url: "https://packs.example.com/"
-#     - "CC BY 4.0"
+# Superseded by resource-packs above, and read only when it is empty or absent, so an
+# existing setup keeps working untouched. A single pack here is equivalent to one entry
+# in that list; prefer the list, which is the only way to layer packs.
+resource-pack-url: ""
 resource-pack-attribution: []
