@@ -83,7 +83,8 @@ class PterodactylEggTest {
      * they are listed separately rather than loosening the runtime check to
      * "at least these" -- which would stop catching a panel variable nothing reads.
      */
-    private static final Set<String> INSTALL_VARIABLES = Set.of("REALTY_REST_VERSION");
+    private static final Set<String> INSTALL_VARIABLES =
+            Set.of("REALTY_REST_VERSION", "REALTY_REST_REPO");
 
     @Test
     void everyDocumentedEnvironmentVariableIsDeclaredAsAPanelVariable() throws IOException {

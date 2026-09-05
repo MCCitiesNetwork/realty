@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.adapter.query;
 
 import io.github.md5sha256.realty.adapter.query.json.ResourcePackAttribution;
+import io.github.md5sha256.realty.adapter.query.json.ResourcePackEntry;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -39,6 +40,7 @@ public final class QueryServiceConfig {
     private static final String REQUEST_TIMEOUT_MS = "request-timeout-ms";
     private static final String RESOURCE_PACK_URL = "resource-pack-url";
     private static final String RESOURCE_PACK_ATTRIBUTION = "resource-pack-attribution";
+    private static final String RESOURCE_PACKS = "resource-packs";
 
     private final String sharedSecret;
     private final String bindHost;
@@ -46,6 +48,7 @@ public final class QueryServiceConfig {
     private final Duration requestTimeout;
     private final String resourcePackUrl;
     private final List<ResourcePackAttribution> resourcePackAttribution;
+    private final List<ResourcePackEntry> resourcePacks;
 
     QueryServiceConfig(@NotNull String sharedSecret,
                        @NotNull String bindHost,
@@ -61,12 +64,38 @@ public final class QueryServiceConfig {
                        @NotNull Duration requestTimeout,
                        @Nullable String resourcePackUrl,
                        @NotNull List<ResourcePackAttribution> resourcePackAttribution) {
+        this(sharedSecret, bindHost, port, requestTimeout, resourcePackUrl,
+                resourcePackAttribution,
+                resourcePackUrl == null
+                        ? List.of()
+                        : List.of(new ResourcePackEntry(resourcePackUrl, resourcePackAttribution)));
+    }
+
+    QueryServiceConfig(@NotNull String sharedSecret,
+                       @NotNull String bindHost,
+                       int port,
+                       @NotNull Duration requestTimeout,
+                       @Nullable String resourcePackUrl,
+                       @NotNull List<ResourcePackAttribution> resourcePackAttribution,
+                       @NotNull List<ResourcePackEntry> resourcePacks) {
         this.sharedSecret = sharedSecret;
         this.bindHost = bindHost;
         this.port = port;
         this.requestTimeout = requestTimeout;
         this.resourcePackUrl = resourcePackUrl;
         this.resourcePackAttribution = List.copyOf(resourcePackAttribution);
+        this.resourcePacks = List.copyOf(resourcePacks);
+    }
+
+    /**
+     * Every configured pack, highest priority first, or empty when none is set.
+     *
+     * <p>The order is the operator's. The renderer resolves a texture two packs both
+     * provide in favour of the earlier one, so an override pack is written above the base
+     * pack it expects underneath it.</p>
+     */
+    public @NotNull List<ResourcePackEntry> resourcePacks() {
+        return this.resourcePacks;
     }
 
     /**
@@ -154,7 +183,73 @@ public final class QueryServiceConfig {
                 config.getInt(PORT, 8123),
                 Duration.ofMillis(config.getLong(REQUEST_TIMEOUT_MS, 1000L)),
                 resourcePackUrl(config.getString(RESOURCE_PACK_URL, "")),
-                resourcePackAttribution(config.getList(RESOURCE_PACK_ATTRIBUTION, List.of())));
+                resourcePackAttribution(config.getList(RESOURCE_PACK_ATTRIBUTION, List.of())),
+                resourcePacks(config));
+    }
+
+    /**
+     * Reads {@code resource-packs}, highest priority first.
+     *
+     * <p>Each entry is either a bare URL string -- a pack with no credits -- or a map of
+     * {@code url} and an optional {@code attribution} list in the same shape the single
+     * pack's credits take. Credits belong to the entry rather than to the file because
+     * two packs may be licensed differently.</p>
+     *
+     * <p>Falls back to the older single {@code resource-pack-url} when the list is absent
+     * or empty, so an operator who has never edited this file keeps the pack they set.
+     * The list wins when both are present: it is the setting they reached for last.</p>
+     */
+    private static @NotNull List<ResourcePackEntry> resourcePacks(@NotNull YamlConfiguration config) {
+        List<?> configured = config.getList(RESOURCE_PACKS, List.of());
+        if (configured.isEmpty()) {
+            String legacy = resourcePackUrl(config.getString(RESOURCE_PACK_URL, ""));
+            return legacy == null
+                    ? List.of()
+                    : List.of(new ResourcePackEntry(legacy,
+                            resourcePackAttribution(config.getList(RESOURCE_PACK_ATTRIBUTION, List.of()))));
+        }
+        List<ResourcePackEntry> packs = new ArrayList<>(configured.size());
+        for (Object entry : configured) {
+            packs.add(resourcePack(entry));
+        }
+        // A pack listed twice has no defined priority, and one of the two entries can only
+        // be a mistake. Failing names it; silently collapsing them would not.
+        for (int i = 0; i < packs.size(); i++) {
+            for (int j = i + 1; j < packs.size(); j++) {
+                if (packs.get(i).url().equals(packs.get(j).url())) {
+                    throw new IllegalStateException(RESOURCE_PACKS + " lists the same pack twice,"
+                            + " so its priority is ambiguous: " + packs.get(i).url());
+                }
+            }
+        }
+        return packs;
+    }
+
+    private static @NotNull ResourcePackEntry resourcePack(@Nullable Object entry) {
+        if (entry instanceof String url) {
+            return new ResourcePackEntry(requirePackUrl(url), List.of());
+        }
+        if (entry instanceof Map<?, ?> map) {
+            Object url = map.get("url");
+            Object attribution = map.get("attribution");
+            return new ResourcePackEntry(
+                    requirePackUrl(url == null ? null : url.toString()),
+                    attribution instanceof List<?> credits
+                            ? resourcePackAttribution(credits)
+                            : List.of());
+        }
+        throw new IllegalStateException(RESOURCE_PACKS
+                + " entries must be a URL string or a url/attribution pair, was: " + entry);
+    }
+
+    /** Same rule as the single pack URL, reported against the key actually written. */
+    private static @NotNull String requirePackUrl(@Nullable String configured) {
+        String url = packUrl(configured, RESOURCE_PACKS);
+        if (url == null) {
+            throw new IllegalStateException(RESOURCE_PACKS
+                    + " entries must have a url -- an entry with none names no pack");
+        }
+        return url;
     }
 
     /**
@@ -226,6 +321,11 @@ public final class QueryServiceConfig {
      * resolve.</p>
      */
     private static @Nullable String resourcePackUrl(@Nullable String configured) {
+        return packUrl(configured, RESOURCE_PACK_URL);
+    }
+
+    /** @param key the setting to name in a failure, so the message points at what was written */
+    private static @Nullable String packUrl(@Nullable String configured, @NotNull String key) {
         if (configured == null || configured.isBlank()) {
             return null;
         }
@@ -234,16 +334,15 @@ public final class QueryServiceConfig {
         try {
             uri = URI.create(trimmed);
         } catch (IllegalArgumentException ex) {
-            throw new IllegalStateException(
-                    RESOURCE_PACK_URL + " is not a valid URL: " + trimmed, ex);
+            throw new IllegalStateException(key + " is not a valid URL: " + trimmed, ex);
         }
         String scheme = uri.getScheme();
         if (scheme == null || uri.getHost() == null) {
-            throw new IllegalStateException(RESOURCE_PACK_URL
+            throw new IllegalStateException(key
                     + " must be an absolute http(s) URL the browser can fetch, was: " + trimmed);
         }
         if (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")) {
-            throw new IllegalStateException(RESOURCE_PACK_URL
+            throw new IllegalStateException(key
                     + " must use http or https -- the pack is fetched by the viewer's browser,"
                     + " not by the server -- was: " + trimmed);
         }
