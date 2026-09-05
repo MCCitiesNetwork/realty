@@ -121,8 +121,10 @@ who has priced a plot is selling it. Its "last sold for" figure is the last sale
 the asking price.
 
 The 3D preview keeps the camera outside the plot -- orbit and zoom, but never through a
-wall -- and the renderer's own memory of resource packs is cleared before every start,
-so a pack changed on the game server reaches every browser on its next visit.
+wall -- and opens on a fixed compass bearing, above the plot's south-east corner, so
+every plot is seen the same way round. The renderer's own memory of resource packs is
+cleared before every start, so a pack changed on the game server reaches every browser
+on its next visit.
 
 The theme follows the operating system's light or dark preference.
 
