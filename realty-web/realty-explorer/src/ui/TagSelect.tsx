@@ -8,6 +8,7 @@ type Props = {
   value: string[];
   onChange: (tags: string[]) => void;
   style?: React.CSSProperties;
+  size?: "small" | "middle" | "large";
 };
 
 /**
@@ -15,7 +16,7 @@ type Props = {
  * Tags are raw ids: their display names live in the plugin's config, which the API
  * does not read, so none is dressed up here either.
  */
-export function TagSelect({ client, value, onChange, style }: Props) {
+export function TagSelect({ client, value, onChange, style, size }: Props) {
   const tags = useQuery(() => client.GET("/v1/tags", {}), [client]);
   const options = tags.status === "ready" && Array.isArray(tags.data)
     ? tags.data.map((tag) => ({ value: tag.id, label: `${tag.id} (${formatCount(tag.regionCount)})` }))
@@ -32,6 +33,7 @@ export function TagSelect({ client, value, onChange, style }: Props) {
       onChange={onChange}
       options={options}
       maxTagCount="responsive"
+      size={size}
       style={{ width: "100%", ...style }}
     />
   );

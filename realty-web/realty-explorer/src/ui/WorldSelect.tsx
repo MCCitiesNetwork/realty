@@ -8,6 +8,7 @@ type Props = {
   value?: string;
   onChange: (world: string | undefined) => void;
   style?: React.CSSProperties;
+  size?: "small" | "middle" | "large";
 };
 
 /**
@@ -18,7 +19,7 @@ type Props = {
  * simply offers nothing -- an invented option would be a filter for a world that may
  * not exist.
  */
-export function WorldSelect({ client, value, onChange, style }: Props) {
+export function WorldSelect({ client, value, onChange, style, size }: Props) {
   const worlds = useQuery(() => client.GET("/v1/worlds", {}), [client]);
   const options = worlds.status === "ready" && Array.isArray(worlds.data)
     ? worlds.data.map((world) => ({ value: worldLabel(world), label: worldLabel(world) }))
@@ -34,6 +35,7 @@ export function WorldSelect({ client, value, onChange, style }: Props) {
       value={value}
       onChange={(next) => onChange(next ?? undefined)}
       options={options}
+      size={size}
       style={{ width: "100%", ...style }}
     />
   );

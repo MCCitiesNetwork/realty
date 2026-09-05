@@ -86,27 +86,24 @@ export function HomeScreen({ client }: { client: ApiClient }) {
                 : "Plots for sale and for rent, straight from the server's records."}
             </Text>
           </div>
-          <Row gutter={[12, 12]} align="middle">
-            <Col xs={24} md="auto">
-              <Segmented
-                aria-label="Looking to"
-                options={INTENTS.map((entry) => ({ value: entry.value, label: entry.label }))}
-                value={intent}
-                onChange={(value) => setIntent(value as Intent)}
-              />
-            </Col>
-            <Col xs={24} md={7}>
-              <WorldSelect client={client} value={world} onChange={setWorld} />
-            </Col>
-            <Col xs={24} md={8}>
-              <TagSelect client={client} value={tags} onChange={setTags} />
-            </Col>
-            <Col xs={24} md="auto">
-              <Button type="primary" icon={<SearchOutlined />} onClick={search} block>
-                Search
-              </Button>
-            </Col>
-          </Row>
+          {/* One search bar: intent, where, what, go. The selects share the slack and
+              the whole row folds onto several lines only when the screen is narrow. */}
+          <Flex wrap gap={12} align="center">
+            <Segmented
+              aria-label="Looking to"
+              size="large"
+              options={INTENTS.map((entry) => ({ value: entry.value, label: entry.label }))}
+              value={intent}
+              onChange={(value) => setIntent(value as Intent)}
+            />
+            <WorldSelect client={client} value={world} onChange={setWorld} size="large"
+                         style={{ flex: "1 1 200px", width: "auto" }} />
+            <TagSelect client={client} value={tags} onChange={setTags} size="large"
+                       style={{ flex: "2 1 260px", width: "auto" }} />
+            <Button type="primary" size="large" icon={<SearchOutlined />} onClick={search}>
+              Search
+            </Button>
+          </Flex>
         </Flex>
       </Card>
 
