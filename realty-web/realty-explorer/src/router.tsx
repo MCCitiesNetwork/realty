@@ -2,6 +2,7 @@ import { App as AntApp, ConfigProvider, Layout } from "antd";
 import { useEffect } from "react";
 import { Route, Routes, useParams } from "react-router-dom";
 import type { ApiClient } from "./api/client";
+import type { AppConfig } from "./config";
 import { ActivityScreen } from "./screens/activity/ActivityScreen";
 import { AuctionsScreen } from "./screens/auctions/AuctionsScreen";
 import { HomeScreen } from "./screens/home/HomeScreen";
@@ -13,8 +14,12 @@ import { RegionScreen } from "./screens/region/RegionScreen";
 import { themeFor, useColorScheme } from "./theme";
 import { SiteFooter } from "./ui/SiteFooter";
 import { SiteHeader } from "./ui/SiteHeader";
+import { VisibilityProvider, visibilityOf } from "./visibility";
 
 type Props = { client: ApiClient };
+
+/** The whole app, including the deployment settings: the worlds this site shows. */
+type AppProps = Props & { config: AppConfig };
 
 function RegionRoute({ client }: Props) {
   const params = useParams<{ world: string; region: string }>();
@@ -31,7 +36,7 @@ function PlayerRoute({ client }: Props) {
   return <PlayerScreen client={client} id={params.id ?? ""} />;
 }
 
-export function AppRoutes({ client }: Props) {
+export function AppRoutes({ client, config }: AppProps) {
   const scheme = useColorScheme();
 
   // Native controls and scrollbars follow the same scheme as the components.
@@ -40,6 +45,7 @@ export function AppRoutes({ client }: Props) {
   }, [scheme]);
 
   return (
+    <VisibilityProvider value={visibilityOf(config.visibleWorlds)}>
     <ConfigProvider theme={themeFor(scheme)}>
       <AntApp>
         <Layout style={{ minHeight: "100vh" }}>
@@ -60,5 +66,6 @@ export function AppRoutes({ client }: Props) {
         </Layout>
       </AntApp>
     </ConfigProvider>
+    </VisibilityProvider>
   );
 }

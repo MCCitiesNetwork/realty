@@ -17,6 +17,7 @@ import { ResourcePackCredit } from "../../ui/ResourcePackCredit";
 import { StateTag, marketState } from "../../ui/StateTag";
 // Lazy, so the browse screens never download Three.js or the WASM mesh pipeline.
 import { SchematicViewer } from "../../viewer/lazyViewer";
+import { allowsWorld, useVisibility } from "../../visibility";
 import { PricePanel } from "./PricePanel";
 import { RegionAccess } from "./RegionAccess";
 import { RegionHistory } from "./RegionHistory";
@@ -51,9 +52,15 @@ type Preview = "probing" | "present" | "absent";
  * to know who can walk into it.
  */
 export function RegionScreen({ client, world, region, hasSchematic, resourcePackAttribution }: Props) {
+  const visibility = useVisibility();
+  // A region in a hidden world is not asked for at all: the API would answer, and this
+  // site has undertaken not to show it. It reads exactly as an unknown region.
+  const hidden = !allowsWorld(visibility, world);
   const found = useQuery(
-    () => client.GET("/v1/region", { params: { query: { world, region } } }),
-    [client, world, region],
+    () => hidden
+      ? Promise.resolve({ data: undefined, error: { error: "REGION_NOT_FOUND", message: "hidden" }, response: { status: 404 } })
+      : client.GET("/v1/region", { params: { query: { world, region } } }),
+    [client, world, region, hidden],
   );
   const [credits, setCredits] = useState<Attribution[]>(resourcePackAttribution ?? []);
   // Kept, not discarded: this is the schematic itself, and handing it to the viewer is
@@ -64,7 +71,7 @@ export function RegionScreen({ client, world, region, hasSchematic, resourcePack
   );
 
   useEffect(() => {
-    if (hasSchematic !== undefined) return;
+    if (hasSchematic !== undefined || hidden) return;
     let cancelled = false;
     setPreview("probing");
 
@@ -84,7 +91,7 @@ export function RegionScreen({ client, world, region, hasSchematic, resourcePack
     return () => {
       cancelled = true;
     };
-  }, [client, world, region, hasSchematic]);
+  }, [client, world, region, hasSchematic, hidden]);
 
   // A different region means the bytes in hand belong to the previous one.
   useEffect(() => setSchematic(undefined), [world, region]);
@@ -116,7 +123,7 @@ export function RegionScreen({ client, world, region, hasSchematic, resourcePack
     />
   );
 
-  if (found.status === "error" && found.error.httpStatus === 404) {
+  if (hidden || (found.status === "error" && found.error.httpStatus === 404)) {
     return (
       <Page>
         {crumbs}

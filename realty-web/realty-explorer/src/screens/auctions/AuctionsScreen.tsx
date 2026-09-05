@@ -10,6 +10,7 @@ import { Page } from "../../ui/Page";
 import { PlayerLink } from "../../ui/PlayerLink";
 import { Price } from "../../ui/Price";
 import { WorldSelect } from "../../ui/WorldSelect";
+import { defaultWorld, useVisibility } from "../../visibility";
 
 const { Title, Text } = Typography;
 
@@ -30,7 +31,9 @@ const PAGE_SIZE = 12;
  */
 export function AuctionsScreen({ client }: { client: ApiClient }) {
   const [sort, setSort] = useState<Sort>("ending_soon");
-  const [world, setWorld] = useState<string | undefined>(undefined);
+  const visibility = useVisibility();
+  // Under a whitelist this page is always of one visible world.
+  const [world, setWorld] = useState<string | undefined>(defaultWorld(visibility));
   const [page, setPage] = useState(1);
 
   const auctions = useQuery(

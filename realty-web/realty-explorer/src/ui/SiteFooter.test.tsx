@@ -7,6 +7,7 @@ vi.mock("../viewer/SchematicViewer", () => ({
 }));
 
 import { AppRoutes } from "../router";
+import type { AppConfig } from "../config";
 import { emptyPage, freeholdRegion, stats, tags, world } from "../test-support/fixtures";
 import { failure, stubClient } from "../test-support/stubClient";
 
@@ -24,9 +25,11 @@ const { client } = stubClient({
 
 const disclaimer = /not an official minecraft product/i;
 
+const config: AppConfig = { apiBaseUrl: "", visibleWorlds: [] };
+
 describe("SiteFooter", () => {
   it("carries the Mojang disclaimer on the home screen", async () => {
-    render(<MemoryRouter initialEntries={["/"]}><AppRoutes client={client} /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/"]}><AppRoutes client={client} config={config} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText(disclaimer)).toBeInTheDocument());
   });
 
@@ -35,21 +38,21 @@ describe("SiteFooter", () => {
     // content appears, and a region page is where most visitors actually land.
     render(
       <MemoryRouter initialEntries={["/region/world/plot_a"]}>
-        <AppRoutes client={client} />
+        <AppRoutes client={client} config={config} />
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText(disclaimer)).toBeInTheDocument());
   });
 
   it("carries it on a page that does not exist", async () => {
-    render(<MemoryRouter initialEntries={["/nowhere"]}><AppRoutes client={client} /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/nowhere"]}><AppRoutes client={client} config={config} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText(disclaimer)).toBeInTheDocument());
   });
 
   it("names Mojang and Microsoft, and disclaims both approval and association", async () => {
     // The wording is fixed by the guidelines rather than by taste, so it is asserted
     // rather than left to whoever next edits the footer's styling.
-    render(<MemoryRouter><AppRoutes client={client} /></MemoryRouter>);
+    render(<MemoryRouter><AppRoutes client={client} config={config} /></MemoryRouter>);
     const text = (await screen.findByText(disclaimer)).textContent ?? "";
     expect(text).toMatch(/not approved by or associated with/i);
     expect(text).toMatch(/mojang/i);

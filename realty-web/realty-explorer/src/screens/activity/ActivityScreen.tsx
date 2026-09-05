@@ -9,6 +9,7 @@ import { EventParties, EventTerms, eventColor } from "../../ui/events";
 import { EVENT_TYPES, eventLabel, formatCount, formatDay, formatTime } from "../../ui/format";
 import { Page } from "../../ui/Page";
 import { WorldSelect } from "../../ui/WorldSelect";
+import { defaultWorld, useVisibility } from "../../visibility";
 
 const { Title, Text } = Typography;
 
@@ -34,7 +35,9 @@ function byDay(events: ReadonlyArray<Event>): Array<{ day: string; events: Event
  * sends nothing, so the default is the API's and not a copy of it that could drift.
  */
 export function ActivityScreen({ client }: { client: ApiClient }) {
-  const [world, setWorld] = useState<string | undefined>(undefined);
+  const visibility = useVisibility();
+  // Under a whitelist this page is always of one visible world.
+  const [world, setWorld] = useState<string | undefined>(defaultWorld(visibility));
   const [types, setTypes] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 

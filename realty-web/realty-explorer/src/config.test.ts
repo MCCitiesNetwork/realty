@@ -46,3 +46,23 @@ describe("loadConfig", () => {
     expect((await loadConfig()).apiBaseUrl).toBe("https://api.example.com");
   });
 });
+
+describe("loadConfig, the visible worlds", () => {
+  it("shows every world when nothing is listed", async () => {
+    mockFetch(async () => new Response(JSON.stringify({ apiBaseUrl: "" }), { status: 200 }));
+    expect((await loadConfig()).visibleWorlds).toEqual([]);
+  });
+
+  it("reads the names, trimmed, each once, and drops anything that is not a name", async () => {
+    // A broken entry hides one world, not the site.
+    mockFetch(async () => new Response(JSON.stringify({
+      visibleWorlds: [" Reveille ", "Hamilton", "Reveille", 7, "", null],
+    }), { status: 200 }));
+    expect((await loadConfig()).visibleWorlds).toEqual(["Reveille", "Hamilton"]);
+  });
+
+  it("survives a list that is not a list", async () => {
+    mockFetch(async () => new Response(JSON.stringify({ visibleWorlds: "Reveille" }), { status: 200 }));
+    expect((await loadConfig()).visibleWorlds).toEqual([]);
+  });
+});
