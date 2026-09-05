@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { SchematicRenderer } from "schematic-renderer";
-import { fetchResourcePack, fetchSchematic, type ApiClient } from "../api/client";
+import { fetchResourcePacks, fetchSchematic, type ApiClient } from "../api/client";
 
 type Props = {
   client: ApiClient;
@@ -57,12 +57,16 @@ export function SchematicViewer({ client, world, region, schematic }: Props) {
     // texture atlas during initialisation; adding one afterwards means a rebuild.
     let disposed = false;
 
-    void fetchResourcePack(client).then((pack) => {
+    void fetchResourcePacks(client).then((packs) => {
       if (disposed) return;
       rendererRef.current = new SchematicRenderer(
         canvas,
         { [region]: schematic ? async () => schematic : fetchSchematic(client, world, region) },
-        pack ? { server: async () => pack } : {},
+        // Keyed by index rather than by name so the record's insertion order is the
+        // server's priority order, and two packs that happen to share a name cannot
+        // collapse into one. The renderer resolves a contested texture in favour of the
+        // pack it loaded first, which is the one the operator listed first.
+        Object.fromEntries(packs.map((pack, index) => [`pack-${index}`, async () => pack.blob])),
         {
           showGrid: true,
           // Defaults to false, which leaves the camera fixed -- and makes the

@@ -94,19 +94,24 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   still appear, so a plot renders as a few objects floating in space and looks like a
   failed capture.
 
-  Realty ships and serves no textures. Set `resource-pack-url` in the query-service
-  module's `config.yml` to a pack the browser can fetch; `GET /v1/resource-pack`
-  passes that URL on and the browser fetches it directly.
+  Realty ships and serves no textures. List the packs in `resource-packs` in the
+  query-service module's `config.yml`; `GET /v1/resource-pack` passes the URLs on and
+  the browser fetches each directly.
 
-  **This is not `server.properties`' `resource-pack`.** That pack is sent to the game
-  client, which applies it over its own copy of the game, so it is usually an override
-  pack -- a browser has no vanilla assets underneath it. Name a pack that stands on its
-  own, and one you have the right to publish.
+  **First is highest priority.** Where two packs provide the same texture the earlier
+  one wins, so write an override pack above the base pack it expects underneath it.
 
-  Two things to check when a preview stays untextured: the pack host must send CORS
-  headers (many do not, having only ever served the game client), and the URL must be
+  **`server.properties`' `resource-pack` will not work on its own.** That pack is sent
+  to the game client, which applies it over its own copy of the game, so it is usually
+  an override pack and a browser has no vanilla assets underneath it. That is what the
+  list is for: put your server pack first and a pack carrying the base assets below it,
+  and the renderer merges the two. Every pack must be one you have the right to publish.
+
+  Two things to check when a preview stays untextured: every pack host must send CORS
+  headers (many do not, having only ever served the game client), and each URL must be
   absolute `http`/`https` -- the module rejects anything else at startup rather than
-  letting it fail silently in a browser.
+  letting it fail silently in a browser. One unreachable pack costs its own textures;
+  the rest still load.
 
   A viewer can also drop their own pack (`.zip`) onto the canvas. Resource packs only:
   a dropped schematic is refused, so nobody can swap out what a region's preview shows.
@@ -116,14 +121,20 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   query-service module's `config.yml`:
 
   ```yaml
-  resource-pack-url: "https://cdn.example.com/pack.zip"
-  resource-pack-attribution:
-    - text: "Textures: Example Pack 32x"
-      url: "https://packs.example.com/"
-    - "CC BY 4.0"
+  resource-packs:
+    - url: "https://cdn.example.com/server-override.zip"
+      attribution:
+        - text: "Textures: Example Pack 32x"
+          url: "https://packs.example.com/"
+    - url: "https://cdn.example.com/vanilla-base.zip"
+      attribution:
+        - "CC BY 4.0"
   ```
 
-  `GET /v1/resource-pack` reports the list beside the URL, and the credit renders under
+  Credits belong to the entry, not to the file: two packs may be licensed differently,
+  and a credit shown against the wrong one credits the wrong author.
+
+  `GET /v1/resource-pack` reports each pack's credits beside its URL, and they render under
   a region's preview -- and only there, since that is the only place the pack is used.
   A link must be an absolute `http`/`https` URL; the module rejects anything else at
   startup, and the front end re-checks before rendering, because the value is

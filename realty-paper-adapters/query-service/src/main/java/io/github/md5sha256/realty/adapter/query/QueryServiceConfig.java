@@ -38,52 +38,23 @@ public final class QueryServiceConfig {
     private static final String BIND_HOST = "bind-host";
     private static final String PORT = "port";
     private static final String REQUEST_TIMEOUT_MS = "request-timeout-ms";
-    private static final String RESOURCE_PACK_URL = "resource-pack-url";
-    private static final String RESOURCE_PACK_ATTRIBUTION = "resource-pack-attribution";
     private static final String RESOURCE_PACKS = "resource-packs";
 
     private final String sharedSecret;
     private final String bindHost;
     private final int port;
     private final Duration requestTimeout;
-    private final String resourcePackUrl;
-    private final List<ResourcePackAttribution> resourcePackAttribution;
     private final List<ResourcePackEntry> resourcePacks;
 
     QueryServiceConfig(@NotNull String sharedSecret,
                        @NotNull String bindHost,
                        int port,
                        @NotNull Duration requestTimeout,
-                       @Nullable String resourcePackUrl) {
-        this(sharedSecret, bindHost, port, requestTimeout, resourcePackUrl, List.of());
-    }
-
-    QueryServiceConfig(@NotNull String sharedSecret,
-                       @NotNull String bindHost,
-                       int port,
-                       @NotNull Duration requestTimeout,
-                       @Nullable String resourcePackUrl,
-                       @NotNull List<ResourcePackAttribution> resourcePackAttribution) {
-        this(sharedSecret, bindHost, port, requestTimeout, resourcePackUrl,
-                resourcePackAttribution,
-                resourcePackUrl == null
-                        ? List.of()
-                        : List.of(new ResourcePackEntry(resourcePackUrl, resourcePackAttribution)));
-    }
-
-    QueryServiceConfig(@NotNull String sharedSecret,
-                       @NotNull String bindHost,
-                       int port,
-                       @NotNull Duration requestTimeout,
-                       @Nullable String resourcePackUrl,
-                       @NotNull List<ResourcePackAttribution> resourcePackAttribution,
                        @NotNull List<ResourcePackEntry> resourcePacks) {
         this.sharedSecret = sharedSecret;
         this.bindHost = bindHost;
         this.port = port;
         this.requestTimeout = requestTimeout;
-        this.resourcePackUrl = resourcePackUrl;
-        this.resourcePackAttribution = List.copyOf(resourcePackAttribution);
         this.resourcePacks = List.copyOf(resourcePacks);
     }
 
@@ -96,36 +67,6 @@ public final class QueryServiceConfig {
      */
     public @NotNull List<ResourcePackEntry> resourcePacks() {
         return this.resourcePacks;
-    }
-
-    /**
-     * Credits to show wherever the pack's textures are used, or empty when none are set.
-     *
-     * <p>Configured beside the pack URL on purpose. Most packs are licensed on condition
-     * that they are credited, and the operator choosing a pack is the one who knows what
-     * its licence asks for -- so the credit is stated in the same file as the choice,
-     * rather than in the web front end's own config on what may be a different host.</p>
-     */
-    public @NotNull List<ResourcePackAttribution> resourcePackAttribution() {
-        return this.resourcePackAttribution;
-    }
-
-    /**
-     * The resource pack a browser-side renderer should texture previews with, or
-     * {@code null} when the operator has configured none.
-     *
-     * <p>Deliberately its own setting rather than the {@code resource-pack} from
-     * {@code server.properties}. That one is sent to the game client, which loads it on
-     * top of its own copy of the game, so it is usually an override pack and would leave
-     * a browser preview with no textures for vanilla blocks. This one names a pack that
-     * stands on its own.</p>
-     *
-     * <p>Only the URL is configured, never a file: Realty does not host or serve the pack,
-     * so it redistributes nothing. The browser fetches it from wherever the operator
-     * already publishes it.</p>
-     */
-    public @Nullable String resourcePackUrl() {
-        return this.resourcePackUrl;
     }
 
     /** The shared secret; blank when unset. Blank means the HTTP server is not started. */
@@ -182,9 +123,7 @@ public final class QueryServiceConfig {
                 config.getString(BIND_HOST, "127.0.0.1"),
                 config.getInt(PORT, 8123),
                 Duration.ofMillis(config.getLong(REQUEST_TIMEOUT_MS, 1000L)),
-                resourcePackUrl(config.getString(RESOURCE_PACK_URL, "")),
-                resourcePackAttribution(config.getList(RESOURCE_PACK_ATTRIBUTION, List.of())),
-                resourcePacks(config));
+                resourcePacks(config.getList(RESOURCE_PACKS, List.of())));
     }
 
     /**
@@ -195,19 +134,9 @@ public final class QueryServiceConfig {
      * pack's credits take. Credits belong to the entry rather than to the file because
      * two packs may be licensed differently.</p>
      *
-     * <p>Falls back to the older single {@code resource-pack-url} when the list is absent
-     * or empty, so an operator who has never edited this file keeps the pack they set.
-     * The list wins when both are present: it is the setting they reached for last.</p>
+     * <p>Empty means no pack, and a preview then renders untextured.</p>
      */
-    private static @NotNull List<ResourcePackEntry> resourcePacks(@NotNull YamlConfiguration config) {
-        List<?> configured = config.getList(RESOURCE_PACKS, List.of());
-        if (configured.isEmpty()) {
-            String legacy = resourcePackUrl(config.getString(RESOURCE_PACK_URL, ""));
-            return legacy == null
-                    ? List.of()
-                    : List.of(new ResourcePackEntry(legacy,
-                            resourcePackAttribution(config.getList(RESOURCE_PACK_ATTRIBUTION, List.of()))));
-        }
+    private static @NotNull List<ResourcePackEntry> resourcePacks(@NotNull List<?> configured) {
         List<ResourcePackEntry> packs = new ArrayList<>(configured.size());
         for (Object entry : configured) {
             packs.add(resourcePack(entry));
@@ -242,9 +171,8 @@ public final class QueryServiceConfig {
                 + " entries must be a URL string or a url/attribution pair, was: " + entry);
     }
 
-    /** Same rule as the single pack URL, reported against the key actually written. */
     private static @NotNull String requirePackUrl(@Nullable String configured) {
-        String url = packUrl(configured, RESOURCE_PACKS);
+        String url = packUrl(configured);
         if (url == null) {
             throw new IllegalStateException(RESOURCE_PACKS
                     + " entries must have a url -- an entry with none names no pack");
@@ -273,7 +201,7 @@ public final class QueryServiceConfig {
                         requireText(text == null ? null : text.toString()),
                         attributionUrl(url == null ? null : url.toString())));
             } else {
-                throw new IllegalStateException(RESOURCE_PACK_ATTRIBUTION
+                throw new IllegalStateException(RESOURCE_PACKS + " attribution"
                         + " entries must be a string or a text/url pair, was: " + entry);
             }
         }
@@ -282,7 +210,7 @@ public final class QueryServiceConfig {
 
     private static @NotNull String requireText(@Nullable String text) {
         if (text == null || text.isBlank()) {
-            throw new IllegalStateException(RESOURCE_PACK_ATTRIBUTION
+            throw new IllegalStateException(RESOURCE_PACKS + " attribution"
                     + " entries must have text -- a credit with none would render as an"
                     + " empty line and credit nobody");
         }
@@ -300,12 +228,12 @@ public final class QueryServiceConfig {
             uri = URI.create(trimmed);
         } catch (IllegalArgumentException ex) {
             throw new IllegalStateException(
-                    RESOURCE_PACK_ATTRIBUTION + " has a link that is not a valid URL: " + trimmed, ex);
+                    RESOURCE_PACKS + " attribution" + " has a link that is not a valid URL: " + trimmed, ex);
         }
         String scheme = uri.getScheme();
         if (scheme == null || uri.getHost() == null
                 || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https"))) {
-            throw new IllegalStateException(RESOURCE_PACK_ATTRIBUTION
+            throw new IllegalStateException(RESOURCE_PACKS + " attribution"
                     + " links must be absolute http(s) URLs, was: " + trimmed);
         }
         return trimmed;
@@ -320,12 +248,7 @@ public final class QueryServiceConfig {
      * fetch happens in the viewer's browser, not on the server, so a local path can never
      * resolve.</p>
      */
-    private static @Nullable String resourcePackUrl(@Nullable String configured) {
-        return packUrl(configured, RESOURCE_PACK_URL);
-    }
-
-    /** @param key the setting to name in a failure, so the message points at what was written */
-    private static @Nullable String packUrl(@Nullable String configured, @NotNull String key) {
+    private static @Nullable String packUrl(@Nullable String configured) {
         if (configured == null || configured.isBlank()) {
             return null;
         }
@@ -334,15 +257,15 @@ public final class QueryServiceConfig {
         try {
             uri = URI.create(trimmed);
         } catch (IllegalArgumentException ex) {
-            throw new IllegalStateException(key + " is not a valid URL: " + trimmed, ex);
+            throw new IllegalStateException(RESOURCE_PACKS + " is not a valid URL: " + trimmed, ex);
         }
         String scheme = uri.getScheme();
         if (scheme == null || uri.getHost() == null) {
-            throw new IllegalStateException(key
+            throw new IllegalStateException(RESOURCE_PACKS
                     + " must be an absolute http(s) URL the browser can fetch, was: " + trimmed);
         }
         if (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")) {
-            throw new IllegalStateException(key
+            throw new IllegalStateException(RESOURCE_PACKS
                     + " must use http or https -- the pack is fetched by the viewer's browser,"
                     + " not by the server -- was: " + trimmed);
         }

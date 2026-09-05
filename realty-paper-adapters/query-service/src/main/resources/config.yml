@@ -54,9 +54,3 @@ request-timeout-ms: 1000
 #       attribution:
 #         - "CC BY 4.0"
 resource-packs: []
-
-# Superseded by resource-packs above, and read only when it is empty or absent, so an
-# existing setup keeps working untouched. A single pack here is equivalent to one entry
-# in that list; prefer the list, which is the only way to layer packs.
-resource-pack-url: ""
-resource-pack-attribution: []
