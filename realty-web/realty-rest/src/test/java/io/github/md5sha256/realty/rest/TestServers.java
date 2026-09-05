@@ -72,6 +72,14 @@ final class TestServers {
                 new StaticSite(directory.toAbsolutePath().toString(), Location.EXTERNAL));
     }
 
+    /** A front end plus a config.json on disk, as the bundled build serves beside its jar. */
+    static @NotNull RealtyRestServer withStaticSite(@NotNull Path directory, @NotNull Path configJson) {
+        return new RealtyRestServer(stubBackend(), new StubDatabase(false), defaultSettings(),
+                ModuleClient.disabled(),
+                new StaticSite(directory.toAbsolutePath().toString(), Location.EXTERNAL,
+                        configJson.toAbsolutePath()));
+    }
+
     static @NotNull RealtyRestServer withHealthyDatabase() {
         return new RealtyRestServer(stubBackend(), new StubDatabase(false), defaultSettings());
     }

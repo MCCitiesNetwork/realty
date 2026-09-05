@@ -3,6 +3,8 @@ package io.github.md5sha256.realty.dist;
 import io.github.md5sha256.realty.rest.RealtyRestMain;
 import io.github.md5sha256.realty.rest.StaticSite;
 import io.javalin.http.staticfiles.Location;
+
+import java.nio.file.Path;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -14,6 +16,13 @@ import org.jetbrains.annotations.NotNull;
  * one foreground command, so two processes cannot be run under one egg -- but one that
  * happens to serve both concerns can.</p>
  *
+ * <p>The one thing the jar cannot carry is this deployment's own {@code config.json}:
+ * it is built once and installed everywhere, and what a site shows -- its worlds, its
+ * emblem, its currency, where its map lives -- differs per server. So a {@code config.json}
+ * beside the jar, in the working directory, is served in place of the packaged one. On a
+ * Pterodactyl panel that is {@code /home/container/config.json}, editable from the file
+ * manager, which is the only place an operator of this build has to put it.</p>
+ *
  * <p>Everything else -- configuration, the schema version gate, the module client --
  * is {@link RealtyRestMain#run}'s, not reimplemented here.</p>
  */
@@ -23,7 +32,8 @@ public final class RealtyWebDistMain {
     }
 
     public static void main(@NotNull String[] args) {
-        RealtyRestMain.run(new StaticSite("/web", Location.CLASSPATH));
+        RealtyRestMain.run(new StaticSite("/web", Location.CLASSPATH,
+                Path.of("config.json").toAbsolutePath()));
     }
 
 }

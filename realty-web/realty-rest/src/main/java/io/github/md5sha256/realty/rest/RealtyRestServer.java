@@ -11,10 +11,13 @@ import io.github.md5sha256.realty.rest.json.HealthResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.Javalin;
 import io.javalin.config.RoutesConfig;
+import io.javalin.http.ContentType;
 import io.javalin.json.JavalinJackson;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -168,6 +171,12 @@ public final class RealtyRestServer {
                     }
                 }));
             }
+            if (this.staticSite != null && this.staticSite.configOverride() != null
+                    && Files.isRegularFile(this.staticSite.configOverride())) {
+                // Before the static files below, which is what lets a config on disk win
+                // over a packaged one.
+                registerConfigOverride(config.routes, this.staticSite.configOverride());
+            }
             if (this.staticSite != null) {
                 config.staticFiles.add(staticFile -> {
                     staticFile.directory = this.staticSite.directory();
@@ -182,6 +191,28 @@ public final class RealtyRestServer {
                         this.staticSite.location());
             }
             registerRoutes(config.routes);
+        });
+    }
+
+    /**
+     * Serves the operator's {@code config.json} from disk, ahead of any the front end was
+     * packaged with.
+     *
+     * <p>Registered only when the file is there at startup, so a deployment without one
+     * behaves exactly as it did: nothing claims the path, and a packaged config.json --
+     * or, failing that, the single-page fallback -- answers as before. Read per request
+     * rather than held, so editing the file and reloading the page is enough; the front
+     * end treats the 404 a since-deleted file leaves behind as no configuration at all,
+     * which is the same thing it does with no file in the first place.</p>
+     */
+    private void registerConfigOverride(@NotNull RoutesConfig routes, @NotNull Path configJson) {
+        LOGGER.info("Serving " + configJson + " as /config.json");
+        routes.get("/config.json", ctx -> {
+            if (!Files.isRegularFile(configJson)) {
+                ctx.status(404);
+                return;
+            }
+            ctx.contentType(ContentType.APPLICATION_JSON).result(Files.readAllBytes(configJson));
         });
     }
 
