@@ -32,7 +32,7 @@
             "name": "Realty Web Version",
             "description": "The released version to install, e.g. 1.5.1 (release tags carry no v prefix, but typing one is accepted). This pins the API and the bundled front end together -- they ship as one artifact. realty-rest requires the database schema to be exactly the version it was built against, so upgrade this in lockstep with the Realty plugin.",
             "env_variable": "REALTY_REST_VERSION",
-            "default_value": "1.6.0",
+            "default_value": "1.6.1",
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|string|max:32",
