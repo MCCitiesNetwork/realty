@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { SchematicRenderer } from "schematic-renderer";
 import { fetchResourcePacks, fetchSchematic, type ApiClient } from "../api/client";
+import { forgetRememberedPacksUnless } from "./rememberedPacks";
 
 type Props = {
   client: ApiClient;
@@ -18,11 +19,89 @@ type Props = {
   schematic?: ArrayBuffer;
 };
 
+type Point = { x: number; y: number; z: number };
+
+/** The orbit controls, as far as this component adjusts them. */
+type OrbitControls = {
+  minDistance?: number;
+  maxDistance?: number;
+  enablePan?: boolean;
+  target?: { set: (x: number, y: number, z: number) => unknown };
+  update?: () => unknown;
+};
+
 /** The parts of the renderer instance this component actually uses. */
 type Renderer = {
   dispose?: () => void;
   addResourcePack?: (file: File) => Promise<unknown>;
+  schematicManager?: { getGlobalTightWorldBox?: () => { min: Point; max: Point } };
+  cameraManager?: {
+    controls?: Map<string, OrbitControls>;
+    snapToDirection?: (direction: [number, number, number], refocus?: boolean) => unknown;
+  };
 };
+
+/**
+ * Where the camera sits relative to the plot: above its south-east corner, looking
+ * north-west.
+ *
+ * <p>Blocks enter the scene at the coordinates the schematic gives them, and Minecraft
+ * shares Three.js's handedness, so this vector is a compass bearing -- x east, y up, z
+ * south. The library's own named angles do not agree with that compass, since the one it
+ * calls north-east puts the camera to the south-east, so the bearing is given as a vector
+ * rather than by name.</p>
+ *
+ * <p>South-east is the quadrant the renderer already favours, so this pins a bearing it
+ * was already picking near rather than sending plots somewhere new. The y term is
+ * shallower than the 1 a true isometric bearing would take, putting the camera 26 degrees
+ * above the plot rather than 35, which shows more of its walls and less of its roofs.</p>
+ */
+const CAMERA_BEARING: [number, number, number] = [1, 0.7, 1];
+
+/**
+ * Turns the camera to that fixed bearing, so every plot opens the same way round.
+ *
+ * <p>Left alone the renderer derives an opening angle from each plot's own bounding box:
+ * yaw across roughly 30 to 60 degrees by how deep the footprint is against its width,
+ * pitch across 30 to 55 degrees by height against footprint. Every plot therefore opens facing
+ * a little differently from its neighbour, and none of them matches the server map, whose
+ * flat view is north-up. Nothing recoverable says which way a plot itself faces -- a
+ * captured schematic carries its world offset but no rotation -- so one bearing for all
+ * of them is as close to the map as this can get.</p>
+ *
+ * <p>Called once the schematic has rendered, which is after the renderer's own framing:
+ * that runs on the schematic-added event, so the bearing set here is the one that lasts.</p>
+ */
+export function faceCameraSouthEast(renderer: Renderer | undefined): void {
+  renderer?.cameraManager?.snapToDirection?.(CAMERA_BEARING);
+}
+
+/**
+ * Keeps the camera outside the plot: a visitor can circle it and zoom, but not pass
+ * through a wall into the rooms.
+ *
+ * <p>The nearest the camera may come is the radius of the sphere around the build, so
+ * no angle of approach reaches the inside; the farthest is a few times that, so the
+ * plot cannot be zoomed away to a speck. Panning is off because it moves the point
+ * being orbited, and a point moved into the building takes the camera with it.</p>
+ *
+ * <p>Called once the schematic has rendered, since only then are its bounds known.</p>
+ */
+export function keepCameraOutside(renderer: Renderer | undefined): void {
+  const box = renderer?.schematicManager?.getGlobalTightWorldBox?.();
+  const orbit = renderer?.cameraManager?.controls?.get("orbit");
+  if (!box || !orbit) return;
+  const width = box.max.x - box.min.x;
+  const height = box.max.y - box.min.y;
+  const depth = box.max.z - box.min.z;
+  const radius = Math.sqrt(width * width + height * height + depth * depth) / 2;
+  if (!Number.isFinite(radius) || radius <= 0) return;
+  orbit.minDistance = radius * 1.05;
+  orbit.maxDistance = radius * 8;
+  orbit.enablePan = false;
+  orbit.target?.set((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, (box.min.z + box.max.z) / 2);
+  orbit.update?.();
+}
 
 /**
  * Renders the region's captured schematic in 3D.
@@ -57,7 +136,10 @@ export function SchematicViewer({ client, world, region, schematic }: Props) {
     // texture atlas during initialisation; adding one afterwards means a rebuild.
     let disposed = false;
 
-    void fetchResourcePacks(client).then((packs) => {
+    void fetchResourcePacks(client).then(async (packs) => {
+      // The renderer restores its stored packs ahead of the ones it is handed; they
+      // are dropped first whenever the server's list is not the one they came from.
+      await forgetRememberedPacksUnless(packs.map((pack) => pack.url));
       if (disposed) return;
       rendererRef.current = new SchematicRenderer(
         canvas,
@@ -77,6 +159,14 @@ export function SchematicViewer({ client, world, region, schematic }: Props) {
           // which would let any visitor load arbitrary geometry into what is meant to
           // be this region's preview. The handler below takes packs only.
           enableDragAndDrop: false,
+          callbacks: {
+            // Bearing first, limits second: the snap reframes the plot, and the limits
+            // are meant to hold against wherever it leaves the camera.
+            onSchematicRendered: () => {
+              faceCameraSouthEast(rendererRef.current);
+              keepCameraOutside(rendererRef.current);
+            },
+          },
         },
       ) as unknown as Renderer;
     });

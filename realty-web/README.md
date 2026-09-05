@@ -50,8 +50,37 @@ The front end then needs to know where the API is. Write a `config.json` beside
 `index.html`:
 
 ```json
-{ "apiBaseUrl": "https://api.example.com" }
+{
+  "apiBaseUrl": "https://api.example.com",
+  "map": { "baseUrl": "https://map.example.com" },
+  "logoUrl": "https://example.com/emblem.png",
+  "currency": "$",
+  "visibleWorlds": ["Reveille", "Hamilton"]
+}
 ```
+
+`currency` goes in front of every price: `$78k`, `$200 / 30 days`. Leave it out and
+prices are bare figures, since the API reports a number and nothing about what the
+server's money is called.
+
+`logoUrl` is the server's emblem, shown beside the site name in the header and used as
+the tab's icon. Absolute http(s) only; leave it out and a generic house stands in.
+
+`visibleWorlds` keeps a public site to the public worlds. It is a whitelist of world
+names -- empty or absent means every world -- and a *deployment* setting rather than an
+API one, so the same API can serve a public site that hides the staff and event worlds
+and a staff site that shows everything. A hidden world disappears from the world
+filter, the listings, its region pages (which read as unknown regions), the activity
+feed, the auctions, the map, and a player's listed holdings. Because the API filters by
+one world at a time, a whitelisted site's listings, activity and auctions pages are
+always of one world, opening on the first listed; the front page's samples are merged
+across the listed worlds. Figures the API computes with no world in the question -- the
+totals, the tag counts, the owners leaderboard, a player's counts -- stay server-wide.
+A name the register does not know hides nothing and shows nothing.
+
+`map.baseUrl` is the server's BlueMap, and is what the `/map` route draws underneath
+the plots. Leave it out and the plots are drawn on their own. See
+[The map](#the-map).
 
 **Recommended: put the two behind one origin anyway.** If the static host is nginx,
 proxy `/v1` through to the API and no CORS or `config.json` is needed at all:
@@ -67,6 +96,74 @@ link like `/region/world/plot_a` must return `index.html` rather than a 404.
 If the two really are on different origins, set `REALTY_REST_CORS_ORIGINS` on the
 API to the front end's origin. It is empty by default, which disables CORS — a
 service that allowed every origin by default is one nobody chose.
+
+## The front end
+
+`realty-explorer` is built with [Ant Design](https://ant.design/) and reads like a
+property listing site. Everything on it is the API's answer at load time: there is no
+placeholder copy, no stock imagery, and no currency symbol unless `config.json` names one,
+because the API reports none.
+
+| Route | What it shows | Backed by |
+|---|---|---|
+| `/` | Search, the market in numbers, tags, what is vacant, recent activity, auctions | `/v1/stats`, `/v1/tags`, `/v1/worlds`, `/v1/regions/search`, `/v1/activity`, `/v1/auctions` |
+| `/listings` | The search, with every filter in the URL so a filter set is a link. "Show" spells the states a visitor thinks in -- for sale, for rent, sold, leased -- from the API's type and occupancy filters. Tags are chips of the most-used ones, or, behind "Advanced", the whole list with any-of or all-of matching and tags to leave out | `/v1/regions/search`, `/v1/tags` |
+| `/region/:world/:region` | One listing: 3D preview, price and terms, facts, then its history beside who WorldGuard lets build | `/v1/region`, `/v1/region/schematic`, `/v1/region/history`, `/v1/region/members`, `/v1/resource-pack` |
+| `/map` | Every registered plot in one world, drawn over the server's own BlueMap render, coloured by what it is doing on the market | `/v1/worlds`, `/v1/worlds/geometry`, `/v1/regions/search` |
+| `/auctions` | Every auction taking bids, a card each with a live countdown | `/v1/auctions` |
+| `/activity` | The server-wide feed as a day-by-day timeline, filterable by world and event type | `/v1/activity` |
+| `/owners` | Title holders ranked by plots held, each bar relative to the leader | `/v1/leaderboard/owners` |
+| `/players/:id` | One player's holdings | `/v1/players/summary`, `/v1/players/regions` |
+
+The header's player finder suggests title holders from `/v1/leaderboard/owners` as you
+type, with their heads from crafthead.net, and resolves any other name through
+`/v1/players/lookup` -- falling back to playerdb.co only when the module cannot be
+asked. Player names, region geometry, access lists and the resource pack all come from
+the query-service module; when it is unreachable the pages say so rather than showing
+an empty list, and an unnamed player is shown by the first block of their UUID.
+
+A freehold with an asking price is shown as for sale whoever holds its title: a holder
+who has priced a plot is selling it. Its "last sold for" figure is the last sale, never
+the asking price.
+
+The 3D preview keeps the camera outside the plot -- orbit and zoom, but never through a
+wall -- and opens on a fixed compass bearing, above the plot's south-east corner, so
+every plot is seen the same way round. The renderer's own memory of resource packs is
+cleared before every start, so a pack changed on the game server reaches every browser
+on its next visit.
+
+The theme follows the operating system's light or dark preference.
+
+### The map
+
+`/map` draws every plot under contract in one world as an outline, over tiles read
+straight from the server's own [BlueMap](https://bluemap.bluecolored.de/). Realty hosts
+no tiles and renders no world of its own; it reads the pictures BlueMap has already
+published. The key below the map doubles as its switches: press a kind of plot to hide
+it. It opens on what is for sale or rent, with what is sold or leased a press away.
+
+Point it at one in `config.json`:
+
+```json
+{ "map": { "baseUrl": "https://map.example.com", "ids": { "Hamilton": "hamilton" } } }
+```
+
+`ids` is only for worlds BlueMap calls something other than the lower-cased world name,
+which is the guess otherwise. It has to be stated rather than discovered: BlueMap sends
+no CORS headers, so a page on another origin can display its tiles but never read its
+settings. Nothing else about the map is configurable, because nothing else is a
+decision -- the tile size and the five-fold gap between zoom levels are BlueMap's, and
+a server that has changed them draws a map whose tiles do not line up.
+
+**A bundled deployment cannot configure this.** It serves the front end from inside the
+jar and so has nowhere to put a `config.json`. The map still works -- it draws the plots
+on their own -- but the world underneath them needs either the split deployment or a
+proxy in front that serves the file.
+
+What the map draws is the low-resolution half of what BlueMap renders, which is a flat
+image one pixel to the block. The 3D half is geometry rather than pictures, and is what
+the BlueMap site itself shows; a plot's own buildings are on its listing page instead,
+in the 3D preview.
 
 ## Developing the front end
 
@@ -145,3 +242,15 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   ends up stale.
 - A region with no captured schematic is the normal case — capture is on demand via
   `/realty schematic capture`. The detail screen shows a panel, not an error.
+- **A capture starts at the block the player stands on.** A region claimed from bedrock
+  to the build limit would otherwise capture as a column of stone with a house on top.
+  The block under the capturing player's feet becomes the floor; the footprint and
+  ceiling are the region's own. Run the command from the doorstep, not the basement.
+  Because the floor is where the player stands, the command is players-only: the
+  console cannot run it.
+- **Use a self-contained resource pack.** The renderer builds geometry from the pack's
+  `blockstates` and `models`, so a textures-only override pack such as Faithful draws
+  nothing but chests. Mojang's own client jar works as-is and sends CORS headers, and
+  linking to it redistributes nothing:
+  `https://piston-data.mojang.com/v1/objects/<sha1>/client.jar` (find the sha1 for a
+  version in `https://piston-meta.mojang.com/mc/game/version_manifest_v2.json`).

@@ -1,3 +1,4 @@
+import { Typography } from "antd";
 import type { Attribution } from "../api/client";
 
 /**
@@ -15,15 +16,15 @@ export function ResourcePackCredit({ attribution }: { attribution: Attribution[]
   if (attribution.length === 0) return null;
 
   return (
-    <p className="viewer-credit">
+    <Typography.Paragraph className="viewer-credit" type="secondary" style={{ fontSize: 12, margin: "8px 12px" }}>
       {attribution.map((entry, index) => (
         <span key={`${entry.text}|${entry.href ?? ""}`}>
           {index > 0 && " · "}
           {entry.href
-            ? <a href={entry.href} target="_blank" rel="noopener noreferrer">{entry.text}</a>
+            ? <Typography.Link href={entry.href} target="_blank" rel="noopener noreferrer">{entry.text}</Typography.Link>
             : entry.text}
         </span>
       ))}
-    </p>
+    </Typography.Paragraph>
   );
 }

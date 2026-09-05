@@ -33,14 +33,14 @@ class SearchMapperTest extends AbstractDatabaseTest {
     private static List<SearchResultEntity> search(boolean freehold, boolean leasehold, boolean unpriced,
                                                    double min, double max) {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            return session.searchMapper().search(freehold, leasehold, unpriced, null, null, null,
+            return session.searchMapper().search(freehold, leasehold, unpriced, null, null, null, false,
                     min, max, OccupancyFilter.IGNORE, SearchSort.PRICE_DESC, 50, 0);
         }
     }
 
     private static int count(boolean freehold, boolean leasehold, boolean unpriced, double min, double max) {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            return session.searchMapper().searchCount(freehold, leasehold, unpriced, null, null, null,
+            return session.searchMapper().searchCount(freehold, leasehold, unpriced, null, null, null, false,
                     min, max, OccupancyFilter.IGNORE);
         }
     }
@@ -78,6 +78,21 @@ class SearchMapperTest extends AbstractDatabaseTest {
     void leaseholdSideIsUnaffectedByTheUnpricedFlag() {
         Assertions.assertEquals(List.of("plot_rental"), ids(search(false, true, false, 0, Double.MAX_VALUE)));
         Assertions.assertEquals(List.of("plot_rental"), ids(search(false, true, true, 0, Double.MAX_VALUE)));
+    }
+
+    @Test
+    void reportsTheLeaseTermOnLeaseholdRowsAndNothingOnFreeholds() {
+        // A rent is per term, and the term is a fact of the contract: a listing card that
+        // read "200" alone was a number without a unit.
+        List<SearchResultEntity> rows = search(true, true, true, 0, Double.MAX_VALUE);
+        for (SearchResultEntity row : rows) {
+            if (row.contractType().equals("leasehold")) {
+                Assertions.assertNotNull(row.durationSeconds(), row.worldGuardRegionId());
+                Assertions.assertTrue(row.durationSeconds() > 0, row.worldGuardRegionId());
+            } else {
+                Assertions.assertNull(row.durationSeconds(), row.worldGuardRegionId());
+            }
+        }
     }
 
     @Test

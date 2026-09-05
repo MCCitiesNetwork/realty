@@ -137,6 +137,16 @@
             "user_editable": true,
             "rules": "nullable|integer|min:1",
             "field_type": "text"
+        },
+        {
+            "name": "Region Footprint Cache (seconds)",
+            "description": "How long a reading of a world's region footprints is reused. Footprints are read on the game server's main thread, so this is what stops a map costing that thread once per page per visitor. 0 reads the game server on every request.",
+            "env_variable": "REALTY_REST_GEOMETRY_CACHE_SECONDS",
+            "default_value": "300",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|integer|min:0",
+            "field_type": "text"
         }
     ]
 }

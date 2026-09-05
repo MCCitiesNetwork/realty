@@ -4,6 +4,9 @@ import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
+import io.github.md5sha256.realty.database.entity.TagCountEntity;
+import org.apache.ibatis.annotations.Arg;
+import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
 
@@ -103,5 +106,18 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
             WHERE tagId = #{tagId}
             """)
     int countByTagId(@Param("tagId") @NotNull String tagId);
+
+    @Override
+    @Select("""
+            SELECT tagId, COUNT(*) AS regionCount
+            FROM RegionTag
+            GROUP BY tagId
+            ORDER BY tagId
+            """)
+    @ConstructorArgs({
+            @Arg(column = "tagId", javaType = String.class),
+            @Arg(column = "regionCount", javaType = int.class)
+    })
+    @NotNull List<TagCountEntity> selectTagCounts();
 
 }

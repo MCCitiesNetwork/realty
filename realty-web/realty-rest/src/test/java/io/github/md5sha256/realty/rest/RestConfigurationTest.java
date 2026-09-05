@@ -174,7 +174,7 @@ class RestConfigurationTest {
 
     @Test
     void theCapCannotBeBypassedByConstructingSettingsDirectly() {
-        RestSettings settings = new RestSettings("0.0.0.0", 8080, 5000, List.of(), null, null, 1500, null);
+        RestSettings settings = new RestSettings("0.0.0.0", 8080, 5000, List.of(), null, null, 1500, 0, null);
         Assertions.assertEquals(RestSettings.MAX_PAGE_SIZE_LIMIT, settings.maxPageSize());
     }
 

@@ -323,7 +323,30 @@ paths:
           required: false
           description: >-
             Repeatable. A region matches when it carries at least one of the
-            given tags. Omit for no tag filter.
+            given tags, or every one of them under `tagMatch=all`. Omit for no
+            tag filter.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: tagMatch
+          in: query
+          required: false
+          description: >-
+            How the `tag` list is read: `any` (the default) matches a region
+            carrying at least one of the tags, `all` one carrying every one of
+            them. No effect without `tag`.
+          schema:
+            type: string
+            enum: [ any, all ]
+            default: any
+        - name: excludeTag
+          in: query
+          required: false
+          description: >-
+            Repeatable. A region carrying any of these tags is left out, whatever
+            else it matches. Independent of `tag`: on its own it is every region
+            but the tagged ones.
           schema:
             type: array
             items:
@@ -665,6 +688,14 @@ paths:
         registered region is a 200 with an empty `regions` array, never a 404.
 
 
+        The list leads with the region WorldGuard itself would apply to the
+        block, highest priority first, so a caller wanting the one answer rather
+        than all of them can take the first entry. Both forms are answered from
+        WorldGuard's spatial index rather than by reading every region in the
+        world, so what this costs the game server does not grow as the world
+        fills up.
+
+
         Answered entirely by the query-service module, so an unreachable module
         is a 502 rather than a degraded response.
       parameters:
@@ -917,9 +948,16 @@ paths:
       summary: Every registered region's footprint in one world
       operationId: worldGeometry
       description: >-
-        For drawing a map overlay. The point of the route is that a page of
-        regions costs the game server one main-thread hop rather than one per
-        region, so a client should use this instead of looping `/v1/region`.
+        For drawing a map overlay, so a client should use this instead of looping
+        `/v1/region`. A footprint can only be measured on the game server's main
+        thread, and this route is shaped so that measuring costs that thread as
+        little as possible: a world is read whole rather than a page at a time,
+        the reading is kept and reused for
+        `REALTY_REST_GEOMETRY_CACHE_SECONDS`, and the reading itself is spread
+        across ticks rather than spending one entirely. Paging through a world,
+        and every visitor after the first, therefore costs the game server
+        nothing. A footprint may accordingly be up to that term out of date;
+        which regions are registered is never cached and is always current.
 
 
         Unlike the other two module-backed routes, geometry here is enrichment
@@ -1751,11 +1789,21 @@ components:
           type: integer
         maxY:
           type: integer
+        priority:
+          type: integer
+          description: >-
+            WorldGuard's own priority, which is what settles two regions
+            covering the same block: the higher one is the region whose rules
+            apply there. A client drawing a map wants it for the same reason,
+            since a plot inside a district has to be drawn over the district to
+            be seen. Zero for a region nobody has given a priority, which is
+            WorldGuard's default and also what an older query-service module
+            reports by saying nothing.
         points:
           type: array
           items:
             $ref: "#/components/schemas/Dimensions_Point"
-      required: [ shape, minY, maxY, points ]
+      required: [ shape, minY, maxY, priority, points ]
     Dimensions_Point:
       type: object
       properties:
@@ -1873,7 +1921,15 @@ components:
             Never null here: a search result matched on a contract, so it always
             has a state. Contrast `/v1/regions`, which lists contractless regions
             too and reports null for them.
-      required: [ worldGuardRegionId, world, contractType, price, state ]
+        durationSeconds:
+          type: [ integer, "null" ]
+          format: int64
+          description: >-
+            The lease term the price buys, in seconds. Null for a freehold, whose
+            price is a one-off. Carried here because a rent without its term is a
+            number without a unit, and a listing should not have to fetch every
+            region to say what its price means.
+      required: [ worldGuardRegionId, world, contractType, price, state, durationSeconds ]
     RegionListResponse:
       type: object
       description: >-

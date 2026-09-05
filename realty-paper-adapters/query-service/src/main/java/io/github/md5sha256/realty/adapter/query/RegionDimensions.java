@@ -9,13 +9,19 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
- * A region's footprint and vertical bounds. For a cuboid the points are the four corners of its
- * footprint so a consumer can treat both shapes uniformly. Area and volume are derivable and
+ * A region's footprint, vertical bounds and priority. For a cuboid the points are the four corners
+ * of its footprint so a consumer can treat both shapes uniformly. Area and volume are derivable and
  * deliberately not sent.
+ *
+ * <p>The priority is WorldGuard's own, and is what settles overlapping regions: where two cover the
+ * same block, the higher priority is the one whose rules apply. A consumer drawing a map needs it
+ * for the same reason, since a plot inside a district has to be drawn over the district rather than
+ * under it to be seen at all.</p>
  */
 public record RegionDimensions(@NotNull String shape,
                                int minY,
                                int maxY,
+                               int priority,
                                @NotNull List<Point> points) {
 
     public record Point(int x, int z) {
@@ -26,7 +32,7 @@ public record RegionDimensions(@NotNull String shape,
         BlockVector3 min = region.getMinimumPoint();
         BlockVector3 max = region.getMaximumPoint();
         if (region.getType() == RegionType.CUBOID) {
-            return new RegionDimensions("CUBOID", min.y(), max.y(), distinct(List.of(
+            return new RegionDimensions("CUBOID", min.y(), max.y(), region.getPriority(), distinct(List.of(
                     new Point(min.x(), min.z()),
                     new Point(max.x(), min.z()),
                     new Point(max.x(), max.z()),
@@ -35,7 +41,7 @@ public record RegionDimensions(@NotNull String shape,
         List<Point> points = region.getPoints().stream()
                 .map(p -> new Point(p.x(), p.z()))
                 .toList();
-        return new RegionDimensions("POLYGONAL", min.y(), max.y(), distinct(points));
+        return new RegionDimensions("POLYGONAL", min.y(), max.y(), region.getPriority(), distinct(points));
     }
 
     /**

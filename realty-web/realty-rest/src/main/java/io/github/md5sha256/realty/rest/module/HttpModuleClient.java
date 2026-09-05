@@ -301,8 +301,11 @@ public final class HttpModuleClient implements ModuleClient {
         for (JsonNode point : body.path("points")) {
             points.add(new RegionResponse.Point(point.path("x").asInt(), point.path("z").asInt()));
         }
+        // A module older than this field reports no priority; zero is WorldGuard's own default
+        // for a region nobody has given one, so an absent field and an unset priority agree.
         return new RegionResponse.Dimensions(body.path("shape").asText(),
-                body.path("minY").asInt(), body.path("maxY").asInt(), points);
+                body.path("minY").asInt(), body.path("maxY").asInt(),
+                body.path("priority").asInt(), points);
     }
 
     /**

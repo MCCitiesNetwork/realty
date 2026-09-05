@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { createApiClient } from "./api/client";
 import { loadConfig } from "./config";
 import { AppRoutes } from "./router";
+import { applyFavicon } from "./ui/favicon";
 import "./styles.css";
 
 /**
@@ -16,6 +17,7 @@ import "./styles.css";
 async function bootstrap(): Promise<void> {
   const config = await loadConfig();
   const client = createApiClient(config.apiBaseUrl);
+  applyFavicon(config.logoUrl);
 
   const container = document.getElementById("root");
   if (!container) throw new Error("index.html is missing its #root element");
@@ -23,7 +25,7 @@ async function bootstrap(): Promise<void> {
   createRoot(container).render(
     <StrictMode>
       <BrowserRouter>
-        <AppRoutes client={client} />
+        <AppRoutes client={client} config={config} />
       </BrowserRouter>
     </StrictMode>,
   );
