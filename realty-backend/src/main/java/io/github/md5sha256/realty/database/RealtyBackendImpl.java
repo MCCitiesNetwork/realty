@@ -1190,6 +1190,14 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+    @Override
+    public boolean isRegistered(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.realtyRegionMapper()
+                    .selectByWorldGuardRegion(worldGuardRegionId, worldId) != null;
+        }
+    }
+
     /**
      * Builds a placeholder map for the given region, containing all info-level
      * properties: region, title_holder, authority, price, last_sold_price,
