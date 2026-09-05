@@ -1512,6 +1512,46 @@ class MapperTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("selectLastFreeholdPrice ignores a later asking price: listing is not selling")
+        void selectLastPriceIgnoresListing() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
+
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                wrapper.freeholdHistoryMapper()
+                        .insert(regionId, WORLD_ID, "BUY", PLAYER_B, AUTHORITY, 8205.0);
+                wrapper.freeholdHistoryMapper()
+                        .insert(regionId, WORLD_ID, "SET_TITLEHOLDER", PLAYER_A, AUTHORITY, 0.0);
+                wrapper.freeholdHistoryMapper()
+                        .insert(regionId, WORLD_ID, "SET_PRICE", AUTHORITY, AUTHORITY, 78000.0);
+                session.commit();
+
+                // The holder put the plot up for 78,000; nobody has paid that.
+                Double lastPrice = wrapper.freeholdHistoryMapper()
+                        .selectLastFreeholdPrice(regionId, WORLD_ID);
+                Assertions.assertEquals(8205.0, lastPrice);
+            }
+        }
+
+        @Test
+        @DisplayName("selectLastFreeholdPrice returns null when a plot was listed but never bought")
+        void selectLastPriceNullWhenOnlyListed() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
+
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                wrapper.freeholdHistoryMapper()
+                        .insert(regionId, WORLD_ID, "SET_PRICE", AUTHORITY, AUTHORITY, 500.0);
+                session.commit();
+
+                Assertions.assertNull(wrapper.freeholdHistoryMapper()
+                        .selectLastFreeholdPrice(regionId, WORLD_ID));
+            }
+        }
+
+        @Test
         @DisplayName("selectLastFreeholdPrice returns null for no history")
         void selectLastPriceNull() {
             try (SqlSessionWrapper wrapper = database.openSession()) {
