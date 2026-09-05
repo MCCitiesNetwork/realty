@@ -1,3 +1,5 @@
+import { Layout, Typography } from "antd";
+
 /**
  * The disclaimer Mojang's brand guidelines require of anything built on Minecraft.
  *
@@ -7,11 +9,11 @@
  */
 export function SiteFooter() {
   return (
-    <footer className="site-footer">
-      <p>
+    <Layout.Footer style={{ textAlign: "center" }}>
+      <Typography.Text type="secondary" style={{ fontSize: 11, letterSpacing: "0.06em" }}>
         NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR
         MICROSOFT.
-      </p>
-    </footer>
+      </Typography.Text>
+    </Layout.Footer>
   );
 }

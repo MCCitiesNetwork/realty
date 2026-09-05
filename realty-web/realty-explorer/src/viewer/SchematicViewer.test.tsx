@@ -23,7 +23,7 @@ vi.mock("schematic-renderer", () => ({
   },
 }));
 
-import { SchematicViewer } from "./SchematicViewer";
+import { SchematicViewer, keepCameraOutside } from "./SchematicViewer";
 import type { ApiClient } from "../api/client";
 
 const client = ({
@@ -84,6 +84,58 @@ describe("SchematicViewer", () => {
     render(<SchematicViewer client={client} world="world" region="plot_a" />);
     await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
     expect(constructorSpy.mock.calls[0][2]).toEqual({});
+  });
+
+  it("keeps the camera outside the plot once it has rendered", async () => {
+    // Orbit and zoom, but never through a wall: the nearest approach is the radius of
+    // the sphere around the build, and panning -- which moves the orbited point, and
+    // with it the camera -- is off.
+    render(<SchematicViewer client={client} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+    const options = constructorSpy.mock.calls[0][3] as { callbacks?: { onSchematicRendered?: () => void } };
+    expect(typeof options.callbacks?.onSchematicRendered).toBe("function");
+
+    const orbit = { minDistance: 1, maxDistance: 1000, enablePan: true, target: { set: vi.fn() }, update: vi.fn() };
+    keepCameraOutside({
+      schematicManager: { getGlobalTightWorldBox: () => ({ min: { x: 0, y: 0, z: 0 }, max: { x: 2, y: 3, z: 6 } }) },
+      cameraManager: { controls: new Map([["orbit", orbit]]) },
+    });
+
+    // The box's diagonal is 7, so its bounding sphere has radius 3.5: nothing that far
+    // from the centre can be inside the box.
+    expect(orbit.minDistance).toBeCloseTo(3.675, 5);
+    expect(orbit.maxDistance).toBeCloseTo(28, 5);
+    expect(orbit.enablePan).toBe(false);
+    expect(orbit.target.set).toHaveBeenCalledWith(1, 1.5, 3);
+    expect(orbit.update).toHaveBeenCalled();
+  });
+
+  it("leaves the camera alone when the renderer has no bounds to give", () => {
+    // A schematic that failed to load, or a renderer without the managers: no
+    // constraint is better than a wrong one.
+    expect(() => keepCameraOutside(undefined)).not.toThrow();
+    expect(() => keepCameraOutside({ cameraManager: { controls: new Map() } })).not.toThrow();
+  });
+
+  it("forgets the packs the renderer remembered before constructing it", async () => {
+    // The renderer restores packs from IndexedDB ahead of the one it is handed, and drops
+    // a handed pack whose bytes it has seen. A browser that had ever loaded a pack was
+    // therefore stuck with it whenever the server named a new one.
+    const deleted: string[] = [];
+    vi.stubGlobal("indexedDB", {
+      deleteDatabase: (name: string) => {
+        deleted.push(name);
+        const request = {} as { onsuccess?: () => void };
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      },
+    });
+
+    render(<SchematicViewer client={client} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+
+    expect(deleted).toEqual(["ResourcePacksDB", "cubane-resource-packs", "cubane-cache"]);
+    vi.unstubAllGlobals();
   });
 
   it("disposes the renderer on unmount so WebGL contexts are not leaked", async () => {

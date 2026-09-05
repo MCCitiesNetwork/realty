@@ -12,6 +12,8 @@
     "generate:api": "openapi-typescript ../realty-rest/src/main/resources/openapi.yaml -o src/api/schema.d.ts"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.4",
+    "antd": "^6.6.2",
     "openapi-fetch": "^0.13.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

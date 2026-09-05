@@ -11,6 +11,14 @@ const apiTarget = process.env.REALTY_API_PROXY ?? "http://127.0.0.1:8080";
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    // Left out of dependency pre-bundling: the renderer loads its WASM mesher by a
+    // URL relative to its own module, and the pre-bundled copy resolves that to a
+    // path the dev server answers with index.html -- so in development the preview
+    // failed to initialise with "expected magic word 00 61 73 6d". The production
+    // build emits the .wasm as an asset and was never affected.
+    exclude: ["schematic-renderer"],
+  },
   server: {
     // Development is same-origin: the SPA calls a relative /v1 and this forwards it,
     // so there is no CORS in development and no config.json either.

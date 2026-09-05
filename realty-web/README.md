@@ -68,6 +68,39 @@ If the two really are on different origins, set `REALTY_REST_CORS_ORIGINS` on th
 API to the front end's origin. It is empty by default, which disables CORS — a
 service that allowed every origin by default is one nobody chose.
 
+## The front end
+
+`realty-explorer` is built with [Ant Design](https://ant.design/) and reads like a
+property listing site. Everything on it is the API's answer at load time: there is no
+placeholder copy, no stock imagery and no currency symbol, because the API reports none.
+
+| Route | What it shows | Backed by |
+|---|---|---|
+| `/` | Search, the market in numbers, tags, what is vacant, recent activity, auctions | `/v1/stats`, `/v1/tags`, `/v1/worlds`, `/v1/regions/search`, `/v1/activity`, `/v1/auctions` |
+| `/listings` | The search, with every filter in the URL so a filter set is a link. "Show" spells the states a visitor thinks in -- for sale, for rent, sold, leased -- from the API's type and occupancy filters | `/v1/regions/search` |
+| `/region/:world/:region` | One listing: 3D preview, price and terms, facts, then its history beside who WorldGuard lets build | `/v1/region`, `/v1/region/schematic`, `/v1/region/history`, `/v1/region/members`, `/v1/resource-pack` |
+| `/auctions` | Every auction taking bids, a card each with a live countdown | `/v1/auctions` |
+| `/activity` | The server-wide feed as a day-by-day timeline, filterable by world and event type | `/v1/activity` |
+| `/owners` | Title holders ranked by plots held, each bar relative to the leader | `/v1/leaderboard/owners` |
+| `/players/:id` | One player's holdings | `/v1/players/summary`, `/v1/players/regions` |
+
+The header's player finder suggests title holders from `/v1/leaderboard/owners` as you
+type, with their heads from crafthead.net, and resolves any other name through
+`/v1/players/lookup` -- falling back to playerdb.co only when the module cannot be
+asked. Player names, region geometry, access lists and the resource pack all come from
+the query-service module; when it is unreachable the pages say so rather than showing
+an empty list, and an unnamed player is shown by the first block of their UUID.
+
+A freehold with an asking price is shown as for sale whoever holds its title: a holder
+who has priced a plot is selling it. Its "last sold for" figure is the last sale, never
+the asking price.
+
+The 3D preview keeps the camera outside the plot -- orbit and zoom, but never through a
+wall -- and the renderer's own memory of resource packs is cleared before every start,
+so a pack changed on the game server reaches every browser on its next visit.
+
+The theme follows the operating system's light or dark preference.
+
 ## Developing the front end
 
 ```bash
@@ -145,3 +178,15 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   ends up stale.
 - A region with no captured schematic is the normal case — capture is on demand via
   `/realty schematic capture`. The detail screen shows a panel, not an error.
+- **A capture starts at the block the player stands on.** A region claimed from bedrock
+  to the build limit would otherwise capture as a column of stone with a house on top.
+  The block under the capturing player's feet becomes the floor; the footprint and
+  ceiling are the region's own. Run the command from the doorstep, not the basement.
+  Because the floor is where the player stands, the command is players-only: the
+  console cannot run it.
+- **Use a self-contained resource pack.** The renderer builds geometry from the pack's
+  `blockstates` and `models`, so a textures-only override pack such as Faithful draws
+  nothing but chests. Mojang's own client jar works as-is and sends CORS headers, and
+  linking to it redistributes nothing:
+  `https://piston-data.mojang.com/v1/objects/<sha1>/client.jar` (find the sha1 for a
+  version in `https://piston-meta.mojang.com/mc/game/version_manifest_v2.json`).

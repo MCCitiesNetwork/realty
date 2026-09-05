@@ -1,3 +1,4 @@
+import { Alert, Breadcrumb, Card, Col, Descriptions, Empty, Flex, Result, Row, Skeleton, Space, Tag, Typography } from "antd";
 import { Suspense, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -6,21 +7,23 @@ import {
   type ApiClient,
   type Attribution,
 } from "../../api/client";
+import { listingsPath, worldLabel } from "../../api/paths";
 import type { components } from "../../api/schema";
+import { useQuery } from "../../api/useQuery";
+import { formatCount } from "../../ui/format";
+import { Page } from "../../ui/Page";
+import { PlayerLink } from "../../ui/PlayerLink";
 import { ResourcePackCredit } from "../../ui/ResourcePackCredit";
-import { StateBadge } from "../../ui/StateBadge";
-import { formatPrice } from "../../ui/format";
+import { StateTag, marketState } from "../../ui/StateTag";
+// Lazy, so the browse screens never download Three.js or the WASM mesh pipeline.
+import { SchematicViewer } from "../../viewer/lazyViewer";
+import { PricePanel } from "./PricePanel";
+import { RegionAccess } from "./RegionAccess";
+import { RegionHistory } from "./RegionHistory";
+
+const { Title, Text } = Typography;
 
 type Region = components["schemas"]["RegionResponse"];
-
-// Lazy, so the browse screen never downloads Three.js or the WASM mesh pipeline.
-import { SchematicViewer } from "../../viewer/lazyViewer";
-
-type State =
-  | { status: "loading" }
-  | { status: "missing" }
-  | { status: "error"; message: string }
-  | { status: "ready"; region: Region };
 
 type Props = {
   client: ApiClient;
@@ -41,54 +44,24 @@ type Props = {
 /** Absent is the common case -- capture is on demand -- so it is a state, not an error. */
 type Preview = "probing" | "present" | "absent";
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="fact">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
+/**
+ * One region, laid out as a listing: the preview where a photograph would be, the
+ * price and terms beside it, then the history and the access lists side by side --
+ * both visible at once, since a visitor asking who holds a plot usually also wants
+ * to know who can walk into it.
+ */
+export function RegionScreen({ client, world, region, hasSchematic, resourcePackAttribution }: Props) {
+  const found = useQuery(
+    () => client.GET("/v1/region", { params: { query: { world, region } } }),
+    [client, world, region],
   );
-}
-
-export function RegionScreen({
-  client,
-  world,
-  region,
-  hasSchematic,
-  resourcePackAttribution,
-}: Props) {
   const [credits, setCredits] = useState<Attribution[]>(resourcePackAttribution ?? []);
   // Kept, not discarded: this is the schematic itself, and handing it to the viewer is
   // what stops the same megabytes being fetched twice.
   const [schematic, setSchematic] = useState<ArrayBuffer | undefined>(undefined);
-  const [state, setState] = useState<State>({ status: "loading" });
   const [preview, setPreview] = useState<Preview>(
     hasSchematic === undefined ? "probing" : hasSchematic ? "present" : "absent",
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    setState({ status: "loading" });
-
-    client
-      .GET("/v1/region", { params: { query: { world, region } } })
-      .then(({ data, error, response }) => {
-        if (cancelled) return;
-        if (response?.status === 404) {
-          setState({ status: "missing" });
-          return;
-        }
-        if (error || !data) {
-          setState({ status: "error", message: "Could not load this region." });
-          return;
-        }
-        setState({ status: "ready", region: data });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [client, world, region]);
 
   useEffect(() => {
     if (hasSchematic !== undefined) return;
@@ -131,162 +104,181 @@ export function RegionScreen({
     };
   }, [client, preview, resourcePackAttribution]);
 
-  if (state.status === "loading") {
-    // The frame is drawn from what the URL already says, so following a card lands on
-    // the region's own page immediately and the facts fill in. Blanking the whole page
-    // until /v1/region answers made every click feel like a wait, even though the name
-    // and the way back were known before the request was sent.
+  const crumbs = (
+    <Breadcrumb
+      style={{ marginBottom: 12 }}
+      items={[
+        { title: <Link to="/">Realty</Link> },
+        { title: <Link to={listingsPath({})}>Listings</Link> },
+        { title: <Link to={listingsPath({ world })}>{world}</Link> },
+        { title: region },
+      ]}
+    />
+  );
+
+  if (found.status === "error" && found.error.httpStatus === 404) {
     return (
-      <div className="page">
-        <Link className="back" to="/">&larr; All regions</Link>
-
-        <header className="page-head">
-          <h1>{region}</h1>
-          <p className="sub">{world}</p>
-        </header>
-
-        <div className="detail">
-          <section className="panel">
-            <h2>Details</h2>
-            <div className="skeleton" style={{ height: "9rem" }} />
-          </section>
-          <section className="panel viewer-panel">
-            <div className="viewer-head"><h2>Preview</h2></div>
-            <div className="viewer-body is-empty">
-              <div className="viewer-empty">Checking for a preview…</div>
-            </div>
-          </section>
-        </div>
-      </div>
+      <Page>
+        {crumbs}
+        <Result
+          status="404"
+          title={<>No region named <Text code>{region}</Text> in {world}</>}
+          subTitle="Realty has no record of it. It may have been renamed, or never registered."
+          extra={<Link to={listingsPath({})}>Browse the listings</Link>}
+        />
+      </Page>
     );
   }
 
-  if (state.status === "missing") {
+  if (found.status === "error") {
     return (
-      <div className="page">
-        <Link className="back" to="/">&larr; All regions</Link>
-        <p className="notice">No region named <strong>{region}</strong> in {world}.</p>
-      </div>
+      <Page>
+        {crumbs}
+        <Alert type="error" showIcon message="Could not load this region." />
+      </Page>
     );
   }
 
-  if (state.status === "error") {
-    return (
-      <div className="page">
-        <Link className="back" to="/">&larr; All regions</Link>
-        <p className="alert" role="alert">{state.message}</p>
-      </div>
-    );
-  }
-
-  const found = state.region;
-  const worldName = found.world.name ?? found.world.id;
+  // The frame is drawn from what the URL already says, so following a card lands on
+  // the region's own page immediately and the facts fill in. Blanking the whole page
+  // until /v1/region answered made every click feel like a wait, even though the name
+  // and the way back were known before the request was sent.
+  const data = found.status === "ready" ? found.data : undefined;
 
   return (
-    <div className="page">
-      <Link className="back" to="/">&larr; All regions</Link>
+    <Page>
+      {crumbs}
 
-      <header className="page-head">
-        <StateBadge state={found.state} />
-        <h1>{found.worldGuardRegionId}</h1>
-        <p className="sub">{worldName}</p>
-      </header>
-
-      <div className="detail">
-        <section className="panel">
-          <h2>Details</h2>
-          <dl className="facts">
-            {found.freehold && (
-              <>
-                <Fact label="Price">
-                  <span className="price">{formatPrice(found.freehold.price ?? 0)}</span>
-                </Fact>
-                <Fact label="Accepting offers">
-                  {found.freehold.acceptingOffers ? "Yes" : "No"}
-                </Fact>
-              </>
-            )}
-            {found.leasehold && (
-              <Fact label="Rent">
-                <span className="price">{formatPrice(found.leasehold.price ?? 0)}</span>
-              </Fact>
-            )}
-            {found.auction && <Fact label="Auction">Active</Fact>}
-            <Fact label="World">{worldName}</Fact>
-            {found.dimensions && (
-              <>
-                <Fact label="Shape">{found.dimensions.shape.toLowerCase()}</Fact>
-                <Fact label="Height">
-                  {found.dimensions.maxY - found.dimensions.minY + 1} blocks
-                </Fact>
-                {/* A cuboid's two points are opposite corners, so the footprint is
-                    derivable; a polygon's is not, and reporting one would be a lie. */}
-                {found.dimensions.shape === "CUBOID" && found.dimensions.points.length === 2 && (
-                  <Fact label="Footprint">
-                    {Math.abs(found.dimensions.points[1].x - found.dimensions.points[0].x) + 1}
-                    {" × "}
-                    {Math.abs(found.dimensions.points[1].z - found.dimensions.points[0].z) + 1}
-                  </Fact>
-                )}
-              </>
-            )}
-          </dl>
-
-          {found.tags.length > 0 && (
+      <Flex vertical gap={4} style={{ marginBottom: 20 }}>
+        <Space size={8} wrap>
+          <Title level={1} style={{ margin: 0, overflowWrap: "anywhere" }}>{data?.worldGuardRegionId ?? region}</Title>
+          {data && <StateTag state={marketState(data.state, data.freehold?.price)} />}
+        </Space>
+        <Space size={4} wrap>
+          <Text type="secondary">{data ? worldLabel(data.world) : world}</Text>
+          {data && data.tags.length > 0 && (
             <>
-              <h2 style={{ marginTop: "1.1rem" }}>Tags</h2>
-              <div className="tags">
-                {found.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
-              </div>
+              <Text type="secondary">·</Text>
+              {data.tags.map((tag) => (
+                <Link key={tag} to={listingsPath({ tag: [tag] })}>
+                  <Tag style={{ cursor: "pointer", margin: 0 }}>{tag}</Tag>
+                </Link>
+              ))}
             </>
           )}
-        </section>
+        </Space>
+      </Flex>
 
-        <section className="panel viewer-panel">
-          <div className="viewer-head">
-            <h2>Preview</h2>
+      <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
+        <Col xs={24} lg={15}>
+          <Card
+            title="Preview"
+            size="small"
+            extra={preview === "present" && <Text type="secondary" style={{ fontSize: 12 }}>Drag to orbit · scroll to zoom</Text>}
+            styles={{ body: { padding: 0 } }}
+          >
+            {preview === "probing" && (
+              <div style={{ padding: 24 }}>
+                <Skeleton active paragraph={{ rows: 4 }} title={false} />
+              </div>
+            )}
             {preview === "present" && (
-              <span className="viewer-note">Drag to orbit &middot; scroll to zoom</span>
+              <>
+                <div className="viewer-body">
+                  <Suspense fallback={<Text type="secondary">Loading preview…</Text>}>
+                    <SchematicViewer client={client} world={world} region={region} schematic={schematic} />
+                  </Suspense>
+                </div>
+                {/* Only here: the credit is owed for the pack, and this is the only
+                    place the pack is used. */}
+                <ResourcePackCredit attribution={credits} />
+              </>
             )}
-          </div>
+            {preview === "absent" && (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                style={{ padding: "32px 16px" }}
+                description={
+                  <Flex vertical gap={4} align="center">
+                    {/* Capture is on demand, so most regions have none. Expected, not an error. */}
+                    <span>No preview captured yet</span>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Run <Text code>/realty schematic capture {data?.worldGuardRegionId ?? region}</Text> in game.
+                    </Text>
+                  </Flex>
+                }
+              />
+            )}
+          </Card>
+        </Col>
 
-          {preview === "probing" && (
-            <div className="viewer-body is-empty">
-              <div className="viewer-empty">Checking for a preview…</div>
-            </div>
-          )}
+        <Col xs={24} lg={9}>
+          <Flex vertical gap={16}>
+            {data ? <PricePanel region={data} /> : <Card size="small"><Skeleton active paragraph={{ rows: 2 }} /></Card>}
+            <Card title="Details" size="small" styles={{ body: { padding: 0 } }}>
+              {data ? <Facts region={data} /> : <div style={{ padding: 12 }}><Skeleton active paragraph={{ rows: 5 }} title={false} /></div>}
+            </Card>
+          </Flex>
+        </Col>
+      </Row>
 
-          {preview === "present" && (
-            <>
-              <div className="viewer-body">
-                <Suspense fallback={<div className="viewer-empty">Loading preview…</div>}>
-                  <SchematicViewer
-                    client={client}
-                    world={world}
-                    region={region}
-                    schematic={schematic}
-                  />
-                </Suspense>
-              </div>
-              {/* Only here: the credit is owed for the pack, and this is the only place
-                  the pack is used. */}
-              <ResourcePackCredit attribution={credits} />
-            </>
-          )}
+      <Row gutter={[24, 24]}>
+        <Col xs={24} lg={15}>
+          <Card title="History" size="small">
+            {/* Keyed so a different region starts its own history, not a continuation. */}
+            <RegionHistory key={`${world}/${region}`} client={client} world={world} region={region} />
+          </Card>
+        </Col>
+        <Col xs={24} lg={9}>
+          <Card title="Who can build here" size="small">
+            <RegionAccess client={client} world={world} region={region} />
+          </Card>
+        </Col>
+      </Row>
+    </Page>
+  );
+}
 
-          {preview === "absent" && (
-            <div className="viewer-body is-empty">
-              {/* Capture is on demand, so most regions have none. Expected, not an error. */}
-              <div className="viewer-empty">
-                <span>No preview captured yet</span>
-                <span className="hint">
-                  Run <code>/realty schematic capture {found.worldGuardRegionId}</code> in game.
-                </span>
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
-    </div>
+function Facts({ region }: { region: Region }) {
+  const items: { key: string; label: string; children: React.ReactNode }[] = [];
+  const add = (label: string, children: React.ReactNode) => items.push({ key: label, label, children });
+
+  add("World", worldLabel(region.world));
+  add("Contract", region.freehold && region.leasehold
+    ? "Freehold and leasehold"
+    : region.freehold ? "Freehold" : region.leasehold ? "Leasehold" : "None");
+
+  if (region.freehold) {
+    add("Title holder", region.freehold.titleHolder
+      ? <PlayerLink player={region.freehold.titleHolder} />
+      : <Text type="secondary">Nobody</Text>);
+    add("Authority", <PlayerLink player={region.freehold.authority} />);
+  }
+  if (region.leasehold) {
+    add("Landlord", <PlayerLink player={region.leasehold.landlord} />);
+    add("Tenant", region.leasehold.tenant
+      ? <PlayerLink player={region.leasehold.tenant} />
+      : <Text type="secondary">Nobody</Text>);
+  }
+
+  if (region.dimensions) {
+    const { shape, minY, maxY, points } = region.dimensions;
+    add("Shape", shape === "CUBOID" ? "Cuboid" : `Polygon, ${points.length} corners`);
+    add("Height", `${formatCount(maxY - minY + 1)} blocks (y ${minY} to ${maxY})`);
+    // A cuboid's two points are opposite corners, so the footprint is derivable; a
+    // polygon's is not, and reporting one would be a lie.
+    if (shape === "CUBOID" && points.length === 2) {
+      add("Footprint", `${Math.abs(points[1].x - points[0].x) + 1} × ${Math.abs(points[1].z - points[0].z) + 1}`);
+    }
+  }
+
+  return (
+    <Descriptions
+      bordered
+      size="small"
+      column={1}
+      items={items}
+      styles={{ label: { width: "38%" } }}
+    />
   );
 }
