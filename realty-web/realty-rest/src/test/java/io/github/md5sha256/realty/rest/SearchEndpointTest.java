@@ -27,7 +27,7 @@ class SearchEndpointTest {
     }
 
     private static TestServers.SearchStub stubWithOneResult() {
-        SearchResultEntity row = new SearchResultEntity("plot_12", WORLD_ID, "freehold", 5000.0, "FOR_SALE");
+        SearchResultEntity row = new SearchResultEntity("plot_12", WORLD_ID, "freehold", 5000.0, "FOR_SALE", null);
         return new TestServers.SearchStub(List.of(row), 1);
     }
 
@@ -88,11 +88,31 @@ class SearchEndpointTest {
 
     @Test
     void anUnpricedFreeholdIsRenderedWithANullPrice() {
-        SearchResultEntity row = new SearchResultEntity("plot_sold", WORLD_ID, "freehold", null, "SOLD");
+        SearchResultEntity row = new SearchResultEntity("plot_sold", WORLD_ID, "freehold", null, "SOLD", null);
         TestServers.SearchStub stub = new TestServers.SearchStub(List.of(row), 1);
         JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
             String body = client.get("/v1/regions/search?type=freehold").body().string();
             Assertions.assertTrue(body.contains("\"price\":null"), body);
+        });
+    }
+
+    @Test
+    void aLeaseholdCarriesTheTermItsRentBuys() {
+        // "200" is not a rent; "200 per 30 days" is. The term is part of the row so a
+        // listing does not have to fetch each region to say what its price means.
+        SearchResultEntity row = new SearchResultEntity("flat_9", WORLD_ID, "leasehold", 200.0, "FOR_LEASE", 2_592_000L);
+        TestServers.SearchStub stub = new TestServers.SearchStub(List.of(row), 1);
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            String body = client.get("/v1/regions/search?type=rent").body().string();
+            Assertions.assertTrue(body.contains("\"durationSeconds\":2592000"), body);
+        });
+    }
+
+    @Test
+    void aFreeholdReportsNoTerm() {
+        JavalinTest.test(TestServers.withSearch(stubWithOneResult(), worlds()).javalin(), (server, client) -> {
+            String body = client.get("/v1/regions/search").body().string();
+            Assertions.assertTrue(body.contains("\"durationSeconds\":null"), body);
         });
     }
 
@@ -262,12 +282,56 @@ class SearchEndpointTest {
     }
 
     @Test
-    void neverExcludesTags() {
+    void excludesNothingUnlessAsked() {
         TestServers.SearchStub stub = stubWithOneResult();
         JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
             Assertions.assertEquals(200, client.get("/v1/regions/search?tag=commercial").code());
-            Assertions.assertNull(stub.excludedTagIds,
-                    "this endpoint is include-only; exclusion is not exposed");
+            Assertions.assertNull(stub.excludedTagIds);
+            Assertions.assertFalse(stub.matchAllTags, "tagMatch defaults to any");
+        });
+    }
+
+    @Test
+    void passesEveryExcludedTagThrough() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200,
+                    client.get("/v1/regions/search?excludeTag=industrial&excludeTag=derelict").code());
+            Assertions.assertNull(stub.tagIds, "excluding tags is not the same as asking for any");
+            Assertions.assertEquals(List.of("industrial", "derelict"), List.copyOf(stub.excludedTagIds));
+        });
+    }
+
+    @Test
+    void tagMatchAllAsksForEveryTag() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200,
+                    client.get("/v1/regions/search?tag=commercial&tag=waterfront&tagMatch=all").code());
+            Assertions.assertTrue(stub.matchAllTags);
+            Assertions.assertEquals(List.of("commercial", "waterfront"), List.copyOf(stub.tagIds));
+        });
+    }
+
+    @Test
+    void sendsEachTagOnce() {
+        // Under all-matching the mapper compares a count of tags carried with a count
+        // asked for, so a tag repeated in the query must not be counted twice.
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200,
+                    client.get("/v1/regions/search?tag=commercial&tag=commercial&tagMatch=all").code());
+            Assertions.assertEquals(List.of("commercial"), List.copyOf(stub.tagIds));
+        });
+    }
+
+    @Test
+    void rejectsAnUnknownTagMatch() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Response response = client.get("/v1/regions/search?tag=commercial&tagMatch=some");
+            Assertions.assertEquals(400, response.code());
+            Assertions.assertTrue(response.body().string().contains("INVALID_TAG_MATCH"));
         });
     }
 

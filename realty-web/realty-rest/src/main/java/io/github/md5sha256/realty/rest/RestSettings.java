@@ -18,6 +18,12 @@ import java.util.List;
  *                        disable enrichment entirely
  * @param moduleSecret    shared secret sent to the module, or {@code null}
  * @param moduleTimeoutMs per-call timeout before a module-sourced field degrades to null
+ * @param geometryCacheSeconds how long a reading of a world's region footprints is reused
+ *                        before it is taken again. Footprints are read on the game
+ *                        server's main thread, so this is what stops a map costing that
+ *                        thread once per page per visitor; 0 reads every time. The term
+ *                        is also how stale a redrawn region's shape may be, which is why
+ *                        it is an operator's number rather than a constant.
  * @param webRoot         directory of a built front end to serve alongside the API, or
  *                        {@code null} for a pure API. Empty disables it, matching
  *                        {@code corsOrigins} and {@code moduleUrl}: serving a front end
@@ -33,6 +39,7 @@ public record RestSettings(
         @Nullable String moduleUrl,
         @Nullable String moduleSecret,
         int moduleTimeoutMs,
+        int geometryCacheSeconds,
         @Nullable String webRoot
 ) {
 

@@ -12,6 +12,8 @@ import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
+import io.github.md5sha256.realty.database.entity.TagCountEntity;
+import io.github.md5sha256.realty.database.entity.StatisticsEntity;
 import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
@@ -118,6 +120,9 @@ final class TestServers {
         InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
             case "getAllTagIds" -> List.copyOf(tagIds);
             case "countRegionsByTag" -> counts.getOrDefault((String) args[0], 0);
+            case "countRegionsPerTag" -> tagIds.stream()
+                    .map(id -> new TagCountEntity(id, counts.getOrDefault(id, 0)))
+                    .toList();
             default -> throw new UnsupportedOperationException(
                     "RealtyBackend#" + method.getName() + " is not stubbed for this test");
         };
@@ -141,6 +146,17 @@ final class TestServers {
             case "averageFreeholdPrice" -> 18250.5d;
             case "averageLeaseholdPrice" -> 640.0d;
             case "averageLeaseholdDurationSeconds" -> 604800L;
+            case "statistics" -> new StatisticsEntity(
+                    counters.getOrDefault("countAllRegions", 1),
+                    counters.getOrDefault("countAllFreeholdContracts", 1),
+                    counters.getOrDefault("countOccupiedFreeholdContracts", 1),
+                    18250.5d,
+                    counters.getOrDefault("countAllLeaseholdContracts", 1),
+                    counters.getOrDefault("countOccupiedLeaseholdContracts", 1),
+                    640.0d,
+                    604800L,
+                    counters.getOrDefault("countActiveOffers", 1),
+                    counters.getOrDefault("countActiveAuctions", 1));
             default -> throw new UnsupportedOperationException(
                     "RealtyBackend#" + method.getName() + " is not stubbed for this test");
         };
@@ -162,6 +178,7 @@ final class TestServers {
                  "countActiveOffers", "countActiveAuctions" -> 0;
             case "averageFreeholdPrice", "averageLeaseholdPrice" -> 0.0d;
             case "averageLeaseholdDurationSeconds" -> 0L;
+            case "statistics" -> new StatisticsEntity(0, 0, 0, 0.0d, 0, 0, 0.0d, 0L, 0, 0);
             default -> throw new UnsupportedOperationException(
                     "RealtyBackend#" + method.getName() + " is not stubbed for this test");
         };
@@ -701,7 +718,7 @@ final class TestServers {
         RealtyBackend.SingleCategoryResult rentedResult =
                 new RealtyBackend.SingleCategoryResult(1, List.of());
 
-        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, null);
+        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, 0, null);
         return new RealtyRestServer(
                 playerBackend(listResult, ownedResult, rentedResult),
                 new StubDatabase(false, worlds, false, List.of(), List.of(rented)),
@@ -804,6 +821,7 @@ final class TestServers {
         UUID worldId;
         Collection<String> tagIds;
         Collection<String> excludedTagIds;
+        boolean matchAllTags;
         double minPrice;
         double maxPrice;
         OccupancyFilter occupancy;
@@ -831,7 +849,7 @@ final class TestServers {
                                                 int maxPageSize,
                                                 @NotNull List<String> corsOrigins) {
         RestSettings settings =
-                new RestSettings("localhost", 0, maxPageSize, corsOrigins, null, null, 1500, null);
+                new RestSettings("localhost", 0, maxPageSize, corsOrigins, null, null, 1500, 0, null);
         return new RealtyRestServer(stubBackend(),
                 new StubDatabase(false, worlds, false, List.of(), List.of(), stub),
                 settings);
@@ -850,12 +868,13 @@ final class TestServers {
                     stub.worldId = (UUID) args[3];
                     stub.tagIds = asStrings(args[4]);
                     stub.excludedTagIds = asStrings(args[5]);
-                    stub.minPrice = (double) args[6];
-                    stub.maxPrice = (double) args[7];
-                    stub.occupancy = (OccupancyFilter) args[8];
-                    stub.sort = (SearchSort) args[9];
-                    stub.limit = (int) args[10];
-                    stub.offset = (int) args[11];
+                    stub.matchAllTags = (boolean) args[6];
+                    stub.minPrice = (double) args[7];
+                    stub.maxPrice = (double) args[8];
+                    stub.occupancy = (OccupancyFilter) args[9];
+                    stub.sort = (SearchSort) args[10];
+                    stub.limit = (int) args[11];
+                    stub.offset = (int) args[12];
                     return stub.results;
                 }
                 default -> throw new UnsupportedOperationException(
@@ -889,7 +908,7 @@ final class TestServers {
                                                     @NotNull List<RealtyWorldEntity> worlds,
                                                     int maxPageSize) {
         RestSettings settings =
-                new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, null);
+                new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, 0, null);
         List<RegionStateRow> rows = new ArrayList<>();
         for (RealtyRegionEntity region : regions) {
             rows.add(new RegionStateRow(region.realtyRegionId(),
@@ -921,6 +940,18 @@ final class TestServers {
         return new RealtyRestServer(stubBackend(),
                 new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
                 defaultSettings(), module);
+    }
+
+    /** The same, with region footprints kept for a term rather than read on every request. */
+    static @NotNull RealtyRestServer withCachedGeometry(@NotNull List<RegionStateRow> rows,
+                                                        @NotNull List<RealtyWorldEntity> worlds,
+                                                        @NotNull ModuleClient module,
+                                                        int geometryCacheSeconds) {
+        RestSettings settings = new RestSettings("localhost", 0, 100, List.of(), null, null, 1500,
+                geometryCacheSeconds, null);
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
+                settings, module);
     }
 
     /**
@@ -1078,7 +1109,7 @@ final class TestServers {
     }
 
     private static @NotNull RestSettings defaultSettings() {
-        return new RestSettings("localhost", 0, 100, List.of(), null, null, 1500, null);
+        return new RestSettings("localhost", 0, 100, List.of(), null, null, 1500, 0, null);
     }
 
     private static @NotNull RealtyBackend stubBackend() {

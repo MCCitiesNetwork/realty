@@ -56,7 +56,7 @@ class ListRowStateTest {
     @Test
     void reportsEachSearchResultsState() {
         SearchResultEntity row =
-                new SearchResultEntity("plot_12", WORLD_ID, "freehold", 5000.0, "FOR_SALE");
+                new SearchResultEntity("plot_12", WORLD_ID, "freehold", 5000.0, "FOR_SALE", null);
         RealtyRestServer server = TestServers.withSearch(
                 new TestServers.SearchStub(List.of(row), 1), WORLDS);
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {

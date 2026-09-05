@@ -46,6 +46,13 @@ public record RestConfiguration(
             throw new IllegalStateException("Environment variable REALTY_REST_MODULE_TIMEOUT_MS"
                     + " must be a positive number of milliseconds, was: " + moduleTimeoutMs);
         }
+        int geometryCacheSeconds = integer(env, "REALTY_REST_GEOMETRY_CACHE_SECONDS", 300);
+        if (geometryCacheSeconds < 0) {
+            // Negative is not "off" -- 0 is -- so it is a typo rather than a choice, and
+            // reading it as one term or another would only hide it.
+            throw new IllegalStateException("Environment variable REALTY_REST_GEOMETRY_CACHE_SECONDS"
+                    + " must be 0 or a positive number of seconds, was: " + geometryCacheSeconds);
+        }
         RestSettings rest = new RestSettings(
                 optional(env, "REALTY_REST_HOST", "0.0.0.0"),
                 integer(env, "REALTY_REST_PORT", 8080),
@@ -54,6 +61,7 @@ public record RestConfiguration(
                 env.apply("REALTY_REST_MODULE_URL"),
                 env.apply("REALTY_REST_MODULE_SECRET"),
                 moduleTimeoutMs,
+                geometryCacheSeconds,
                 blankToNull(env.apply("REALTY_REST_WEB_ROOT")));
         if (rest.moduleUrl() != null && !rest.moduleUrl().isBlank()
                 && (rest.moduleSecret() == null || rest.moduleSecret().isBlank())) {
@@ -79,6 +87,7 @@ public record RestConfiguration(
                 REALTY_REST_MODULE_URL=%s
                 REALTY_REST_MODULE_SECRET=%s
                 REALTY_REST_MODULE_TIMEOUT_MS=%d
+                REALTY_REST_GEOMETRY_CACHE_SECONDS=%s
                 REALTY_REST_WEB_ROOT=%s"""
                 .formatted(this.database.url(),
                         this.database.username(),
@@ -92,6 +101,9 @@ public record RestConfiguration(
                         this.rest.moduleUrl() == null ? "<unset>" : this.rest.moduleUrl(),
                         this.rest.moduleSecret() == null ? "<unset>" : "<redacted>",
                         this.rest.moduleTimeoutMs(),
+                        this.rest.geometryCacheSeconds() == 0
+                                ? "0 <-- every request reads the game server>"
+                                : Integer.toString(this.rest.geometryCacheSeconds()),
                         this.rest.webRoot() == null
                                 ? "<unset -- API only>"
                                 : this.rest.webRoot());

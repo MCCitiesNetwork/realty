@@ -1,8 +1,27 @@
-import { Link, Route, Routes, useParams } from "react-router-dom";
+import { App as AntApp, ConfigProvider, Layout } from "antd";
+import { useEffect } from "react";
+import { Route, Routes, useParams } from "react-router-dom";
 import type { ApiClient } from "./api/client";
-import { BrowseScreen } from "./screens/browse/BrowseScreen";
+import type { AppConfig } from "./config";
+import { ActivityScreen } from "./screens/activity/ActivityScreen";
+import { AuctionsScreen } from "./screens/auctions/AuctionsScreen";
+import { HomeScreen } from "./screens/home/HomeScreen";
+import { ListingsScreen } from "./screens/listings/ListingsScreen";
+import { MapScreen } from "./screens/map/MapScreen";
+import { NotFoundScreen } from "./screens/NotFoundScreen";
+import { OwnersScreen } from "./screens/owners/OwnersScreen";
+import { PlayerScreen } from "./screens/players/PlayerScreen";
 import { RegionScreen } from "./screens/region/RegionScreen";
+import { themeFor, useColorScheme } from "./theme";
 import { SiteFooter } from "./ui/SiteFooter";
+import { SiteHeader } from "./ui/SiteHeader";
+import { CurrencyProvider } from "./currency";
+import { VisibilityProvider, visibilityOf } from "./visibility";
+
+type Props = { client: ApiClient };
+
+/** The whole app, including the deployment settings: the map, the emblem, the visible worlds. */
+type AppProps = Props & { config: AppConfig };
 
 function RegionRoute({ client }: Props) {
   const params = useParams<{ world: string; region: string }>();
@@ -14,26 +33,44 @@ function RegionRoute({ client }: Props) {
   );
 }
 
-type Props = { client: ApiClient };
+function PlayerRoute({ client }: Props) {
+  const params = useParams<{ id: string }>();
+  return <PlayerScreen client={client} id={params.id ?? ""} />;
+}
 
-export function AppRoutes({ client }: Props) {
+export function AppRoutes({ client, config }: AppProps) {
+  const scheme = useColorScheme();
+
+  // Native controls and scrollbars follow the same scheme as the components.
+  useEffect(() => {
+    document.documentElement.style.colorScheme = scheme;
+  }, [scheme]);
+
   return (
-    <div className="app">
-      <header className="masthead">
-        <div className="masthead-inner">
-          <Link className="wordmark" to="/">
-            <span className="wordmark-mark" aria-hidden="true">R</span>
-            Realty Explorer
-          </Link>
-        </div>
-      </header>
-
-      <Routes>
-        <Route path="/" element={<BrowseScreen client={client} />} />
-        <Route path="/region/:world/:region" element={<RegionRoute client={client} />} />
-      </Routes>
-
-      <SiteFooter />
-    </div>
+    <VisibilityProvider value={visibilityOf(config.visibleWorlds)}>
+    <CurrencyProvider value={config.currency}>
+    <ConfigProvider theme={themeFor(scheme)}>
+      <AntApp>
+        <Layout style={{ minHeight: "100vh" }}>
+          <SiteHeader client={client} logoUrl={config.logoUrl} />
+          <Layout.Content style={{ display: "flex", flexDirection: "column" }}>
+            <Routes>
+              <Route path="/" element={<HomeScreen client={client} />} />
+              <Route path="/listings" element={<ListingsScreen client={client} />} />
+              <Route path="/region/:world/:region" element={<RegionRoute client={client} />} />
+              <Route path="/map" element={<MapScreen client={client} map={config.map} />} />
+              <Route path="/auctions" element={<AuctionsScreen client={client} />} />
+              <Route path="/activity" element={<ActivityScreen client={client} />} />
+              <Route path="/owners" element={<OwnersScreen client={client} />} />
+              <Route path="/players/:id" element={<PlayerRoute client={client} />} />
+              <Route path="*" element={<NotFoundScreen />} />
+            </Routes>
+          </Layout.Content>
+          <SiteFooter />
+        </Layout>
+      </AntApp>
+    </ConfigProvider>
+    </CurrencyProvider>
+    </VisibilityProvider>
   );
 }

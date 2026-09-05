@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,10 +68,12 @@ final class SearchHandler {
         double effectiveMin = minPrice == null ? 0.0 : minPrice;
         double effectiveMax = maxPrice == null ? NO_MAX_PRICE : maxPrice;
 
-        List<String> tags = QueryParams.values(ctx, "tag");
-        // Exclusion is a mapper capability the browse UI has no use for yet; an
-        // empty collection is how the query says "no tag filter".
-        Collection<String> tagIds = tags.isEmpty() ? null : tags;
+        // Each tag once: under 'all' matching the count of tags a region carries is
+        // compared with the count asked for, and a repeated tag would inflate the latter.
+        // An empty collection is how the query says "no tag filter".
+        Collection<String> tagIds = distinctOrNull(QueryParams.values(ctx, "tag"));
+        Collection<String> excludedTagIds = distinctOrNull(QueryParams.values(ctx, "excludeTag"));
+        boolean matchAllTags = parseTagMatch(QueryParams.optional(ctx, "tagMatch"));
 
         OccupancyFilter occupancy = parseOccupancy(QueryParams.optional(ctx, "occupancy"));
         SearchSort sort = parseSort(QueryParams.optional(ctx, "sort"));
@@ -84,9 +87,10 @@ final class SearchHandler {
         try (SqlSessionWrapper session = this.database.openSession(true)) {
             SearchMapper mapper = session.searchMapper();
             totalCount = mapper.searchCount(type.freehold, type.leasehold, type.unpricedFreehold,
-                    worldId, tagIds, null, effectiveMin, effectiveMax, occupancy);
+                    worldId, tagIds, excludedTagIds, matchAllTags, effectiveMin, effectiveMax, occupancy);
             rows = mapper.search(type.freehold, type.leasehold, type.unpricedFreehold,
-                    worldId, tagIds, null, effectiveMin, effectiveMax, occupancy, sort, pageSize, offset);
+                    worldId, tagIds, excludedTagIds, matchAllTags, effectiveMin, effectiveMax, occupancy,
+                    sort, pageSize, offset);
         }
 
         Set<UUID> worldIds = new HashSet<>();
@@ -102,7 +106,8 @@ final class SearchHandler {
                     worlds.get(row.worldId()),
                     row.contractType(),
                     row.price(),
-                    row.state()));
+                    row.state(),
+                    row.durationSeconds()));
         }
 
         ctx.json(new SearchResponse(page, pageSize, totalCount,
@@ -133,6 +138,21 @@ final class SearchHandler {
             this.leasehold = leasehold;
             this.unpricedFreehold = unpricedFreehold;
         }
+    }
+
+    private static @Nullable Collection<String> distinctOrNull(@NotNull List<String> values) {
+        return values.isEmpty() ? null : new LinkedHashSet<>(values);
+    }
+
+    /** {@code any} (the default) or {@code all}; anything else is rejected, as every enum here is. */
+    private static boolean parseTagMatch(@Nullable String raw) {
+        String value = valueOr(raw, "any");
+        return switch (value) {
+            case "any" -> false;
+            case "all" -> true;
+            default -> throw ApiException.badRequest("INVALID_TAG_MATCH",
+                    "Query parameter 'tagMatch' must be one of [any, all], got '" + value + "'");
+        };
     }
 
     private static @NotNull TypeFilter parseType(@Nullable String raw) {

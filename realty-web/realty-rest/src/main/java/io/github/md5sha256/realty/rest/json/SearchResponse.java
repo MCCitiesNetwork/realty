@@ -41,7 +41,9 @@ public record SearchResponse(
             @NotNull WorldRef world,
             @NotNull String contractType,
             @Nullable Double price,
-            @NotNull String state
+            @NotNull String state,
+            /** The lease term the price buys, in seconds; null for a freehold. */
+            @Nullable Long durationSeconds
     ) {
     }
 

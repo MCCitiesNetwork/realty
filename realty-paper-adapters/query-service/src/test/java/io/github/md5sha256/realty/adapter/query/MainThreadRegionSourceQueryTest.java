@@ -1,7 +1,11 @@
 package io.github.md5sha256.realty.adapter.query;
 
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldguard.protection.flags.registry.SimpleFlagRegistry;
 import com.sk89q.worldguard.protection.managers.RegionManager;
+import com.sk89q.worldguard.protection.managers.index.ChunkHashTable;
+import com.sk89q.worldguard.protection.managers.index.PriorityRTreeIndex;
+import com.sk89q.worldguard.protection.managers.storage.MemoryRegionDatabase;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import org.bukkit.World;
@@ -9,10 +13,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -40,21 +44,33 @@ class MainThreadRegionSourceQueryTest {
                 BlockVector3.at(0, 128, 0), BlockVector3.at(15, 191, 15));
     }
 
+    /**
+     * A real WorldGuard manager, indexed exactly as a running server indexes one -- the chunk
+     * table over a priority R-tree that {@code RegionContainerImpl} builds.
+     *
+     * <p>Real rather than mocked because what these tests are checking is which regions
+     * WorldGuard's own index reports, and a mock would only report what the test told it to.</p>
+     */
     private static RegionManager managerOf(ProtectedRegion... regions) {
-        Map<String, ProtectedRegion> byId = new LinkedHashMap<>();
+        RegionManager manager = new RegionManager(new MemoryRegionDatabase(),
+                new ChunkHashTable.Factory(new PriorityRTreeIndex.Factory()),
+                new SimpleFlagRegistry());
         for (ProtectedRegion region : regions) {
-            byId.put(region.getId(), region);
-        }
-        RegionManager manager = Mockito.mock(RegionManager.class);
-        Mockito.when(manager.getRegions()).thenReturn(byId);
-        for (ProtectedRegion region : regions) {
-            Mockito.when(manager.getRegion(region.getId())).thenReturn(region);
+            manager.addRegion(region);
         }
         return manager;
     }
 
-    private static MainThreadRegionSource sourceOver(RegionManager manager) {
+    /** A world with real build limits, since a column test is asked as a shape spanning them. */
+    private static World worldOfNormalHeight() {
         World world = Mockito.mock(World.class);
+        Mockito.when(world.getMinHeight()).thenReturn(-64);
+        Mockito.when(world.getMaxHeight()).thenReturn(320);
+        return world;
+    }
+
+    private static MainThreadRegionSource sourceOver(RegionManager manager) {
+        World world = worldOfNormalHeight();
         Function<UUID, World> worlds = id -> WORLD_ID.equals(id) ? world : null;
         return new MainThreadRegionSource(INLINE, worlds, w -> manager);
     }
@@ -62,8 +78,40 @@ class MainThreadRegionSourceQueryTest {
     @Test
     void aColumnTestMatchesEveryRegionOverThatFootprintAtAnyHeight() {
         MainThreadRegionSource source = sourceOver(managerOf(ground(), sky()));
-        Assertions.assertEquals(Optional.of(List.of("ground", "sky")),
-                source.regionsAt(WORLD_ID, 8, null, 8).join());
+        // As a set: between two regions of equal priority the order carries no meaning, and
+        // pinning one would only pin whichever way the index happened to hand them over.
+        Assertions.assertEquals(Set.of("ground", "sky"),
+                Set.copyOf(source.regionsAt(WORLD_ID, 8, null, 8).join().orElseThrow()));
+    }
+
+    @Test
+    void theAnswerLeadsWithTheRegionWorldGuardWouldApply() {
+        // Sorted the way the server itself resolves an overlap, so a caller asking what it is
+        // standing in reads the region that governs the block first rather than whichever one
+        // the index reached first.
+        ProtectedCuboidRegion district = new ProtectedCuboidRegion("district",
+                BlockVector3.at(0, 0, 0), BlockVector3.at(63, 255, 63));
+        ProtectedCuboidRegion plot = new ProtectedCuboidRegion("plot",
+                BlockVector3.at(0, 0, 0), BlockVector3.at(15, 255, 15));
+        plot.setPriority(10);
+
+        List<String> at = sourceOver(managerOf(district, plot))
+                .regionsAt(WORLD_ID, 8, 30, 8).join().orElseThrow();
+
+        Assertions.assertEquals(List.of("plot", "district"), at);
+    }
+
+    @Test
+    void aLookupAsksTheIndexRatherThanReadingEveryRegionInTheWorld() {
+        // The point of the exercise. Reading every region is what made this the one route
+        // whose cost to the main thread grew with the size of the world.
+        RegionManager manager = Mockito.spy(managerOf(ground(), sky()));
+        MainThreadRegionSource source = sourceOver(manager);
+
+        source.regionsAt(WORLD_ID, 8, 30, 8).join();
+        source.regionsAt(WORLD_ID, 8, null, 8).join();
+
+        Mockito.verify(manager, Mockito.never()).getRegions();
     }
 
     @Test

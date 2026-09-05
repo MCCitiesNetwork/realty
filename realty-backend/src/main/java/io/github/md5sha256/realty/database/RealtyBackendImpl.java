@@ -22,6 +22,8 @@ import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.TagCountEntity;
+import io.github.md5sha256.realty.database.entity.StatisticsEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
@@ -2153,6 +2155,20 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             combined.sort((a, b) -> b.eventTime().compareTo(a.eventTime()));
             return new HistoryResult(combined, totalCount);
+        }
+    }
+
+    @Override
+    public @NotNull List<TagCountEntity> countRegionsPerTag() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.regionTagMapper().selectTagCounts();
+        }
+    }
+
+    @Override
+    public @NotNull StatisticsEntity statistics() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.statisticsMapper().select();
         }
     }
 

@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { formatPrice } from "./format";
+import { EVENT_TYPES, eventLabel, formatCount, formatDuration, formatPrice, formatPriceInFull, formatRelative, humanise } from "./format";
+
+describe("formatPrice, with a currency", () => {
+  it("puts the operator's symbol in front of the figure, abbreviated or in full", () => {
+    expect(formatPrice(78_000, "$")).toBe("$78k");
+    expect(formatPrice(12.5, "$")).toBe("$12.5");
+    expect(formatPriceInFull(78_000, "$")).toBe("$78,000");
+  });
+
+  it("attaches nothing when none is configured", () => {
+    expect(formatPrice(78_000)).toBe("78k");
+  });
+});
 
 describe("formatPrice", () => {
   it("shows amounts under a thousand in full", () => {
@@ -42,6 +54,60 @@ describe("formatPrice", () => {
   it("does not grow past a fixed width for any finite value", () => {
     for (const v of [999.99, 999_994, 1e15, 1e66, 123456789e100, -1.7976931348623157e308]) {
       expect(formatPrice(v).length).toBeLessThanOrEqual(10);
+    }
+  });
+});
+
+describe("formatCount", () => {
+  it("groups thousands", () => {
+    expect(formatCount(7782)).toBe("7,782");
+    expect(formatCount(0)).toBe("0");
+  });
+});
+
+describe("formatDuration", () => {
+  it("names the largest unit that fits, in whole numbers where it can", () => {
+    expect(formatDuration(2_592_000)).toBe("30 days");
+    expect(formatDuration(86_400)).toBe("1 day");
+    expect(formatDuration(3_600)).toBe("1 hour");
+    expect(formatDuration(90)).toBe("1.5 minutes");
+    expect(formatDuration(0)).toBe("0 seconds");
+  });
+
+  it("rounds to one decimal rather than adding a second unit", () => {
+    expect(formatDuration(76_125_170)).toBe("881.1 days");
+  });
+});
+
+describe("formatRelative", () => {
+  const now = Date.parse("2026-09-05T12:00:00Z");
+
+  it("speaks in the largest unit that has elapsed", () => {
+    expect(formatRelative("2026-09-03T12:00:00Z", now)).toBe("2 days ago");
+    expect(formatRelative("2026-09-05T11:30:00Z", now)).toBe("30 minutes ago");
+    expect(formatRelative("2026-09-05T14:00:00Z", now)).toBe("in 2 hours");
+  });
+
+  it("says now for the present moment", () => {
+    expect(formatRelative("2026-09-05T12:00:00Z", now)).toBe("now");
+  });
+});
+
+describe("eventLabel", () => {
+  it("names the event types the API lists in plain English", () => {
+    expect(eventLabel("BUY")).toBe("Bought");
+    expect(eventLabel("OFFER_BUY")).toBe("Bought by offer");
+    expect(eventLabel("TERMINATE")).toBe("Notice given");
+  });
+
+  it("still renders a type it has no label for", () => {
+    // An event type the API adds later must not vanish from the feed.
+    expect(eventLabel("SOMETHING_NEW")).toBe("Something new");
+  });
+
+  it("has a label for every type the API accepts", () => {
+    for (const type of EVENT_TYPES) {
+      expect(eventLabel(type)).not.toBe(humanise(type));
     }
   });
 });

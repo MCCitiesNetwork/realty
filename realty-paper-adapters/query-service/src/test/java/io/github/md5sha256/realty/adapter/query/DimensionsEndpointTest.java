@@ -22,7 +22,7 @@ class DimensionsEndpointTest {
             Assertions.assertEquals(200, response.code());
             String body = response.body().string();
             Assertions.assertEquals(
-                    "{\"shape\":\"POLYGONAL\",\"minY\":62,\"maxY\":140,\"points\":["
+                    "{\"shape\":\"POLYGONAL\",\"minY\":62,\"maxY\":140,\"priority\":0,\"points\":["
                             + "{\"x\":104,\"z\":-88},{\"x\":131,\"z\":-88},"
                             + "{\"x\":131,\"z\":-61},{\"x\":104,\"z\":-61}]}",
                     body);

@@ -104,7 +104,7 @@ class RegionEndpointTest {
 
     @Test
     void enrichesDimensionsAndNamesFromTheModule() {
-        RegionResponse.Dimensions dims = new RegionResponse.Dimensions("CUBOID", 62, 140, List.of(
+        RegionResponse.Dimensions dims = new RegionResponse.Dimensions("CUBOID", 62, 140, 0, List.of(
                 new RegionResponse.Point(104, -88), new RegionResponse.Point(131, -88),
                 new RegionResponse.Point(131, -61), new RegionResponse.Point(104, -61)));
         ModuleClient module = TestServers.stubModule(
@@ -116,7 +116,7 @@ class RegionEndpointTest {
             Assertions.assertEquals(200, response.code());
             String body = response.body().string();
             Assertions.assertTrue(body.contains("\"authority\":{\"id\":\"" + TestServers.AUTHORITY + "\",\"name\":\"DCGovernment\"}"), body);
-            Assertions.assertTrue(body.contains("\"dimensions\":{\"shape\":\"CUBOID\",\"minY\":62,\"maxY\":140,\"points\":[{\"x\":104,\"z\":-88}"), body);
+            Assertions.assertTrue(body.contains("\"dimensions\":{\"shape\":\"CUBOID\",\"minY\":62,\"maxY\":140,\"priority\":0,\"points\":[{\"x\":104,\"z\":-88}"), body);
         });
     }
 

@@ -21,6 +21,8 @@ import java.util.UUID;
  * @param worldId        when non-null, only regions in that world are included
  * @param tagIds         when non-null, only regions with at least one of these tags are included
  * @param excludedTagIds when non-null, regions with any of these tags are excluded
+ * @param matchAllTags   when true a region must carry every one of {@code tagIds} to match;
+ *                       when false, at least one. No effect without {@code tagIds}.
  * @param occupancy      filters results by whether the region has a titleholder/tenant
  * @param sort           the result order; mapped to a fixed ORDER BY clause, never interpolated
  * @see SearchResultEntity
@@ -33,6 +35,7 @@ public interface SearchMapper {
                                              @Nullable UUID worldId,
                                              @Nullable Collection<String> tagIds,
                                              @Nullable Collection<String> excludedTagIds,
+                                             boolean matchAllTags,
                                              double minPrice,
                                              double maxPrice,
                                              @NotNull OccupancyFilter occupancy,
@@ -46,6 +49,7 @@ public interface SearchMapper {
                     @Nullable UUID worldId,
                     @Nullable Collection<String> tagIds,
                     @Nullable Collection<String> excludedTagIds,
+                    boolean matchAllTags,
                     double minPrice,
                     double maxPrice,
                     @NotNull OccupancyFilter occupancy);

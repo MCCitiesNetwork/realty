@@ -127,4 +127,24 @@ class RegionDimensionsTest {
         Assertions.assertEquals(dims.points().size(),
                 Set.copyOf(dims.points()).size(), "no repeated vertices");
     }
+
+    @Test
+    void aRegionCarriesTheWorldGuardPriorityThatSettlesItsOverlaps() {
+        // Two regions covering one block are settled by priority, and a client drawing them has
+        // the same problem: a plot inside a district must be drawn over the district, not under.
+        ProtectedCuboidRegion plot = new ProtectedCuboidRegion("plot",
+                BlockVector3.at(0, 0, 0), BlockVector3.at(15, 255, 15));
+        plot.setPriority(7);
+
+        Assertions.assertEquals(7, RegionDimensions.fromProtectedRegion(plot).priority());
+    }
+
+    @Test
+    void aRegionNobodyHasPrioritisedReportsZero() {
+        // WorldGuard's own default, so an unset priority and an absent one agree.
+        ProtectedCuboidRegion plot = new ProtectedCuboidRegion("plot",
+                BlockVector3.at(0, 0, 0), BlockVector3.at(15, 255, 15));
+
+        Assertions.assertEquals(0, RegionDimensions.fromProtectedRegion(plot).priority());
+    }
 }

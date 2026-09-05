@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.mapper;
 
+import io.github.md5sha256.realty.database.entity.TagCountEntity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -23,6 +24,9 @@ public interface RegionTagMapper {
     int deleteByRegionId(@NotNull String worldGuardRegionId);
 
     @NotNull List<String> selectDistinctTagIds();
+
+    /** Every tag in use with how many regions carry it, in tag-id order. */
+    @NotNull List<TagCountEntity> selectTagCounts();
 
     int deleteByTagIdNotIn(@NotNull Collection<String> tagIds);
 
