@@ -64,17 +64,23 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Set up Node
+        # realty-web-dist embeds the explorer, so its build runs Vite.
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Build the shadow jar
+      - name: Build the shadow jars
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew --no-daemon :realty-rest:shadowJar \
+          ./gradlew --no-daemon :realty-web:realty-rest:shadowJar \
             -PreleaseVersion=${{ steps.version.outputs.version }}
 
-      - name: Verify the expected asset exists
+      - name: Verify the expected assets exist
         id: jar
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -83,15 +89,25 @@ jobs:
           # The egg builds its download URL from the version alone, so the file
           # name is part of the published contract -- not an incidental build
           # output. Fail here rather than let a renamed jar 404 on every install.
-          JAR="realty-rest/build/libs/realty-rest-${VERSION}-all.jar"
+          JAR="realty-web/realty-rest/build/libs/realty-rest-${VERSION}-all.jar"
           if [ ! -f "${JAR}" ]; then
             echo "::error::Expected ${JAR}, found:"
-            ls -1 realty-rest/build/libs/ >&2 || true
+            ls -1 realty-web/realty-rest/build/libs/ >&2 || true
             exit 1
           fi
           echo "path=${JAR}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload the jar to the release
+          # Same contract for the bundled build: its egg derives the download URL
+          # from the version alone.
+          DIST="realty-web/realty-web-dist/build/libs/realty-web-dist-${VERSION}-all.jar"
+          if [ ! -f "${DIST}" ]; then
+            echo "::error::Expected ${DIST}, found:"
+            ls -1 realty-web/realty-web-dist/build/libs/ >&2 || true
+            exit 1
+          fi
+          echo "dist=${DIST}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the jars to the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -1,0 +1,598 @@
+/* Realty Explorer — visual system.
+   Tokens first, components after. Every colour is a token so the light and dark
+   themes stay a set rather than a pile of one-off overrides. */
+
+:root {
+  color-scheme: light dark;
+
+  --ground: #f4f6f4;
+  --surface: #ffffff;
+  --surface-2: #eef1ee;
+  --sunk: #e6eae6;
+
+  --ink: #131817;
+  --ink-soft: #46514c;
+  --muted: #6d7a74;
+
+  --rule: #d8ded9;
+  --rule-soft: #e6eae6;
+
+  --accent: #2f7d52;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2f0e8;
+
+  --gold: #9a6b28;
+  --gold-soft: #f6ecdc;
+
+  --info: #2c6083;
+  --info-soft: #e2eef6;
+
+  --danger: #9b3232;
+  --danger-soft: #f7e6e6;
+
+  --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --body: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 2px rgba(19, 24, 23, 0.06), 0 4px 16px rgba(19, 24, 23, 0.05);
+  --page: 1160px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0f1417;
+    --surface: #171f23;
+    --surface-2: #1d262b;
+    --sunk: #131b1e;
+
+    --ink: #e9efec;
+    --ink-soft: #b6c2bd;
+    --muted: #869590;
+
+    --rule: #2a3438;
+    --rule-soft: #212a2e;
+
+    --accent: #5cb583;
+    --accent-ink: #0f1417;
+    --accent-soft: #172b21;
+
+    --gold: #d9a05b;
+    --gold-soft: #2a2117;
+
+    --info: #79b3d8;
+    --info-soft: #16242e;
+
+    --danger: #e08585;
+    --danger-soft: #2c1a1a;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #0f1417;
+  --surface: #171f23;
+  --surface-2: #1d262b;
+  --sunk: #131b1e;
+
+  --ink: #e9efec;
+  --ink-soft: #b6c2bd;
+  --muted: #869590;
+
+  --rule: #2a3438;
+  --rule-soft: #212a2e;
+
+  --accent: #5cb583;
+  --accent-ink: #0f1417;
+  --accent-soft: #172b21;
+
+  --gold: #d9a05b;
+  --gold-soft: #2a2117;
+
+  --info: #79b3d8;
+  --info-soft: #16242e;
+
+  --danger: #e08585;
+  --danger-soft: #2c1a1a;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--display);
+  margin: 0;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+p { margin: 0; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- app shell ---------- */
+
+.app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--ground) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule);
+}
+
+.masthead-inner {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.wordmark:hover { text-decoration: none; }
+
+.wordmark-mark {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 4px;
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 1.75rem 1.25rem 4rem;
+}
+
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 1.25rem;
+}
+
+.page-head h1 { font-size: 1.9rem; font-weight: 700; }
+.page-head .sub { color: var(--muted); font-size: 0.92rem; }
+
+/* ---------- filters ---------- */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  margin-bottom: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 9rem;
+}
+
+.field > span {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field select,
+.field input {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+}
+
+.field input::placeholder { color: var(--muted); }
+
+/* ---------- listing grid ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 0.85rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card {
+  /* Anchors the stretched link below, which is what makes the whole card the target. */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+  .card:hover { transform: none; }
+}
+
+.card-name {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* The name was the only thing you could click -- about a seventh of the card -- so a
+   click anywhere else did nothing at all, which read as the page ignoring you. This
+   spreads the anchor's hit area over the whole card while leaving one real link in the
+   markup, so it stays keyboard-reachable and announces itself once. */
+.card-name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.card-name:hover { text-decoration: none; }
+
+/* The pointer must say the whole card is a target, not just the name. */
+.card { cursor: pointer; }
+
+/* Focus follows the card, since the card is what the link now covers. */
+.card:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card-name:focus-visible { outline: none; }
+
+/* Nothing inside the card is raised above the overlay. Lifting the price or the badge
+   back out would carve the dead zones straight back into the middle of the target. */
+
+.card-world {
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.card-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rule-soft);
+}
+
+.price {
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.price-none { color: var(--muted); font-size: 0.85rem; font-family: var(--body); }
+
+/* ---------- state badges ---------- */
+
+.badge {
+  align-self: flex-start;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Semantic, and separate from the accent: availability is information, not brand. */
+.badge-for_sale, .badge-for_lease { background: var(--accent-soft); color: var(--accent); }
+.badge-sold, .badge-leased { background: var(--info-soft); color: var(--info); }
+.badge-unknown { background: var(--sunk); color: var(--muted); }
+
+/* ---------- pagination ---------- */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.pager span {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+/* ---------- messages ---------- */
+
+.notice {
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  color: var(--muted);
+  text-align: center;
+}
+
+.alert {
+  padding: 0.85rem 1rem;
+  background: var(--danger-soft);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+
+/* ---------- region detail ---------- */
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.back:hover { color: var(--accent); text-decoration: none; }
+
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 52rem) {
+  .detail { grid-template-columns: minmax(0, 1fr); }
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 1.1rem;
+}
+
+.panel h2 {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.85rem;
+}
+
+.facts { display: flex; flex-direction: column; gap: 0.7rem; }
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.fact dt { color: var(--muted); }
+
+.fact dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  color: var(--ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+.tag {
+  font-size: 0.75rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: var(--sunk);
+  color: var(--ink-soft);
+}
+
+.viewer-panel { padding: 0; overflow: hidden; }
+
+.viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.viewer-head h2 { margin: 0; }
+
+.viewer-note { font-size: 0.72rem; color: var(--muted); }
+
+.viewer-body {
+  aspect-ratio: 16 / 10;
+  display: grid;
+  place-items: center;
+  background: var(--sunk);
+}
+
+/* Nothing to show means nothing to reserve space for: a 16:10 void reads as a
+   broken viewer rather than as an absent one. */
+.viewer-body.is-empty {
+  aspect-ratio: auto;
+  min-height: 11rem;
+}
+
+.viewer-body canvas { width: 100%; height: 100%; display: block; }
+
+.viewer-drop { position: relative; width: 100%; height: 100%; }
+
+.viewer-drop-note {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  margin: 0;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid var(--rule);
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.viewer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.viewer-empty .hint { font-size: 0.78rem; }
+
+.viewer-empty code {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  background: var(--surface-2);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  color: var(--ink-soft);
+}
+
+/* ---------- skeletons ---------- */
+
+.skeleton {
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--sunk), var(--surface-2), var(--sunk));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-card { height: 7.5rem; }
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+/* ---------- resource pack credit ---------- */
+
+.viewer-credit {
+  margin: 0;
+  padding: 0.55rem 1.1rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.viewer-credit a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.viewer-credit a:hover { color: var(--accent); }
+
+/* margin-top:auto pins this to the bottom on short pages without ever overlaying
+   content on long ones -- .app is the flex column that makes that work. */
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--rule);
+  padding: 1.1rem 1.25rem 1.6rem;
+}
+
+.site-footer p {
+  max-width: var(--page);
+  margin: 0 auto;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}

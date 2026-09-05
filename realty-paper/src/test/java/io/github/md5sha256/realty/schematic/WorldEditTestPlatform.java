@@ -70,7 +70,8 @@ final class WorldEditTestPlatform {
         // does that here, so the registry would stay empty and BlockTypes.STONE null.
         // Only the blocks these tests place need to exist; their property sets come
         // from the bundled data the stub platform exposes above.
-        for (String id : new String[]{"minecraft:air", "minecraft:stone", "minecraft:dirt"}) {
+        for (String id : new String[]{"minecraft:air", "minecraft:stone", "minecraft:dirt",
+                "minecraft:chest"}) {
             if (BlockType.REGISTRY.get(id) == null) {
                 BlockType.REGISTRY.register(id, new BlockType(id));
             }

@@ -7,6 +7,11 @@
 # This is a DEVELOPMENT database. The credentials are deliberately trivial and
 # the port is published to localhost — do not reuse this file for anything
 # reachable from outside your machine.
+# Distinct project name: see the note in compose.yml. Without it, running `up` with
+# compose.yml or compose.local.yml would delete the dev database container this file
+# owns, which the Gradle startDevDb/stopDevDb/resetDevDb tasks manage.
+name: realty-dev
+
 services:
   mariadb:
     # Pinned to the same image the Testcontainers-backed tests use

@@ -1,0 +1,142 @@
+{
+  "_comment": "Realty REST egg for Pterodactyl. Exported/imported via Admin > Nests > Import Egg.",
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-09-02T00:00:00+00:00",
+  "name": "Realty REST",
+  "author": "42793301+md5sha256@users.noreply.github.com",
+  "description": "Standalone, read-only HTTP API over a Realty MariaDB database. Configured entirely by environment variables -- no config file is templated by the egg. The HTTP server binds the port of the server's primary allocation.",
+  "features": null,
+  "docker_images": {
+    "Java 25 (Yolks)": "ghcr.io/parkervcp/yolks:java_25"
+  },
+  "file_denylist": [],
+  "startup": "REALTY_REST_PORT={{SERVER_PORT}} java -jar realty-rest-all.jar",
+  "config": {
+    "files": "{}",
+    "startup": "{\"done\": \"Realty REST listening on http://\"}",
+    "logs": "{}",
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\n# Downloads a prebuilt realty-rest jar from a GitHub Release and stages it as\n# realty-rest-all.jar, matching this egg's startup command.\n#\n# Nothing is compiled here. The jar is published by the \"Release realty-rest\"\n# workflow when a release is published, and downloaded anonymously -- GitHub\n# Release assets need no token, unlike the Packages Maven registry.\n#\n# REALTY_REST_VERSION pins the version. It is deliberately not \"latest\":\n# realty-rest refuses to start unless the database schema is exactly the version\n# it was built against, so it must be upgraded in lockstep with the Realty\n# plugin. A reinstall must therefore produce the same jar it produced before,\n# not whatever has been released since.\nset -euo pipefail\n\nREPO=\"${REALTY_REST_REPO:-MCCitiesNetwork/realty}\"\nVERSION=\"${REALTY_REST_VERSION:-}\"\n\nif [ -z \"${VERSION}\" ]; then\n    echo \"ERROR: REALTY_REST_VERSION is not set. Set it to a released version, e.g. 1.5.1.\"\n    exit 1\nfi\n\n# Release tags carry no v prefix (1.5.1, not v1.5.1), matching this project's\n# existing tags. A leading v is still stripped from the operator's input, so\n# typing \"v1.5.1\" resolves to the same release rather than 404ing.\nVERSION=\"${VERSION#v}\"\nJAR=\"realty-rest-${VERSION}-all.jar\"\nURL=\"https://github.com/${REPO}/releases/download/${VERSION}/${JAR}\"\n\napt-get update && apt-get install -y --no-install-recommends curl ca-certificates\n\nmkdir -p /mnt/server\ncd /mnt/server\n\necho \"Downloading ${JAR} from ${URL}\"\nif ! curl --fail --location --show-error --silent -o realty-rest-all.jar.part \"${URL}\"; then\n    echo \"ERROR: could not download ${URL}\"\n    echo \"       Check that version ${VERSION} has a published release with that asset:\"\n    echo \"       https://github.com/${REPO}/releases\"\n    rm -f realty-rest-all.jar.part\n    exit 1\nfi\n\n# curl --fail already rejects an HTTP error, but a truncated transfer can still\n# leave a short file behind. Staging through .part means a failed install never\n# leaves a half-written jar that the startup command would try to run.\nif [ ! -s realty-rest-all.jar.part ]; then\n    echo \"ERROR: downloaded file is empty.\"\n    rm -f realty-rest-all.jar.part\n    exit 1\nfi\n\nmv realty-rest-all.jar.part realty-rest-all.jar\n\necho \"Install complete: /mnt/server/realty-rest-all.jar (realty-rest ${VERSION})\"\n",
+      "container": "debian:bookworm-slim",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Realty REST Version",
+      "description": "The released version to install, e.g. 1.5.1 (release tags carry no v prefix, but typing one is accepted). Must be a version with a published release asset. realty-rest requires the database schema to be exactly the version it was built against, so upgrade this in lockstep with the Realty plugin -- reinstalling always fetches this exact version, never the latest.",
+      "env_variable": "REALTY_REST_VERSION",
+      "default_value": "1.5.2",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:32",
+      "field_type": "text"
+    },
+    {
+      "name": "Source Repository",
+      "description": "GitHub repository the install script downloads the release asset from, as owner/name. Leave as MCCitiesNetwork/realty unless you are installing from a fork; the install script reads this and there is no other way to point it elsewhere.",
+      "env_variable": "REALTY_REST_REPO",
+      "default_value": "MCCitiesNetwork/realty",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:128",
+      "field_type": "text"
+    },
+    {
+      "name": "Database URL",
+      "description": "MariaDB JDBC URL, without the jdbc: prefix (the app prepends it). Example: mariadb://db-host:3306/realty",
+      "env_variable": "REALTY_DB_URL",
+      "default_value": "mariadb://db-host:3306/realty",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Database Username",
+      "description": "MariaDB user the service authenticates as. Read-only access is sufficient; realty-rest never writes.",
+      "env_variable": "REALTY_DB_USERNAME",
+      "default_value": "realty",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Database Password",
+      "description": "Password for REALTY_DB_USERNAME. Viewable as well as editable: Pterodactyl renders a field only for viewable variables, so a hidden one cannot be filled in at all. Anyone with startup access to this server can therefore read it -- give the service its own database user rather than a shared one.",
+      "env_variable": "REALTY_DB_PASSWORD",
+      "default_value": "change-me",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Bind Host",
+      "description": "Address the HTTP server binds to inside the container. Leave as 0.0.0.0 unless you know you need otherwise.",
+      "env_variable": "REALTY_REST_HOST",
+      "default_value": "0.0.0.0",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Max Page Size",
+      "description": "Upper bound accepted for the pageSize query parameter on paginated endpoints. Hard-capped at 100 by the service: a larger value here is clamped, not honoured.",
+      "env_variable": "REALTY_REST_MAX_PAGE_SIZE",
+      "default_value": "100",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|integer|between:1,100",
+      "field_type": "text"
+    },
+    {
+      "name": "CORS Allowed Origins",
+      "description": "Comma-separated list of origins permitted to call this API from a browser, e.g. https://realty.example,http://localhost:5173. Leave blank to disable CORS entirely, which is the default -- a browser front end on another origin cannot reach this service until its origin is listed here.",
+      "env_variable": "REALTY_REST_CORS_ORIGINS",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Query Module URL",
+      "description": "Base URL of the query-service module used to enrich responses (e.g. world dimension, player display name). Leave blank to disable enrichment -- those fields are returned as null.",
+      "env_variable": "REALTY_REST_MODULE_URL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Query Module Secret",
+      "description": "Shared secret sent to the query-service module on every call. Only used when Query Module URL is set. Viewable, like every other editable field on this egg -- Pterodactyl renders a field only for viewable variables, so hiding it would make it uneditable too.",
+      "env_variable": "REALTY_REST_MODULE_SECRET",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Query Module Timeout (ms)",
+      "description": "Per-call timeout before a module-sourced field degrades to null.",
+      "env_variable": "REALTY_REST_MODULE_TIMEOUT_MS",
+      "default_value": "1500",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|integer|min:1",
+      "field_type": "text"
+    }
+  ]
+}

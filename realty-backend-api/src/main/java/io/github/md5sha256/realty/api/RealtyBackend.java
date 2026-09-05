@@ -465,6 +465,16 @@ public interface RealtyBackend {
     @Nullable RegionWithState getRegionWithState(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId);
 
+    /**
+     * Whether the region is registered with Realty at all, independent of any
+     * contract on it.
+     *
+     * <p>This is not {@link #getRegionState}: that returns {@code null} both for an
+     * unregistered region and for a registered one carrying no contract, so it cannot
+     * answer this question.</p>
+     */
+    boolean isRegistered(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
     // --- Authority Check ---
 
     boolean checkRegionAuthority(@NotNull String worldGuardRegionId,
