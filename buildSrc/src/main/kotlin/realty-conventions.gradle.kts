@@ -12,7 +12,7 @@ group = "io.github.md5sha256"
 // name, so -Pversion behaves differently depending on whether a build script assigns
 // it -- a trap that would surface as a wrongly-named release asset rather than an
 // error. A distinct name has no such ambiguity.
-version = (findProperty("releaseVersion") ?: "1.6.1-SNAPSHOT").toString()
+version = (findProperty("releaseVersion") ?: "1.6.2-SNAPSHOT").toString()
 
 val targetJavaVersion = 25
 
