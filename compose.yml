@@ -21,6 +21,12 @@
 # `mariadb` service: set REALTY_DB_URL in `.env` to that database's address
 # and start only the API, skipping its dependency on the bundled one --
 #     docker compose up -d --no-deps realty-rest
+# Compose project name. Explicit because all three compose files in this repo would
+# otherwise default to the directory name and share one project -- which means
+# `up` with any of them reconciles that project and REMOVES the containers the
+# others created. A distinct name per file keeps them independent.
+name: realty
+
 services:
   mariadb:
     image: mariadb:11.7
@@ -42,7 +48,7 @@ services:
   realty-rest:
     build:
       context: .
-      dockerfile: realty-rest/Dockerfile
+      dockerfile: realty-web/realty-rest/Dockerfile
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -63,6 +69,24 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
+
+  # The front end, served by nginx with /v1 proxied to the API above. Because the
+  # browser only ever sees this one origin, REALTY_REST_CORS_ORIGINS can stay
+  # empty and no config.json is needed.
+  #
+  # The alternative shape is realty-web-dist, a single jar carrying both -- see
+  # realty-web/README.md. This file demonstrates the split deployment.
+  realty-explorer:
+    build:
+      # The repo root: the Dockerfile also reads openapi.yaml from the sibling
+      # realty-rest module to generate the API client.
+      context: .
+      dockerfile: realty-web/realty-explorer/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8090:80"
+    depends_on:
+      - realty-rest
 
 volumes:
   realty-rest-db:

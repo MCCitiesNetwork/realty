@@ -68,7 +68,8 @@ public final class QueryServiceModule extends SimplePluginModule<Realty> {
                         plugin.executorState().mainThreadExec(),
                         plugin.getServer()::getWorld,
                         world -> regionContainer.get(BukkitAdapter.adapt(world))),
-                plugin.paperApi().playerNameService());
+                plugin.paperApi().playerNameService(),
+                new ConfiguredResourcePackSource(config.resourcePackUrl(), config.resourcePackAttribution()));
         server.start(config.bindHost(), config.port());
         return server::stop;
     }

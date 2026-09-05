@@ -148,22 +148,24 @@ a repeating task. The budget is a new `Settings` key,
 the existing `profile-reapply-per-tick` setting, which already establishes
 per-tick budgeted work as this plugin's way of spreading a large job.
 
-Blocks are read with `getBlock`, not `getFullBlock`: block state (type plus
-properties — a stair's facing, a slab's half) is what a preview renders, and
-block entity NBT is not. A chest renders as a chest either way; only its
-contents differ, and the preview does not show them.
+Blocks are read with `getFullBlock`, and each block entity is then **stripped to
+its identity**: the `id` is kept and everything else discarded.
 
-This is a deliberate exclusion rather than an oversight, and it pays for
-itself three times: schematics are markedly smaller, which is the same
-pressure the volume cap exists to relieve; the copy holds less per block, so
-a large region costs less memory mid-capture; and the stored bytes carry no
-inventory contents, so a preview served over a public endpoint cannot leak
-what players kept in their chests.
+Both halves matter, and an earlier draft got this wrong by capturing block
+state alone. A sign or a chest has no geometry in its block model — vanilla's
+`models/block/oak_sign.json` and `chest.json` define only a particle texture
+and no elements, because the game draws both with a block-entity renderer. A
+schematic without block entities therefore does not render those blocks
+*untextured*; it does not render them **at all**. A plot comes back as a few
+objects floating in space and reads as a failed capture. This was observed,
+not theorised.
 
-The consequence to accept: signs come back blank and item frames empty. If a
-later version wants sign text in previews, it should read it deliberately for
-that purpose rather than switching to `getFullBlock` wholesale and picking up
-every chest's inventory along with it.
+What is discarded is the payload: a chest's `Items`, a sign's text. Neither is
+of any use to a preview, and this schematic is served over a public,
+unauthenticated endpoint, so a copy of every chest's contents is exactly what
+should not be in it. The filter is an **allowlist** keeping only `id`, so a
+block entity type nobody anticipated cannot leak a field nobody thought to
+strip.
 
 Three lifecycle concerns the implementation must handle, none of which existed
 when the copy was atomic:

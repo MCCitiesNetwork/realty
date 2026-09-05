@@ -30,12 +30,14 @@ class QueryServiceConfigTest {
                 bind-host: "0.0.0.0"
                 port: 9000
                 request-timeout-ms: 250
+                resource-pack-url: "https://cdn.example.com/pack.zip"
                 """);
         Assertions.assertEquals("hunter2", config.sharedSecret());
         Assertions.assertEquals("0.0.0.0", config.bindHost());
         Assertions.assertEquals(9000, config.port());
         Assertions.assertEquals(Duration.ofMillis(250), config.requestTimeout());
         Assertions.assertTrue(config.httpEnabled());
+        Assertions.assertEquals("https://cdn.example.com/pack.zip", config.resourcePackUrl());
     }
 
     @Test
@@ -45,6 +47,85 @@ class QueryServiceConfigTest {
         Assertions.assertEquals("127.0.0.1", config.bindHost());
         Assertions.assertEquals(8123, config.port());
         Assertions.assertEquals(Duration.ofMillis(1000), config.requestTimeout());
+        Assertions.assertNull(config.resourcePackUrl());
+    }
+
+    @Test
+    void aBlankResourcePackUrlMeansNoneRatherThanAnEmptyString() {
+        // Same convention as shared-secret and REALTY_REST_CORS_ORIGINS: an operator who
+        // has not chosen a pack should not have to be distinguished from one who typed "".
+        Assertions.assertNull(parse("resource-pack-url: \"\"\n").resourcePackUrl());
+        Assertions.assertNull(parse("resource-pack-url: \"   \"\n").resourcePackUrl());
+    }
+
+    @Test
+    void aResourcePackUrlMustBeAUrl() {
+        // A path or a bare filename is a common mistake and produces a preview that
+        // silently never textures; failing loudly at read time names the setting.
+        IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
+                () -> parse("resource-pack-url: \"packs/pack.zip\"\n"));
+        Assertions.assertTrue(ex.getMessage().contains("resource-pack-url"), ex.getMessage());
+    }
+
+    @Test
+    void aResourcePackUrlMustBeHttpOrHttps() {
+        // file:// would be read by the browser, not the server, so it can never work.
+        Assertions.assertThrows(IllegalStateException.class,
+                () -> parse("resource-pack-url: \"file:///packs/pack.zip\"\n"));
+    }
+
+    @Test
+    void readsPackAttributionWithAndWithoutLinks() {
+        // The credit lives here rather than with the front end because the pack it credits
+        // is chosen here: two files on two hosts is how one of them ends up stale.
+        QueryServiceConfig config = parse("""
+                resource-pack-attribution:
+                  - text: "Textures: Example Pack 32x"
+                    url: "https://packs.example.com/"
+                  - text: "CC BY 4.0"
+                """);
+        Assertions.assertEquals(2, config.resourcePackAttribution().size());
+        Assertions.assertEquals("Textures: Example Pack 32x", config.resourcePackAttribution().get(0).text());
+        Assertions.assertEquals("https://packs.example.com/", config.resourcePackAttribution().get(0).url());
+        Assertions.assertEquals("CC BY 4.0", config.resourcePackAttribution().get(1).text());
+        Assertions.assertNull(config.resourcePackAttribution().get(1).url());
+    }
+
+    @Test
+    void absentAttributionIsAnEmptyListRatherThanNull() {
+        Assertions.assertTrue(parse("# nothing\n").resourcePackAttribution().isEmpty());
+        Assertions.assertTrue(parse("resource-pack-attribution: []\n").resourcePackAttribution().isEmpty());
+    }
+
+    @Test
+    void anAttributionEntryWithNoTextIsRejected() {
+        // Silently skipping it would drop a credit the operator meant to publish, which is
+        // the one failure mode this setting exists to prevent.
+        IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
+                () -> parse("resource-pack-attribution:\n  - url: \"https://example.com/\"\n"));
+        Assertions.assertTrue(ex.getMessage().contains("resource-pack-attribution"), ex.getMessage());
+    }
+
+    @Test
+    void anAttributionLinkMustBeHttpOrHttps() {
+        Assertions.assertThrows(IllegalStateException.class,
+                () -> parse("""
+                        resource-pack-attribution:
+                          - text: "Click"
+                            url: "javascript:alert(1)"
+                        """));
+    }
+
+    @Test
+    void aBareStringEntryIsCreditWithNoLink() {
+        // The shorthand an operator writes first, and there is nothing wrong with it.
+        QueryServiceConfig config = parse("""
+                resource-pack-attribution:
+                  - "CC BY 4.0"
+                """);
+        Assertions.assertEquals(1, config.resourcePackAttribution().size());
+        Assertions.assertEquals("CC BY 4.0", config.resourcePackAttribution().get(0).text());
+        Assertions.assertNull(config.resourcePackAttribution().get(0).url());
     }
 
     @Test
