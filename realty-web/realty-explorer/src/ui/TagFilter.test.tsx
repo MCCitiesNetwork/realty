@@ -32,16 +32,15 @@ const chip = (id: string) => {
 };
 
 describe("TagFilter", () => {
-  it("offers the most-used tags as chips, most-used first, with their counts", async () => {
+  it("offers every tag in use as a chip, most-used first, with its count", async () => {
     show(NO_TAGS);
     await waitFor(() => expect(chip("apartment")).toBeInTheDocument());
     const texts = chips().map((entry) => entry.textContent);
     expect(texts[0]).toBe("apartment 475");
     expect(texts[1]).toBe("shop 215");
-    expect(texts).toHaveLength(8);
-    // The ninth is behind the link to the whole list.
-    expect(findChip("derelict")).toBeUndefined();
-    expect(screen.getByRole("button", { name: "All 9 tags" })).toBeInTheDocument();
+    expect(texts).toHaveLength(9);
+    expect(texts.at(-1)).toBe("derelict 2");
+    expect(screen.getByRole("button", { name: "Advanced" })).toBeInTheDocument();
   });
 
   it("asks for a tag when its chip is pressed, and widens to either on a second", async () => {
@@ -58,7 +57,7 @@ describe("TagFilter", () => {
 
   it("opens advanced when asked, with every tag, the match, and the exclusions", async () => {
     show(NO_TAGS);
-    fireEvent.click(await screen.findByRole("button", { name: "All 9 tags" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Advanced" }));
     expect(screen.getByLabelText("Tags")).toBeInTheDocument();
     expect(screen.getByLabelText("Excluded tags")).toBeInTheDocument();
     expect(screen.getByLabelText("Tag match")).toBeInTheDocument();
@@ -66,11 +65,10 @@ describe("TagFilter", () => {
   });
 
   it("opens in advanced when the question is one chips cannot show", async () => {
-    // A link with an exclusion in it, or all-of matching, or a rarely used tag.
+    // A link with an exclusion in it, or all-of matching.
     for (const value of [
       { tags: [], excluded: ["derelict"], matchAll: false },
       { tags: ["shop", "cbd"], excluded: [], matchAll: true },
-      { tags: ["derelict"], excluded: [], matchAll: false },
     ]) {
       const { unmount } = render(
         <TagFilter client={stubClient({ "/v1/tags": tags }).client} value={value} onChange={vi.fn()} />,
@@ -87,10 +85,10 @@ describe("TagFilter", () => {
     expect(onChange).toHaveBeenLastCalledWith({ tags: ["shop", "cbd"], excluded: [], matchAll: false });
   });
 
-  it("drops what chips cannot show on the way back to simple", async () => {
+  it("drops what chips cannot show on the way back to simple, and keeps the tags", async () => {
     const onChange = show({ tags: ["shop", "derelict"], excluded: ["park"], matchAll: true });
     fireEvent.click(await screen.findByRole("button", { name: "Simple" }));
-    expect(onChange).toHaveBeenLastCalledWith({ tags: ["shop"], excluded: [], matchAll: false });
+    expect(onChange).toHaveBeenLastCalledWith({ tags: ["shop", "derelict"], excluded: [], matchAll: false });
   });
 
   it("says so when no tag is in use", async () => {
