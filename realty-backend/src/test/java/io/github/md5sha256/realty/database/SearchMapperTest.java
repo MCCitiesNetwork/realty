@@ -81,6 +81,21 @@ class SearchMapperTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void reportsTheLeaseTermOnLeaseholdRowsAndNothingOnFreeholds() {
+        // A rent is per term, and the term is a fact of the contract: a listing card that
+        // read "200" alone was a number without a unit.
+        List<SearchResultEntity> rows = search(true, true, true, 0, Double.MAX_VALUE);
+        for (SearchResultEntity row : rows) {
+            if (row.contractType().equals("leasehold")) {
+                Assertions.assertNotNull(row.durationSeconds(), row.worldGuardRegionId());
+                Assertions.assertTrue(row.durationSeconds() > 0, row.worldGuardRegionId());
+            } else {
+                Assertions.assertNull(row.durationSeconds(), row.worldGuardRegionId());
+            }
+        }
+    }
+
+    @Test
     void reportsEachRowsStateAlongsideItsPrice() {
         List<SearchResultEntity> rows = search(true, true, true, 0, Double.MAX_VALUE);
         Assertions.assertEquals(List.of("plot_listed", "plot_rental", "plot_sold"), ids(rows));

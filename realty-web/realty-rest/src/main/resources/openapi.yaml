@@ -1873,7 +1873,15 @@ components:
             Never null here: a search result matched on a contract, so it always
             has a state. Contrast `/v1/regions`, which lists contractless regions
             too and reports null for them.
-      required: [ worldGuardRegionId, world, contractType, price, state ]
+        durationSeconds:
+          type: [ integer, "null" ]
+          format: int64
+          description: >-
+            The lease term the price buys, in seconds. Null for a freehold, whose
+            price is a one-off. Carried here because a rent without its term is a
+            number without a unit, and a listing should not have to fetch every
+            region to say what its price means.
+      required: [ worldGuardRegionId, world, contractType, price, state, durationSeconds ]
     RegionListResponse:
       type: object
       description: >-

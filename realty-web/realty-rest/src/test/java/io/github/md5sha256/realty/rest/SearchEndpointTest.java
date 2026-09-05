@@ -27,7 +27,7 @@ class SearchEndpointTest {
     }
 
     private static TestServers.SearchStub stubWithOneResult() {
-        SearchResultEntity row = new SearchResultEntity("plot_12", WORLD_ID, "freehold", 5000.0, "FOR_SALE");
+        SearchResultEntity row = new SearchResultEntity("plot_12", WORLD_ID, "freehold", 5000.0, "FOR_SALE", null);
         return new TestServers.SearchStub(List.of(row), 1);
     }
 
@@ -88,11 +88,31 @@ class SearchEndpointTest {
 
     @Test
     void anUnpricedFreeholdIsRenderedWithANullPrice() {
-        SearchResultEntity row = new SearchResultEntity("plot_sold", WORLD_ID, "freehold", null, "SOLD");
+        SearchResultEntity row = new SearchResultEntity("plot_sold", WORLD_ID, "freehold", null, "SOLD", null);
         TestServers.SearchStub stub = new TestServers.SearchStub(List.of(row), 1);
         JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
             String body = client.get("/v1/regions/search?type=freehold").body().string();
             Assertions.assertTrue(body.contains("\"price\":null"), body);
+        });
+    }
+
+    @Test
+    void aLeaseholdCarriesTheTermItsRentBuys() {
+        // "200" is not a rent; "200 per 30 days" is. The term is part of the row so a
+        // listing does not have to fetch each region to say what its price means.
+        SearchResultEntity row = new SearchResultEntity("flat_9", WORLD_ID, "leasehold", 200.0, "FOR_LEASE", 2_592_000L);
+        TestServers.SearchStub stub = new TestServers.SearchStub(List.of(row), 1);
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            String body = client.get("/v1/regions/search?type=rent").body().string();
+            Assertions.assertTrue(body.contains("\"durationSeconds\":2592000"), body);
+        });
+    }
+
+    @Test
+    void aFreeholdReportsNoTerm() {
+        JavalinTest.test(TestServers.withSearch(stubWithOneResult(), worlds()).javalin(), (server, client) -> {
+            String body = client.get("/v1/regions/search").body().string();
+            Assertions.assertTrue(body.contains("\"durationSeconds\":null"), body);
         });
     }
 

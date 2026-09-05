@@ -783,6 +783,11 @@ export interface components {
              * @enum {string}
              */
             state: "FOR_SALE" | "SOLD" | "FOR_LEASE" | "LEASED";
+            /**
+             * Format: int64
+             * @description The lease term the price buys, in seconds. Null for a freehold, whose price is a one-off. Carried here because a rent without its term is a number without a unit, and a listing should not have to fetch every region to say what its price means.
+             */
+            durationSeconds: number | null;
         };
         /** @description A page of registered regions. Entries carry identity only; `/v1/region` returns a single region's contracts, auction and tags. */
         RegionListResponse: {
