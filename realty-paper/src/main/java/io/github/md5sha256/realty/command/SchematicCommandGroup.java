@@ -128,6 +128,46 @@ public record SchematicCommandGroup(
             }
         }
 
+        // Registration is checked before a single block is read. The store at the end
+        // of the capture reports the same condition, but by then the whole region has
+        // been copied and encoded for a row that was never going to be written.
+        // The lookup is a database call, so it leaves the main thread and comes back
+        // before touching the world.
+        this.executors.dbExec().execute(() -> {
+            boolean registered;
+            try {
+                registered = this.backend.isRegistered(regionId, worldId);
+            } catch (RuntimeException e) {
+                this.logger.log(Level.WARNING,
+                        "Failed to check registration for " + regionId, e);
+                this.executors.mainThreadExec().execute(() ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SCHEMATIC_FAILED,
+                                Placeholder.unparsed("region", regionId),
+                                Placeholder.unparsed("error", String.valueOf(e.getMessage())))));
+                return;
+            }
+            this.executors.mainThreadExec().execute(() -> {
+                if (!registered) {
+                    sender.sendMessage(messages.messageFor(MessageKeys.SCHEMATIC_NOT_REGISTERED,
+                            Placeholder.unparsed("region", regionId)));
+                    return;
+                }
+                beginCapture(sender, regionId, worldId, weWorld, weRegion, volume, current);
+            });
+        });
+    }
+
+    /**
+     * Starts the tick-sliced copy. Main thread only -- {@link CaptureRegistry} is not
+     * thread-safe and the copy reads chunks.
+     */
+    private void beginCapture(@NotNull CommandSender sender,
+                              @NotNull String regionId,
+                              @NotNull UUID worldId,
+                              @NotNull World weWorld,
+                              @NotNull Region weRegion,
+                              long volume,
+                              @NotNull Settings current) {
         TickSlicedCopy copy = TickSlicedCopy.start(weWorld, weRegion,
                 current.schematicCaptureBlocksPerTick(), this.scheduler,
                 clipboard -> persist(sender, regionId, worldId, clipboard),
