@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { ApiClient } from "../../api/client";
 import { listingsPath, regionPath, worldLabel } from "../../api/paths";
+import { TTL, remembered } from "../../api/remembered";
 import { useQuery } from "../../api/useQuery";
 import { EventParties, EventTerms } from "../../ui/events";
 import { eventLabel, formatCount, formatDuration, formatRelative } from "../../ui/format";
@@ -41,9 +42,11 @@ export function HomeScreen({ client }: { client: ApiClient }) {
   const [world, setWorld] = useState<string | undefined>(undefined);
   const [tags, setTags] = useState<string[]>([]);
 
-  const stats = useQuery(() => client.GET("/v1/stats", {}), [client]);
-  const tagList = useQuery(() => client.GET("/v1/tags", {}), [client]);
-  const worlds = useQuery(() => client.GET("/v1/worlds", {}), [client]);
+  // Shared with the search bar's selects and remembered across visits to this page:
+  // the tag list was asked for twice per visit, and everything again on the way back.
+  const stats = useQuery(() => remembered(client, "stats", TTL.stats, () => client.GET("/v1/stats", {})), [client]);
+  const tagList = useQuery(() => remembered(client, "tags", TTL.tags, () => client.GET("/v1/tags", {})), [client]);
+  const worlds = useQuery(() => remembered(client, "worlds", TTL.worlds, () => client.GET("/v1/worlds", {})), [client]);
   const forSale = useQuery(
     () => client.GET("/v1/regions/search", {
       // Every priced freehold, occupied or not: a title holder with an asking price is

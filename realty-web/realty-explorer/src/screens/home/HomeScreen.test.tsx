@@ -97,6 +97,14 @@ describe("HomeScreen", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/listings?type=sale"));
   });
 
+  it("asks for the tag list once, though the grid and the search bar both want it", async () => {
+    const get = renderHome(homeRoutes());
+    await screen.findByText("flat_9");
+    await waitFor(() => expect(screen.getByText("475")).toBeInTheDocument());
+    expect(queriesTo(get, "/v1/tags")).toHaveLength(1);
+    expect(queriesTo(get, "/v1/worlds")).toHaveLength(1);
+  });
+
   it("does not fail the page when a secondary feed fails", async () => {
     // The tag list is chrome. A surprising answer there must not take the page down.
     renderHome(homeRoutes({ "/v1/tags": { error: "INTERNAL_ERROR" } }));

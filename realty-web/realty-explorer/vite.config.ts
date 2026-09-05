@@ -19,6 +19,19 @@ export default defineConfig({
     // build emits the .wasm as an asset and was never affected.
     exclude: ["schematic-renderer"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // The framework and the component library change only when a dependency is
+        // bumped; the app changes every deploy. Split apart, a deploy invalidates a
+        // fraction of the bytes a returning visitor has cached instead of all of them.
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          antd: ["antd", "@ant-design/icons"],
+        },
+      },
+    },
+  },
   server: {
     // Development is same-origin: the SPA calls a relative /v1 and this forwards it,
     // so there is no CORS in development and no config.json either.

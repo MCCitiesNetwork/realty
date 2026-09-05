@@ -1,6 +1,7 @@
 import { Select } from "antd";
 import type { ApiClient } from "../api/client";
 import { worldLabel } from "../api/paths";
+import { TTL, remembered } from "../api/remembered";
 import { useQuery } from "../api/useQuery";
 
 type Props = {
@@ -20,14 +21,14 @@ type Props = {
  * not exist.
  */
 export function WorldSelect({ client, value, onChange, style, size }: Props) {
-  const worlds = useQuery(() => client.GET("/v1/worlds", {}), [client]);
+  const worlds = useQuery(() => remembered(client, "worlds", TTL.worlds, () => client.GET("/v1/worlds", {})), [client]);
   const options = worlds.status === "ready" && Array.isArray(worlds.data)
     ? worlds.data.map((world) => ({ value: worldLabel(world), label: worldLabel(world) }))
     : [];
   return (
     <Select
       aria-label="World"
-      placeholder="Any world"
+      placeholder="Select a world"
       allowClear
       showSearch
       optionFilterProp="label"
