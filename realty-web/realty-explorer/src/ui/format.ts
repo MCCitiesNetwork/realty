@@ -5,8 +5,9 @@
  * width for a thousand as for a septillion. Below a thousand the value is shown
  * in full, since there is nothing to abbreviate.
  *
- * No currency symbol is attached. The API reports a number and nothing about
- * the economy behind it, and a "$" the server never said would be a fiction.
+ * A currency is attached only when the operator names one in config.json. The API
+ * reports a number and nothing about the economy behind it, and a "$" nobody said
+ * would be a fiction.
  *
  * Suffixes follow the short scale, one per thousand, up to a vigintillion
  * (1e63). Past that scientific notation takes over rather than the list
@@ -29,7 +30,11 @@ const scientific = new Intl.NumberFormat("en", {
   maximumFractionDigits: 1,
 });
 
-export function formatPrice(value: number): string {
+export function formatPrice(value: number, currency = ""): string {
+  return currency + abbreviate(value);
+}
+
+function abbreviate(value: number): string {
   const magnitude = Math.abs(value);
   if (magnitude < 1000) {
     return mantissa.format(value);
@@ -53,8 +58,8 @@ export function formatPrice(value: number): string {
 const grouped = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
 
 /** The unabbreviated figure, for a tooltip beside the abbreviated one. */
-export function formatPriceInFull(value: number): string {
-  return grouped.format(value);
+export function formatPriceInFull(value: number, currency = ""): string {
+  return currency + grouped.format(value);
 }
 
 /** Whole counts, grouped: 7,782. */

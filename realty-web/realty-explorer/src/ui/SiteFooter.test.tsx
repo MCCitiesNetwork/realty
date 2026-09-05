@@ -25,7 +25,7 @@ const { client } = stubClient({
 
 const disclaimer = /not an official minecraft product/i;
 
-const config: AppConfig = { apiBaseUrl: "", visibleWorlds: [] };
+const config: AppConfig = { apiBaseUrl: "", logoUrl: "", currency: "", visibleWorlds: [] };
 
 describe("SiteFooter", () => {
   it("carries the Mojang disclaimer on the home screen", async () => {
