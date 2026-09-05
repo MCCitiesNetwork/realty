@@ -32,7 +32,7 @@
       "name": "Realty REST Version",
       "description": "The released version to install, e.g. 1.5.1 (release tags carry no v prefix, but typing one is accepted). Must be a version with a published release asset. realty-rest requires the database schema to be exactly the version it was built against, so upgrade this in lockstep with the Realty plugin -- reinstalling always fetches this exact version, never the latest.",
       "env_variable": "REALTY_REST_VERSION",
-      "default_value": "1.5.2",
+      "default_value": "1.6.0",
       "user_viewable": true,
       "user_editable": true,
       "rules": "required|string|max:32",
