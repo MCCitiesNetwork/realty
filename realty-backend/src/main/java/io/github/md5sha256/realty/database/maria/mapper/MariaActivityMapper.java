@@ -31,11 +31,17 @@ public interface MariaActivityMapper extends ActivityMapper {
     // Each branch is cut to the page's window before the union, in parentheses so its
     // own ORDER BY and LIMIT apply. Sorted only after the union, the three eventTime
     // indexes went unused and every page sorted every event ever recorded.
+    //
+    // The order has to be total, and the same inside each branch as after the union:
+    // events share a second all the time, and a cut taken in an order that leaves ties
+    // to the engine can hand one page a row and the next page the same row again. The
+    // history id breaks the last tie; a branch's kind is constant within it, so the
+    // outer order restricted to one branch is exactly that branch's own.
     @Select("""
             <script>
             <bind name="window" value="limit + offset" />
             SELECT * FROM (
-                (SELECT 'freehold' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
+                (SELECT 'freehold' AS kind, historyId, worldGuardRegionId, worldId, eventType, eventTime,
                         buyerId AS firstPlayerId, authorityId AS secondPlayerId,
                         price, CAST(NULL AS SIGNED) AS durationSeconds,
                         CAST(NULL AS SIGNED) AS extensionsRemaining
@@ -44,9 +50,9 @@ public interface MariaActivityMapper extends ActivityMapper {
                  <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
                  <if test="worldId != null">AND worldId = #{worldId}</if>
                  <if test="since != null">AND eventTime &gt;= #{since}</if>
-                 ORDER BY eventTime DESC LIMIT #{window})
+                 ORDER BY eventTime DESC, worldGuardRegionId, historyId DESC LIMIT #{window})
                 UNION ALL
-                (SELECT 'leasehold' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
+                (SELECT 'leasehold' AS kind, historyId, worldGuardRegionId, worldId, eventType, eventTime,
                         tenantId AS firstPlayerId, landlordId AS secondPlayerId,
                         price, durationSeconds, extensionsRemaining
                  FROM LeaseholdHistory
@@ -54,9 +60,9 @@ public interface MariaActivityMapper extends ActivityMapper {
                  <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
                  <if test="worldId != null">AND worldId = #{worldId}</if>
                  <if test="since != null">AND eventTime &gt;= #{since}</if>
-                 ORDER BY eventTime DESC LIMIT #{window})
+                 ORDER BY eventTime DESC, worldGuardRegionId, historyId DESC LIMIT #{window})
                 UNION ALL
-                (SELECT 'agent' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
+                (SELECT 'agent' AS kind, historyId, worldGuardRegionId, worldId, eventType, eventTime,
                         agentId AS firstPlayerId, actorId AS secondPlayerId,
                         CAST(NULL AS DECIMAL(20,2)) AS price, CAST(NULL AS SIGNED) AS durationSeconds,
                         CAST(NULL AS SIGNED) AS extensionsRemaining
@@ -65,9 +71,9 @@ public interface MariaActivityMapper extends ActivityMapper {
                  <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
                  <if test="worldId != null">AND worldId = #{worldId}</if>
                  <if test="since != null">AND eventTime &gt;= #{since}</if>
-                 ORDER BY eventTime DESC LIMIT #{window})
+                 ORDER BY eventTime DESC, worldGuardRegionId, historyId DESC LIMIT #{window})
             ) feed
-            ORDER BY eventTime DESC, worldGuardRegionId, kind
+            ORDER BY eventTime DESC, worldGuardRegionId, kind, historyId DESC
             LIMIT #{limit} OFFSET #{offset}
             </script>
             """)
