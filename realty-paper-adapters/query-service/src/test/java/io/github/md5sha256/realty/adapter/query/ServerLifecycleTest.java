@@ -54,7 +54,7 @@ class ServerLifecycleTest {
     }
 
     private static QueryServiceConfig config(String secret, int port) {
-        return new QueryServiceConfig(secret, "127.0.0.1", port, Duration.ofMillis(1000), null);
+        return new QueryServiceConfig(secret, "127.0.0.1", port, Duration.ofMillis(1000), java.util.List.of());
     }
 
     private static Logger freshLogger(RecordingHandler handler) {

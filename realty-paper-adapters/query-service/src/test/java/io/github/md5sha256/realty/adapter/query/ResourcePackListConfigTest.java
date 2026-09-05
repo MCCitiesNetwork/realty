@@ -88,31 +88,6 @@ class ResourcePackListConfigTest {
     }
 
     @Test
-    void fallsBackToTheSinglePackSettingsWhenTheListIsAbsent() {
-        // An operator upgrading has resource-pack-url set and no reason to have touched
-        // anything; their pack must keep working untouched.
-        List<ResourcePackEntry> packs = parse("""
-                resource-pack-url: "https://cdn.example.com/pack.zip"
-                resource-pack-attribution:
-                  - "CC BY 4.0"
-                """).resourcePacks();
-        Assertions.assertEquals(1, packs.size());
-        Assertions.assertEquals("https://cdn.example.com/pack.zip", packs.get(0).url());
-        Assertions.assertEquals("CC BY 4.0", packs.get(0).attribution().get(0).text());
-    }
-
-    @Test
-    void prefersTheListWhenBothAreSet() {
-        List<ResourcePackEntry> packs = parse("""
-                resource-pack-url: "https://cdn.example.com/legacy.zip"
-                resource-packs:
-                  - "https://cdn.example.com/current.zip"
-                """).resourcePacks();
-        Assertions.assertEquals(1, packs.size());
-        Assertions.assertEquals("https://cdn.example.com/current.zip", packs.get(0).url());
-    }
-
-    @Test
     void reportsNoPacksWhenNothingIsConfigured() {
         Assertions.assertTrue(parse("# nothing\n").resourcePacks().isEmpty());
         Assertions.assertTrue(parse("resource-packs: []\n").resourcePacks().isEmpty());

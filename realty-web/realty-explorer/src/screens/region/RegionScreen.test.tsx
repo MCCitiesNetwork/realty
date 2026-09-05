@@ -114,7 +114,7 @@ describe("RegionScreen", () => {
     const client = {
       GET: vi.fn(async (path: string) => ({
         data: path === "/v1/resource-pack"
-          ? { url: null, attribution: [{ text: "Example Pack 32x", url: "https://packs.example.com/" }] }
+          ? { packs: [{ url: "https://cdn.example.com/p.zip", attribution: [{ text: "Example Pack 32x", url: "https://packs.example.com/" }] }] }
           : region,
         error: undefined,
         response: { status: 200 },

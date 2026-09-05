@@ -305,9 +305,9 @@ export interface paths {
         };
         /**
          * The resource pack for texturing previews
-         * @description Where to fetch the resource pack a browser-side renderer should texture previews with, named by the query-service module's `resource-pack-url` setting.
+         * @description Where to fetch the resource packs a browser-side renderer should texture previews with, highest priority first, named by the query-service module's `resource-packs` setting.
          *
-         *     A location only -- the URL and its advertised SHA-1 -- never the pack's bytes. That URL is already public, since every joining player receives it, so reporting it redistributes nothing; serving the pack through this service would mean redistributing whatever assets it contains.
+         *     Locations only -- the URLs -- never any pack's bytes. That URL is already public, since every joining player receives it, so reporting it redistributes nothing; serving the pack through this service would mean redistributing whatever assets it contains.
          *
          *     `url` is null when the operator has configured no pack, which is the default. That is a normal answer rather than an error, but note what it costs: without a pack a renderer does not draw blocks untextured, it does not draw most of them at all, because their block models carry no geometry. A plot then looks like a failed capture.
          *
@@ -622,18 +622,27 @@ export interface components {
             regionCount: number;
         };
         ResourcePackResponse: {
-            /** @description Where the pack is hosted, or null when the server sets none. */
-            url: string | null;
             /**
-             * @description Credits for the pack, to render wherever its textures are used and nowhere else. Empty when the operator configures none.
+             * @description Every pack the renderer should texture previews with, **highest priority first**. Empty when the server configures none, which is the default.
              *
-             *     Configured beside the pack URL, in the query-service module, because the operator who picks a pack is the one who knows what its licence asks for -- and most pack licences ask for a credit. Splitting the two across two files on two hosts is how one of them goes stale.
+             *     A list rather than one pack because a pack is usually authored to sit on top of another. The pack a server sends to the game client overrides the client's own copy of the game, so alone in a browser it draws almost nothing; a base pack listed beneath it supplies what the client would have had. A renderer merges the list and resolves a texture two packs both provide in favour of the earlier one.
              */
-            attribution: components["schemas"]["ResourcePackAttribution"][];
+            packs: components["schemas"]["ResourcePackEntry"][];
             /** @description Reserved; always null. A browser has nothing to verify a pack against, so no hash is configured or reported. */
             hash: string | null;
             /** @description Reserved; always false. A preview cannot compel a download. */
             required: boolean;
+        };
+        /** @description One resource pack, and the credits its own licence asks for. */
+        ResourcePackEntry: {
+            /** @description Where the browser fetches this pack. */
+            url: string;
+            /**
+             * @description Credits for **this** pack, to render wherever its textures are used and nowhere else. Empty when the operator configures none.
+             *
+             *     Per pack rather than per server: two packs may be licensed differently, and a credit shown against the wrong one credits the wrong author. Configured beside the pack's URL in the query-service module, because the operator who picks a pack is the one who knows what its licence asks for -- splitting the two across two files on two hosts is how one of them goes stale.
+             */
+            attribution: components["schemas"]["ResourcePackAttribution"][];
         };
         /** @description One credit line for the resource pack. */
         ResourcePackAttribution: {

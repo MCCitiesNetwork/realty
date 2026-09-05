@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createApiClient,
-  fetchResourcePack,
+  fetchResourcePacks,
   fetchResourcePackAttribution,
   fetchSchematic,
   type ApiClient,
@@ -73,7 +73,7 @@ describe("fetchSchematic", () => {
   });
 });
 
-describe("fetchResourcePack", () => {
+describe("fetchResourcePacks", () => {
   const clientReturning = (body: unknown, ok = true): ApiClient => {
     const stub = {
       GET: vi.fn(async () =>
@@ -84,24 +84,24 @@ describe("fetchResourcePack", () => {
 
   it("returns the pack when the server configures one", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("zip", { status: 200 })));
-    const pack = await fetchResourcePack(
-      clientReturning({ url: "https://cdn.example.com/p.zip", hash: "abc", required: true }));
+    const packs = await fetchResourcePacks(
+      clientReturning({ packs: [{ url: "https://cdn.example.com/p.zip", attribution: [] }], hash: "abc", required: true }));
     // Not toBeInstanceOf(Blob): jsdom and undici each define their own Blob class,
     // so a perfectly good blob fails an identity check across those realms.
-    expect(pack).not.toBeNull();
-    expect(await pack!.text()).toBe("zip");
+    expect(packs).toHaveLength(1);
+    expect(await packs[0].blob.text()).toBe("zip");
     vi.unstubAllGlobals();
   });
 
   it("returns null when the server configures no pack", async () => {
     // The default in server.properties. Untextured geometry, not an error.
-    const pack = await fetchResourcePack(clientReturning({ url: null, hash: null, required: false }));
-    expect(pack).toBeNull();
+    const packs = await fetchResourcePacks(clientReturning({ packs: [], hash: null, required: false }));
+    expect(packs).toEqual([]);
   });
 
   it("returns null when the module is unreachable", async () => {
-    const pack = await fetchResourcePack(clientReturning({ error: "RESOURCE_PACK_UNAVAILABLE" }, false));
-    expect(pack).toBeNull();
+    const packs = await fetchResourcePacks(clientReturning({ error: "RESOURCE_PACK_UNAVAILABLE" }, false));
+    expect(packs).toEqual([]);
   });
 
   it("returns null when the pack host blocks the request", async () => {
@@ -110,17 +110,17 @@ describe("fetchResourcePack", () => {
     vi.stubGlobal("fetch", vi.fn(async () => {
       throw new TypeError("Failed to fetch");
     }));
-    const pack = await fetchResourcePack(
-      clientReturning({ url: "https://cdn.example.com/p.zip", hash: null, required: false }));
-    expect(pack).toBeNull();
+    const packs = await fetchResourcePacks(
+      clientReturning({ packs: [{ url: "https://cdn.example.com/p.zip", attribution: [] }], hash: null, required: false }));
+    expect(packs).toEqual([]);
     vi.unstubAllGlobals();
   });
 
   it("returns null when the pack URL 404s", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 404 })));
-    const pack = await fetchResourcePack(
-      clientReturning({ url: "https://cdn.example.com/gone.zip", hash: null, required: false }));
-    expect(pack).toBeNull();
+    const packs = await fetchResourcePacks(
+      clientReturning({ packs: [{ url: "https://cdn.example.com/gone.zip", attribution: [] }], hash: null, required: false }));
+    expect(packs).toEqual([]);
     vi.unstubAllGlobals();
   });
 });
@@ -130,7 +130,7 @@ describe("resource pack caching", () => {
 
   const countingClient = () => {
     const get = vi.fn(async () => ({
-      data: { url: packUrl, attribution: [{ text: "Example Pack 32x", url: null }], hash: null, required: false },
+      data: { packs: [{ url: packUrl, attribution: [{ text: "Example Pack 32x", url: null }] }], hash: null, required: false },
       error: undefined,
     }));
     return { client: { GET: get } as unknown as ApiClient, get };
@@ -145,10 +145,10 @@ describe("resource pack caching", () => {
 
     await Promise.all([
       fetchResourcePackAttribution(client),
-      fetchResourcePack(client),
+      fetchResourcePacks(client),
       fetchResourcePackAttribution(client),
     ]);
-    await fetchResourcePack(client);
+    await fetchResourcePacks(client);
 
     expect(get).toHaveBeenCalledTimes(1);
   });
@@ -160,11 +160,11 @@ describe("resource pack caching", () => {
     vi.stubGlobal("fetch", download);
     const { client } = countingClient();
 
-    const first = await fetchResourcePack(client);
-    const second = await fetchResourcePack(client);
+    const first = await fetchResourcePacks(client);
+    const second = await fetchResourcePacks(client);
 
     expect(download.mock.calls.filter((call) => call[0] === packUrl)).toHaveLength(1);
-    // The same Blob, not merely an equal one -- that is what makes it free.
+    // The same array of the same Blobs, not merely equal ones -- that is what makes it free.
     expect(second).toBe(first);
   });
 
@@ -173,8 +173,8 @@ describe("resource pack caching", () => {
     const a = countingClient();
     const b = countingClient();
 
-    await fetchResourcePack(a.client);
-    await fetchResourcePack(b.client);
+    await fetchResourcePacks(a.client);
+    await fetchResourcePacks(b.client);
 
     expect(a.get).toHaveBeenCalledTimes(1);
     expect(b.get).toHaveBeenCalledTimes(1);

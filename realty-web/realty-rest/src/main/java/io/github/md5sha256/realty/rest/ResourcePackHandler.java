@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.rest.json.ResourcePackAttribution;
+import io.github.md5sha256.realty.rest.json.ResourcePackEntry;
 import io.github.md5sha256.realty.rest.json.ResourcePackResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.github.md5sha256.realty.rest.module.ModuleResult;
@@ -38,13 +39,15 @@ final class ResourcePackHandler {
                             + "which is not reachable");
         };
 
-        ctx.json(new ResourcePackResponse(pack.url(), attribution(pack), pack.hash(), pack.required()));
+        ctx.json(new ResourcePackResponse(packs(pack), pack.hash(), pack.required()));
     }
 
-    /** Crosses the module record into this service's own JSON record. */
-    private static @NotNull List<ResourcePackAttribution> attribution(@NotNull ResourcePack pack) {
-        return pack.attribution().stream()
-                .map(credit -> new ResourcePackAttribution(credit.text(), credit.url()))
+    /** Crosses the module records into this service's own JSON records, order preserved. */
+    private static @NotNull List<ResourcePackEntry> packs(@NotNull ResourcePack pack) {
+        return pack.packs().stream()
+                .map(entry -> new ResourcePackEntry(entry.url(), entry.attribution().stream()
+                        .map(credit -> new ResourcePackAttribution(credit.text(), credit.url()))
+                        .toList()))
                 .toList();
     }
 }

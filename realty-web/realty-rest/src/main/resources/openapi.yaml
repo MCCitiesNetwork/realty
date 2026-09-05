@@ -863,12 +863,12 @@ paths:
       summary: The resource pack for texturing previews
       operationId: resourcePack
       description: >-
-        Where to fetch the resource pack a browser-side renderer should texture
-        previews with, named by the query-service module's `resource-pack-url`
-        setting.
+        Where to fetch the resource packs a browser-side renderer should texture
+        previews with, highest priority first, named by the query-service module's
+        `resource-packs` setting.
 
 
-        A location only -- the URL and its advertised SHA-1 -- never the pack's bytes.
+        Locations only -- the URLs -- never any pack's bytes.
         That URL is already public, since every joining player receives it, so
         reporting it redistributes nothing; serving the pack through this service
         would mean redistributing whatever assets it contains.
@@ -1527,25 +1527,23 @@ components:
       required: [ id, regionCount ]
     ResourcePackResponse:
       type: object
-      required: [url, attribution, hash, required]
+      required: [packs, hash, required]
       properties:
-        url:
-          type: string
-          nullable: true
-          description: Where the pack is hosted, or null when the server sets none.
-        attribution:
+        packs:
           type: array
           description: >-
-            Credits for the pack, to render wherever its textures are used and nowhere
-            else. Empty when the operator configures none.
+            Every pack the renderer should texture previews with, **highest priority
+            first**. Empty when the server configures none, which is the default.
 
 
-            Configured beside the pack URL, in the query-service module, because the
-            operator who picks a pack is the one who knows what its licence asks for --
-            and most pack licences ask for a credit. Splitting the two across two files
-            on two hosts is how one of them goes stale.
+            A list rather than one pack because a pack is usually authored to sit on top
+            of another. The pack a server sends to the game client overrides the client's
+            own copy of the game, so alone in a browser it draws almost nothing; a base
+            pack listed beneath it supplies what the client would have had. A renderer
+            merges the list and resolves a texture two packs both provide in favour of
+            the earlier one.
           items:
-            $ref: "#/components/schemas/ResourcePackAttribution"
+            $ref: "#/components/schemas/ResourcePackEntry"
         hash:
           type: string
           nullable: true
@@ -1555,6 +1553,28 @@ components:
         required:
           type: boolean
           description: Reserved; always false. A preview cannot compel a download.
+    ResourcePackEntry:
+      type: object
+      required: [url, attribution]
+      description: One resource pack, and the credits its own licence asks for.
+      properties:
+        url:
+          type: string
+          description: Where the browser fetches this pack.
+        attribution:
+          type: array
+          description: >-
+            Credits for **this** pack, to render wherever its textures are used and
+            nowhere else. Empty when the operator configures none.
+
+
+            Per pack rather than per server: two packs may be licensed differently, and a
+            credit shown against the wrong one credits the wrong author. Configured beside
+            the pack's URL in the query-service module, because the operator who picks a
+            pack is the one who knows what its licence asks for -- splitting the two
+            across two files on two hosts is how one of them goes stale.
+          items:
+            $ref: "#/components/schemas/ResourcePackAttribution"
     ResourcePackAttribution:
       type: object
       required: [text, url]

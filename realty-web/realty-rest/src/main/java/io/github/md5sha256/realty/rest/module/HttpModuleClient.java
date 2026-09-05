@@ -337,14 +337,35 @@ public final class HttpModuleClient implements ModuleClient {
                 return new ModuleResult.Unavailable<>();
             }
             return new ModuleResult.Found<>(new ResourcePack(
-                    text(body, "url"),
-                    attribution(body.path("attribution")),
+                    packs(body.path("packs")),
                     text(body, "hash"),
                     body.path("required").asBoolean(false)));
         } catch (RuntimeException ex) {
             failed(path, ex);
             return new ModuleResult.Unavailable<>();
         }
+    }
+
+    /**
+     * Reads the pack list, in the order the module reports it -- which is the operator's
+     * priority order, highest first.
+     *
+     * <p>An entry with no url is skipped rather than failing the list. The module rejects
+     * one at startup, so it can only arrive from a malformed answer, and a preview with
+     * the remaining packs beats no preview at all.</p>
+     */
+    private static @NotNull List<ResourcePackEntry> packs(@NotNull JsonNode node) {
+        if (!node.isArray()) {
+            return List.of();
+        }
+        List<ResourcePackEntry> packs = new ArrayList<>(node.size());
+        for (JsonNode entry : node) {
+            String url = text(entry, "url");
+            if (url != null && !url.isBlank()) {
+                packs.add(new ResourcePackEntry(url, attribution(entry.path("attribution"))));
+            }
+        }
+        return packs;
     }
 
     /**

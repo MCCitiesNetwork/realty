@@ -101,9 +101,12 @@ function describeResourcePack(client: ApiClient): Promise<PackDescription> {
  */
 export async function fetchResourcePackAttribution(client: ApiClient): Promise<Attribution[]> {
   const { data, error } = await describeResourcePack(client);
-  if (error || !data?.attribution) return [];
+  if (error || !data?.packs) return [];
 
-  return data.attribution
+  // Flattened across packs: credits are configured per pack so the right author is
+  // named, but they are shown in one line under the preview every pack contributed to.
+  return data.packs
+    .flatMap((pack) => pack.attribution ?? [])
     .slice(0, MAX_CREDITS)
     .map((credit): Attribution | null => {
       const text = typeof credit.text === "string" ? credit.text.trim() : "";
@@ -126,45 +129,65 @@ function safeHref(url: unknown): { href?: string } {
 }
 
 /**
- * The pack itself, fetched and decoded once per client, or null when there is nothing
- * usable to fetch.
+ * The packs themselves, fetched and decoded once per client.
  *
- * A pack is tens of megabytes -- 18 MB is an ordinary size for a 64x one. The HTTP cache
- * spares the network on a return visit but not the decode, and every region page was
- * paying for both again, which is most of why the preview was quick on one visit and
- * slow on the next. Holding the Blob makes the first region page the only slow one.
+ * A pack is tens of megabytes -- 18 MB is an ordinary size for a 64x one, and listing a
+ * base pack under an override means paying that more than once. The HTTP cache spares
+ * the network on a return visit but not the decode, and every region page was paying for
+ * both again, which is most of why the preview was quick on one visit and slow on the
+ * next. Holding the Blobs makes the first region page the only slow one.
  *
- * Three ways this legitimately yields null, none of them an error worth showing: the
- * server configures no pack (the default), the query-service module is not reachable
- * (a 502 here), or the pack is hosted somewhere that does not send CORS headers --
- * which is common, since those hosts only ever expected the game client, which is not
- * a browser and does not enforce CORS.
+ * Three ways this legitimately yields fewer packs than configured, none of them an error
+ * worth showing: the server configures none (the default), the query-service module is
+ * not reachable (a 502 here), or a pack is hosted somewhere that does not send CORS
+ * headers -- which is common, since those hosts only ever expected the game client,
+ * which is not a browser and does not enforce CORS.
  *
- * In every case the caller falls back to no pack. That is a real loss of fidelity, not
- * a cosmetic one: without a pack the renderer draws almost nothing -- only block
- * entities such as chests survive -- so a plot looks like a failed capture. The viewer
- * can still drop their own pack onto the canvas.
+ * Losing every pack is a real loss of fidelity, not a cosmetic one: the renderer then
+ * draws almost nothing -- only block entities such as chests survive -- so a plot looks
+ * like a failed capture. The viewer can still drop their own pack onto the canvas.
  */
-const packBlobs = new WeakMap<ApiClient, Promise<Blob | null>>();
+const packBlobs = new WeakMap<ApiClient, Promise<LoadedPack[]>>();
 
-export function fetchResourcePack(client: ApiClient): Promise<Blob | null> {
-  let pack = packBlobs.get(client);
-  if (!pack) {
-    pack = loadResourcePack(client);
-    packBlobs.set(client, pack);
+/** A fetched pack, still carrying the URL it came from so a caller can name it. */
+export type LoadedPack = {
+  url: string;
+  blob: Blob;
+};
+
+/**
+ * Every configured pack, highest priority first, fetched once per client.
+ *
+ * <p>The order is the server's and must be preserved: the renderer resolves a texture
+ * two packs both provide in favour of the earlier one, so reordering silently changes
+ * what the preview looks like.
+ */
+export function fetchResourcePacks(client: ApiClient): Promise<LoadedPack[]> {
+  let packs = packBlobs.get(client);
+  if (!packs) {
+    packs = loadResourcePacks(client);
+    packBlobs.set(client, packs);
   }
-  return pack;
+  return packs;
 }
 
-async function loadResourcePack(client: ApiClient): Promise<Blob | null> {
+async function loadResourcePacks(client: ApiClient): Promise<LoadedPack[]> {
   const { data, error } = await describeResourcePack(client);
-  if (error || !data?.url) return null;
+  if (error || !data?.packs?.length) return [];
 
-  try {
-    const response = await fetch(data.url);
-    if (!response.ok) return null;
-    return await response.blob();
-  } catch {
-    return null;
-  }
+  // Fetched together rather than in sequence: they are independent downloads, and a
+  // 18 MB pack behind another one doubles the wait before anything renders.
+  const loaded = await Promise.all(data.packs.map(async (pack): Promise<LoadedPack | null> => {
+    if (typeof pack.url !== "string" || !pack.url) return null;
+    try {
+      const response = await fetch(pack.url);
+      if (!response.ok) return null;
+      return { url: pack.url, blob: await response.blob() };
+    } catch {
+      // One unreachable pack -- a host sending no CORS headers is the common cause --
+      // costs its own textures. Failing the rest would cost the whole preview.
+      return null;
+    }
+  }));
+  return loaded.filter((pack): pack is LoadedPack => pack !== null);
 }
