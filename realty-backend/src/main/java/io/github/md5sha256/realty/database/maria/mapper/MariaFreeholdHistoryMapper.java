@@ -30,11 +30,15 @@ public interface MariaFreeholdHistoryMapper extends FreeholdHistoryMapper {
                @Param("price") double price);
 
     @Override
+    // Sales only. Every freehold event carries a price -- SET_PRICE records the new asking
+    // price, SET_TITLEHOLDER whatever was on the contract -- so the latest row of any kind
+    // reported an asking price as the "last sold" figure the moment a holder listed a plot.
     @Select("""
             SELECT price
             FROM FreeholdHistory
             WHERE worldGuardRegionId = #{worldGuardRegionId}
             AND worldId = #{worldId}
+            AND eventType IN ('BUY', 'AUCTION_BUY', 'OFFER_BUY')
             ORDER BY eventTime DESC
             LIMIT 1
             """)
