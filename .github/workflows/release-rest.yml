@@ -1,8 +1,8 @@
 name: Release realty-rest
 
-# Attaches realty-rest's shadow jar to a published GitHub Release, so the
-# Pterodactyl egg can download a prebuilt jar instead of cloning and compiling
-# the whole project on the operator's panel.
+# Attaches the API jar and the bundled API-plus-front-end jar to a published
+# GitHub Release, so either Pterodactyl egg can download a prebuilt jar instead
+# of cloning and compiling the whole project on the operator's panel.
 #
 # The jar is attached to a *release*, not published to GitHub Packages, for one
 # reason: the Packages Maven registry requires an access token to download even
@@ -77,7 +77,9 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew --no-daemon :realty-web:realty-rest:shadowJar \
+          ./gradlew --no-daemon \
+            :realty-web:realty-rest:shadowJar \
+            :realty-web:realty-web-dist:shadowJar \
             -PreleaseVersion=${{ steps.version.outputs.version }}
 
       - name: Verify the expected assets exist
@@ -114,5 +116,6 @@ jobs:
           set -euo pipefail
           gh release upload "${{ steps.version.outputs.tag }}" \
             "${{ steps.jar.outputs.path }}" \
+            "${{ steps.jar.outputs.dist }}" \
             --repo "${{ github.repository }}" \
             --clobber
