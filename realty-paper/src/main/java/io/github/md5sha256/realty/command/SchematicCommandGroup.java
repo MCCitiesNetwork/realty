@@ -2,7 +2,6 @@ package io.github.md5sha256.realty.command;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.world.World;
 import io.github.md5sha256.realty.api.DurationFormatter;
@@ -12,6 +11,7 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.schematic.CaptureBounds;
 import io.github.md5sha256.realty.schematic.CaptureCooldown;
 import io.github.md5sha256.realty.schematic.CaptureRegistry;
 import io.github.md5sha256.realty.schematic.RegionSchematicWriter;
@@ -41,7 +41,8 @@ import java.util.logging.Logger;
  * Groups the schematic subcommands under {@code /realty schematic}.
  *
  * <ul>
- *   <li>{@code /realty schematic capture [region] [--force]} -- snapshot a region's blocks</li>
+ *   <li>{@code /realty schematic capture [region] [--force]} -- snapshot a region's blocks,
+ *       from the block the player stands on up to the region's ceiling. Players only.</li>
  * </ul>
  *
  * <p>The capture is spread across ticks rather than run to completion in one, so a
@@ -80,9 +81,15 @@ public record SchematicCommandGroup(
 
     private void executeCapture(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
+        // Players only: the capture's floor is the block the sender stands on, and the
+        // console stands nowhere. A console capture would have to guess a floor, and a
+        // guessed floor is exactly the column of stone this command exists to leave out.
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+            return;
+        }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> sender instanceof Player player
-                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
@@ -91,9 +98,8 @@ public record SchematicCommandGroup(
         boolean force = ctx.flags().isPresent(FORCE_FLAG.name());
 
         // Checked before the cooldown, so an unauthorised --force is refused outright
-        // rather than silently ignored. Console is trusted, as elsewhere.
-        if (force && sender instanceof Player player
-                && !player.hasPermission("realty.command.schematic.capture.force")) {
+        // rather than silently ignored.
+        if (force && !player.hasPermission("realty.command.schematic.capture.force")) {
             sender.sendMessage(messages.messageFor(MessageKeys.SCHEMATIC_FORCE_NO_PERMISSION));
             return;
         }
@@ -103,11 +109,18 @@ public record SchematicCommandGroup(
         Settings current = this.settings.get();
 
         World weWorld = BukkitAdapter.adapt(region.world());
-        Region weRegion = new CuboidRegion(weWorld,
-                region.region().getMinimumPoint(), region.region().getMaximumPoint());
+        // From the block the player stands on, up. A region claimed from bedrock to the
+        // sky captures as the building and the ground it stands on, not the column of
+        // stone beneath. The location's block is the one the feet occupy; the floor is
+        // the one below it.
+        int floor = player.getLocation().getBlockY() - 1;
+        Region weRegion = CaptureBounds.fromFloor(weWorld,
+                region.region().getMinimumPoint(), region.region().getMaximumPoint(), floor);
 
         // The cap is hard: --force does not lift it. It guards the database write, and
-        // a limit waivable by whoever hits it guards nothing.
+        // a limit waivable by whoever hits it guards nothing. It is measured on what will
+        // actually be copied, so a plot whose column would be too large still captures
+        // from the ground up.
         long volume = RegionVolume.of(weRegion);
         if (RegionVolume.exceedsCap(weRegion, current.schematicMaxVolume())) {
             sender.sendMessage(messages.messageFor(MessageKeys.SCHEMATIC_TOO_LARGE,
