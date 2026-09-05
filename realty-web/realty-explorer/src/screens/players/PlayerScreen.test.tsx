@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { PlayerScreen } from "./PlayerScreen";
 import { alice, unnamed, world } from "../../test-support/fixtures";
 import { failure, queriesTo, stubClient, type Query, type Routes } from "../../test-support/stubClient";
+import { VisibilityProvider, visibilityOf } from "../../visibility";
 
 const summary = (player: typeof alice) => ({
   player, titleHeld: 93, landlordOf: 14, occupiedLandlordOf: 2, renting: 2, authorityOver: 0,
@@ -57,6 +58,19 @@ describe("PlayerScreen", () => {
 
     await waitFor(() => expect(queriesTo(get, "/v1/players/regions").at(-1)).toMatchObject({ category: "owned" }));
     await waitFor(() => expect(screen.queryByRole("link", { name: "av-gas" })).toBeNull());
+  });
+
+  it("lists no holding in a hidden world, while the counts stay the API's", async () => {
+    const { client } = stubClient({ "/v1/players/summary": summary(alice), "/v1/players/regions": holdings(alice) });
+    render(
+      <VisibilityProvider value={visibilityOf(["Elsewhere"])}>
+        <MemoryRouter><PlayerScreen client={client} id={alice.id} /></MemoryRouter>
+      </VisibilityProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("93")).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Holdings")).toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: "or-c059" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "av-gas" })).toBeNull();
   });
 
   it("says when the id is not a player id at all", async () => {

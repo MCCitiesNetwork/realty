@@ -15,6 +15,8 @@ import { Price } from "../../ui/Price";
 import { Rows } from "../../ui/Rows";
 import { TagSelect } from "../../ui/TagSelect";
 import { WorldSelect } from "../../ui/WorldSelect";
+import { activityVisible, auctionsVisible, searchVisible } from "../../api/scoped";
+import { useVisibility, visibleWorlds } from "../../visibility";
 
 const { Title, Text } = Typography;
 
@@ -38,6 +40,7 @@ const FEATURED_SPAN = { xs: 24, sm: 12, lg: 8, xl: 6 };
 export function HomeScreen({ client }: { client: ApiClient }) {
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const visibility = useVisibility();
   const [intent, setIntent] = useState<Intent>("all");
   const [world, setWorld] = useState<string | undefined>(undefined);
   const [tags, setTags] = useState<string[]>([]);
@@ -47,28 +50,14 @@ export function HomeScreen({ client }: { client: ApiClient }) {
   const stats = useQuery(() => remembered(client, "stats", TTL.stats, () => client.GET("/v1/stats", {})), [client]);
   const tagList = useQuery(() => remembered(client, "tags", TTL.tags, () => client.GET("/v1/tags", {})), [client]);
   const worlds = useQuery(() => remembered(client, "worlds", TTL.worlds, () => client.GET("/v1/worlds", {})), [client]);
-  const forSale = useQuery(
-    () => client.GET("/v1/regions/search", {
-      // Every priced freehold, occupied or not: a title holder with an asking price is
-      // selling. Vacancy only matters for renting, where a tenant in place means no room.
-      params: { query: { type: "sale", pageSize: 8 } },
-    }),
-    [client],
-  );
-  const toRent = useQuery(
-    () => client.GET("/v1/regions/search", {
-      params: { query: { type: "rent", occupancy: "unoccupied", pageSize: 8 } },
-    }),
-    [client],
-  );
-  const activity = useQuery(
-    () => client.GET("/v1/activity", { params: { query: { pageSize: 6 } } }),
-    [client],
-  );
-  const auctions = useQuery(
-    () => client.GET("/v1/auctions", { params: { query: { pageSize: 4 } } }),
-    [client],
-  );
+  // Every priced freehold, occupied or not: a title holder with an asking price is
+  // selling. Vacancy only matters for renting, where a tenant in place means no room.
+  // Each sample spans the visible worlds -- one question, or one per listed world.
+  const forSale = useQuery(() => searchVisible(client, visibility, { type: "sale" }, 8), [client, visibility]);
+  const toRent = useQuery(() => searchVisible(client, visibility, { type: "rent", occupancy: "unoccupied" }, 8), [client, visibility]);
+  const activity = useQuery(() => activityVisible(client, visibility, 6), [client, visibility]);
+  const auctions = useQuery(() => auctionsVisible(client, visibility, 4), [client, visibility]);
+  const worldCount = worlds.status === "ready" ? visibleWorlds(visibility, worlds.data).length : 0;
 
   const search = () => navigate(listingsPath({
     type: intent === "all" ? undefined : intent,
@@ -85,7 +74,7 @@ export function HomeScreen({ client }: { client: ApiClient }) {
             <Title level={1} style={{ marginBottom: 4 }}>Find a plot to buy or rent</Title>
             <Text type="secondary">
               {stats.status === "ready" && worlds.status === "ready"
-                ? `${formatCount(stats.data.regions)} registered regions across ${formatCount(worlds.data.length)} ${worlds.data.length === 1 ? "world" : "worlds"}.`
+                ? `${formatCount(stats.data.regions)} registered regions across ${formatCount(worldCount)} ${worldCount === 1 ? "world" : "worlds"}.`
                 : "Plots for sale and for rent, straight from the server's records."}
             </Text>
           </div>

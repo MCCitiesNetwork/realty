@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { HomeScreen } from "./HomeScreen";
 import { auction, emptyPage, listing, otherWorld, pageOf, rental, rentEvent, stats, tags, world } from "../../test-support/fixtures";
 import { queriesTo, stubClient, type Query, type Routes as Stubs } from "../../test-support/stubClient";
+import { VisibilityProvider, visibilityOf } from "../../visibility";
 
 const homeRoutes = (overrides: Stubs = {}): Stubs => ({
   "/v1/stats": stats,
@@ -21,15 +22,17 @@ function Probe() {
   return <div data-testid="location">{location.pathname}{location.search}</div>;
 }
 
-const renderHome = (stubs: Stubs) => {
+const renderHome = (stubs: Stubs, visibleWorlds: string[] = []) => {
   const { client, get } = stubClient(stubs);
   render(
-    <MemoryRouter initialEntries={["/"]}>
-      <Routes>
-        <Route path="/" element={<HomeScreen client={client} />} />
-        <Route path="/listings" element={<Probe />} />
-      </Routes>
-    </MemoryRouter>,
+    <VisibilityProvider value={visibilityOf(visibleWorlds)}>
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<HomeScreen client={client} />} />
+          <Route path="/listings" element={<Probe />} />
+        </Routes>
+      </MemoryRouter>
+    </VisibilityProvider>,
   );
   return get;
 };
@@ -103,6 +106,23 @@ describe("HomeScreen", () => {
     await waitFor(() => expect(screen.getByText("475")).toBeInTheDocument());
     expect(queriesTo(get, "/v1/tags")).toHaveLength(1);
     expect(queriesTo(get, "/v1/worlds")).toHaveLength(1);
+  });
+
+  it("keeps to the whitelisted worlds, counting and asking for those alone", async () => {
+    // config.json names "world" only; "My World" exists but is not this site's business.
+    const elsewhere = { ...listing, worldGuardRegionId: "elsewhere", world: otherWorld };
+    const get = renderHome(homeRoutes({
+      "/v1/regions/search": (query: Query) => query.world !== "world"
+        ? pageOf("results", [elsewhere])
+        : pageOf("results", [query.type === "rent" ? rental : listing]),
+    }), ["world"]);
+    await waitFor(() => expect(screen.getByText("7,782 registered regions across 1 world.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("flat_9")).toBeInTheDocument());
+    expect(screen.getByText("plot_a")).toBeInTheDocument();
+
+    for (const query of queriesTo(get, "/v1/regions/search")) expect(query).toMatchObject({ world: "world" });
+    for (const query of queriesTo(get, "/v1/activity")) expect(query).toMatchObject({ world: "world" });
+    expect(screen.queryByText("elsewhere")).toBeNull();
   });
 
   it("does not fail the page when a secondary feed fails", async () => {

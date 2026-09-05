@@ -9,6 +9,7 @@ import { ListingGrid } from "../../ui/ListingGrid";
 import { Page } from "../../ui/Page";
 import { TagSelect } from "../../ui/TagSelect";
 import { WorldSelect } from "../../ui/WorldSelect";
+import { useVisibility, worldFor } from "../../visibility";
 
 const { Title, Text } = Typography;
 
@@ -89,11 +90,14 @@ const bound = (value: string | null): number | undefined => {
 export function ListingsScreen({ client }: { client: ApiClient }) {
   const [params, setParams] = useSearchParams();
   const screens = Grid.useBreakpoint();
+  const visibility = useVisibility();
 
   const type = oneOf(CONTRACT_FILTERS, params.get("type"), "all");
   const occupancy = oneOf(OCCUPANCIES, params.get("occupancy"), "any");
   const sort = oneOf(SORTS, params.get("sort"), "price_desc");
-  const world = params.get("world") ?? undefined;
+  // Under a whitelist the search is always of one visible world; a link naming a hidden
+  // one is answered with the default rather than honoured.
+  const world = worldFor(visibility, params.get("world"));
   const tags = params.getAll("tag");
   const minPrice = bound(params.get("minPrice"));
   const maxPrice = bound(params.get("maxPrice"));

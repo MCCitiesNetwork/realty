@@ -50,8 +50,23 @@ The front end then needs to know where the API is. Write a `config.json` beside
 `index.html`:
 
 ```json
-{ "apiBaseUrl": "https://api.example.com" }
+{
+  "apiBaseUrl": "https://api.example.com",
+  "visibleWorlds": ["Reveille", "Hamilton"]
+}
 ```
+
+`visibleWorlds` keeps a public site to the public worlds. It is a whitelist of world
+names -- empty or absent means every world -- and a *deployment* setting rather than an
+API one, so the same API can serve a public site that hides the staff and event worlds
+and a staff site that shows everything. A hidden world disappears from the world
+filter, the listings, its region pages (which read as unknown regions), the activity
+feed, the auctions, and a player's listed holdings. Because the API filters by
+one world at a time, a whitelisted site's listings, activity and auctions pages are
+always of one world, opening on the first listed; the front page's samples are merged
+across the listed worlds. Figures the API computes with no world in the question -- the
+totals, the tag counts, the owners leaderboard, a player's counts -- stay server-wide.
+A name the register does not know hides nothing and shows nothing.
 
 **Recommended: put the two behind one origin anyway.** If the static host is nginx,
 proxy `/v1` through to the API and no CORS or `config.json` is needed at all:

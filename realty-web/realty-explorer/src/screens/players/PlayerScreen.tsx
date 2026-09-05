@@ -9,6 +9,7 @@ import { formatCount, formatDate, formatDuration } from "../../ui/format";
 import { Page } from "../../ui/Page";
 import { playerLabel } from "../../ui/PlayerLink";
 import { Rows } from "../../ui/Rows";
+import { allowsWorld, useVisibility } from "../../visibility";
 
 const { Title, Text } = Typography;
 
@@ -173,7 +174,10 @@ export function PlayerScreen({ client, id }: Props) {
   );
 }
 
-function Group({ title, regions }: { title: string; regions: ReadonlyArray<RegionRef | RentedRef> }) {
+function Group({ title, regions: all }: { title: string; regions: ReadonlyArray<RegionRef | RentedRef> }) {
+  const visibility = useVisibility();
+  // The counts above are the API's and stay server-wide; the list is this site's.
+  const regions = all.filter((entry) => allowsWorld(visibility, entry.world));
   if (regions.length === 0) return null;
   return (
     <Card size="small" title={title} styles={{ body: { padding: "0 12px" } }}>

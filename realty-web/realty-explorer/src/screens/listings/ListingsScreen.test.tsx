@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { ListingsScreen, PAGE_SIZE } from "./ListingsScreen";
 import { emptyPage, listing, otherWorld, pageOf, tags, world } from "../../test-support/fixtures";
 import { failure, queriesTo, stubClient, type Routes as Stubs } from "../../test-support/stubClient";
+import { VisibilityProvider, visibilityOf } from "../../visibility";
 
 const listingRoutes = (overrides: Stubs = {}): Stubs => ({
   "/v1/worlds": [world, otherWorld],
@@ -17,14 +18,16 @@ function Probe() {
   return <div data-testid="location">{location.search}</div>;
 }
 
-const renderAt = (url: string, stubs: Stubs = listingRoutes()) => {
+const renderAt = (url: string, stubs: Stubs = listingRoutes(), visibleWorlds: string[] = []) => {
   const { client, get } = stubClient(stubs);
   render(
-    <MemoryRouter initialEntries={[url]}>
-      <Routes>
-        <Route path="/listings" element={<><ListingsScreen client={client} /><Probe /></>} />
-      </Routes>
-    </MemoryRouter>,
+    <VisibilityProvider value={visibilityOf(visibleWorlds)}>
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/listings" element={<><ListingsScreen client={client} /><Probe /></>} />
+        </Routes>
+      </MemoryRouter>
+    </VisibilityProvider>,
   );
   return get;
 };
@@ -93,6 +96,27 @@ describe("ListingsScreen", () => {
     const get = renderAt("/listings?type=mansion&sort=newest&minPrice=-4&page=0");
     await waitFor(() => expect(lastSearch(get)).toBeDefined());
     expect(lastSearch(get)).toEqual({ page: 1, pageSize: PAGE_SIZE });
+  });
+
+  it("searches the first whitelisted world when a whitelisted site is asked for no world", async () => {
+    // The API filters by one world at a time, so under a whitelist there is no "any".
+    const get = renderAt("/listings", listingRoutes(), ["My World", "world"]);
+    await waitFor(() => expect(lastSearch(get)).toBeDefined());
+    expect(lastSearch(get)).toMatchObject({ world: "My World" });
+  });
+
+  it("does not honour a link into a hidden world", async () => {
+    const get = renderAt("/listings?world=world", listingRoutes(), ["My World"]);
+    await waitFor(() => expect(lastSearch(get)).toBeDefined());
+    expect(lastSearch(get)).toMatchObject({ world: "My World" });
+  });
+
+  it("offers only the whitelisted worlds, and no way to clear the choice", async () => {
+    renderAt("/listings", listingRoutes(), ["My World"]);
+    await screen.findByText("plot_a");
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "World" }));
+    await waitFor(() => expect(document.querySelectorAll(".ant-select-item-option")).toHaveLength(1));
+    expect(document.querySelector(".ant-select-item-option")?.textContent).toBe("My World");
   });
 
   it("shows an empty state rather than a blank page when nothing matches", async () => {

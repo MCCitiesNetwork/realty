@@ -9,6 +9,7 @@ vi.mock("../../viewer/SchematicViewer", () => ({
 import { RegionScreen } from "./RegionScreen";
 import { alice, bob, freeholdRegion, pageOf, emptyPage } from "../../test-support/fixtures";
 import { failure, stubClient, type Query, type Routes } from "../../test-support/stubClient";
+import { VisibilityProvider, visibilityOf } from "../../visibility";
 
 /** Everything the region page asks for, answered as it would be for a plain region. */
 const regionRoutes = (overrides: Routes = {}): Routes => ({
@@ -143,6 +144,20 @@ describe("RegionScreen", () => {
     );
     expect(screen.getByRole("heading", { level: 1, name: "plot_a" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Listings" })).toBeInTheDocument();
+  });
+
+  it("treats a region in a hidden world as unknown, and never asks the API for it", async () => {
+    // The API would answer; this site has undertaken not to show it.
+    const { client, get } = stubClient(regionRoutes());
+    render(
+      <VisibilityProvider value={visibilityOf(["Elsewhere"])}>
+        <MemoryRouter>
+          <RegionScreen client={client} world="world" region="plot_a" />
+        </MemoryRouter>
+      </VisibilityProvider>,
+    );
+    await waitFor(() => expect(screen.getByText(/no region named/i)).toBeInTheDocument());
+    expect(get).not.toHaveBeenCalled();
   });
 
   it("lays out the register's history beneath the facts", async () => {
