@@ -28,7 +28,12 @@ REALTY_DB_PASSWORD=... \
 
 No CORS to configure and no `config.json` to write: the browser only ever sees one
 origin. On Pterodactyl this is one server and one allocation — use the
-**Realty Web (bundled)** egg.
+**Realty Web** egg.
+
+`REALTY_REST_WEB_ROOT` has no effect on this build and the egg does not offer it:
+the front end is served from the jar's own classpath, which always wins over a
+configured directory. Every other variable in the `realty-rest` table below applies
+unchanged.
 
 This is the only single-egg option. Pterodactyl supervises one foreground command,
 so a second process backgrounded beside the jar would be unreachable by the stop
