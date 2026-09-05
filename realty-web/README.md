@@ -26,9 +26,16 @@ REALTY_DB_PASSWORD=... \
   java -jar realty-web-dist-all.jar
 ```
 
-No CORS to configure and no `config.json` to write: the browser only ever sees one
-origin. On Pterodactyl this is one server and one allocation — use the
+No CORS to configure and no `config.json` needed to find the API: the browser only ever
+sees one origin. On Pterodactyl this is one server and one allocation — use the
 **Realty Web** egg.
+
+The rest of `config.json` -- the worlds a site shows, its emblem, its currency, where its
+map lives -- is still a per-deployment matter, and the jar cannot carry it: it is built
+once and installed everywhere. So this build serves a `config.json` **beside the jar**,
+in the working directory, in place of the one packaged inside it. On a panel that is
+`/home/container/config.json`, written from the file manager. Leave it out and the site
+runs on its defaults. See [the front end](#the-front-end) for what goes in it.
 
 `REALTY_REST_WEB_ROOT` has no effect on this build and the egg does not offer it:
 the front end is served from the jar's own classpath, which always wins over a
@@ -155,10 +162,10 @@ settings. Nothing else about the map is configurable, because nothing else is a
 decision -- the tile size and the five-fold gap between zoom levels are BlueMap's, and
 a server that has changed them draws a map whose tiles do not line up.
 
-**A bundled deployment cannot configure this.** It serves the front end from inside the
-jar and so has nowhere to put a `config.json`. The map still works -- it draws the plots
-on their own -- but the world underneath them needs either the split deployment or a
-proxy in front that serves the file.
+**A bundled deployment configures this beside its jar**, in `config.json` in the working
+directory -- `/home/container/config.json` on a Pterodactyl panel -- rather than beside an
+`index.html` it does not have. Leave it out and the map still works: it draws the plots on
+their own, without the world underneath them.
 
 What the map draws is the low-resolution half of what BlueMap renders, which is a flat
 image one pixel to the block. The 3D half is geometry rather than pictures, and is what

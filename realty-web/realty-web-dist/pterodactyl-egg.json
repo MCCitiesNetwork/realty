@@ -7,7 +7,7 @@
     "exported_at": "2026-09-02T00:00:00+00:00",
     "name": "Realty Web",
     "author": "42793301+md5sha256@users.noreply.github.com",
-    "description": "The Realty HTTP API and the Realty Explorer web front end in one process. The API is served under /v1 and the front end at /, from a single jar, so this needs one server and one allocation -- and no CORS configuration, because the browser only ever sees one origin. Use the 'Realty REST' egg instead if you want the API alone and are hosting the front end separately.",
+    "description": "The Realty HTTP API and the Realty Explorer web front end in one process. The API is served under /v1 and the front end at /, from a single jar, so this needs one server and one allocation -- and no CORS configuration, because the browser only ever sees one origin. Use the 'Realty REST' egg instead if you want the API alone and are hosting the front end separately. Per-deployment front-end settings -- the worlds the site shows, its emblem, its currency, the address of the server's BlueMap -- go in a config.json in this server's working directory, written from the file manager; without one the site runs on its defaults.",
     "features": null,
     "docker_images": {
         "Java 25 (Yolks)": "ghcr.io/parkervcp/yolks:java_25"

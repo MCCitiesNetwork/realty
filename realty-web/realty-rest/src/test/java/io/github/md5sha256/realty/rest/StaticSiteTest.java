@@ -20,6 +20,10 @@ class StaticSiteTest {
     @TempDir
     Path webRoot;
 
+    /** Stands in for the working directory a bundled deployment runs from. */
+    @TempDir
+    Path beside;
+
     @BeforeEach
     void writeIndex() throws IOException {
         Files.writeString(this.webRoot.resolve("index.html"), "<html>explorer</html>");
@@ -91,6 +95,47 @@ class StaticSiteTest {
             Response response = client.get("/config.json");
             Assertions.assertEquals(200, response.code());
             Assertions.assertTrue(response.body().string().contains("apiBaseUrl"));
+        });
+    }
+
+    @Test
+    void aConfigOnDiskIsServedInPlaceOfThePackagedOne() throws IOException {
+        // The bundled jar is built once and installed everywhere, so the config.json it
+        // carries cannot be this deployment's. One beside the jar is.
+        Path beside = this.beside.resolve("config.json");
+        Files.writeString(beside, "{\"currency\":\"$\"}");
+        JavalinTest.test(TestServers.withStaticSite(this.webRoot, beside).javalin(), (app, client) -> {
+            Response response = client.get("/config.json");
+            Assertions.assertEquals(200, response.code());
+            Assertions.assertEquals("{\"currency\":\"$\"}", response.body().string(),
+                    "the packaged config.json was served in place of the operator's");
+            Assertions.assertTrue(response.headers().get("Content-Type").contains("application/json"),
+                    "a browser must read it as JSON, not as a download");
+        });
+    }
+
+    @Test
+    void withNoConfigOnDiskThePackagedOneIsStillServed() {
+        // Naming a path is not the same as having a file there. A deployment without one
+        // behaves exactly as it did before the override existed.
+        JavalinTest.test(TestServers.withStaticSite(this.webRoot, this.beside.resolve("config.json"))
+                .javalin(), (app, client) -> {
+            Response response = client.get("/config.json");
+            Assertions.assertEquals(200, response.code());
+            Assertions.assertTrue(response.body().string().contains("apiBaseUrl"));
+        });
+    }
+
+    @Test
+    void theOverrideExposesNothingButTheConfig() throws IOException {
+        // The file sits in the working directory, which on a panel holds the jar and
+        // whatever else the operator keeps there. Exactly one path is served from it.
+        Path beside = this.beside.resolve("config.json");
+        Files.writeString(beside, "{}");
+        Files.writeString(this.beside.resolve("secrets.env"), "REALTY_DB_PASSWORD=hunter2");
+        JavalinTest.test(TestServers.withStaticSite(this.webRoot, beside).javalin(), (app, client) -> {
+            String body = client.get("/secrets.env").body().string();
+            Assertions.assertFalse(body.contains("hunter2"), "a sibling file was reachable");
         });
     }
 
