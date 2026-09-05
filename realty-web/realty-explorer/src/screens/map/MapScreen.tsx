@@ -1,4 +1,5 @@
-import { Alert, Card, Flex, Progress, Select, Skeleton, Typography } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import { Alert, AutoComplete, Card, Flex, Input, Progress, Select, Skeleton, Typography } from "antd";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { ApiClient } from "../../api/client";
@@ -9,7 +10,7 @@ import { useQuery } from "../../api/useQuery";
 import type { MapConfig } from "../../config";
 import { mapIdFor } from "../../map/blueMap";
 import { RegionMap } from "../../map/lazyRegionMap";
-import { LEGEND, hiddenByDefault } from "../../map/plotStyle";
+import { LEGEND, hiddenByDefault, plotStyle } from "../../map/plotStyle";
 import { useWorldMap } from "../../map/worldMap";
 import { useCurrency } from "../../currency";
 import { useVisibility, visibleWorlds } from "../../visibility";
@@ -61,6 +62,29 @@ export function MapScreen({ client, map }: { client: ApiClient; map: MapConfig }
     return next;
   }), []);
 
+  // Finding a plot by name, among the ones read so far. Matched on the id a visitor
+  // would type, ids that start with it first; a plot whose kind is switched off is
+  // switched back on, since being taken to a plot one cannot see is no help.
+  const [wanted, setWanted] = useState("");
+  const [focus, setFocus] = useState<{ regionId: string; at: number } | null>(null);
+  const suggestions = useMemo(() => {
+    const needle = wanted.trim().toLowerCase();
+    if (!needle) return [];
+    const ids = drawn.footprints.map((footprint) => footprint.regionId);
+    const starts = ids.filter((id) => id.toLowerCase().startsWith(needle));
+    const contains = ids.filter((id) => !id.toLowerCase().startsWith(needle) && id.toLowerCase().includes(needle));
+    return [...starts, ...contains].slice(0, 10).map((id) => ({ value: id }));
+  }, [wanted, drawn.footprints]);
+  const goTo = useCallback((regionId: string) => {
+    const listing = drawn.market.get(regionId);
+    if (listing) {
+      const kind = plotStyle(listing).label;
+      setHidden((current) => current.has(kind) ? new Set([...current].filter((label) => label !== kind)) : current);
+    }
+    setWanted(regionId);
+    setFocus({ regionId, at: Date.now() });
+  }, [drawn.market]);
+
   const tiles = useMemo(
     () => (map.baseUrl && world ? { baseUrl: map.baseUrl, mapId: mapIdFor(map, world) } : null),
     [map, world],
@@ -77,6 +101,26 @@ export function MapScreen({ client, map }: { client: ApiClient; map: MapConfig }
     <Page width={1600}>
       <Flex align="center" justify="space-between" wrap gap={12} style={{ marginBottom: 16 }}>
         <Title level={2} style={{ margin: 0 }}>Map</Title>
+        <Flex gap={8} wrap>
+        <AutoComplete
+          value={wanted}
+          options={suggestions}
+          onChange={setWanted}
+          onSelect={goTo}
+          style={{ minWidth: 240 }}
+        >
+          <Input
+            aria-label="Find a plot"
+            placeholder="Find a plot by name"
+            prefix={<SearchOutlined style={{ opacity: 0.45 }} />}
+            allowClear
+            onPressEnter={() => {
+              const exact = drawn.footprints.find((footprint) => footprint.regionId.toLowerCase() === wanted.trim().toLowerCase());
+              const first = exact?.regionId ?? suggestions[0]?.value;
+              if (first) goTo(first);
+            }}
+          />
+        </AutoComplete>
         <Select
           aria-label="World"
           placeholder="World"
@@ -88,6 +132,7 @@ export function MapScreen({ client, map }: { client: ApiClient; map: MapConfig }
           options={known.map((entry) => ({ value: worldLabel(entry), label: worldLabel(entry) }))}
           style={{ minWidth: 220 }}
         />
+        </Flex>
       </Flex>
 
       <Card
@@ -114,6 +159,7 @@ export function MapScreen({ client, map }: { client: ApiClient; map: MapConfig }
                   hidden={hidden}
                   settled={drawn.done}
                   currency={currency}
+                  focus={focus}
                   onSelect={openRegion}
                 />
               </Suspense>

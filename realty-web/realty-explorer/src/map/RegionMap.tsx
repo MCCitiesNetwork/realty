@@ -20,6 +20,11 @@ type Props = {
   hidden: ReadonlySet<string>;
   /** True once the whole world has been read, so the stacking order can be settled. */
   settled: boolean;
+  /**
+   * A plot to bring into view, by region id; `at` changes each time so the same plot
+   * can be asked for twice. Nothing happens for a plot not drawn (yet).
+   */
+  focus?: { regionId: string; at: number } | null;
   /** What goes in front of a price in a plot's tooltip; "" for none. */
   currency: string;
   /** Called with a region id when a visitor clicks its plot. */
@@ -158,7 +163,7 @@ class PlotCanvas extends L.Canvas {
  * repeatedly: they arrive a page at a time and are added as they land, which is why
  * each one is kept by region id rather than redrawn from scratch.</p>
  */
-export function RegionMap({ tiles, footprints, market, hidden, settled, currency, onSelect }: Props) {
+export function RegionMap({ tiles, footprints, market, hidden, settled, currency, focus, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xRef = useRef<InputRef>(null);
   const zRef = useRef<InputRef>(null);
@@ -346,6 +351,24 @@ export function RegionMap({ tiles, footprints, market, hidden, settled, currency
     // and on again would otherwise leave it sitting over everything it belongs under.
     restack(outlines, plotsRef.current);
   }, [hidden]);
+
+  // Found by name: the map frames the plot, close enough to read it, and lights it up
+  // for a moment so the eye lands on the right one among its neighbours. Going to a plot
+  // on purpose is the visitor taking over, as typing coordinates is.
+  useEffect(() => {
+    const map = mapRef.current;
+    const plot = focus ? plotsRef.current.get(focus.regionId) : undefined;
+    if (!map || !plot) return;
+    visitorHasMoved.current = true;
+    map.fitBounds(plot.layer.getBounds(), { padding: [80, 80], maxZoom: ZOOM_AT_A_POINT, animate: false });
+    plot.layer.setStyle(OUTLINE_HOVERED);
+    plot.layer.openTooltip(plot.layer.getBounds().getCenter());
+    const timer = setTimeout(() => {
+      plot.layer.setStyle(OUTLINE);
+      plot.layer.closeTooltip();
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [focus]);
 
   return (
     <div style={{ position: "relative", height: "100%", width: "100%" }}>

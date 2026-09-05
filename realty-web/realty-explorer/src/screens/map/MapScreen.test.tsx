@@ -136,6 +136,26 @@ describe("MapScreen", () => {
     await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull(), { timeout: 2000 });
   });
 
+  it("finds a plot by name and hands it to the map to frame, switching its kind on", async () => {
+    const stub = stubClient(routes([cuboid("plot_a"), cuboid("plot_b"), cuboid("other")], [
+      { worldGuardRegionId: "plot_b", world, contractType: "freehold", price: null, state: "SOLD", durationSeconds: null },
+    ]));
+    show(NO_MAP, stub);
+    await waitFor(() => expect((drawn.mock.calls.at(-1)![0] as { footprints: unknown[] }).footprints).toHaveLength(3));
+
+    const box = screen.getByRole("combobox", { name: "Find a plot" });
+    fireEvent.change(box, { target: { value: "plot" } });
+    await waitFor(() => expect(document.querySelectorAll(".ant-select-item-option")).toHaveLength(2));
+    fireEvent.click([...document.querySelectorAll(".ant-select-item-option")].find((o) => o.textContent === "plot_b")!);
+
+    await waitFor(() => {
+      const props = drawn.mock.calls.at(-1)![0] as { focus: { regionId: string } | null; hidden: Set<string> };
+      expect(props.focus?.regionId).toBe("plot_b");
+      // Sold plots start switched off; the one asked for is switched back on.
+      expect(props.hidden.has("Sold")).toBe(false);
+    });
+  });
+
   it("shows a legend, since a colour on its own says nothing", async () => {
     const stub = stubClient(routes());
     show(NO_MAP, stub);

@@ -1,4 +1,4 @@
-import { Button, Flex, Segmented, Select, Skeleton, Tag, Typography } from "antd";
+import { Button, Flex, Segmented, Select, Skeleton, Tag, Typography, theme } from "antd";
 import { useState } from "react";
 import type { ApiClient } from "../api/client";
 import { TTL, remembered } from "../api/remembered";
@@ -17,9 +17,6 @@ export type TagQuery = {
 
 export const NO_TAGS: TagQuery = { tags: [], excluded: [], matchAll: false };
 
-/** How many tags the simple mode offers as chips: the most-used ones. */
-const QUICK_TAGS = 8;
-
 type Props = {
   client: ApiClient;
   value: TagQuery;
@@ -30,29 +27,26 @@ type Props = {
 /**
  * The tag filter, in two modes.
  *
- * <p>Simple is a row of the most-used tags as chips: press one to ask for it, press
- * another to widen to either. That is the whole question most visitors have.
- * Advanced is the full list, searchable, with the two things chips cannot say: that a
- * plot must carry every tag named rather than any, and that some tags rule a plot out.
- * The control opens in whichever mode can show the question it was given, so a link
- * with an exclusion in it opens advanced; going back to simple drops what simple
- * cannot show.</p>
+ * <p>Simple is every tag in use as a chip, most-used first: press one to ask for it,
+ * press another to widen to either. That is the whole question most visitors have.
+ * Advanced is the same list as searchable selects, with the two things chips cannot
+ * say: that a plot must carry every tag named rather than any, and that some tags rule
+ * a plot out. The control opens in whichever mode can show the question it was given,
+ * so a link with an exclusion in it opens advanced; going back to simple drops what
+ * simple cannot show.</p>
  *
  * <p>Tags are raw ids with their region counts -- exactly what `/v1/tags` reports.
  * Their display names live in the plugin's config, which the API does not read, so
  * none is dressed up here either.</p>
  */
 export function TagFilter({ client, value, onChange, size = "middle" }: Props) {
+  const { token } = theme.useToken();
   const tags = useQuery(() => remembered(client, "tags", TTL.tags, () => client.GET("/v1/tags", {})), [client]);
   const ready = tags.status === "ready" && Array.isArray(tags.data);
   const all = ready ? [...tags.data].sort((a, b) => b.regionCount - a.regionCount) : [];
-  const quick = all.slice(0, QUICK_TAGS);
-  const quickIds = new Set(quick.map((tag) => tag.id));
 
   const [advancedChosen, setAdvancedChosen] = useState(false);
-  const needsAdvanced = ready
-    && (value.excluded.length > 0 || value.matchAll || value.tags.some((tag) => !quickIds.has(tag)));
-  const advanced = advancedChosen || needsAdvanced;
+  const advanced = advancedChosen || value.excluded.length > 0 || value.matchAll;
 
   if (tags.status === "loading") return <Skeleton.Input active size="small" block />;
   if (all.length === 0) return <Text type="secondary">No region carries a tag yet.</Text>;
@@ -62,22 +56,33 @@ export function TagFilter({ client, value, onChange, size = "middle" }: Props) {
 
   if (!advanced) {
     return (
-      <Flex wrap gap={4} align="center">
-        {quick.map((tag) => (
-          <Tag.CheckableTag
-            key={tag.id}
-            checked={value.tags.includes(tag.id)}
-            onChange={(checked) => onChange({
-              ...value,
-              tags: checked ? [...value.tags, tag.id] : value.tags.filter((entry) => entry !== tag.id),
-            })}
-            style={{ fontSize: size === "large" ? 14 : undefined }}
-          >
-            {tag.id} <span style={{ opacity: 0.65, fontSize: "0.85em" }}>{formatCount(tag.regionCount)}</span>
-          </Tag.CheckableTag>
-        ))}
+      <Flex wrap gap={6} align="center">
+        {all.map((tag) => {
+          const checked = value.tags.includes(tag.id);
+          return (
+            <Tag.CheckableTag
+              key={tag.id}
+              checked={checked}
+              onChange={(next) => onChange({
+                ...value,
+                tags: next ? [...value.tags, tag.id] : value.tags.filter((entry) => entry !== tag.id),
+              })}
+              // A chip has to read as something to press. Unchecked, the library draws
+              // it as bare text on the card; a fill and a border make it a chip.
+              style={{
+                fontSize: size === "large" ? 14 : 13,
+                padding: "2px 10px",
+                margin: 0,
+                border: `1px solid ${checked ? "transparent" : token.colorBorder}`,
+                background: checked ? undefined : token.colorFillTertiary,
+              }}
+            >
+              {tag.id} <span style={{ opacity: 0.65, fontSize: "0.85em" }}>{formatCount(tag.regionCount)}</span>
+            </Tag.CheckableTag>
+          );
+        })}
         <Button type="link" size="small" onClick={() => setAdvancedChosen(true)} style={{ padding: "0 4px" }}>
-          {all.length > quick.length ? `All ${formatCount(all.length)} tags` : "Advanced"}
+          Advanced
         </Button>
       </Flex>
     );
@@ -85,7 +90,7 @@ export function TagFilter({ client, value, onChange, size = "middle" }: Props) {
 
   const toSimple = () => {
     setAdvancedChosen(false);
-    onChange({ tags: value.tags.filter((tag) => quickIds.has(tag)), excluded: [], matchAll: false });
+    onChange({ tags: value.tags, excluded: [], matchAll: false });
   };
 
   return (
