@@ -28,10 +28,23 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Determine repository path
+      - name: Determine the version and repository path
         id: repo-path
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' buildSrc/src/main/kotlin/realty-conventions.gradle.kts)
+          # A release publishes the version its tag names, the way the jar release
+          # does, so the artifacts a release produces cannot disagree with it. Run by
+          # hand instead and there is no tag, so the literal every ordinary build uses
+          # stands -- which is a -SNAPSHOT, and lands in the snapshot repository.
+          if [ -n "${TAG}" ]; then
+            VERSION="${TAG#v}"
+            echo "gradleArgs=-PreleaseVersion=${VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' buildSrc/src/main/kotlin/realty-conventions.gradle.kts)
+            echo "gradleArgs=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Publishing ${VERSION}"
           if [[ "$VERSION" == *-SNAPSHOT ]]; then
             echo "suffix=/snapshots" >> "$GITHUB_OUTPUT"
           else
@@ -41,7 +54,7 @@ jobs:
       - name: Publish to Maven
         run: |
           chmod +x ./gradlew
-          ./gradlew publishMavenPublicationToDeployRepository
+          ./gradlew publishMavenPublicationToDeployRepository ${{ steps.repo-path.outputs.gradleArgs }}
         env:
           ORG_GRADLE_PROJECT_deployUrl: ${{ secrets.MAVEN_REPOSITORY_URL }}${{ steps.repo-path.outputs.suffix }}
           ORG_GRADLE_PROJECT_deployUsername: ${{ secrets.MAVEN_REPOSITORY_USERNAME }}
