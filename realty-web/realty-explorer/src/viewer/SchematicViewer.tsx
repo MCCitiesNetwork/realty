@@ -18,11 +18,79 @@ type Props = {
   schematic?: ArrayBuffer;
 };
 
+/**
+ * The IndexedDB databases in which the renderer remembers resource packs between visits.
+ *
+ * <p>It keeps them in two layers, and both put stored packs back on start-up before
+ * looking at the pack they are handed: the outer manager keeps a pack under the name it
+ * was given -- always "server" here -- and skips fetching a default pack whose name it
+ * already holds, while the inner one drops a handed pack whose bytes it has seen. So
+ * once a browser had loaded any pack, a change of pack on the server never reached it:
+ * the old pack came back from the store under the same name, and the preview built its
+ * atlas from whatever that pack had, or from nothing. The server's answer is the only
+ * pack this page means -- and it is cached in memory for the session -- so every stored
+ * copy is dropped before each renderer starts. The atlas cache is a separate store and
+ * is left alone.</p>
+ */
+const REMEMBERED_PACK_STORES = ["ResourcePacksDB", "cubane-resource-packs", "cubane-cache"];
+
+async function forgetRememberedPacks(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  await Promise.all(REMEMBERED_PACK_STORES.map((name) => new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(name);
+    // Best effort: a blocked delete finishes once the previous renderer lets go, and a
+    // failure to delete is no reason to show no preview at all.
+    request.onsuccess = () => resolve();
+    request.onerror = () => resolve();
+    request.onblocked = () => resolve();
+  })));
+}
+
+type Point = { x: number; y: number; z: number };
+
+/** The orbit controls, as far as this component adjusts them. */
+type OrbitControls = {
+  minDistance?: number;
+  maxDistance?: number;
+  enablePan?: boolean;
+  target?: { set: (x: number, y: number, z: number) => unknown };
+  update?: () => unknown;
+};
+
 /** The parts of the renderer instance this component actually uses. */
 type Renderer = {
   dispose?: () => void;
   addResourcePack?: (file: File) => Promise<unknown>;
+  schematicManager?: { getGlobalTightWorldBox?: () => { min: Point; max: Point } };
+  cameraManager?: { controls?: Map<string, OrbitControls> };
 };
+
+/**
+ * Keeps the camera outside the plot: a visitor can circle it and zoom, but not pass
+ * through a wall into the rooms.
+ *
+ * <p>The nearest the camera may come is the radius of the sphere around the build, so
+ * no angle of approach reaches the inside; the farthest is a few times that, so the
+ * plot cannot be zoomed away to a speck. Panning is off because it moves the point
+ * being orbited, and a point moved into the building takes the camera with it.</p>
+ *
+ * <p>Called once the schematic has rendered, since only then are its bounds known.</p>
+ */
+export function keepCameraOutside(renderer: Renderer | undefined): void {
+  const box = renderer?.schematicManager?.getGlobalTightWorldBox?.();
+  const orbit = renderer?.cameraManager?.controls?.get("orbit");
+  if (!box || !orbit) return;
+  const width = box.max.x - box.min.x;
+  const height = box.max.y - box.min.y;
+  const depth = box.max.z - box.min.z;
+  const radius = Math.sqrt(width * width + height * height + depth * depth) / 2;
+  if (!Number.isFinite(radius) || radius <= 0) return;
+  orbit.minDistance = radius * 1.05;
+  orbit.maxDistance = radius * 8;
+  orbit.enablePan = false;
+  orbit.target?.set((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, (box.min.z + box.max.z) / 2);
+  orbit.update?.();
+}
 
 /**
  * Renders the region's captured schematic in 3D.
@@ -57,7 +125,7 @@ export function SchematicViewer({ client, world, region, schematic }: Props) {
     // texture atlas during initialisation; adding one afterwards means a rebuild.
     let disposed = false;
 
-    void fetchResourcePacks(client).then((packs) => {
+    void Promise.all([fetchResourcePacks(client), forgetRememberedPacks()]).then(([packs]) => {
       if (disposed) return;
       rendererRef.current = new SchematicRenderer(
         canvas,
@@ -77,6 +145,9 @@ export function SchematicViewer({ client, world, region, schematic }: Props) {
           // which would let any visitor load arbitrary geometry into what is meant to
           // be this region's preview. The handler below takes packs only.
           enableDragAndDrop: false,
+          callbacks: {
+            onSchematicRendered: () => keepCameraOutside(rendererRef.current),
+          },
         },
       ) as unknown as Renderer;
     });
