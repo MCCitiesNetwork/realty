@@ -1,11 +1,11 @@
 {
-    "_comment": "Realty Web (bundled) egg for Pterodactyl. Exported/imported via Admin > Nests > Import Egg.",
+    "_comment": "Realty Web egg for Pterodactyl. Exported/imported via Admin > Nests > Import Egg.",
     "meta": {
         "version": "PTDL_v2",
         "update_url": null
     },
     "exported_at": "2026-09-02T00:00:00+00:00",
-    "name": "Realty Web (bundled)",
+    "name": "Realty Web",
     "author": "42793301+md5sha256@users.noreply.github.com",
     "description": "The Realty HTTP API and the Realty Explorer web front end in one process. The API is served under /v1 and the front end at /, from a single jar, so this needs one server and one allocation -- and no CORS configuration, because the browser only ever sees one origin. Use the 'Realty REST' egg instead if you want the API alone and are hosting the front end separately.",
     "features": null,
