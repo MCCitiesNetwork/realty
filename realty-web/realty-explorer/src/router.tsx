@@ -7,6 +7,7 @@ import { ActivityScreen } from "./screens/activity/ActivityScreen";
 import { AuctionsScreen } from "./screens/auctions/AuctionsScreen";
 import { HomeScreen } from "./screens/home/HomeScreen";
 import { ListingsScreen } from "./screens/listings/ListingsScreen";
+import { MapScreen } from "./screens/map/MapScreen";
 import { NotFoundScreen } from "./screens/NotFoundScreen";
 import { OwnersScreen } from "./screens/owners/OwnersScreen";
 import { PlayerScreen } from "./screens/players/PlayerScreen";
@@ -19,7 +20,7 @@ import { VisibilityProvider, visibilityOf } from "./visibility";
 
 type Props = { client: ApiClient };
 
-/** The whole app, including the deployment settings: the emblem, the currency, the visible worlds. */
+/** The whole app, including the deployment settings: the map, the emblem, the visible worlds. */
 type AppProps = Props & { config: AppConfig };
 
 function RegionRoute({ client }: Props) {
@@ -57,6 +58,7 @@ export function AppRoutes({ client, config }: AppProps) {
               <Route path="/" element={<HomeScreen client={client} />} />
               <Route path="/listings" element={<ListingsScreen client={client} />} />
               <Route path="/region/:world/:region" element={<RegionRoute client={client} />} />
+              <Route path="/map" element={<MapScreen client={client} map={config.map} />} />
               <Route path="/auctions" element={<AuctionsScreen client={client} />} />
               <Route path="/activity" element={<ActivityScreen client={client} />} />
               <Route path="/owners" element={<OwnersScreen client={client} />} />

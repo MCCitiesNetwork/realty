@@ -47,6 +47,42 @@ describe("loadConfig", () => {
   });
 });
 
+describe("loadConfig, the server map", () => {
+  it("reads the map's address and strips a trailing slash", async () => {
+    mockFetch(async () => new Response(JSON.stringify({
+      map: { baseUrl: "https://map.example.com/" },
+    }), { status: 200 }));
+    expect((await loadConfig()).map.baseUrl).toBe("https://map.example.com");
+  });
+
+  it("configures no map when the section is absent", async () => {
+    mockFetch(async () => new Response(JSON.stringify({ apiBaseUrl: "" }), { status: 200 }));
+    expect((await loadConfig()).map).toEqual({ baseUrl: "", ids: {} });
+  });
+
+  it("refuses an address that is not absolute http", async () => {
+    // A tile address is concatenated and handed to an image. A relative base would
+    // point every tile back at this site, and a javascript: one is refused for the
+    // reason every operator-written link here is.
+    for (const baseUrl of ["/maps", "javascript:alert(1)", "not a url"]) {
+      mockFetch(async () => new Response(JSON.stringify({ map: { baseUrl } }), { status: 200 }));
+      expect((await loadConfig()).map.baseUrl).toBe("");
+    }
+  });
+
+  it("reads the worlds whose BlueMap name differs, and ignores anything else", async () => {
+    mockFetch(async () => new Response(JSON.stringify({
+      map: { baseUrl: "https://m", ids: { Hamilton: " hamilton ", Broken: 7, Blank: "  " } },
+    }), { status: 200 }));
+    expect((await loadConfig()).map.ids).toEqual({ Hamilton: "hamilton" });
+  });
+
+  it("survives a map section that is not an object", async () => {
+    mockFetch(async () => new Response(JSON.stringify({ map: "https://m" }), { status: 200 }));
+    expect((await loadConfig()).map).toEqual({ baseUrl: "", ids: {} });
+  });
+});
+
 describe("loadConfig, the logo", () => {
   it("reads an absolute http(s) address, trimmed", async () => {
     mockFetch(async () => new Response(JSON.stringify({

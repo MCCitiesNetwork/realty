@@ -86,6 +86,7 @@ public record RegionResponse(
     public record Dimensions(@NotNull String shape,
                              int minY,
                              int maxY,
+                             int priority,
                              @NotNull List<Point> points) {
     }
 

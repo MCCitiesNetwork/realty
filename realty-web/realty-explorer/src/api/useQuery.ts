@@ -36,7 +36,7 @@ export function useQuery<T>(
       ({ data, error, response }) => {
         if (cancelled) return;
         if (error !== undefined || data === undefined) {
-          setState({ status: "error", error: describe(error, response) });
+          setState({ status: "error", error: describeApiError(error, response) });
           return;
         }
         setState({ status: "ready", data });
@@ -58,7 +58,8 @@ export function useQuery<T>(
   return state;
 }
 
-function describe(error: unknown, response?: { status: number }): ApiError {
+/** What the API said went wrong, in the shape every screen reports. */
+export function describeApiError(error: unknown, response?: { status: number }): ApiError {
   const body = typeof error === "object" && error !== null ? (error as Record<string, unknown>) : {};
   return {
     httpStatus: response?.status,

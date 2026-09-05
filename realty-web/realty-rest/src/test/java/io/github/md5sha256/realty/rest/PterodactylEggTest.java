@@ -55,7 +55,8 @@ class PterodactylEggTest {
             "REALTY_REST_CORS_ORIGINS",
             "REALTY_REST_MODULE_URL",
             "REALTY_REST_MODULE_SECRET",
-            "REALTY_REST_MODULE_TIMEOUT_MS");
+            "REALTY_REST_MODULE_TIMEOUT_MS",
+            "REALTY_REST_GEOMETRY_CACHE_SECONDS");
 
     /**
      * Wings injects {@code SERVER_PORT} into every container from the server's primary
