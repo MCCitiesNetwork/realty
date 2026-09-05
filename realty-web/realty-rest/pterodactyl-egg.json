@@ -39,6 +39,16 @@
       "field_type": "text"
     },
     {
+      "name": "Source Repository",
+      "description": "GitHub repository the install script downloads the release asset from, as owner/name. Leave as MCCitiesNetwork/realty unless you are installing from a fork; the install script reads this and there is no other way to point it elsewhere.",
+      "env_variable": "REALTY_REST_REPO",
+      "default_value": "MCCitiesNetwork/realty",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:128",
+      "field_type": "text"
+    },
+    {
       "name": "Database URL",
       "description": "MariaDB JDBC URL, without the jdbc: prefix (the app prepends it). Example: mariadb://db-host:3306/realty",
       "env_variable": "REALTY_DB_URL",
