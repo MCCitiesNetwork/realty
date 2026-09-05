@@ -7,10 +7,15 @@ const addPackSpy = vi.fn(async (_file: File) => undefined);
 
 // WebGL and WASM do not run under jsdom. The worthwhile assertion is that the
 // renderer is constructed correctly and torn down, not that Three.js draws.
+// The instance the component built, so a test can give it the managers a real renderer
+// would have grown by the time it reports a schematic rendered.
+let lastRenderer: Record<string, unknown>;
+
 vi.mock("schematic-renderer", () => ({
   SchematicRenderer: class {
     constructor(...args: unknown[]) {
       constructorSpy(...args);
+      lastRenderer = this as unknown as Record<string, unknown>;
     }
 
     dispose() {
@@ -23,7 +28,7 @@ vi.mock("schematic-renderer", () => ({
   },
 }));
 
-import { SchematicViewer, keepCameraOutside } from "./SchematicViewer";
+import { SchematicViewer, faceCameraSouthEast, keepCameraOutside } from "./SchematicViewer";
 import type { ApiClient } from "../api/client";
 
 const client = ({
@@ -108,6 +113,50 @@ describe("SchematicViewer", () => {
     expect(orbit.enablePan).toBe(false);
     expect(orbit.target.set).toHaveBeenCalledWith(1, 1.5, 3);
     expect(orbit.update).toHaveBeenCalled();
+  });
+
+  it("opens every plot from one compass bearing, rather than one the plot decides", async () => {
+    // The renderer's own framing derives an angle from the plot's bounding box, so two
+    // neighbouring plots open facing differently and neither matches the north-up map.
+    // The vector is a compass bearing -- x east, y up, z south -- so this is the camera
+    // above the plot's south-east corner, looking north-west.
+    const snapToDirection = vi.fn();
+    faceCameraSouthEast({ cameraManager: { snapToDirection } });
+
+    expect(snapToDirection).toHaveBeenCalledWith([1, 0.7, 1]);
+  });
+
+  it("turns the camera before constraining it, so the limits hold where the snap lands", async () => {
+    render(<SchematicViewer client={client} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+    const options = constructorSpy.mock.calls[0][3] as { callbacks?: { onSchematicRendered?: () => void } };
+
+    const order: string[] = [];
+    const orbit = {
+      minDistance: 1,
+      maxDistance: 1000,
+      enablePan: true,
+      target: { set: vi.fn() },
+      update: () => order.push("limits"),
+    };
+    lastRenderer.schematicManager = {
+      getGlobalTightWorldBox: () => ({ min: { x: 0, y: 0, z: 0 }, max: { x: 2, y: 3, z: 6 } }),
+    };
+    lastRenderer.cameraManager = {
+      controls: new Map([["orbit", orbit]]),
+      snapToDirection: () => order.push("snap"),
+    };
+
+    options.callbacks?.onSchematicRendered?.();
+
+    expect(order).toEqual(["snap", "limits"]);
+  });
+
+  it("leaves the camera alone when the renderer has no bearing to set", () => {
+    // A renderer whose managers never arrived: no bearing is better than a throw that
+    // costs the visitor the preview.
+    expect(() => faceCameraSouthEast(undefined)).not.toThrow();
+    expect(() => faceCameraSouthEast({ cameraManager: {} })).not.toThrow();
   });
 
   it("leaves the camera alone when the renderer has no bounds to give", () => {
