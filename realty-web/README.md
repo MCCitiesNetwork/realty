@@ -52,9 +52,18 @@ The front end then needs to know where the API is. Write a `config.json` beside
 ```json
 {
   "apiBaseUrl": "https://api.example.com",
+  "logoUrl": "https://example.com/emblem.png",
+  "currency": "$",
   "visibleWorlds": ["Reveille", "Hamilton"]
 }
 ```
+
+`currency` goes in front of every price: `$78k`, `$200 / 30 days`. Leave it out and
+prices are bare figures, since the API reports a number and nothing about what the
+server's money is called.
+
+`logoUrl` is the server's emblem, shown beside the site name in the header and used as
+the tab's icon. Absolute http(s) only; leave it out and a generic house stands in.
 
 `visibleWorlds` keeps a public site to the public worlds. It is a whitelist of world
 names -- empty or absent means every world -- and a *deployment* setting rather than an
@@ -87,7 +96,8 @@ service that allowed every origin by default is one nobody chose.
 
 `realty-explorer` is built with [Ant Design](https://ant.design/) and reads like a
 property listing site. Everything on it is the API's answer at load time: there is no
-placeholder copy, no stock imagery and no currency symbol, because the API reports none.
+placeholder copy, no stock imagery, and no currency symbol unless `config.json` names one,
+because the API reports none.
 
 | Route | What it shows | Backed by |
 |---|---|---|

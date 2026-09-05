@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { EVENT_TYPES, eventLabel, formatCount, formatDuration, formatPrice, formatRelative, humanise } from "./format";
+import { EVENT_TYPES, eventLabel, formatCount, formatDuration, formatPrice, formatPriceInFull, formatRelative, humanise } from "./format";
+
+describe("formatPrice, with a currency", () => {
+  it("puts the operator's symbol in front of the figure, abbreviated or in full", () => {
+    expect(formatPrice(78_000, "$")).toBe("$78k");
+    expect(formatPrice(12.5, "$")).toBe("$12.5");
+    expect(formatPriceInFull(78_000, "$")).toBe("$78,000");
+  });
+
+  it("attaches nothing when none is configured", () => {
+    expect(formatPrice(78_000)).toBe("78k");
+  });
+});
 
 describe("formatPrice", () => {
   it("shows amounts under a thousand in full", () => {

@@ -22,7 +22,23 @@ function activeKey(pathname: string, search: string): string | undefined {
   return NAV.find((entry) => entry.to === pathname)?.key;
 }
 
-export function SiteHeader({ client }: { client: ApiClient }) {
+type Props = {
+  client: ApiClient;
+  /** The server's emblem, or "" for the generic house. */
+  logoUrl?: string;
+};
+
+/**
+ * The mark beside the site name: the operator's emblem when one is configured, else a
+ * house. The emblem is decorative here -- the name beside it is what reads -- so it
+ * carries no alt text of its own.
+ */
+function Emblem({ logoUrl }: { logoUrl?: string }) {
+  if (!logoUrl) return <HomeFilled style={{ fontSize: 18 }} />;
+  return <img src={logoUrl} alt="" height={24} width={24} style={{ objectFit: "contain", display: "block" }} />;
+}
+
+export function SiteHeader({ client, logoUrl }: Props) {
   const location = useLocation();
   const active = activeKey(location.pathname, location.search);
 
@@ -30,7 +46,7 @@ export function SiteHeader({ client }: { client: ApiClient }) {
     <Layout.Header style={{ position: "sticky", top: 0, zIndex: 10, boxShadow: "0 1px 0 rgba(0,0,0,0.06)" }}>
       <Flex align="center" gap={24} style={{ height: "100%", maxWidth: 1200, margin: "0 auto" }}>
         <Link to="/" style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-          <HomeFilled style={{ fontSize: 18 }} />
+          <Emblem logoUrl={logoUrl} />
           <Typography.Text strong style={{ fontSize: 18, letterSpacing: "-0.01em" }}>Realty</Typography.Text>
         </Link>
         <Menu

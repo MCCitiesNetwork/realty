@@ -14,11 +14,12 @@ import { RegionScreen } from "./screens/region/RegionScreen";
 import { themeFor, useColorScheme } from "./theme";
 import { SiteFooter } from "./ui/SiteFooter";
 import { SiteHeader } from "./ui/SiteHeader";
+import { CurrencyProvider } from "./currency";
 import { VisibilityProvider, visibilityOf } from "./visibility";
 
 type Props = { client: ApiClient };
 
-/** The whole app, including the deployment settings: the worlds this site shows. */
+/** The whole app, including the deployment settings: the emblem, the currency, the visible worlds. */
 type AppProps = Props & { config: AppConfig };
 
 function RegionRoute({ client }: Props) {
@@ -46,10 +47,11 @@ export function AppRoutes({ client, config }: AppProps) {
 
   return (
     <VisibilityProvider value={visibilityOf(config.visibleWorlds)}>
+    <CurrencyProvider value={config.currency}>
     <ConfigProvider theme={themeFor(scheme)}>
       <AntApp>
         <Layout style={{ minHeight: "100vh" }}>
-          <SiteHeader client={client} />
+          <SiteHeader client={client} logoUrl={config.logoUrl} />
           <Layout.Content style={{ display: "flex", flexDirection: "column" }}>
             <Routes>
               <Route path="/" element={<HomeScreen client={client} />} />
@@ -66,6 +68,7 @@ export function AppRoutes({ client, config }: AppProps) {
         </Layout>
       </AntApp>
     </ConfigProvider>
+    </CurrencyProvider>
     </VisibilityProvider>
   );
 }

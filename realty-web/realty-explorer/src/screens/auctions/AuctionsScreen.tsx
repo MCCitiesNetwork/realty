@@ -5,6 +5,7 @@ import type { ApiClient } from "../../api/client";
 import { regionPath, worldLabel } from "../../api/paths";
 import type { components, paths } from "../../api/schema";
 import { useQuery } from "../../api/useQuery";
+import { useCurrency } from "../../currency";
 import { formatCount, formatDate, formatDuration, formatPrice } from "../../ui/format";
 import { Page } from "../../ui/Page";
 import { PlayerLink } from "../../ui/PlayerLink";
@@ -128,10 +129,11 @@ export function AuctionsScreen({ client }: { client: ApiClient }) {
 }
 
 function AuctionCard({ auction }: { auction: Auction }) {
+  const currency = useCurrency();
   const bid = auction.highestBid;
   return (
     <Badge.Ribbon
-      text={bid ? `Leading bid ${formatPrice(bid.amount)}` : "No bids yet"}
+      text={bid ? `Leading bid ${formatPrice(bid.amount, currency)}` : "No bids yet"}
       color={bid ? "green" : undefined}
       rootClassName="listing-ribbon"
     >
