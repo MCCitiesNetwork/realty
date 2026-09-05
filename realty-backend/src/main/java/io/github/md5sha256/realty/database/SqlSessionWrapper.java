@@ -18,6 +18,7 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractSanctionedAuct
 import io.github.md5sha256.realty.database.mapper.RealtySignMapper;
 import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import io.github.md5sha256.realty.database.mapper.ActivityMapper;
+import io.github.md5sha256.realty.database.mapper.StatisticsMapper;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import io.github.md5sha256.realty.database.mapper.RealtySchematicMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyWorldMapper;
@@ -67,6 +68,8 @@ public interface SqlSessionWrapper extends Closeable {
     @NotNull SearchMapper searchMapper();
 
     @NotNull ActivityMapper activityMapper();
+
+    @NotNull StatisticsMapper statisticsMapper();
 
     @NotNull RealtyWorldMapper realtyWorldMapper();
 

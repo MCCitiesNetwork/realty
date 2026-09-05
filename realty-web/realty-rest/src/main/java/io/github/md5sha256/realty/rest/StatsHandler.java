@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.api.RealtyBackend;
+import io.github.md5sha256.realty.database.entity.StatisticsEntity;
 import io.github.md5sha256.realty.rest.json.StatsResponse;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
@@ -9,9 +10,9 @@ import org.jetbrains.annotations.NotNull;
  * Serves {@code GET /v1/stats} -- the server-wide totals the v1 spec listed as a
  * deliberate omission that would be cheap to add later.
  *
- * <p>Ten counters means ten round trips per request. That is acceptable for a route
- * a dashboard polls at human intervals, and it is the first place a short response
- * cache would pay for itself if one is ever added.</p>
+ * <p>One statement, not ten counters: the front page asks for this on every visit,
+ * and ten round trips per visit was most of the time it spent loading. The answer
+ * is also marked cacheable for a minute, which is as stale as a market total may be.</p>
  */
 public final class StatsHandler {
 
@@ -22,20 +23,22 @@ public final class StatsHandler {
     }
 
     public void handle(@NotNull Context ctx) {
+        StatisticsEntity stats = this.backend.statistics();
         StatsResponse.Freehold freehold = new StatsResponse.Freehold(
-                this.backend.countAllFreeholdContracts(),
-                this.backend.countOccupiedFreeholdContracts(),
-                this.backend.averageFreeholdPrice());
+                stats.freeholdContracts(),
+                stats.occupiedFreeholds(),
+                stats.averageFreeholdPrice());
         StatsResponse.Leasehold leasehold = new StatsResponse.Leasehold(
-                this.backend.countAllLeaseholdContracts(),
-                this.backend.countOccupiedLeaseholdContracts(),
-                this.backend.averageLeaseholdPrice(),
-                this.backend.averageLeaseholdDurationSeconds());
+                stats.leaseholdContracts(),
+                stats.occupiedLeaseholds(),
+                stats.averageLeaseholdPrice(),
+                stats.averageLeaseholdDurationSeconds());
+        ctx.header("Cache-Control", ResponseCaching.SHORT_LIVED);
         ctx.json(new StatsResponse(
-                this.backend.countAllRegions(),
+                stats.regions(),
                 freehold,
                 leasehold,
-                this.backend.countActiveOffers(),
-                this.backend.countActiveAuctions()));
+                stats.activeOffers(),
+                stats.activeAuctions()));
     }
 }

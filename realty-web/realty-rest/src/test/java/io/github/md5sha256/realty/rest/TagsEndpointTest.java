@@ -11,6 +11,17 @@ import java.util.Map;
 class TagsEndpointTest {
 
     @Test
+    void isCacheableForAMinute() {
+        // Every visitor's front page asks for this list, twice; a minute is as stale
+        // as a tag count may be.
+        RealtyRestServer server = TestServers.withTags(List.of("commercial"), Map.of("commercial", 1));
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            Response response = client.get("/v1/tags");
+            Assertions.assertEquals(List.of("public, max-age=60"), response.headers().get("Cache-Control"));
+        });
+    }
+
+    @Test
     void listsEveryTagWithItsRegionCount() {
         RealtyRestServer server = TestServers.withTags(
                 List.of("commercial", "waterfront"),

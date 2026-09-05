@@ -12,6 +12,8 @@ import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.entity.RealtyWorldEntity;
+import io.github.md5sha256.realty.database.entity.TagCountEntity;
+import io.github.md5sha256.realty.database.entity.StatisticsEntity;
 import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
@@ -118,6 +120,9 @@ final class TestServers {
         InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
             case "getAllTagIds" -> List.copyOf(tagIds);
             case "countRegionsByTag" -> counts.getOrDefault((String) args[0], 0);
+            case "countRegionsPerTag" -> tagIds.stream()
+                    .map(id -> new TagCountEntity(id, counts.getOrDefault(id, 0)))
+                    .toList();
             default -> throw new UnsupportedOperationException(
                     "RealtyBackend#" + method.getName() + " is not stubbed for this test");
         };
@@ -141,6 +146,17 @@ final class TestServers {
             case "averageFreeholdPrice" -> 18250.5d;
             case "averageLeaseholdPrice" -> 640.0d;
             case "averageLeaseholdDurationSeconds" -> 604800L;
+            case "statistics" -> new StatisticsEntity(
+                    counters.getOrDefault("countAllRegions", 1),
+                    counters.getOrDefault("countAllFreeholdContracts", 1),
+                    counters.getOrDefault("countOccupiedFreeholdContracts", 1),
+                    18250.5d,
+                    counters.getOrDefault("countAllLeaseholdContracts", 1),
+                    counters.getOrDefault("countOccupiedLeaseholdContracts", 1),
+                    640.0d,
+                    604800L,
+                    counters.getOrDefault("countActiveOffers", 1),
+                    counters.getOrDefault("countActiveAuctions", 1));
             default -> throw new UnsupportedOperationException(
                     "RealtyBackend#" + method.getName() + " is not stubbed for this test");
         };
@@ -162,6 +178,7 @@ final class TestServers {
                  "countActiveOffers", "countActiveAuctions" -> 0;
             case "averageFreeholdPrice", "averageLeaseholdPrice" -> 0.0d;
             case "averageLeaseholdDurationSeconds" -> 0L;
+            case "statistics" -> new StatisticsEntity(0, 0, 0, 0.0d, 0, 0, 0.0d, 0L, 0, 0);
             default -> throw new UnsupportedOperationException(
                     "RealtyBackend#" + method.getName() + " is not stubbed for this test");
         };

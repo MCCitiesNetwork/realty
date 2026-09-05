@@ -43,6 +43,24 @@ final class RegionHandler {
         this.moduleClient = moduleClient;
     }
 
+    /**
+     * The region's state, read off the contracts already in hand.
+     *
+     * <p>The same rule the backend's {@code getRegionState} applies -- a freehold is
+     * sold once it has a title holder, a leasehold leased once it has a tenant, the
+     * freehold deciding where a region carries both -- but on the contracts this
+     * request has already fetched, where the backend's version fetched them again.</p>
+     */
+    static @Nullable RegionState stateOf(@NotNull RealtyBackend.RegionInfo info) {
+        if (info.freehold() != null) {
+            return info.freehold().titleHolderId() != null ? RegionState.SOLD : RegionState.FOR_SALE;
+        }
+        if (info.leasehold() != null) {
+            return info.leasehold().tenantId() != null ? RegionState.LEASED : RegionState.FOR_LEASE;
+        }
+        return null;
+    }
+
     void handle(@NotNull Context ctx) {
         String worldParam = QueryParams.required(ctx, "world");
         String regionParam = QueryParams.required(ctx, "region");
@@ -50,7 +68,7 @@ final class RegionHandler {
         UUID worldId = this.worldLookup.resolve(worldParam);
 
         RealtyBackend.RegionInfo info = this.backend.getRegionInfo(regionParam, worldId);
-        RegionState state = this.backend.getRegionState(regionParam, worldId);
+        RegionState state = stateOf(info);
 
         if (state == null && info.freehold() == null && info.leasehold() == null && info.auction() == null) {
             throw ApiException.notFound("REGION_NOT_FOUND",
