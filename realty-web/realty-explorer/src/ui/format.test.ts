@@ -12,14 +12,14 @@ describe("formatPrice", () => {
     expect(formatPrice(1000)).toBe("1k");
     expect(formatPrice(10_000)).toBe("10k");
     expect(formatPrice(12_500)).toBe("12.5k");
-    expect(formatPrice(1_234_567)).toBe("1.23mil");
-    expect(formatPrice(10_000_000)).toBe("10mil");
-    expect(formatPrice(2.5e9)).toBe("2.5bil");
-    expect(formatPrice(7e12)).toBe("7tril");
+    expect(formatPrice(1_234_567)).toBe("1.23m");
+    expect(formatPrice(10_000_000)).toBe("10m");
+    expect(formatPrice(2.5e9)).toBe("2.5b");
+    expect(formatPrice(7e12)).toBe("7t");
   });
 
   it("does not round up into the next suffix's territory", () => {
-    expect(formatPrice(999_999)).toBe("1mil");
+    expect(formatPrice(999_999)).toBe("1m");
     expect(formatPrice(999_994)).toBe("999.99k");
   });
 

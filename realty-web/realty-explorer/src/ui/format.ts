@@ -1,5 +1,5 @@
 /**
- * Prices come back as doubles and are shown abbreviated: "12.5k", "1.23mil".
+ * Prices come back as doubles and are shown abbreviated: "12.5k", "1.23m".
  * A listing card and a fact row are a fixed width, and a 67-digit grouped
  * string -- a valid double -- simply does not fit; an abbreviation is the same
  * width for a thousand as for a septillion. Below a thousand the value is shown
@@ -11,7 +11,7 @@
  * says what the number is.
  */
 const SUFFIXES = [
-  "", "k", "mil", "bil", "tril", "quad", "quint", "sext", "sept", "oct", "non",
+  "", "k", "m", "b", "t", "quad", "quint", "sext", "sept", "oct", "non",
   "dec", "undec", "duodec", "tredec", "quattuordec", "quindec", "sexdec",
   "septendec", "octodec", "novemdec", "vig",
 ];
