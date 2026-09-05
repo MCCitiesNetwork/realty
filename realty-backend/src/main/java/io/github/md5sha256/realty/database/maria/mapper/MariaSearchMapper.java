@@ -23,7 +23,8 @@ public interface MariaSearchMapper extends SearchMapper {
             SELECT * FROM (
                 <if test="includeFreehold">
                 SELECT rr.worldGuardRegionId, rr.worldId, 'freehold' AS contractType, fc.price,
-                       CASE WHEN fc.titleHolderId IS NOT NULL THEN 'SOLD' ELSE 'FOR_SALE' END AS state
+                       CASE WHEN fc.titleHolderId IS NOT NULL THEN 'SOLD' ELSE 'FOR_SALE' END AS state,
+                       NULL AS durationSeconds
                 FROM RealtyRegion rr
                 INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
                 INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
@@ -68,7 +69,8 @@ public interface MariaSearchMapper extends SearchMapper {
                 </if>
                 <if test="includeLeasehold">
                 SELECT rr.worldGuardRegionId, rr.worldId, 'leasehold' AS contractType, lc.price,
-                       CASE WHEN lc.tenantId IS NOT NULL THEN 'LEASED' ELSE 'FOR_LEASE' END AS state
+                       CASE WHEN lc.tenantId IS NOT NULL THEN 'LEASED' ELSE 'FOR_LEASE' END AS state,
+                       lc.durationSeconds
                 FROM RealtyRegion rr
                 INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
                 INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
@@ -121,7 +123,8 @@ public interface MariaSearchMapper extends SearchMapper {
             @Arg(column = "worldId", javaType = UUID.class),
             @Arg(column = "contractType", javaType = String.class),
             @Arg(column = "price", javaType = Double.class),
-            @Arg(column = "state", javaType = String.class)
+            @Arg(column = "state", javaType = String.class),
+            @Arg(column = "durationSeconds", javaType = Long.class)
     })
     @NotNull List<SearchResultEntity> search(@Param("includeFreehold") boolean includeFreehold,
                                              @Param("includeLeasehold") boolean includeLeasehold,
