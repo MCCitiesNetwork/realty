@@ -28,37 +28,44 @@ import java.util.UUID;
 public interface MariaActivityMapper extends ActivityMapper {
 
     @Override
+    // Each branch is cut to the page's window before the union, in parentheses so its
+    // own ORDER BY and LIMIT apply. Sorted only after the union, the three eventTime
+    // indexes went unused and every page sorted every event ever recorded.
     @Select("""
             <script>
+            <bind name="window" value="limit + offset" />
             SELECT * FROM (
-                SELECT 'freehold' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
-                       buyerId AS firstPlayerId, authorityId AS secondPlayerId,
-                       price, CAST(NULL AS SIGNED) AS durationSeconds,
-                       CAST(NULL AS SIGNED) AS extensionsRemaining
-                FROM FreeholdHistory
-                WHERE eventType IN
-                <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
-                <if test="worldId != null">AND worldId = #{worldId}</if>
-                <if test="since != null">AND eventTime &gt;= #{since}</if>
+                (SELECT 'freehold' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
+                        buyerId AS firstPlayerId, authorityId AS secondPlayerId,
+                        price, CAST(NULL AS SIGNED) AS durationSeconds,
+                        CAST(NULL AS SIGNED) AS extensionsRemaining
+                 FROM FreeholdHistory
+                 WHERE eventType IN
+                 <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
+                 <if test="worldId != null">AND worldId = #{worldId}</if>
+                 <if test="since != null">AND eventTime &gt;= #{since}</if>
+                 ORDER BY eventTime DESC LIMIT #{window})
                 UNION ALL
-                SELECT 'leasehold' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
-                       tenantId AS firstPlayerId, landlordId AS secondPlayerId,
-                       price, durationSeconds, extensionsRemaining
-                FROM LeaseholdHistory
-                WHERE eventType IN
-                <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
-                <if test="worldId != null">AND worldId = #{worldId}</if>
-                <if test="since != null">AND eventTime &gt;= #{since}</if>
+                (SELECT 'leasehold' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
+                        tenantId AS firstPlayerId, landlordId AS secondPlayerId,
+                        price, durationSeconds, extensionsRemaining
+                 FROM LeaseholdHistory
+                 WHERE eventType IN
+                 <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
+                 <if test="worldId != null">AND worldId = #{worldId}</if>
+                 <if test="since != null">AND eventTime &gt;= #{since}</if>
+                 ORDER BY eventTime DESC LIMIT #{window})
                 UNION ALL
-                SELECT 'agent' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
-                       agentId AS firstPlayerId, actorId AS secondPlayerId,
-                       CAST(NULL AS DECIMAL(20,2)) AS price, CAST(NULL AS SIGNED) AS durationSeconds,
-                       CAST(NULL AS SIGNED) AS extensionsRemaining
-                FROM AgentHistory
-                WHERE eventType IN
-                <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
-                <if test="worldId != null">AND worldId = #{worldId}</if>
-                <if test="since != null">AND eventTime &gt;= #{since}</if>
+                (SELECT 'agent' AS kind, worldGuardRegionId, worldId, eventType, eventTime,
+                        agentId AS firstPlayerId, actorId AS secondPlayerId,
+                        CAST(NULL AS DECIMAL(20,2)) AS price, CAST(NULL AS SIGNED) AS durationSeconds,
+                        CAST(NULL AS SIGNED) AS extensionsRemaining
+                 FROM AgentHistory
+                 WHERE eventType IN
+                 <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
+                 <if test="worldId != null">AND worldId = #{worldId}</if>
+                 <if test="since != null">AND eventTime &gt;= #{since}</if>
+                 ORDER BY eventTime DESC LIMIT #{window})
             ) feed
             ORDER BY eventTime DESC, worldGuardRegionId, kind
             LIMIT #{limit} OFFSET #{offset}

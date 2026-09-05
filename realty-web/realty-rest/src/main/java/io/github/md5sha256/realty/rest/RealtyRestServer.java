@@ -195,7 +195,12 @@ public final class RealtyRestServer {
             }
         });
 
-        routes.get("/v1/worlds", ctx -> ctx.json(this.worldLookup.all()));
+        routes.get("/v1/worlds", ctx -> {
+            // Worlds are registered when a region in them is, which does not happen
+            // while somebody is browsing; every filter on the site asks for this list.
+            ctx.header("Cache-Control", ResponseCaching.SHORT_LIVED);
+            ctx.json(this.worldLookup.all());
+        });
 
         RegionHandler regionHandler =
                 new RegionHandler(this.backend, this.database, this.worldLookup, this.moduleClient);

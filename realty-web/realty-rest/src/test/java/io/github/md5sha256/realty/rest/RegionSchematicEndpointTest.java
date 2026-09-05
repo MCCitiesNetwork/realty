@@ -24,6 +24,35 @@ class RegionSchematicEndpointTest {
     }
 
     @Test
+    void carriesAnEntityTagAndAnswers304WhenTheBrowserStillHoldsTheCapture() {
+        // A capture is replaced in place, so the browser must ask again each visit --
+        // but it need not be sent the same megabytes again when nothing changed.
+        RealtyRestServer server = TestServers.withSchematic(new byte[]{1, 2, 3});
+        JavalinTest.test(server.javalin(), (app, client) -> {
+            Response first = client.get("/v1/region/schematic?world=world&region=plot_a");
+            String etag = firstHeader(first, "ETag");
+            Assertions.assertNotNull(etag, "no ETag header");
+            Assertions.assertEquals("private, no-cache", firstHeader(first, "Cache-Control"));
+
+            Response again = client.get("/v1/region/schematic?world=world&region=plot_a",
+                    request -> request.header("If-None-Match", etag));
+            Assertions.assertEquals(304, again.code());
+            Assertions.assertEquals("", again.body().string());
+        });
+    }
+
+    @Test
+    void aChangedCaptureHasADifferentEntityTag() {
+        JavalinTest.test(TestServers.withSchematic(new byte[]{1, 2, 3}).javalin(), (app, client) -> {
+            String before = firstHeader(client.get("/v1/region/schematic?world=world&region=plot_a"), "ETag");
+            JavalinTest.test(TestServers.withSchematic(new byte[]{1, 2, 4}).javalin(), (app2, client2) -> {
+                String after = firstHeader(client2.get("/v1/region/schematic?world=world&region=plot_a"), "ETag");
+                Assertions.assertNotEquals(before, after);
+            });
+        });
+    }
+
+    @Test
     void servesTheSchematicAsAnOctetStream() {
         RealtyRestServer server = TestServers.withSchematic(new byte[]{1, 2, 3});
         JavalinTest.test(server.javalin(), (app, client) -> {

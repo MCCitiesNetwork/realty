@@ -5,9 +5,19 @@ import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 class StatsEndpointTest {
+
+    @Test
+    void isCacheableForAMinute() {
+        RealtyRestServer server = TestServers.withStats(Map.of());
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            Assertions.assertEquals(List.of("public, max-age=60"),
+                    client.get("/v1/stats").headers().get("Cache-Control"));
+        });
+    }
 
     @Test
     void reportsEveryCounterTheBackendTracks() {

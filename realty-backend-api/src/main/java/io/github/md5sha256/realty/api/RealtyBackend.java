@@ -9,6 +9,8 @@ import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.StatisticsEntity;
+import io.github.md5sha256.realty.database.entity.TagCountEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -709,6 +711,12 @@ public interface RealtyBackend {
 
     // --- Aggregate Statistics ---
 
+    /**
+     * Every figure the counters below report, read in one statement. The API's
+     * dashboard route wants all of them at once; asking for each was ten round trips.
+     */
+    @NotNull StatisticsEntity statistics();
+
     int countAllRegions();
 
     int countAllFreeholdContracts();
@@ -748,6 +756,13 @@ public interface RealtyBackend {
     // --- Region Tags ---
 
     @NotNull List<String> getAllTagIds();
+
+    /**
+     * Every tag in use with its region count, in one statement and in tag-id order --
+     * what {@link #getAllTagIds()} followed by {@link #countRegionsByTag(String)} per
+     * tag answers, without the query per tag.
+     */
+    @NotNull List<TagCountEntity> countRegionsPerTag();
 
     @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId);
 
