@@ -56,13 +56,13 @@ final class TestServers {
     }
 
     static @NotNull RegionDimensions plot14() {
-        return new RegionDimensions("POLYGONAL", 62, 140, List.of(
+        return new RegionDimensions("POLYGONAL", 62, 140, 0, List.of(
                 new RegionDimensions.Point(104, -88), new RegionDimensions.Point(131, -88),
                 new RegionDimensions.Point(131, -61), new RegionDimensions.Point(104, -61)));
     }
 
     static @NotNull RegionDimensions annex() {
-        return new RegionDimensions("CUBOID", 0, 255, List.of(
+        return new RegionDimensions("CUBOID", 0, 255, 0, List.of(
                 new RegionDimensions.Point(200, 200), new RegionDimensions.Point(210, 200),
                 new RegionDimensions.Point(210, 210), new RegionDimensions.Point(200, 210)));
     }

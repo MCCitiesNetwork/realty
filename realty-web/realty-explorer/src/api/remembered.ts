@@ -17,6 +17,11 @@ export const TTL = {
   /** Tags and totals move as players trade. A minute is as stale as the API allows too. */
   tags: 60_000,
   stats: 60_000,
+  /**
+   * A map's footprints and prices. The same minute the API's own header allows, which is
+   * what makes leaving the map for a plot and coming back cost nothing.
+   */
+  geometry: 60_000,
 } as const;
 
 /**

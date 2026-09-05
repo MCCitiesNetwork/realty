@@ -3,11 +3,13 @@ import { Flex, Layout, Menu, Typography } from "antd";
 import { Link, useLocation } from "react-router-dom";
 import type { ApiClient } from "../api/client";
 import { listingsPath } from "../api/paths";
+import { prefetchRegionMap } from "../map/lazyRegionMap";
 import { PlayerFinder } from "./PlayerFinder";
 
 const NAV = [
   { key: "buy", to: listingsPath({ type: "sale" }), label: "Buy" },
   { key: "rent", to: listingsPath({ type: "rent", occupancy: "unoccupied" }), label: "Rent" },
+  { key: "map", to: "/map", label: "Map" },
   { key: "auctions", to: "/auctions", label: "Auctions" },
   { key: "activity", to: "/activity", label: "Activity" },
   { key: "owners", to: "/owners", label: "Owners" },
@@ -52,7 +54,13 @@ export function SiteHeader({ client, logoUrl }: Props) {
         <Menu
           mode="horizontal"
           selectedKeys={active ? [active] : []}
-          items={NAV.map((entry) => ({ key: entry.key, label: <Link to={entry.to}>{entry.label}</Link> }))}
+          items={NAV.map((entry) => ({
+            key: entry.key,
+            // Pointing at Map is signal enough to start fetching the chunk it needs.
+            label: entry.key === "map"
+              ? <Link to={entry.to} onMouseEnter={prefetchRegionMap} onFocus={prefetchRegionMap}>{entry.label}</Link>
+              : <Link to={entry.to}>{entry.label}</Link>,
+          }))}
           style={{ flex: 1, minWidth: 0, background: "transparent", borderBottom: "none" }}
         />
         <PlayerFinder client={client} />

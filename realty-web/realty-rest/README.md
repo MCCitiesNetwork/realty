@@ -31,6 +31,7 @@ as the source of truth for configuration.
 | `REALTY_REST_MODULE_URL` | no | -- | Base URL of a query-service module used to enrich responses. Unset disables enrichment. |
 | `REALTY_REST_MODULE_SECRET` | no | -- | Shared secret sent to that module. |
 | `REALTY_REST_MODULE_TIMEOUT_MS` | no | `1500` | Per-call timeout before a module-sourced field degrades to `null`. |
+| `REALTY_REST_GEOMETRY_CACHE_SECONDS` | no | `300` | How long a reading of a world's region footprints is reused. Footprints can only be measured on the game server's main thread; this is what stops a map costing that thread once per page per visitor. `0` reads on every request. |
 | `REALTY_REST_WEB_ROOT` | no | *(empty)* | Directory of a built front end to serve alongside the API, at `/`. **Empty serves nothing**, which is the default: an API-only deployment stays API-only. Set this to run one process instead of two — or use the bundled `realty-web-dist` jar, which carries the front end inside it and needs no path. |
 
 The resolved configuration (secrets redacted) is logged once at startup.
@@ -85,7 +86,9 @@ them concurrently, so the two share one timeout budget.
 - `GET /v1/regions/at?world=&x=&z=&y=` -- which registered regions contain a block.
   With `y` this is a point test at that block; without it, a column test over the
   footprint at any height, which is what a 2-D map click means. The response's
-  `test` field says which one ran.
+  `test` field says which one ran, and the list leads with the region WorldGuard
+  itself would apply. Both forms are answered from WorldGuard's spatial index rather
+  than by reading every region, so the cost does not grow with the world.
 - `GET /v1/region/members?world=&region=` -- the region's WorldGuard owner and
   member domains, which are distinct from Realty's title holder and tenant.
 - `GET /v1/worlds/geometry?world=&page=&pageSize=` -- every registered region's

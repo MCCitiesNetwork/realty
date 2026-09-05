@@ -718,7 +718,7 @@ final class TestServers {
         RealtyBackend.SingleCategoryResult rentedResult =
                 new RealtyBackend.SingleCategoryResult(1, List.of());
 
-        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, null);
+        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, 0, null);
         return new RealtyRestServer(
                 playerBackend(listResult, ownedResult, rentedResult),
                 new StubDatabase(false, worlds, false, List.of(), List.of(rented)),
@@ -848,7 +848,7 @@ final class TestServers {
                                                 int maxPageSize,
                                                 @NotNull List<String> corsOrigins) {
         RestSettings settings =
-                new RestSettings("localhost", 0, maxPageSize, corsOrigins, null, null, 1500, null);
+                new RestSettings("localhost", 0, maxPageSize, corsOrigins, null, null, 1500, 0, null);
         return new RealtyRestServer(stubBackend(),
                 new StubDatabase(false, worlds, false, List.of(), List.of(), stub),
                 settings);
@@ -906,7 +906,7 @@ final class TestServers {
                                                     @NotNull List<RealtyWorldEntity> worlds,
                                                     int maxPageSize) {
         RestSettings settings =
-                new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, null);
+                new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, 0, null);
         List<RegionStateRow> rows = new ArrayList<>();
         for (RealtyRegionEntity region : regions) {
             rows.add(new RegionStateRow(region.realtyRegionId(),
@@ -938,6 +938,18 @@ final class TestServers {
         return new RealtyRestServer(stubBackend(),
                 new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
                 defaultSettings(), module);
+    }
+
+    /** The same, with region footprints kept for a term rather than read on every request. */
+    static @NotNull RealtyRestServer withCachedGeometry(@NotNull List<RegionStateRow> rows,
+                                                        @NotNull List<RealtyWorldEntity> worlds,
+                                                        @NotNull ModuleClient module,
+                                                        int geometryCacheSeconds) {
+        RestSettings settings = new RestSettings("localhost", 0, 100, List.of(), null, null, 1500,
+                geometryCacheSeconds, null);
+        return new RealtyRestServer(stubBackend(),
+                new StubDatabase(false, worlds, false, List.of(), List.of(), null, rows),
+                settings, module);
     }
 
     /**
@@ -1095,7 +1107,7 @@ final class TestServers {
     }
 
     private static @NotNull RestSettings defaultSettings() {
-        return new RestSettings("localhost", 0, 100, List.of(), null, null, 1500, null);
+        return new RestSettings("localhost", 0, 100, List.of(), null, null, 1500, 0, null);
     }
 
     private static @NotNull RealtyBackend stubBackend() {

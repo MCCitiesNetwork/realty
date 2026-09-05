@@ -52,6 +52,7 @@ The front end then needs to know where the API is. Write a `config.json` beside
 ```json
 {
   "apiBaseUrl": "https://api.example.com",
+  "map": { "baseUrl": "https://map.example.com" },
   "logoUrl": "https://example.com/emblem.png",
   "currency": "$",
   "visibleWorlds": ["Reveille", "Hamilton"]
@@ -70,12 +71,16 @@ names -- empty or absent means every world -- and a *deployment* setting rather 
 API one, so the same API can serve a public site that hides the staff and event worlds
 and a staff site that shows everything. A hidden world disappears from the world
 filter, the listings, its region pages (which read as unknown regions), the activity
-feed, the auctions, and a player's listed holdings. Because the API filters by
+feed, the auctions, the map, and a player's listed holdings. Because the API filters by
 one world at a time, a whitelisted site's listings, activity and auctions pages are
 always of one world, opening on the first listed; the front page's samples are merged
 across the listed worlds. Figures the API computes with no world in the question -- the
 totals, the tag counts, the owners leaderboard, a player's counts -- stay server-wide.
 A name the register does not know hides nothing and shows nothing.
+
+`map.baseUrl` is the server's BlueMap, and is what the `/map` route draws underneath
+the plots. Leave it out and the plots are drawn on their own. See
+[The map](#the-map).
 
 **Recommended: put the two behind one origin anyway.** If the static host is nginx,
 proxy `/v1` through to the API and no CORS or `config.json` is needed at all:
@@ -104,6 +109,7 @@ because the API reports none.
 | `/` | Search, the market in numbers, tags, what is vacant, recent activity, auctions | `/v1/stats`, `/v1/tags`, `/v1/worlds`, `/v1/regions/search`, `/v1/activity`, `/v1/auctions` |
 | `/listings` | The search, with every filter in the URL so a filter set is a link. "Show" spells the states a visitor thinks in -- for sale, for rent, sold, leased -- from the API's type and occupancy filters | `/v1/regions/search` |
 | `/region/:world/:region` | One listing: 3D preview, price and terms, facts, then its history beside who WorldGuard lets build | `/v1/region`, `/v1/region/schematic`, `/v1/region/history`, `/v1/region/members`, `/v1/resource-pack` |
+| `/map` | Every registered plot in one world, drawn over the server's own BlueMap render, coloured by what it is doing on the market | `/v1/worlds`, `/v1/worlds/geometry`, `/v1/regions/search` |
 | `/auctions` | Every auction taking bids, a card each with a live countdown | `/v1/auctions` |
 | `/activity` | The server-wide feed as a day-by-day timeline, filterable by world and event type | `/v1/activity` |
 | `/owners` | Title holders ranked by plots held, each bar relative to the leader | `/v1/leaderboard/owners` |
@@ -127,6 +133,37 @@ cleared before every start, so a pack changed on the game server reaches every b
 on its next visit.
 
 The theme follows the operating system's light or dark preference.
+
+### The map
+
+`/map` draws every plot under contract in one world as an outline, over tiles read
+straight from the server's own [BlueMap](https://bluemap.bluecolored.de/). Realty hosts
+no tiles and renders no world of its own; it reads the pictures BlueMap has already
+published. The key below the map doubles as its switches: press a kind of plot to hide
+it. It opens on what is for sale or rent, with what is sold or leased a press away.
+
+Point it at one in `config.json`:
+
+```json
+{ "map": { "baseUrl": "https://map.example.com", "ids": { "Hamilton": "hamilton" } } }
+```
+
+`ids` is only for worlds BlueMap calls something other than the lower-cased world name,
+which is the guess otherwise. It has to be stated rather than discovered: BlueMap sends
+no CORS headers, so a page on another origin can display its tiles but never read its
+settings. Nothing else about the map is configurable, because nothing else is a
+decision -- the tile size and the five-fold gap between zoom levels are BlueMap's, and
+a server that has changed them draws a map whose tiles do not line up.
+
+**A bundled deployment cannot configure this.** It serves the front end from inside the
+jar and so has nowhere to put a `config.json`. The map still works -- it draws the plots
+on their own -- but the world underneath them needs either the split deployment or a
+proxy in front that serves the file.
+
+What the map draws is the low-resolution half of what BlueMap renders, which is a flat
+image one pixel to the block. The 3D half is geometry rather than pictures, and is what
+the BlueMap site itself shows; a plot's own buildings are on its listing page instead,
+in the 3D preview.
 
 ## Developing the front end
 

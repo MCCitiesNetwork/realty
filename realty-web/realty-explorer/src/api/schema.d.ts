@@ -237,6 +237,8 @@ export interface paths {
          *
          *     WorldGuard's answer is intersected with the regions Realty manages, so an unregistered WorldGuard region never appears. A block inside no registered region is a 200 with an empty `regions` array, never a 404.
          *
+         *     The list leads with the region WorldGuard itself would apply to the block, highest priority first, so a caller wanting the one answer rather than all of them can take the first entry. Both forms are answered from WorldGuard's spatial index rather than by reading every region in the world, so what this costs the game server does not grow as the world fills up.
+         *
          *     Answered entirely by the query-service module, so an unreachable module is a 502 rather than a degraded response.
          */
         get: operations["regionsAt"];
@@ -333,7 +335,7 @@ export interface paths {
         };
         /**
          * Every registered region's footprint in one world
-         * @description For drawing a map overlay. The point of the route is that a page of regions costs the game server one main-thread hop rather than one per region, so a client should use this instead of looping `/v1/region`.
+         * @description For drawing a map overlay, so a client should use this instead of looping `/v1/region`. A footprint can only be measured on the game server's main thread, and this route is shaped so that measuring costs that thread as little as possible: a world is read whole rather than a page at a time, the reading is kept and reused for `REALTY_REST_GEOMETRY_CACHE_SECONDS`, and the reading itself is spread across ticks rather than spending one entirely. Paging through a world, and every visitor after the first, therefore costs the game server nothing. A footprint may accordingly be up to that term out of date; which regions are registered is never cached and is always current.
          *
          *     Unlike the other two module-backed routes, geometry here is enrichment rather than the whole answer: the region list comes from the database, so an unreachable module yields the page with every `dimensions` null rather than a 502 -- the same degradation `/v1/region` already applies. A `dimensions` of null therefore means either that, or a region Realty has registered which WorldGuard no longer holds.
          */
@@ -731,6 +733,8 @@ export interface components {
             shape: "CUBOID" | "POLYGONAL";
             minY: number;
             maxY: number;
+            /** @description WorldGuard's own priority, which is what settles two regions covering the same block: the higher one is the region whose rules apply there. A client drawing a map wants it for the same reason, since a plot inside a district has to be drawn over the district to be seen. Zero for a region nobody has given a priority, which is WorldGuard's default and also what an older query-service module reports by saying nothing. */
+            priority: number;
             points: components["schemas"]["Dimensions_Point"][];
         } | null;
         Dimensions_Point: {
