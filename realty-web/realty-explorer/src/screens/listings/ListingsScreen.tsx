@@ -7,7 +7,7 @@ import { useQuery } from "../../api/useQuery";
 import { formatCount } from "../../ui/format";
 import { ListingGrid } from "../../ui/ListingGrid";
 import { Page } from "../../ui/Page";
-import { TagSelect } from "../../ui/TagSelect";
+import { TagFilter, type TagQuery } from "../../ui/TagFilter";
 import { WorldSelect } from "../../ui/WorldSelect";
 import { useVisibility, worldFor } from "../../visibility";
 
@@ -99,6 +99,9 @@ export function ListingsScreen({ client }: { client: ApiClient }) {
   // one is answered with the default rather than honoured.
   const world = worldFor(visibility, params.get("world"));
   const tags = params.getAll("tag");
+  const excludedTags = params.getAll("excludeTag");
+  const matchAll = tags.length > 0 && params.get("tagMatch") === "all";
+  const tagQuery: TagQuery = { tags, excluded: excludedTags, matchAll };
   const minPrice = bound(params.get("minPrice"));
   const maxPrice = bound(params.get("maxPrice"));
   const page = Math.max(1, Number(params.get("page")) || 1);
@@ -133,6 +136,8 @@ export function ListingsScreen({ client }: { client: ApiClient }) {
           ...(type === "all" ? {} : { type }),
           ...(world ? { world } : {}),
           ...(tags.length > 0 ? { tag: tags } : {}),
+          ...(matchAll ? { tagMatch: "all" as const } : {}),
+          ...(excludedTags.length > 0 ? { excludeTag: excludedTags } : {}),
           ...(minPrice !== undefined ? { minPrice } : {}),
           ...(maxPrice !== undefined ? { maxPrice } : {}),
           ...(occupancy === "any" ? {} : { occupancy }),
@@ -140,7 +145,7 @@ export function ListingsScreen({ client }: { client: ApiClient }) {
         },
       },
     }),
-    [client, page, type, world, tags.join(" "), minPrice, maxPrice, occupancy, sort],
+    [client, page, type, world, tags.join(" "), matchAll, excludedTags.join(" "), minPrice, maxPrice, occupancy, sort],
   );
 
   const total = results.status === "ready" ? results.data.totalCount : undefined;
@@ -174,7 +179,15 @@ export function ListingsScreen({ client }: { client: ApiClient }) {
                 <WorldSelect client={client} value={world} onChange={(value) => update({ world: value })} />
               </Field>
               <Field label="Tags">
-                <TagSelect client={client} value={tags} onChange={(value) => update({ tag: value })} />
+                <TagFilter
+                  client={client}
+                  value={tagQuery}
+                  onChange={(next) => update({
+                    tag: next.tags,
+                    tagMatch: next.matchAll && next.tags.length > 0 ? "all" : undefined,
+                    excludeTag: next.excluded,
+                  })}
+                />
               </Field>
               <Field label="Price">
                 <Flex gap={8}>

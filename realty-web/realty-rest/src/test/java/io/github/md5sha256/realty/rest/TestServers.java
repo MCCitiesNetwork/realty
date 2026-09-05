@@ -821,6 +821,7 @@ final class TestServers {
         UUID worldId;
         Collection<String> tagIds;
         Collection<String> excludedTagIds;
+        boolean matchAllTags;
         double minPrice;
         double maxPrice;
         OccupancyFilter occupancy;
@@ -867,12 +868,13 @@ final class TestServers {
                     stub.worldId = (UUID) args[3];
                     stub.tagIds = asStrings(args[4]);
                     stub.excludedTagIds = asStrings(args[5]);
-                    stub.minPrice = (double) args[6];
-                    stub.maxPrice = (double) args[7];
-                    stub.occupancy = (OccupancyFilter) args[8];
-                    stub.sort = (SearchSort) args[9];
-                    stub.limit = (int) args[10];
-                    stub.offset = (int) args[11];
+                    stub.matchAllTags = (boolean) args[6];
+                    stub.minPrice = (double) args[7];
+                    stub.maxPrice = (double) args[8];
+                    stub.occupancy = (OccupancyFilter) args[9];
+                    stub.sort = (SearchSort) args[10];
+                    stub.limit = (int) args[11];
+                    stub.offset = (int) args[12];
                     return stub.results;
                 }
                 default -> throw new UnsupportedOperationException(

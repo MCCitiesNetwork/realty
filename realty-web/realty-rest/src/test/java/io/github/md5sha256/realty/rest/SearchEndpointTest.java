@@ -282,12 +282,56 @@ class SearchEndpointTest {
     }
 
     @Test
-    void neverExcludesTags() {
+    void excludesNothingUnlessAsked() {
         TestServers.SearchStub stub = stubWithOneResult();
         JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
             Assertions.assertEquals(200, client.get("/v1/regions/search?tag=commercial").code());
-            Assertions.assertNull(stub.excludedTagIds,
-                    "this endpoint is include-only; exclusion is not exposed");
+            Assertions.assertNull(stub.excludedTagIds);
+            Assertions.assertFalse(stub.matchAllTags, "tagMatch defaults to any");
+        });
+    }
+
+    @Test
+    void passesEveryExcludedTagThrough() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200,
+                    client.get("/v1/regions/search?excludeTag=industrial&excludeTag=derelict").code());
+            Assertions.assertNull(stub.tagIds, "excluding tags is not the same as asking for any");
+            Assertions.assertEquals(List.of("industrial", "derelict"), List.copyOf(stub.excludedTagIds));
+        });
+    }
+
+    @Test
+    void tagMatchAllAsksForEveryTag() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200,
+                    client.get("/v1/regions/search?tag=commercial&tag=waterfront&tagMatch=all").code());
+            Assertions.assertTrue(stub.matchAllTags);
+            Assertions.assertEquals(List.of("commercial", "waterfront"), List.copyOf(stub.tagIds));
+        });
+    }
+
+    @Test
+    void sendsEachTagOnce() {
+        // Under all-matching the mapper compares a count of tags carried with a count
+        // asked for, so a tag repeated in the query must not be counted twice.
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Assertions.assertEquals(200,
+                    client.get("/v1/regions/search?tag=commercial&tag=commercial&tagMatch=all").code());
+            Assertions.assertEquals(List.of("commercial"), List.copyOf(stub.tagIds));
+        });
+    }
+
+    @Test
+    void rejectsAnUnknownTagMatch() {
+        TestServers.SearchStub stub = stubWithOneResult();
+        JavalinTest.test(TestServers.withSearch(stub, worlds()).javalin(), (server, client) -> {
+            Response response = client.get("/v1/regions/search?tag=commercial&tagMatch=some");
+            Assertions.assertEquals(400, response.code());
+            Assertions.assertTrue(response.body().string().contains("INVALID_TAG_MATCH"));
         });
     }
 

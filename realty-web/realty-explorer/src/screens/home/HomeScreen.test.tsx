@@ -53,7 +53,8 @@ describe("HomeScreen", () => {
     const chips = await screen.findAllByRole("link", { name: /apartment|shop/ });
     expect(chips.map((chip) => chip.getAttribute("href")))
       .toEqual(["/listings?tag=apartment", "/listings?tag=shop"]);
-    expect(screen.getByText("475")).toBeInTheDocument();
+    // Once in the grid and once on the search bar's chip; nowhere is a count invented.
+    expect(screen.getAllByText("475")).toHaveLength(2);
   });
 
   it("shows what is on the market: vacant rentals, and every priced freehold", async () => {
@@ -103,7 +104,7 @@ describe("HomeScreen", () => {
   it("asks for the tag list once, though the grid and the search bar both want it", async () => {
     const get = renderHome(homeRoutes());
     await screen.findByText("flat_9");
-    await waitFor(() => expect(screen.getByText("475")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("475").length).toBeGreaterThan(0));
     expect(queriesTo(get, "/v1/tags")).toHaveLength(1);
     expect(queriesTo(get, "/v1/worlds")).toHaveLength(1);
   });
