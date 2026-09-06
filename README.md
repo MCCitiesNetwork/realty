@@ -1,15 +1,60 @@
 # Realty
 
-Realty is a plugin for [Paper](https://papermc.io/) Minecraft servers that allows you to put up [WorldGuard](https://enginehub.org/worldguard/) regions for sale or lease. You can collect rent, hold auctions, create subregions to rent out to other players, and place offers on other players' regions through one simple interface.
+Realty is a real estate economy for [Paper](https://papermc.io/) Minecraft servers, built on
+[WorldGuard](https://enginehub.org/worldguard/) regions. Put a region up for sale or lease, collect
+rent, run auctions, take offers, appoint agents, carve out subregions to sublet, and tax the lot --
+all through one command tree, with every contract persisted in MariaDB.
+
+## Scope
+
+The repository holds more than the plugin. In dependency order:
+
+| Part | What it is |
+|---|---|
+| `realty-backend-api` | Domain API: immutable entities, sealed result types, enums, formatters. No server types. |
+| `realty-backend` | Persistence and business logic: MyBatis mappers, schema migrations, the `RealtyBackend` implementation. |
+| `realty-paper-api` | Paper-facing API other plugins compile against: `RealtyPaperApi`, region profiles, signs, `RealtyNotificationEvent`, `PlayerNameService`. |
+| `realty-paper` | The plugin itself: commands, listeners, economy providers, localisation, tax, schematic capture. |
+| `realty-paper-adapters/*` | Optional in-server modules (notification delivery, the REST query seam). Separate jars, dropped into `plugins/Realty/modules`. |
+| `realty-paper-plan-extension` | Optional [Plan](https://github.com/plan-player-analytics/Plan) analytics integration. A separate plugin jar. |
+| `realty-web/realty-rest` | A standalone JVM service serving a read-only `/v1` HTTP API over the Realty database. Runs outside the game server. |
+| `realty-web/realty-explorer` | The browser front end for that API. React + Vite, built to static files. |
+| `realty-web/realty-web-dist` | Both of the above in one jar, for a single-process deployment. |
+| `realty-areashop-importer` | AreaShop migration helper. **Excluded from the build** -- see `settings.gradle.kts`. |
+
+See [`realty-web/README.md`](realty-web/README.md) for the web half's deployment options.
 
 ## Requirements
 
-- **Paper** 1.21.8+
-- **Java** 21
-- **MariaDB/MySQL database** to store region data
-- **Vault** and a Vault-compatible economy
-- **WorldGuard amd WorldEdit** (required)
-- **Essentials** (optional)
+To run the plugin:
+
+- **Paper** 26.1.2 (the plugin declares `api-version: 26.1.2`)
+- **Java 25** -- Paper 26.x ships Java 25 class files, and Realty compiles to the same release
+- **MariaDB/MySQL** for region data
+- **WorldGuard** 7.0.18 and **WorldEdit** 7.4.5 -- both required
+- An economy: **Treasury** *or* **Vault** with a Vault-compatible provider
+
+To build from source you additionally need a JDK 25 for the Gradle toolchain; the web front end's
+Node (22.18.0) is downloaded by the build itself.
+
+## Plugin dependencies
+
+Only WorldGuard is hard-required. Everything else is optional, and Realty degrades rather than
+refusing to start -- with the exception of the economy, where *neither* provider present is fatal.
+
+| Plugin | Required | What it gives you |
+|---|---|---|
+| [WorldGuard](https://enginehub.org/worldguard/) | **yes** | Realty regions *are* WorldGuard regions; ownership changes sync to WG member and owner lists |
+| [WorldEdit](https://enginehub.org/worldedit/) | **yes** (WorldGuard's own dependency) | The clipboard API behind `/realty schematic capture`. FAWE installs work unchanged -- they provide the same `com.sk89q.worldedit` classes |
+| [Treasury](https://github.com/ArcanePlugins/Treasury) | one of | Preferred economy provider (full ledger support) |
+| [Vault](https://github.com/MilkBowl/Vault) | one of | Fallback economy provider. With neither Treasury nor Vault at enable time, Realty logs why and self-disables |
+| [EssentialsX](https://essentialsx.net/) | no | Notification delivery as mail, plus a teleport-safety predicate -- via `essentials-adapter` |
+| [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) | no | Per-player notification preferences and an inbox -- via `player-notifications-adapter` |
+| [Plan](https://github.com/plan-player-analytics/Plan) | no | Realty data on player analytics pages -- via `realty-paper-plan-extension` |
+
+Realty ships no notification delivery of its own: it renders a message and fires
+`RealtyNotificationEvent`, and a module delivers it. Install at least one adapter or players are
+told nothing. Startup warns while none is installed.
 
 ## Build
 
@@ -24,7 +69,9 @@ Install the JAR from `realty-paper/build/libs/` whose name ends with `-all.jar`.
 Other artifacts:
 
 ```bash
-./gradlew :realty-paper-plan-extension:shadowJar
+./gradlew :realty-paper-plan-extension:shadowJar   # Plan integration plugin
+./gradlew :realty-paper-adapters:chat-adapter:shadowJar   # and the other adapters
+./gradlew :realty-web:realty-web-dist:shadowJar   # REST API + front end, one jar
 ```
 
 `realty-areashop-importer` is currently excluded from the build -- see
@@ -64,15 +111,13 @@ immutable: republishing a version that already exists fails with a 409, so bump 
 
 | Module | Role |
 |--------|------|
-| `realty-api` | Public API surface |
-| `realty-common` | Shared logic and database access |
-| `realty-paper` | Main Paper plugin |
-| `realty-paper-plan-extension` | Optional [Plan](https://github.com/plan-player-analytics/Plan) integration |
-| `realty-areashop-importer` | Optional AreaShop migration helper (excluded from the build) |
 | `realty-paper-adapters/chat-adapter` | Notification delivery to online players via chat |
-| `realty-paper-adapters/essentials-adapter` | Notification delivery via EssentialsX mail |
+| `realty-paper-adapters/essentials-adapter` | Notification delivery via EssentialsX mail, plus teleport safety |
 | `realty-paper-adapters/player-notifications-adapter` | Notification delivery via [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) |
 | `realty-paper-adapters/query-service` | Private HTTP endpoint serving live WorldGuard geometry and player names to `realty-rest` |
+
+`realty-paper-plan-extension` is *not* a module: it is an ordinary plugin jar and goes in `plugins/`,
+not `plugins/Realty/modules`.
 
 The adapter modules are **not bundled in the plugin jar**. Each is published as its own jar; install
 the ones you want by placing them in `plugins/Realty/modules` and restarting the server. Realty
