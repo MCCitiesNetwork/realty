@@ -138,6 +138,26 @@ config fails to read or the new server fails to start, the previous configuratio
 the failure is logged. The reload runs on the main thread and waits for the HTTP server to drain, so
 it can pause the tick for up to `request-timeout-ms` if a request is in flight when it happens.
 
+## Schematic capture
+
+`/realty schematic capture [region] [--force]` snapshots a registered region's blocks into the
+database, from the block the player stands on up to the region's ceiling, and serves it read-only at
+`GET /v1/region/schematic`. It is players only -- the floor is taken from where the sender stands, and
+the console stands nowhere.
+
+Because a capture publishes the region's blocks to an endpoint anyone can read, the region's own
+people decide when that snapshot is taken:
+
+| Permission | Default | Grants |
+|---|---|---|
+| `realty.command.schematic.capture` | op | Use of the command at all |
+| `realty.command.schematic.capture.others` | op | Capturing a region you are not a member or owner of |
+| `realty.command.schematic.capture.force` | op | `--force`, which bypasses the per-region cooldown |
+
+Membership is matched on player UUID, so WorldGuard *group* members (`g:` entries) do not qualify --
+they need `.others`. The `schematic-max-volume` cap is hard: `--force` does not lift it, and no
+permission does either.
+
 ## Documentation
 
 ### Getting Started
