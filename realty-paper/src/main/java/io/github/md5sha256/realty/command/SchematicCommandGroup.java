@@ -42,7 +42,9 @@ import java.util.logging.Logger;
  *
  * <ul>
  *   <li>{@code /realty schematic capture [region] [--force]} -- snapshot a region's blocks,
- *       from the block the player stands on up to the region's ceiling. Players only.</li>
+ *       from the block the player stands on up to the region's ceiling. Players only, and
+ *       members of the region only unless they hold
+ *       {@code realty.command.schematic.capture.others}.</li>
  * </ul>
  *
  * <p>The capture is spread across ticks rather than run to completion in one, so a
@@ -92,6 +94,18 @@ public record SchematicCommandGroup(
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(player.getLocation()));
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
+            return;
+        }
+
+        // Membership is the gate: a capture publishes a region's blocks to an endpoint
+        // anyone can read, so it is the region's own people who decide when that snapshot
+        // is taken. Owners count as members here -- the owner of a plot is not less
+        // entitled to it than the people they added to it.
+        if (!player.hasPermission("realty.command.schematic.capture.others")
+                && !region.region().getMembers().contains(player.getUniqueId())
+                && !region.region().getOwners().contains(player.getUniqueId())) {
+            sender.sendMessage(messages.messageFor(MessageKeys.SCHEMATIC_NO_PERMISSION,
+                    Placeholder.unparsed("region", region.region().getId())));
             return;
         }
 
