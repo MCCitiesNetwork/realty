@@ -319,6 +319,7 @@ public final class MessageKeys {
     public static final String SCHEMATIC_ABORTED = "schematic.aborted";
     public static final String SCHEMATIC_NOT_REGISTERED = "schematic.not-registered";
     public static final String SCHEMATIC_FORCE_NO_PERMISSION = "schematic.force-no-permission";
+    public static final String SCHEMATIC_NO_PERMISSION = "schematic.no-permission";
     public static final String SCHEMATIC_TOO_LARGE = "schematic.too-large";
     public static final String SCHEMATIC_ALREADY_RUNNING = "schematic.already-running";
 

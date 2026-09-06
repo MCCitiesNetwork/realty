@@ -634,6 +634,7 @@ schematic:
     aborted: '<prefix> Capture of <yellow><region></yellow> stopped: <reason>'
     not-registered: <prefix> <yellow><region></yellow> is not registered with Realty.
     force-no-permission: <prefix> You do not have permission to bypass the capture cooldown.
+    no-permission: <prefix> You must be a member of <yellow><region></yellow> to capture it.
     too-large: <prefix> <yellow><region></yellow> is <volume> blocks, over the <cap> limit.
         Ask an operator to raise <green>schematic-max-volume</green>.
     already-running: <prefix> <yellow><region></yellow> is already being captured.

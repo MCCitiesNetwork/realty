@@ -148,6 +148,9 @@ permissions:
   realty.command.schematic.capture.force:
     description: Allows bypassing the /realty schematic capture cooldown with --force
     default: op
+  realty.command.schematic.capture.others:
+    description: Allows using /realty schematic capture on regions you are not a member of
+    default: op
   realty.command.set.price:
     description: Allows using /realty set price on own regions
     default: op
