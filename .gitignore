@@ -111,6 +111,13 @@ gradle-app.setting
 
 **/build/
 
+# Eclipse / VS Code Java output
+bin/
+.settings/
+.project
+.classpath
+.factorypath
+
 # Common working directory
 run/
 runs/
