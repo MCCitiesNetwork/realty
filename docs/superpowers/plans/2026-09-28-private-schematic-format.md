@@ -1791,6 +1791,8 @@ The command itself has no unit test, because it needs a running server. State th
 
 ### Task 7: Delete the old captures
 
+> **Added during execution.** `PurgeWorldEditSchematicsMigrationTest` in `realty-backend`. It builds a database at version 17, stores a WorldEdit capture, migrates, and checks that the capture is gone and another table is untouched. The shared test database is already at the latest version when tests run, so without this the migration was only ever run against an empty table.
+
 **Files:**
 - Create: `realty-backend/src/main/resources/sql/migrations/V18__purge_worldedit_schematics.sql`
 - Modify: `realty-backend/src/main/java/io/github/md5sha256/realty/database/maria/MariaSchemaMigrator.java`
@@ -2557,6 +2559,8 @@ Expected: no errors.
 
 ### Task 10: Wire the explorer
 
+> **Changed during execution.** The steps below check only the header in the region page and decode in the viewer. That left a gap: a capture with a valid header and a corrupt body mounted the viewer, which showed a label for two seconds and then an empty canvas. As built, the region page calls `realtyToRenderable` on the served bytes before it mounts the viewer, and shows the no-preview panel if that fails for any reason. The viewer is handed bytes that are already decoded, and decodes only when it fetches for itself. The code in the repository is the record; the steps below are kept as they were written.
+
 **Files:**
 - Modify: `realty-web/realty-explorer/src/viewer/SchematicViewer.tsx`
 - Modify: `realty-web/realty-explorer/src/viewer/SchematicViewer.test.tsx`
@@ -2808,6 +2812,8 @@ There is no rollback that restores the deleted captures. That was decided: captu
 | Old captures deleted | 7 |
 | Explorer refuses what it cannot read | 9, 10 |
 | No restorable copy kept | 4 (decoder is test-only), 6 (writer deleted) |
+
+**An open build is captured inside.** Open air carries the view in every direction, so a doorway with no door lets the rooms behind it be captured. "Interiors are not captured" is true of a closed build only. The READMEs say so.
 
 **Two departures from what was said in conversation, both deliberate:**
 
