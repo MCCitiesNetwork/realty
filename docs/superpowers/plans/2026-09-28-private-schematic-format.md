@@ -1440,15 +1440,19 @@ Read `WorldEditTestPlatform.java` and `TickSlicedCopyTest.java`. The test platfo
 package io.github.md5sha256.realty.schematic;
 
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
+import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.util.concurrency.LazyReference;
+import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import org.enginehub.linbus.tree.LinCompoundTag;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -1548,14 +1552,24 @@ class ClipboardGridsTest {
     }
 
     @Test
-    void statesAreReducedBeforeTheyReachThePalette() throws Exception {
-        BlockArrayClipboard clipboard = clipboard();
-        clipboard.setBlock(MIN, BlockTypes.OAK_LEAVES.getDefaultState());
+    void statesAreReducedBeforeTheyReachThePalette() {
+        // The stub platform gives its blocks no properties, so a real leaf block prints
+        // as bare "minecraft:oak_leaves" and would pass this whether or not anything was
+        // reduced. The state is mocked to print the way a server's does.
+        BlockState leaves = Mockito.mock(BlockState.class);
+        Mockito.when(leaves.getBlockType()).thenReturn(BlockTypes.OAK_LEAVES);
+        Mockito.when(leaves.getAsString())
+                .thenReturn("minecraft:oak_leaves[distance=1,persistent=true,waterlogged=false]");
+        BaseBlock block = Mockito.mock(BaseBlock.class);
+        Mockito.when(block.toImmutableState()).thenReturn(leaves);
+        Clipboard clipboard = Mockito.mock(Clipboard.class);
+        Mockito.when(clipboard.getRegion()).thenReturn(new CuboidRegion(MIN, MIN));
+        Mockito.when(clipboard.getFullBlock(ArgumentMatchers.any(BlockVector3.class))).thenReturn(block);
 
         BlockGrid grid = ClipboardGrids.fromClipboard(clipboard, STONE_OCCLUDES);
 
-        Assertions.assertTrue(states(grid).contains("minecraft:oak_leaves"),
-                "expected leaves without distance or persistent, got " + states(grid));
+        Assertions.assertEquals(
+                List.of("minecraft:air", "minecraft:oak_leaves[waterlogged=false]"), states(grid));
     }
 
     @Test
@@ -1679,7 +1693,7 @@ The loop order must match `BlockGrid.index`. `index++` is correct only because x
 Run: `./gradlew :realty-paper:test --tests "*ClipboardGridsTest*"`
 Expected: 8 tests pass.
 
-If `statesAreReducedBeforeTheyReachThePalette` fails because the stub platform gives `oak_leaves` no properties, the assertion still holds and the test passes. If it fails for another reason, report what `getAsString()` returned.
+`statesAreReducedBeforeTheyReachThePalette` mocks the block state. The stub platform gives its blocks no properties, so a real leaf block would pass that test whether or not anything was reduced. This was found during execution and the test was rewritten. It was checked by removing the `VisualState.reduce` call, which makes it fail.
 
 - [ ] **Step 6: Run the whole schematic package**
 
