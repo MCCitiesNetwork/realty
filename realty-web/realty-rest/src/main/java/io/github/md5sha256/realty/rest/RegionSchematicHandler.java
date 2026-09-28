@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.api.RealtyBackend;
+import io.github.md5sha256.realty.api.RealtySchematicFormat;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import org.jetbrains.annotations.NotNull;
@@ -10,8 +11,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
 /**
- * {@code GET /v1/region/schematic?world=...&region=...} -- the raw Sponge Schematic v3
- * bytes captured by {@code /realty schematic capture}, for a browser-side renderer.
+ * {@code GET /v1/region/schematic?world=...&region=...} -- the capture made by
+ * {@code /realty schematic capture}, in Realty's own format, which the explorer decodes
+ * in the browser before drawing it.
+ *
+ * <p>The stored bytes are served as they are. Only the header is checked, by
+ * {@link RealtySchematicFormat#isReadable}, and a row without it is never served: the
+ * plugin and this service are deployed separately against one database, so the table
+ * can hold a WorldEdit file written by a plugin that has not been upgraded.</p>
  *
  * <p>Served as bytes rather than JSON deliberately: the frontend schematic renderers
  * read an {@code ArrayBuffer} directly, so base64-wrapping it in JSON would cost a
@@ -35,7 +42,10 @@ final class RegionSchematicHandler {
         UUID worldId = this.worldLookup.resolve(worldParam);
         byte[] schematic = this.backend.getSchematic(regionParam, worldId);
 
-        if (schematic == null) {
+        // A row without the Realty header is a capture from before the format changed, or
+        // from a plugin that has not been upgraded: a WorldEdit file. It is answered exactly
+        // as a region with no capture, because to the visitor that is what it is.
+        if (!RealtySchematicFormat.isReadable(schematic)) {
             throw ApiException.notFound("SCHEMATIC_NOT_FOUND",
                     "No schematic captured for region '" + regionParam + "' in world '" + worldParam + "'");
         }

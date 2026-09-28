@@ -1,11 +1,13 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.RealtySchematicFormat;
 import io.javalin.testtools.JavalinTest;
 import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -23,11 +25,19 @@ class RegionSchematicEndpointTest {
         return values == null || values.isEmpty() ? null : values.getFirst();
     }
 
+    /** A body behind the Realty header. The handler checks the header and nothing after it. */
+    private static byte[] realty(byte... body) {
+        byte[] header = RealtySchematicFormat.header();
+        byte[] bytes = Arrays.copyOf(header, header.length + body.length);
+        System.arraycopy(body, 0, bytes, header.length, body.length);
+        return bytes;
+    }
+
     @Test
     void carriesAnEntityTagAndAnswers304WhenTheBrowserStillHoldsTheCapture() {
         // A capture is replaced in place, so the browser must ask again each visit --
         // but it need not be sent the same megabytes again when nothing changed.
-        RealtyRestServer server = TestServers.withSchematic(new byte[]{1, 2, 3});
+        RealtyRestServer server = TestServers.withSchematic(realty((byte) 1, (byte) 2, (byte) 3));
         JavalinTest.test(server.javalin(), (app, client) -> {
             Response first = client.get("/v1/region/schematic?world=world&region=plot_a");
             String etag = firstHeader(first, "ETag");
@@ -43,9 +53,9 @@ class RegionSchematicEndpointTest {
 
     @Test
     void aChangedCaptureHasADifferentEntityTag() {
-        JavalinTest.test(TestServers.withSchematic(new byte[]{1, 2, 3}).javalin(), (app, client) -> {
+        JavalinTest.test(TestServers.withSchematic(realty((byte) 1, (byte) 2, (byte) 3)).javalin(), (app, client) -> {
             String before = firstHeader(client.get("/v1/region/schematic?world=world&region=plot_a"), "ETag");
-            JavalinTest.test(TestServers.withSchematic(new byte[]{1, 2, 4}).javalin(), (app2, client2) -> {
+            JavalinTest.test(TestServers.withSchematic(realty((byte) 1, (byte) 2, (byte) 4)).javalin(), (app2, client2) -> {
                 String after = firstHeader(client2.get("/v1/region/schematic?world=world&region=plot_a"), "ETag");
                 Assertions.assertNotEquals(before, after);
             });
@@ -54,7 +64,7 @@ class RegionSchematicEndpointTest {
 
     @Test
     void servesTheSchematicAsAnOctetStream() {
-        RealtyRestServer server = TestServers.withSchematic(new byte[]{1, 2, 3});
+        RealtyRestServer server = TestServers.withSchematic(realty((byte) 1, (byte) 2, (byte) 3));
         JavalinTest.test(server.javalin(), (app, client) -> {
             Response response = client.get("/v1/region/schematic?world=world&region=plot_a");
             Assertions.assertEquals(200, response.code());
@@ -105,9 +115,11 @@ class RegionSchematicEndpointTest {
         for (int i = 0; i < large.length; i++) {
             large[i] = (byte) ('a' + (i % 26));
         }
-        String expected = new String(large, StandardCharsets.US_ASCII);
+        // The header is five bytes in the ASCII range, so it survives the same decoding.
+        byte[] served = realty(large);
+        String expected = new String(served, StandardCharsets.US_ASCII);
 
-        RealtyRestServer server = TestServers.withSchematic(large);
+        RealtyRestServer server = TestServers.withSchematic(served);
         JavalinTest.test(server.javalin(), (app, client) -> {
             Response response = client.get("/v1/region/schematic?world=world&region=plot_a");
             Assertions.assertEquals(200, response.code());
@@ -115,5 +127,36 @@ class RegionSchematicEndpointTest {
             Assertions.assertEquals(expected.length(), body.length(), "payload was truncated");
             Assertions.assertEquals(expected, body);
         });
+    }
+
+    @Test
+    void aWorldEditSchematicLeftInTheDatabaseIsNotServed() {
+        // Gzip magic, which is how every Sponge schematic begins. A row like this is a
+        // capture from before the format changed.
+        byte[] sponge = {0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0};
+        JavalinTest.test(TestServers.withSchematic(sponge).javalin(), (app, client) -> {
+            Response response = client.get("/v1/region/schematic?world=world&region=plot_a");
+            Assertions.assertEquals(404, response.code());
+            Assertions.assertTrue(response.body().string().contains("SCHEMATIC_NOT_FOUND"));
+        });
+    }
+
+    @Test
+    void aRefusedSchematicSendsNoEntityTag() {
+        // An ETag is a fingerprint of the bytes. Refusing the bytes and publishing their
+        // hash would still let someone confirm a guess at them.
+        byte[] sponge = {0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0};
+        JavalinTest.test(TestServers.withSchematic(sponge).javalin(), (app, client) -> {
+            Response response = client.get("/v1/region/schematic?world=world&region=plot_a");
+            Assertions.assertNull(firstHeader(response, "ETag"));
+        });
+    }
+
+    @Test
+    void aFormatVersionThisBuildDoesNotKnowIsNotServed() {
+        byte[] future = {'R', 'L', 'T', 'Y', 2, 1, 2, 3};
+        JavalinTest.test(TestServers.withSchematic(future).javalin(), (app, client) ->
+                Assertions.assertEquals(404,
+                        client.get("/v1/region/schematic?world=world&region=plot_a").code()));
     }
 }
