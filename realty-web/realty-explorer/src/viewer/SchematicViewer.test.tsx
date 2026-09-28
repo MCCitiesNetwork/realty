@@ -126,7 +126,14 @@ describe("SchematicViewer", () => {
     const options = constructorSpy.mock.calls[0][3] as { callbacks?: { onSchematicRendered?: () => void } };
     expect(typeof options.callbacks?.onSchematicRendered).toBe("function");
 
-    const orbit = { minDistance: 1, maxDistance: 1000, enablePan: true, target: { set: vi.fn() }, update: vi.fn() };
+    const orbit = {
+      minDistance: 1,
+      maxDistance: 1000,
+      maxPolarAngle: Math.PI,
+      enablePan: true,
+      target: { set: vi.fn() },
+      update: vi.fn(),
+    };
     keepCameraOutside({
       schematicManager: { getGlobalTightWorldBox: () => ({ min: { x: 0, y: 0, z: 0 }, max: { x: 2, y: 3, z: 6 } }) },
       cameraManager: { controls: new Map([["orbit", orbit]]) },
@@ -136,6 +143,8 @@ describe("SchematicViewer", () => {
     // from the centre can be inside the box.
     expect(orbit.minDistance).toBeCloseTo(3.675, 5);
     expect(orbit.maxDistance).toBeCloseTo(28, 5);
+    // Never underneath: a capture has no floors, and from below that is what shows.
+    expect(orbit.maxPolarAngle).toBeCloseTo(Math.PI / 2, 5);
     expect(orbit.enablePan).toBe(false);
     expect(orbit.target.set).toHaveBeenCalledWith(1, 1.5, 3);
     expect(orbit.update).toHaveBeenCalled();
