@@ -2,8 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
+const viewerProps = vi.fn();
+// The decoder has its own tests, and needs streams jsdom does not provide. Here it is
+// replaced, so these assert what the screen does with its answer.
+const renderableSpy = vi.fn(async (served: ArrayBuffer) => served);
+
 vi.mock("../../viewer/SchematicViewer", () => ({
-  SchematicViewer: () => <div data-testid="viewer" />,
+  SchematicViewer: (props: { schematic?: ArrayBuffer }) => {
+    viewerProps(props);
+    return <div data-testid="viewer" />;
+  },
+}));
+
+vi.mock("../../api/realtySchematic", () => ({
+  realtyToRenderable: (served: ArrayBuffer) => renderableSpy(served),
 }));
 
 import { RegionScreen } from "./RegionScreen";
@@ -75,9 +87,33 @@ describe("RegionScreen", () => {
   it("hands the probed bytes to the viewer instead of fetching them twice", async () => {
     // The probe downloads the schematic to learn whether there is one. Discarding it
     // meant the viewer fetched the same megabytes again before drawing anything.
-    const get = renderScreen(regionRoutes({ "/v1/region/schematic": new ArrayBuffer(8) }));
+    const served = new ArrayBuffer(8);
+    const get = renderScreen(regionRoutes({ "/v1/region/schematic": served }));
     await waitFor(() => expect(screen.getByTestId("viewer")).toBeInTheDocument());
     expect(get.mock.calls.filter((call) => call[0] === "/v1/region/schematic")).toHaveLength(1);
+  });
+
+  it("hands the viewer the decoded capture, not the bytes the API served", async () => {
+    const served = new ArrayBuffer(8);
+    const decoded = new ArrayBuffer(32);
+    renderableSpy.mockResolvedValueOnce(decoded);
+    viewerProps.mockClear();
+
+    renderScreen(regionRoutes({ "/v1/region/schematic": served }));
+    await waitFor(() => expect(screen.getByTestId("viewer")).toBeInTheDocument());
+
+    expect(renderableSpy).toHaveBeenCalledWith(served);
+    expect(viewerProps.mock.calls.at(-1)?.[0].schematic).toBe(decoded);
+  });
+
+  it("shows the no-preview panel for a capture it cannot read", async () => {
+    // A WorldEdit file from an API older than this site, or a capture with the right
+    // header and a corrupt body. Mounting the viewer on either downloads 12 MB to draw
+    // an empty canvas.
+    renderableSpy.mockRejectedValueOnce(new Error("Unreadable schematic: not a Realty capture"));
+    renderScreen(regionRoutes({ "/v1/region/schematic": new ArrayBuffer(8) }));
+    await waitFor(() => expect(screen.getByText(/no preview captured/i)).toBeInTheDocument());
+    expect(screen.queryByTestId("viewer")).toBeNull();
   });
 
   it("reports an unknown region as missing rather than as a failure", async () => {

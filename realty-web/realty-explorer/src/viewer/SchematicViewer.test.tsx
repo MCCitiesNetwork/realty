@@ -4,6 +4,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const constructorSpy = vi.fn();
 const disposeSpy = vi.fn();
 const addPackSpy = vi.fn(async (_file: File) => undefined);
+// The decoder has its own tests. Here it is replaced, so these assert that the viewer
+// calls it and not what the format holds.
+const renderableSpy = vi.fn(async (bytes: ArrayBuffer) => bytes);
 
 // WebGL and WASM do not run under jsdom. The worthwhile assertion is that the
 // renderer is constructed correctly and torn down, not that Three.js draws.
@@ -28,6 +31,10 @@ vi.mock("schematic-renderer", () => ({
   },
 }));
 
+vi.mock("../api/realtySchematic", () => ({
+  realtyToRenderable: (bytes: ArrayBuffer) => renderableSpy(bytes),
+}));
+
 import { SchematicViewer, faceCameraSouthEast, keepCameraOutside } from "./SchematicViewer";
 import type { ApiClient } from "../api/client";
 
@@ -42,6 +49,7 @@ describe("SchematicViewer", () => {
     constructorSpy.mockClear();
     disposeSpy.mockClear();
     addPackSpy.mockClear();
+    renderableSpy.mockClear();
   });
 
   it("constructs the renderer with a canvas and a loader keyed by region", async () => {
@@ -65,8 +73,26 @@ describe("SchematicViewer", () => {
     await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
 
     const loaders = constructorSpy.mock.calls[0][1] as Record<string, () => Promise<ArrayBuffer>>;
+    // Handed bytes are already decoded. Decoding them again would fail on the header.
     await expect(loaders["plot_a"]()).resolves.toBe(bytes);
+    expect(renderableSpy).not.toHaveBeenCalled();
     expect(get.mock.calls.filter((call) => call[0] === "/v1/region/schematic")).toHaveLength(0);
+  });
+
+  it("decodes what it fetched before the renderer sees it", async () => {
+    // The API serves Realty's format, which the renderer cannot parse. Handing it the
+    // served bytes draws nothing and reports a corrupt file.
+    const served = new ArrayBuffer(8);
+    const decoded = new ArrayBuffer(32);
+    renderableSpy.mockResolvedValueOnce(decoded);
+    const get = vi.fn(async () => ({ data: served, error: undefined }));
+
+    render(<SchematicViewer client={({ GET: get }) as unknown as ApiClient} world="world" region="plot_a" />);
+    await waitFor(() => expect(constructorSpy).toHaveBeenCalled());
+
+    const loaders = constructorSpy.mock.calls[0][1] as Record<string, () => Promise<ArrayBuffer>>;
+    await expect(loaders["plot_a"]()).resolves.toBe(decoded);
+    expect(renderableSpy).toHaveBeenCalledWith(served);
   });
 
   it("enables interaction, which defaults to off and leaves the camera fixed", async () => {

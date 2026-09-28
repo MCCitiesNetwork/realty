@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { SchematicRenderer } from "schematic-renderer";
 import { fetchResourcePacks, fetchSchematic, type ApiClient } from "../api/client";
+import { realtyToRenderable } from "../api/realtySchematic";
 import { forgetRememberedPacksUnless } from "./rememberedPacks";
 
 type Props = {
@@ -9,9 +10,12 @@ type Props = {
   world: string;
   region: string;
   /**
-   * The schematic's bytes, when the caller already has them.
+   * The capture, already decoded into bytes the renderer loads, when the caller has it.
    *
-   * <p>The detail screen downloads the schematic to find out whether there is one to
+   * <p>Decoded by the caller, not here, so that a capture which cannot be read is found
+   * out before this component -- and the 12 MB behind it -- is mounted at all.</p>
+   *
+   * <p>The detail screen downloads the capture to find out whether there is one to
    * show, so without this the same megabytes were fetched a second time the moment the
    * viewer mounted -- the preview appeared at roughly half the speed the network
    * allowed. Omitted, the viewer fetches for itself and stands alone.</p>
@@ -143,7 +147,14 @@ export function SchematicViewer({ client, world, region, schematic }: Props) {
       if (disposed) return;
       rendererRef.current = new SchematicRenderer(
         canvas,
-        { [region]: schematic ? async () => schematic : fetchSchematic(client, world, region) },
+        {
+          // The API serves a capture in Realty's own format. The renderer reads formats
+          // it knows, so a capture fetched here is translated for it, in memory. One
+          // handed in has been translated already.
+          [region]: schematic
+            ? async () => schematic
+            : async () => realtyToRenderable(await fetchSchematic(client, world, region)()),
+        },
         // Keyed by index rather than by name so the record's insertion order is the
         // server's priority order, and two packs that happen to share a name cannot
         // collapse into one. The renderer resolves a contested texture in favour of the

@@ -8,6 +8,7 @@ import {
   type Attribution,
 } from "../../api/client";
 import { listingsPath, worldLabel } from "../../api/paths";
+import { realtyToRenderable } from "../../api/realtySchematic";
 import type { components } from "../../api/schema";
 import { useQuery } from "../../api/useQuery";
 import { formatCount } from "../../ui/format";
@@ -63,8 +64,8 @@ export function RegionScreen({ client, world, region, hasSchematic, resourcePack
     [client, world, region, hidden],
   );
   const [credits, setCredits] = useState<Attribution[]>(resourcePackAttribution ?? []);
-  // Kept, not discarded: this is the schematic itself, and handing it to the viewer is
-  // what stops the same megabytes being fetched twice.
+  // Kept, not discarded: this is the capture, already decoded, and handing it to the
+  // viewer is what stops the same megabytes being fetched twice.
   const [schematic, setSchematic] = useState<ArrayBuffer | undefined>(undefined);
   const [preview, setPreview] = useState<Preview>(
     hasSchematic === undefined ? "probing" : hasSchematic ? "present" : "absent",
@@ -79,9 +80,14 @@ export function RegionScreen({ client, world, region, hasSchematic, resourcePack
     // Three.js and WASM and then fails to initialise for the many regions that have no
     // capture -- which is the normal case, not an error.
     fetchSchematic(client, world, region)()
-      .then((bytes) => {
+      // Decoded here, in full, before the viewer is mounted. A capture can carry the
+      // right header and still be corrupt, and the renderer reports a loader that
+      // fails with a label that fades and then an empty canvas. Decoding costs a few
+      // milliseconds; finding out late costs the visitor 12 MB and shows them nothing.
+      .then((served) => realtyToRenderable(served))
+      .then((renderable) => {
         if (cancelled) return;
-        setSchematic(bytes);
+        setSchematic(renderable);
         setPreview("present");
       })
       .catch(() => {
