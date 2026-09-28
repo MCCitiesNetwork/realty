@@ -38,6 +38,13 @@ const MAX_BODY_BYTES = 64 * 1024 * 1024;
  */
 const MAX_BLOCK_ENTITIES = 100_000;
 
+/**
+ * The most distinct blocks a capture may name. The game has some thirty thousand block
+ * states in all and a build uses a few hundred of them. Sixteen million empty names fit
+ * in a body of zeros, and reading them took four seconds and a gigabyte.
+ */
+const MAX_PALETTE = 65_536;
+
 /** The response is not a capture this build can read. The region page shows "no preview" for it. */
 export class UnreadableSchematicError extends Error {
   constructor(reason: string) {
@@ -113,6 +120,7 @@ async function through(
 
 class BodyReader {
   private readonly view: DataView;
+  private readonly decoder = new TextDecoder();
   private at = 0;
 
   constructor(private readonly bytes: Uint8Array) {
@@ -135,7 +143,7 @@ class BodyReader {
     const length = this.view.getUint16(this.at);
     this.at += 2;
     this.need(length);
-    const value = new TextDecoder().decode(this.bytes.subarray(this.at, this.at + length));
+    const value = this.decoder.decode(this.bytes.subarray(this.at, this.at + length));
     this.at += length;
     return value;
   }
@@ -161,8 +169,10 @@ class BodyReader {
  *
  * The bytes come from the network, and a decoder that believes what they say of
  * themselves can be made to allocate gigabytes. So the body is inflated only up to a
- * fixed size, and every count in it is checked against what the body could actually
- * hold before anything is allocated for it.
+ * fixed size, and every count in it is held to a fixed ceiling and to what the body
+ * could actually hold, before anything is allocated for it. The worst a response can
+ * cost is bounded; it is not small. A full-size capture is some sixty megabytes of
+ * working memory, and that is what a hostile one can ask for too.
  *
  * @throws UnreadableSchematicError for anything that is not a well-formed capture
  */
@@ -194,8 +204,10 @@ export async function decodeRealtySchematic(buffer: ArrayBuffer): Promise<Decode
   const cellCount = width * height * length;
 
   const paletteSize = reader.int();
-  // Each entry is at least two length prefixes, so the bytes left bound the count.
-  if (paletteSize <= 0 || paletteSize > reader.remaining / 4) {
+  // Each entry is at least two length prefixes, so the bytes left bound the count. So
+  // does the number of cells: the plugin names no block that no cell holds, bar air.
+  if (paletteSize <= 0 || paletteSize > MAX_PALETTE
+      || paletteSize > cellCount + 1 || paletteSize > reader.remaining / 4) {
     throw new UnreadableSchematicError("impossible palette size");
   }
   const palette: PaletteEntry[] = [];

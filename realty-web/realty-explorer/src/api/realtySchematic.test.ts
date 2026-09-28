@@ -120,6 +120,27 @@ describe("decodeRealtySchematic", () => {
     await expect(decodeRealtySchematic(flat.framed())).rejects.toBeInstanceOf(UnreadableSchematicError);
   });
 
+  it("refuses more block names than any build uses", async () => {
+    // Sixty megabytes of zeros read as sixteen million empty names.
+    const zeros = new Uint8Array(20 + 4 * 1_000_000);
+    const view = new DataView(zeros.buffer);
+    view.setInt32(0, 4325);
+    view.setInt32(4, 256);
+    view.setInt32(8, 256);
+    view.setInt32(12, 256);
+    view.setInt32(16, 1_000_000);
+    const framed = asBuffer(Uint8Array.from([0x52, 0x4c, 0x54, 0x59, 1, ...deflateSync(zeros)]));
+
+    await expect(decodeRealtySchematic(framed)).rejects.toThrow(/impossible palette size/);
+  });
+
+  it("refuses more block names than it has cells to hold them", async () => {
+    const crowded = new Body().int(4325).int(1).int(1).int(1).int(3)
+      .text("minecraft:air").text("").text("minecraft:stone").text("").text("minecraft:dirt").text("")
+      .int(1).varint(1).varint(1);
+    await expect(decodeRealtySchematic(crowded.framed())).rejects.toThrow(/impossible palette size/);
+  });
+
   it("refuses a palette size it could never fill", async () => {
     const lying = new Body().int(4325).int(2).int(1).int(1).int(2000000000);
     await expect(decodeRealtySchematic(lying.framed())).rejects.toBeInstanceOf(UnreadableSchematicError);
