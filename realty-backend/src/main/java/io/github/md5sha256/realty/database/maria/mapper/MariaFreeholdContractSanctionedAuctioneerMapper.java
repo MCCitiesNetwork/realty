@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,6 +29,30 @@ public interface MariaFreeholdContractSanctionedAuctioneerMapper extends Freehol
     boolean existsByRegionAndAuctioneer(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                         @Param("worldId") @NotNull UUID worldId,
                                         @Param("auctioneerId") @NotNull UUID auctioneerId);
+
+    @Override
+    @Select("""
+            SELECT sca.auctioneerId
+            FROM FreeholdContractSanctionedAuctioneers sca
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    @NotNull List<UUID> selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                       @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    // IGNORE for the reason MariaFreeholdContractOfferMapper#restoreOffer gives.
+    @Insert("""
+            INSERT IGNORE INTO FreeholdContractSanctionedAuctioneers (realtyRegionId, auctioneerId)
+            SELECT rr.realtyRegionId, #{auctioneerId}
+            FROM RealtyRegion rr
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int restore(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                @Param("worldId") @NotNull UUID worldId,
+                @Param("auctioneerId") @NotNull UUID auctioneerId);
 
     @Override
     @Insert("""

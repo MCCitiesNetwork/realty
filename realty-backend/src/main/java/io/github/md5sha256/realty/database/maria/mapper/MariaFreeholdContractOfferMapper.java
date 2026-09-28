@@ -43,6 +43,24 @@ public interface MariaFreeholdContractOfferMapper extends FreeholdContractOfferM
                                                            @Param("worldId") @NotNull UUID worldId);
 
     @Override
+    // IGNORE, because a player has one offer on a region at most. If they have made a new
+    // one since theirs was withdrawn, the new one stands and this does nothing. Failing
+    // here would fail the rollback it is part of, and leave a buyer who did not pay
+    // holding the title.
+    @Insert("""
+            INSERT IGNORE INTO FreeholdContractOffer (realtyRegionId, offererId, offerPrice, offerTime)
+            SELECT rr.realtyRegionId, #{offererId}, #{offerPrice}, #{offerTime}
+            FROM RealtyRegion rr
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int restoreOffer(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                     @Param("worldId") @NotNull UUID worldId,
+                     @Param("offererId") @NotNull UUID offererId,
+                     @Param("offerPrice") double offerPrice,
+                     @Param("offerTime") @NotNull LocalDateTime offerTime);
+
+    @Override
     @Insert("""
             INSERT INTO FreeholdContractOffer (realtyRegionId, offererId, offerPrice)
             SELECT rr.realtyRegionId, #{offererId}, #{offerPrice}

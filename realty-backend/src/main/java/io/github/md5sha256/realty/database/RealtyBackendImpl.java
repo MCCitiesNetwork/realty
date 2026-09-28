@@ -635,7 +635,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                                           @NotNull UUID buyerId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
-            FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            // Lock the freehold row first (per-region serialization point), as every
+            // offer and bid operation does. Read without it, an offer could be accepted
+            // between the check below and the reservation.
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegionForUpdate(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new BuyResult.NoFreeholdContract();
             }
@@ -648,6 +651,13 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (buyerId.equals(freehold.titleHolderId())) {
                 return new BuyResult.IsTitleHolder();
             }
+            // Somebody is part-way through paying for this region. It has an asking price
+            // only because accepting an offer does not clear one. Sold now, their
+            // payment record would go with the offer it belongs to.
+            if (wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)
+                    || wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
+                return new BuyResult.NotForFreehold();
+            }
             UUID authorityId = freehold.authorityId();
             UUID titleHolderId = freehold.titleHolderId();
             // Atomic: WHERE price IS NOT NULL prevents concurrent buys
@@ -655,23 +665,54 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (updated == 0) {
                 return new BuyResult.UpdateFailed();
             }
+            // Everything the sale takes away is noted before it goes. The buyer has not
+            // paid yet, and if they cannot, rollbackBuy puts all of it back. It used to put
+            // back the title and the price only, so a buyer who could not pay left a sale
+            // in the history and cleared the region of every offer on it.
+            List<FreeholdContractOfferEntity> offers =
+                    wrapper.freeholdContractOfferMapper().selectByRegion(worldGuardRegionId, worldId);
+            List<WithdrawnOffer> withdrawn = offers == null ? List.of() : offers.stream()
+                    .map(offer -> new WithdrawnOffer(offer.offererId(), offer.offerPrice(), offer.offerTime()))
+                    .toList();
+            List<UUID> auctioneers = List.copyOf(wrapper.freeholdContractSanctionedAuctioneerMapper()
+                    .selectByRegion(worldGuardRegionId, worldId));
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
-            wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.BUY.name(),
-                    buyerId, authorityId, freehold.price());
+            int historyId = wrapper.freeholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
+                    HistoryEventType.BUY.name(), buyerId, authorityId, freehold.price());
             wrapper.session().commit();
-            return new BuyResult.Success(freehold.price(), authorityId, titleHolderId);
+            return new BuyResult.Success(freehold.price(), authorityId, titleHolderId,
+                    new BuyUndo(historyId, withdrawn, auctioneers));
         }
     }
 
     @Override
     public void rollbackBuy(@NotNull String worldGuardRegionId,
                              @NotNull UUID worldId,
-                             @Nullable UUID previousTitleHolderId,
-                             double previousPrice) {
+                             @NotNull UUID buyerId,
+                             @NotNull BuyResult.Success reserved) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
-            freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, previousPrice, previousTitleHolderId);
+            FreeholdContractEntity freehold = freeholdMapper.selectByRegionForUpdate(worldGuardRegionId, worldId);
+            // Only a reservation that still stands. See the interface. The title and the
+            // price go back first and cannot be held up by what follows: an offer or an
+            // auctioneer that is already there again is left as it is.
+            if (freehold != null && buyerId.equals(freehold.titleHolderId())) {
+                freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId,
+                        reserved.price(), reserved.titleHolderId());
+                for (WithdrawnOffer offer : reserved.undo().offers()) {
+                    wrapper.freeholdContractOfferMapper().restoreOffer(worldGuardRegionId, worldId,
+                            offer.offererId(), offer.offerPrice(), offer.offerTime());
+                }
+                for (UUID auctioneer : reserved.undo().auctioneers()) {
+                    wrapper.freeholdContractSanctionedAuctioneerMapper()
+                            .restore(worldGuardRegionId, worldId, auctioneer);
+                }
+            }
+            // By its id, so it is this record and no other, and whether or not the region
+            // is still there. One plot's history showed sixteen sales, and the plot had
+            // changed hands once.
+            wrapper.freeholdHistoryMapper().deleteById(reserved.undo().historyId());
             wrapper.session().commit();
         }
     }

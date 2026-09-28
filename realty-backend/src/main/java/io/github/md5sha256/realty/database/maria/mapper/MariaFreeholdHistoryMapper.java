@@ -4,7 +4,9 @@ import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
 import io.github.md5sha256.realty.database.mapper.FreeholdHistoryMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.SelectProvider;
@@ -28,6 +30,31 @@ public interface MariaFreeholdHistoryMapper extends FreeholdHistoryMapper {
                @Param("buyerId") @NotNull UUID buyerId,
                @Param("authorityId") @NotNull UUID authorityId,
                @Param("price") double price);
+
+    @Override
+    // A select, because it answers with a row, and one that is declared to write. Without
+    // that the session does not count it as a change, and a transaction in which it was
+    // the only statement would commit nothing and could not be rolled back. Never from
+    // the session's cache: asked twice with the same values, it has to write twice.
+    @Select(value = """
+            INSERT INTO FreeholdHistory (worldGuardRegionId, worldId, eventType, buyerId, authorityId, price)
+            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{buyerId}, #{authorityId}, #{price})
+            RETURNING historyId
+            """, affectData = true)
+    @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
+    int insertReturningId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                          @Param("worldId") @NotNull UUID worldId,
+                          @Param("eventType") @NotNull String eventType,
+                          @Param("buyerId") @NotNull UUID buyerId,
+                          @Param("authorityId") @NotNull UUID authorityId,
+                          @Param("price") double price);
+
+    @Override
+    @Delete("""
+            DELETE FROM FreeholdHistory
+            WHERE historyId = #{historyId}
+            """)
+    int deleteById(@Param("historyId") int historyId);
 
     @Override
     // Sales only. Every freehold event carries a price -- SET_PRICE records the new asking
