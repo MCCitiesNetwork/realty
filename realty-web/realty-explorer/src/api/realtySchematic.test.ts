@@ -125,6 +125,16 @@ describe("decodeRealtySchematic", () => {
     await expect(decodeRealtySchematic(lying.framed())).rejects.toBeInstanceOf(UnreadableSchematicError);
   });
 
+  it("stops inflating a body that is larger than any capture", async () => {
+    // Ninety megabytes of zeros compress to under a hundred kilobytes. Inflated in full
+    // before anything was checked, a body like this cost the visitor a gigabyte.
+    const bomb = deflateSync(new Uint8Array(90 * 1024 * 1024));
+    const framed = asBuffer(Uint8Array.from([0x52, 0x4c, 0x54, 0x59, 1, ...bomb]));
+    expect(framed.byteLength).toBeLessThan(200 * 1024);
+
+    await expect(decodeRealtySchematic(framed)).rejects.toThrow(/larger than any capture/);
+  });
+
   it("refuses a run that names a block outside the palette", async () => {
     await expect(decodeRealtySchematic(twoCells().int(1).varint(7).varint(2).framed()))
       .rejects.toBeInstanceOf(UnreadableSchematicError);
@@ -169,6 +179,27 @@ describe("toSpongeSchematic", () => {
     await expect(toSpongeSchematic(decoded)).rejects.toBeInstanceOf(UnreadableSchematicError);
   });
 
+  it("refuses a capture that calls every cell a chest", async () => {
+    // Fifty-eight bytes on the wire. Rebuilt, it froze the page for half a minute.
+    const chests = new Body().int(4325).int(128).int(128).int(128)
+      .int(2).text("minecraft:air").text("").text("minecraft:chest").text("minecraft:chest")
+      .int(1).varint(1).varint(128 * 128 * 128);
+    const decoded = await decodeRealtySchematic(chests.framed());
+
+    await expect(toSpongeSchematic(decoded)).rejects.toThrow(/more block entities/);
+  });
+
+  it("refuses a block name too long to write down", async () => {
+    // 65,535 bytes that are not valid text decode to three bytes each.
+    const body = new Body().int(4325).int(1).int(1).int(1).int(2).text("minecraft:air").text("");
+    const invalid = new Uint8Array(0xffff).fill(0xff);
+    (body as unknown as { bytes: number[] }).bytes.push(0xff, 0xff, ...invalid, 0, 0);
+    body.int(1).varint(1).varint(1);
+    const decoded = await decodeRealtySchematic(body.framed());
+
+    await expect(toSpongeSchematic(decoded)).rejects.toBeInstanceOf(UnreadableSchematicError);
+  });
+
   it("is read by the renderer's own parser, block for block", async () => {
     const decoded = await decodeRealtySchematic(golden());
     await init();
@@ -188,6 +219,15 @@ describe("toSpongeSchematic", () => {
 });
 
 describe("realtyToRenderable", () => {
+  it("fails with the one error a caller is told to expect, whatever went wrong", async () => {
+    const chests = new Body().int(4325).int(128).int(128).int(128)
+      .int(2).text("minecraft:air").text("").text("minecraft:chest").text("minecraft:chest")
+      .int(1).varint(1).varint(128 * 128 * 128);
+
+    await expect(realtyToRenderable(chests.framed())).rejects.toBeInstanceOf(UnreadableSchematicError);
+    await expect(realtyToRenderable(new ArrayBuffer(3))).rejects.toBeInstanceOf(UnreadableSchematicError);
+  });
+
   it("goes from served bytes to something the renderer loads", async () => {
     const renderable = new Uint8Array(await realtyToRenderable(golden()));
     await init();

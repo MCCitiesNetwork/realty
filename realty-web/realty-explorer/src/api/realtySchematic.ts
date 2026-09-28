@@ -24,7 +24,21 @@ const MAX_CELLS = 16_777_216;
 /** The longest any one axis may be and still be drawn. */
 const MAX_DIMENSION = 0xffff;
 
-/** The response is not a capture this build can read. Shown as "no preview", never as an error. */
+/**
+ * The most a body may inflate to. A full-size capture of nothing but distinct blocks
+ * comes to a few megabytes; this is many times that, and far short of what a few
+ * kilobytes of compressed zeros can be made to claim.
+ */
+const MAX_BODY_BYTES = 64 * 1024 * 1024;
+
+/**
+ * The most block entities a capture may hold. A real build has chests and signs in the
+ * hundreds. Each one costs the rebuilt schematic some sixty bytes, so a capture that
+ * calls every cell a chest asks for a gigabyte.
+ */
+const MAX_BLOCK_ENTITIES = 100_000;
+
+/** The response is not a capture this build can read. The region page shows "no preview" for it. */
 export class UnreadableSchematicError extends Error {
   constructor(reason: string) {
     super(`Unreadable schematic: ${reason}`);
@@ -57,10 +71,14 @@ export function isRealtySchematic(buffer: ArrayBuffer): boolean {
     && bytes[MAGIC.length] === VERSION;
 }
 
-/** Runs bytes through a compression or decompression stream and collects what comes out. */
+/**
+ * Runs bytes through a compression or decompression stream and collects what comes out,
+ * giving up as soon as more than {@code limit} bytes have.
+ */
 async function through(
   bytes: Uint8Array,
   stream: CompressionStream | DecompressionStream,
+  limit: number,
 ): Promise<Uint8Array> {
   const writer = stream.writable.getWriter();
   // A failure here also fails the read below, which is where it is reported. Left
@@ -76,6 +94,12 @@ async function through(
     if (done) break;
     chunks.push(value as Uint8Array);
     total += (value as Uint8Array).length;
+    if (total > limit) {
+      // Stopped here, not after the stream ends: what is being guarded against is
+      // holding the rest of it.
+      void reader.cancel().catch(() => undefined);
+      throw new UnreadableSchematicError("larger than any capture");
+    }
   }
 
   const joined = new Uint8Array(total);
@@ -135,9 +159,10 @@ class BodyReader {
 /**
  * Decodes a served capture.
  *
- * Every count in the body is checked against what the body could actually hold before
- * anything is allocated for it. The bytes come from the network, and a decoder that
- * believes a length field is a decoder that can be made to allocate gigabytes.
+ * The bytes come from the network, and a decoder that believes what they say of
+ * themselves can be made to allocate gigabytes. So the body is inflated only up to a
+ * fixed size, and every count in it is checked against what the body could actually
+ * hold before anything is allocated for it.
  *
  * @throws UnreadableSchematicError for anything that is not a well-formed capture
  */
@@ -148,8 +173,13 @@ export async function decodeRealtySchematic(buffer: ArrayBuffer): Promise<Decode
 
   let body: Uint8Array;
   try {
-    body = await through(new Uint8Array(buffer).subarray(HEADER_LENGTH), new DecompressionStream("deflate"));
-  } catch {
+    body = await through(
+      new Uint8Array(buffer).subarray(HEADER_LENGTH),
+      new DecompressionStream("deflate"),
+      MAX_BODY_BYTES,
+    );
+  } catch (failure) {
+    if (failure instanceof UnreadableSchematicError) throw failure;
     throw new UnreadableSchematicError("the body is not compressed data");
   }
 
@@ -227,6 +257,9 @@ class NbtWriter {
 
   private text(value: string): void {
     const encoded = new TextEncoder().encode(value);
+    // The length is written in sixteen bits. A longer name would be written with a
+    // length that is not its own, and everything after it would be read as nonsense.
+    if (encoded.length > 0xffff) throw new UnreadableSchematicError("a name too long to write");
     this.short(encoded.length);
     this.room(encoded.length);
     this.chunk.set(encoded, this.used);
@@ -322,7 +355,12 @@ export async function toSpongeSchematic(decoded: DecodedSchematic): Promise<Arra
           index >>>= 7;
         }
         data.byte(index);
-        if (entry.blockEntityId !== "") blockEntities.push({ x, y, z, id: entry.blockEntityId });
+        if (entry.blockEntityId !== "") {
+          if (blockEntities.length === MAX_BLOCK_ENTITIES) {
+            throw new UnreadableSchematicError("more block entities than any build holds");
+          }
+          blockEntities.push({ x, y, z, id: entry.blockEntityId });
+        }
       }
     }
   }
@@ -355,11 +393,21 @@ export async function toSpongeSchematic(decoded: DecodedSchematic): Promise<Arra
   nbt.close();
 
   // Gzipped because the renderer's parser refuses NBT that is not.
-  const zipped = await through(nbt.finish(), new CompressionStream("gzip"));
+  const zipped = await through(nbt.finish(), new CompressionStream("gzip"), Number.MAX_SAFE_INTEGER);
   return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
 }
 
-/** From the bytes the API served to bytes the renderer loads. */
+/**
+ * From the bytes the API served to bytes the renderer loads.
+ *
+ * @throws UnreadableSchematicError and nothing else, so a caller has one thing to catch
+ */
 export async function realtyToRenderable(buffer: ArrayBuffer): Promise<ArrayBuffer> {
-  return toSpongeSchematic(await decodeRealtySchematic(buffer));
+  try {
+    return await toSpongeSchematic(await decodeRealtySchematic(buffer));
+  } catch (failure) {
+    if (failure instanceof UnreadableSchematicError) throw failure;
+    // Running out of memory part-way, most likely. Still a capture that cannot be drawn.
+    throw new UnreadableSchematicError(failure instanceof Error ? failure.message : String(failure));
+  }
 }
