@@ -6,8 +6,6 @@ import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.world.World;
-import com.sk89q.worldedit.world.block.BlockState;
-import com.sk89q.worldedit.world.registry.BlockMaterial;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -15,14 +13,12 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.schematic.BlockGrid;
 import io.github.md5sha256.realty.schematic.CaptureBounds;
 import io.github.md5sha256.realty.schematic.CaptureCooldown;
+import io.github.md5sha256.realty.schematic.CaptureEncoding;
 import io.github.md5sha256.realty.schematic.CaptureRegistry;
-import io.github.md5sha256.realty.schematic.ClipboardGrids;
-import io.github.md5sha256.realty.schematic.RealtySchematicEncoder;
+import io.github.md5sha256.realty.schematic.Occlusion;
 import io.github.md5sha256.realty.schematic.RegionVolume;
-import io.github.md5sha256.realty.schematic.ShellCull;
 import io.github.md5sha256.realty.schematic.TickScheduler;
 import io.github.md5sha256.realty.schematic.TickSlicedCopy;
 import io.github.md5sha256.realty.settings.Settings;
@@ -139,6 +135,9 @@ public record SchematicCommandGroup(
         // runs on the database executor and should ask WorldEdit's platform nothing.
         int dataVersion = WorldEdit.getInstance().getPlatformManager()
                 .queryCapability(Capability.WORLD_EDITING).getDataVersion();
+        // Also here, on the main thread: the encode asks what each block hides, and the
+        // first time WorldEdit is asked that of a block type it writes to a map of its own.
+        Occlusion.learnEveryMaterial();
         // From the block the player stands on, up. A region claimed from bedrock to the
         // sky captures as the building and the ground it stands on, not the column of
         // stone beneath. The location's block is the one the feet occupy; the floor is
@@ -249,11 +248,10 @@ public record SchematicCommandGroup(
         this.executors.dbExec().execute(() -> {
             try {
                 // Nothing here can be loaded by WorldEdit, and nothing that could be is kept.
-                // The grid drops the world position, the cull drops what cannot be seen from
-                // outside, and the encoder writes what is left in Realty's own layout.
-                BlockGrid grid = ShellCull.hollow(
-                        ClipboardGrids.fromClipboard(clipboard, SchematicCommandGroup::hidesWhatIsBehindIt));
-                byte[] bytes = RealtySchematicEncoder.encode(grid, dataVersion);
+                // One call, so that no step of it can be left out: the world position is
+                // dropped, then what cannot be seen from outside, and what is left is
+                // written in Realty's own layout.
+                byte[] bytes = CaptureEncoding.encode(clipboard, Occlusion::hides, dataVersion);
                 boolean stored = this.backend.storeSchematic(regionId, worldId, bytes);
                 this.executors.mainThreadExec().execute(() -> {
                     if (stored) {
@@ -278,18 +276,5 @@ public record SchematicCommandGroup(
                 this.registry.finish(regionId, worldId);
             }
         });
-    }
-
-    /**
-     * A full, opaque cube. Anything less -- glass, a slab, a fence -- leaves something
-     * behind it visible, and the cull has to keep that something.
-     *
-     * <p>A block the registry knows nothing about is treated as hiding nothing. The cost
-     * of that guess is a block kept that need not have been; the other guess would punch
-     * a hole in the preview.</p>
-     */
-    private static boolean hidesWhatIsBehindIt(@NotNull BlockState state) {
-        BlockMaterial material = state.getBlockType().getMaterial();
-        return material != null && material.isFullCube() && material.isOpaque();
     }
 }
