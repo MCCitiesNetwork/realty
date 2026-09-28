@@ -125,8 +125,9 @@ Rule 5's palette rebuild is a security requirement, not tidiness. A palette that
 - **Subagents run no `git` command that changes anything, and no `gh` command at all.** The orchestrator owns every commit, branch and pull request.
 - **The work ships as a stack of pull requests made with `gh stack`.** See **Pull Request Stack**. Do not use `git checkout -b`, `git push` or `gh pr create` in its place.
 - **`realty-backend` database tests need Docker.** If Docker is not running, say so in the report. Do not describe a skipped test as passing.
-- **Node 26 locally, Node 22 in CI.** One existing test, `client.test.ts > returns the pack`, fails on Node 26 only. That failure is known and is not caused by this work. Any other failure is.
-- Test commands: `./gradlew :realty-backend:test`, `./gradlew :realty-paper:test`, `./gradlew :realty-rest:test`, `./gradlew build`. In `realty-web/realty-explorer`: `npm test`, `npm run typecheck`.
+- **Node 26 locally, Node 22 in CI.** Two existing tests fail on Node 26 only, both with `blob.text is not a function`: `client.test.ts > returns the pack when the server configures one` and `resourcePacks.test.ts > fetches every pack and keeps the server's order`. They are the recorded baseline and are not caused by this work. Any other failure is.
+- **Two `realty-rest` tests fail before any change:** `StaticSiteTest > withNoConfigOnDiskThePackagedOneIsStillServed` and `StaticSiteTest > aFrontEndsOwnConfigJsonIsServedFromDisk`. They are the recorded baseline, recorded on 2026-09-28, and are not caused by this work. Do not try to fix them.
+- Test commands: `./gradlew :realty-backend:test`, `./gradlew :realty-paper:test`, `./gradlew :realty-web:realty-rest:test`, `./gradlew build`. In `realty-web/realty-explorer`: `npm test`, `npm run typecheck`.
 
 ---
 
@@ -232,7 +233,7 @@ Keep them plain. Each description is the one short paragraph given below, as wri
 - [ ] Confirm `gh auth status` shows the active account the owner expects. Two accounts are logged in on this machine.
 - [ ] Create layer 1: `gh stack init feat/schematic-format-core`.
 - [ ] Commit this plan file alone: `docs: add the private schematic format plan`.
-- [ ] Run `./gradlew :realty-paper:test :realty-rest:test` and, in `realty-web/realty-explorer`, `npm test`. Record what fails **before** any change. Those failures are the baseline.
+- [ ] Run `./gradlew :realty-paper:test :realty-web:realty-rest:test` and, in `realty-web/realty-explorer`, `npm test`. Record what fails **before** any change. Those failures are the baseline.
 
 ### Waves
 
@@ -1818,8 +1819,8 @@ Update any assertion that expects 17 as the latest schema version. Report each o
 
 - [ ] **Step 6: Run the tests**
 
-Run: `./gradlew :realty-backend:test :realty-rest:test`
-Expected: pass. The `realty-backend` database tests need Docker. If Docker is not running, run `./gradlew :realty-rest:test` and `./gradlew :realty-backend:compileTestJava`, and report that the migration was not exercised against a database.
+Run: `./gradlew :realty-backend:test :realty-web:realty-rest:test`
+Expected: pass. The `realty-backend` database tests need Docker. If Docker is not running, run `./gradlew :realty-web:realty-rest:test` and `./gradlew :realty-backend:compileTestJava`, and report that the migration was not exercised against a database.
 
 **Commit message:** `feat(db): delete captures made in the WorldEdit format`
 
@@ -1891,7 +1892,7 @@ void aFormatVersionThisBuildDoesNotKnowIsNotServed() {
 
 - [ ] **Step 3: Run and see the new tests fail**
 
-Run: `./gradlew :realty-rest:test --tests "*RegionSchematicEndpointTest*"`
+Run: `./gradlew :realty-web:realty-rest:test --tests "*RegionSchematicEndpointTest*"`
 Expected: the three new tests fail with 200 where 404 was expected. Every other test passes.
 
 - [ ] **Step 4: Add the check**
@@ -1914,7 +1915,7 @@ Rewrite the class Javadoc. It currently says the endpoint serves "the raw Sponge
 
 - [ ] **Step 5: Run the tests and see them pass**
 
-Run: `./gradlew :realty-rest:test`
+Run: `./gradlew :realty-web:realty-rest:test`
 Expected: every test passes.
 
 **Commit message:** `feat(rest): serve only captures in Realty's format`
@@ -2659,7 +2660,7 @@ In `RegionScreen.tsx`, import `isRealtySchematic` and change the probe's success
 - [ ] **Step 7: Run everything**
 
 Run: `npm test` and `npm run typecheck`
-Expected: every test passes except the known Node 26 failure named in Global Constraints, if running on Node 26.
+Expected: every test passes except the two known Node 26 failures named in Global Constraints, if running on Node 26.
 
 - [ ] **Step 8: Confirm the main bundle did not grow a renderer**
 
@@ -2719,7 +2720,7 @@ Wherever the preview is described, add that it shows the outside of a build only
 
 - [ ] **Step 7: Verify**
 
-Run: `./gradlew :realty-rest:test` and, in the explorer, `npm run typecheck`
+Run: `./gradlew :realty-web:realty-rest:test` and, in the explorer, `npm run typecheck`
 Expected: pass. `realty-rest` has tests that read `openapi.yaml`.
 
 **Commit message:** `docs: describe what a capture now holds, and what it does not`
