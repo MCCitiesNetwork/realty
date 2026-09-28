@@ -68,6 +68,29 @@ public interface LeaseholdContractMapper {
                      @NotNull UUID worldId,
                      @NotNull UUID tenantId);
 
+    /**
+     * Puts a tenancy back as it was before it was ended: the same tenant, the same dates
+     * and the same count of extensions used. Only on a region that has no tenant.
+     */
+    int restoreTenancy(@NotNull String worldGuardRegionId,
+                       @NotNull UUID worldId,
+                       @NotNull UUID tenantId,
+                       @Nullable LocalDateTime startDate,
+                       @Nullable LocalDateTime endDate,
+                       @Nullable Integer extensionsUsed);
+
+    /**
+     * Puts a lease's terms back as they were before a change of terms was applied. Every
+     * value is set as given, null included, where {@code applyModificationTerms} leaves
+     * a term alone when given null.
+     */
+    int restoreTerms(@NotNull String worldGuardRegionId,
+                     @NotNull UUID worldId,
+                     double price,
+                     long durationSeconds,
+                     @Nullable Integer maxExtensions,
+                     @Nullable Integer extensionsUsed);
+
     int rollbackRenewLeasehold(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
                                @NotNull UUID tenantId);

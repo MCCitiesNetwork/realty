@@ -304,13 +304,21 @@ public interface RealtyBackend {
     // --- Rent ---
 
     sealed interface RentResult {
-        record Success(double price, long durationSeconds, @NotNull UUID landlordId) implements RentResult {}
+        /**
+         * @param historyId the record of the letting, for {@link #rollbackRent} to remove
+         */
+        record Success(double price, long durationSeconds, @NotNull UUID landlordId,
+                       int historyId) implements RentResult {}
         record NoLeaseholdContract() implements RentResult {}
         record AlreadyOccupied() implements RentResult {}
         record NotAcceptingTenants() implements RentResult {}
         record UpdateFailed() implements RentResult {}
     }
 
+    /**
+     * Lets the region to the tenant, ahead of payment, and records the letting. If the
+     * payment then fails, {@link #rollbackRent} undoes both.
+     */
     @NotNull RentResult rentRegion(@NotNull String worldGuardRegionId,
                                    @NotNull UUID worldId,
                                    @NotNull UUID tenantId);
@@ -332,27 +340,71 @@ public interface RealtyBackend {
                                            boolean bypassAuth,
                                            boolean accepting);
 
+    /**
+     * Undoes a letting made by {@link #rentRegion} that was not paid for: the region has
+     * no tenant again, and the record of the letting is removed.
+     *
+     * <p>The tenant is cleared only if it is still this tenant. The record is removed
+     * either way: this tenant did not rent the region.</p>
+     */
     void rollbackRent(@NotNull String worldGuardRegionId,
-                      @NotNull UUID worldId);
+                      @NotNull UUID worldId,
+                      @NotNull UUID tenantId,
+                      @NotNull RentResult.Success reserved);
 
     // --- Unrent ---
 
     sealed interface UnrentResult {
-        record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId) implements UnrentResult {}
+        /**
+         * @param previous  the tenancy as it stood before it was ended
+         * @param historyId the record of its ending
+         */
+        record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId,
+                       @NotNull Tenancy previous, int historyId) implements UnrentResult {}
         record NoLeaseholdContract() implements UnrentResult {}
         /** The lease is scheduled for termination; it can only end via the sweep on the effective date. */
         record Terminating() implements UnrentResult {}
         record UpdateFailed() implements UnrentResult {}
     }
 
+    /**
+     * The dates of a tenancy and how many of its extensions have been used.
+     *
+     * @param extensionsUsed null on a lease with no cap on extensions
+     */
+    record Tenancy(@Nullable LocalDateTime startDate,
+                   @Nullable LocalDateTime endDate,
+                   @Nullable Integer extensionsUsed) {}
+
+    /**
+     * Ends the tenancy, ahead of the refund, and records its ending. If the refund then
+     * cannot be paid, {@link #rollbackUnrent} undoes both.
+     */
     @NotNull UnrentResult unrentRegion(@NotNull String worldGuardRegionId,
                                        @NotNull UUID worldId,
                                        @NotNull UUID tenantId);
 
+    /**
+     * Undoes an ending made by {@link #unrentRegion} whose refund could not be paid. The
+     * tenancy is put back as it was, with the same dates and the same extensions used,
+     * and the record of its ending is removed.
+     *
+     * <p>Does nothing if the region has a tenant already. Somebody has moved in since,
+     * so this tenancy did end, and the record of that is left.</p>
+     */
+    void rollbackUnrent(@NotNull String worldGuardRegionId,
+                        @NotNull UUID worldId,
+                        @NotNull UUID tenantId,
+                        @NotNull UnrentResult.Success ended);
+
     // --- Renew Leasehold ---
 
     sealed interface RenewLeaseholdResult {
-        record Success(double price, @NotNull UUID landlordId) implements RenewLeaseholdResult {}
+        /**
+         * @param undo what {@link #rollbackRenewLeasehold} needs to put the lease back
+         */
+        record Success(double price, @NotNull UUID landlordId,
+                       @NotNull RenewUndo undo) implements RenewLeaseholdResult {}
         record NoLeaseholdContract() implements RenewLeaseholdResult {}
         record NoExtensionsRemaining() implements RenewLeaseholdResult {}
         /** The lease is scheduled for termination and can no longer be extended. */
@@ -360,13 +412,51 @@ public interface RealtyBackend {
         record UpdateFailed() implements RenewLeaseholdResult {}
     }
 
+    /**
+     * What a renewal changed, kept so that it can be put back.
+     *
+     * @param historyId    the record of the renewal
+     * @param appliedTerms the change of terms that fell due with it, or null if none did
+     */
+    record RenewUndo(int historyId, @Nullable AppliedTerms appliedTerms) {}
+
+    /**
+     * A change of terms that was applied, and the terms it replaced.
+     *
+     * @param modificationId the change that was applied
+     * @param historyId      the record of its being applied
+     */
+    record AppliedTerms(int modificationId,
+                        int historyId,
+                        double previousPrice,
+                        long previousDurationSeconds,
+                        @Nullable Integer previousMaxExtensions,
+                        @Nullable Integer previousExtensionsUsed) {}
+
+    /**
+     * Extends the lease by one period, ahead of payment, and records the renewal. A
+     * landlord's change of terms that falls due with it is applied first, so that the
+     * renewal is charged on the new terms.
+     *
+     * <p>If the payment then fails, {@link #rollbackRenewLeasehold} undoes all of it.</p>
+     */
     @NotNull RenewLeaseholdResult renewLeasehold(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId,
                                                  @NotNull UUID tenantId);
 
+    /**
+     * Undoes a renewal made by {@link #renewLeasehold} that was not paid for. The lease
+     * ends when it did before and the extension is not used up. A change of terms that
+     * was applied with the renewal is taken back and left pending, to fall due with the
+     * next renewal that is paid for. The records of both are removed.
+     *
+     * <p>The lease is put back only if this tenant still holds it. The record of the
+     * renewal is removed either way.</p>
+     */
     void rollbackRenewLeasehold(@NotNull String worldGuardRegionId,
                                 @NotNull UUID worldId,
-                                @NotNull UUID tenantId);
+                                @NotNull UUID tenantId,
+                                @NotNull RenewLeaseholdResult.Success reserved);
 
     // --- Leasehold Modifications (pending term changes) ---
 

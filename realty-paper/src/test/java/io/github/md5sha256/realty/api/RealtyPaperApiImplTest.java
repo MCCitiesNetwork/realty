@@ -78,6 +78,18 @@ class RealtyPaperApiImplTest {
     private static final UUID TITLE_HOLDER_ID = UUID.randomUUID();
     private static final UUID LANDLORD_ID = UUID.randomUUID();
     private static final UUID TENANT_ID = UUID.randomUUID();
+    private static final RealtyBackend.RentResult.Success LET =
+            new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID, 7);
+    /** A renewal at 200 that applied a landlord's change of terms on the way. */
+    private static final RealtyBackend.RenewLeaseholdResult.Success RENEWED =
+            new RealtyBackend.RenewLeaseholdResult.Success(200.0, LANDLORD_ID,
+                    new RealtyBackend.RenewUndo(8,
+                            new RealtyBackend.AppliedTerms(3, 9, 150.0, 3600, 5, 1)));
+    private static final RealtyBackend.UnrentResult.Success ENDED =
+            new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, LANDLORD_ID,
+                    new RealtyBackend.Tenancy(
+                            LocalDateTime.of(2026, 9, 1, 12, 0), LocalDateTime.of(2026, 10, 1, 12, 0), 3),
+                    10);
     /** A reservation at 1000 that withdrew one offer, which a rollback has to put back. */
     private static final RealtyBackend.BuyResult.Success RESERVED = new RealtyBackend.BuyResult.Success(
             1000.0, AUTHORITY_ID, TITLE_HOLDER_ID,
@@ -376,7 +388,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("returns InsufficientFunds and rolls back DB when balance is too low")
         void insufficientFunds() {
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID));
+                    .thenReturn(LET);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
             when(economyProvider.getBalance(TENANT_ID)).thenReturn(100.0);
@@ -384,14 +396,31 @@ class RealtyPaperApiImplTest {
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.RentResult.InsufficientFunds.class, result);
-            verify(realtyApi).rollbackRent(REGION_ID, WORLD_ID);
+            verify(realtyApi).rollbackRent(REGION_ID, WORLD_ID, TENANT_ID, LET);
+            Assertions.assertFalse(protectedRegion.getOwners().contains(TENANT_ID));
+        }
+
+        @Test
+        @DisplayName("returns PaymentFailed and rolls back DB when the transfer fails")
+        void paymentFailed() {
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(LET);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.getBalance(TENANT_ID)).thenReturn(1000.0);
+            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(500.0), any()))
+                    .thenReturn(new PaymentResult.Failure("Bank error"));
+
+            RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RentResult.PaymentFailed.class, result);
+            verify(realtyApi).rollbackRent(REGION_ID, WORLD_ID, TENANT_ID, LET);
+            Assertions.assertFalse(protectedRegion.getOwners().contains(TENANT_ID));
         }
 
         @Test
         @DisplayName("success sets tenant as owner and applies LEASED flags")
         void success() {
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID));
+                    .thenReturn(LET);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
             when(economyProvider.getBalance(TENANT_ID)).thenReturn(1000.0);
@@ -409,7 +438,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("skips payment when price is zero")
         void zeroPriceSkipsPayment() {
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(0.0, 3600, LANDLORD_ID));
+                    .thenReturn(new RealtyBackend.RentResult.Success(0.0, 3600, LANDLORD_ID, 7));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
@@ -469,7 +498,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("success clears owners and applies FOR_LEASE flags")
         void success() {
             when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, LANDLORD_ID));
+                    .thenReturn(ENDED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
             when(economyProvider.transfer(eq(LANDLORD_ID), eq(TENANT_ID), eq(100.0), any()))
@@ -489,18 +518,22 @@ class RealtyPaperApiImplTest {
         @DisplayName("returns RefundFailed and rolls back DB when landlord withdraw fails")
         void refundFailedOnLandlordWithdraw() {
             when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, LANDLORD_ID));
+                    .thenReturn(ENDED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(100.0, 3600, LANDLORD_ID));
             when(economyProvider.transfer(eq(LANDLORD_ID), eq(TENANT_ID), eq(100.0), any()))
                     .thenReturn(new PaymentResult.Failure("Insufficient funds"));
+            protectedRegion.getOwners().addPlayer(TENANT_ID);
 
             RealtyPaperApi.UnrentResult result = api.unrent(wgRegion, TENANT_ID).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.UnrentResult.RefundFailed.class, result);
-            verify(realtyApi).rentRegion(REGION_ID, WORLD_ID, TENANT_ID);
+            // Put back as it was, with the dates it had. Letting the region to the tenant
+            // again started their tenancy from now and recorded a second letting.
+            verify(realtyApi).rollbackUnrent(REGION_ID, WORLD_ID, TENANT_ID, ENDED);
+            verify(realtyApi, never()).rentRegion(any(), any(), any());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID),
+                    "the tenancy goes on, so the tenant keeps the region");
         }
     }
 
@@ -538,7 +571,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("returns InsufficientFunds and rolls back DB when balance is too low")
         void insufficientFunds() {
             when(realtyApi.renewLeasehold(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RenewLeaseholdResult.Success(200.0, LANDLORD_ID));
+                    .thenReturn(RENEWED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
             when(economyProvider.getBalance(TENANT_ID)).thenReturn(50.0);
@@ -546,14 +579,29 @@ class RealtyPaperApiImplTest {
             RealtyPaperApi.ExtendResult result = api.extend(wgRegion, TENANT_ID).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.ExtendResult.InsufficientFunds.class, result);
-            verify(realtyApi).rollbackRenewLeasehold(REGION_ID, WORLD_ID, TENANT_ID);
+            verify(realtyApi).rollbackRenewLeasehold(REGION_ID, WORLD_ID, TENANT_ID, RENEWED);
+        }
+
+        @Test
+        @DisplayName("returns PaymentFailed and rolls back DB when the transfer fails")
+        void paymentFailed() {
+            when(realtyApi.renewLeasehold(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(RENEWED);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.getBalance(TENANT_ID)).thenReturn(500.0);
+            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any()))
+                    .thenReturn(new PaymentResult.Failure("Bank error"));
+
+            RealtyPaperApi.ExtendResult result = api.extend(wgRegion, TENANT_ID).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.ExtendResult.PaymentFailed.class, result);
+            verify(realtyApi).rollbackRenewLeasehold(REGION_ID, WORLD_ID, TENANT_ID, RENEWED);
         }
 
         @Test
         @DisplayName("success extends lease and updates signs")
         void success() {
             when(realtyApi.renewLeasehold(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RenewLeaseholdResult.Success(200.0, LANDLORD_ID));
+                    .thenReturn(RENEWED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
             when(economyProvider.getBalance(TENANT_ID)).thenReturn(500.0);

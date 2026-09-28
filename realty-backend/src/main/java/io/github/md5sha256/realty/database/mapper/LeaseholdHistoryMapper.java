@@ -19,6 +19,22 @@ public interface LeaseholdHistoryMapper {
                @Nullable Long durationSeconds,
                @Nullable Integer extensionsRemaining);
 
+    /**
+     * As {@link #insert}, and answers with the id of the row it wrote, so that the row
+     * can be removed again by {@link #deleteById} if what it records is undone.
+     */
+    int insertReturningId(@NotNull String worldGuardRegionId,
+                          @NotNull UUID worldId,
+                          @NotNull String eventType,
+                          @NotNull UUID tenantId,
+                          @NotNull UUID landlordId,
+                          @Nullable Double price,
+                          @Nullable Long durationSeconds,
+                          @Nullable Integer extensionsRemaining);
+
+    /** Removes one record. For taking back a record of something that was then undone. */
+    int deleteById(int historyId);
+
     @NotNull List<LeaseholdHistoryEntity> searchHistory(@NotNull String worldGuardRegionId,
                                                          @NotNull UUID worldId,
                                                          @Nullable String eventType,
