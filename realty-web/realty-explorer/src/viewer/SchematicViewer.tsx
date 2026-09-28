@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { SchematicRenderer } from "schematic-renderer";
 import { fetchResourcePacks, fetchSchematic, type ApiClient } from "../api/client";
+import { realtyToRenderable } from "../api/realtySchematic";
 import { forgetRememberedPacksUnless } from "./rememberedPacks";
 
 type Props = {
@@ -9,9 +10,12 @@ type Props = {
   world: string;
   region: string;
   /**
-   * The schematic's bytes, when the caller already has them.
+   * The capture, already decoded into bytes the renderer loads, when the caller has it.
    *
-   * <p>The detail screen downloads the schematic to find out whether there is one to
+   * <p>Decoded by the caller, not here, so that a capture which cannot be read is found
+   * out before this component -- and the 12 MB behind it -- is mounted at all.</p>
+   *
+   * <p>The detail screen downloads the capture to find out whether there is one to
    * show, so without this the same megabytes were fetched a second time the moment the
    * viewer mounted -- the preview appeared at roughly half the speed the network
    * allowed. Omitted, the viewer fetches for itself and stands alone.</p>
@@ -25,6 +29,7 @@ type Point = { x: number; y: number; z: number };
 type OrbitControls = {
   minDistance?: number;
   maxDistance?: number;
+  maxPolarAngle?: number;
   enablePan?: boolean;
   target?: { set: (x: number, y: number, z: number) => unknown };
   update?: () => unknown;
@@ -66,8 +71,8 @@ const CAMERA_BEARING: [number, number, number] = [1, 0.7, 1];
  * pitch across 30 to 55 degrees by height against footprint. Every plot therefore opens facing
  * a little differently from its neighbour, and none of them matches the server map, whose
  * flat view is north-up. Nothing recoverable says which way a plot itself faces -- a
- * captured schematic carries its world offset but no rotation -- so one bearing for all
- * of them is as close to the map as this can get.</p>
+ * capture records neither where it stood nor which way it was turned -- so one bearing
+ * for all of them is as close to the map as this can get.</p>
  *
  * <p>Called once the schematic has rendered, which is after the renderer's own framing:
  * that runs on the schematic-added event, so the bearing set here is the one that lasts.</p>
@@ -85,6 +90,10 @@ export function faceCameraSouthEast(renderer: Renderer | undefined): void {
  * plot cannot be zoomed away to a speck. Panning is off because it moves the point
  * being orbited, and a point moved into the building takes the camera with it.</p>
  *
+ * <p>The camera also stays level with the plot's middle or above it. A capture leaves
+ * out the floor of every closed building, since nothing outside can see it, so from
+ * underneath a plot is a sheet of ground with holes where its houses stand.</p>
+ *
  * <p>Called once the schematic has rendered, since only then are its bounds known.</p>
  */
 export function keepCameraOutside(renderer: Renderer | undefined): void {
@@ -98,6 +107,8 @@ export function keepCameraOutside(renderer: Renderer | undefined): void {
   if (!Number.isFinite(radius) || radius <= 0) return;
   orbit.minDistance = radius * 1.05;
   orbit.maxDistance = radius * 8;
+  // Measured from straight up: a quarter turn is level with the point being orbited.
+  orbit.maxPolarAngle = Math.PI / 2;
   orbit.enablePan = false;
   orbit.target?.set((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, (box.min.z + box.max.z) / 2);
   orbit.update?.();
@@ -143,7 +154,14 @@ export function SchematicViewer({ client, world, region, schematic }: Props) {
       if (disposed) return;
       rendererRef.current = new SchematicRenderer(
         canvas,
-        { [region]: schematic ? async () => schematic : fetchSchematic(client, world, region) },
+        {
+          // The API serves a capture in Realty's own format. The renderer reads formats
+          // it knows, so a capture fetched here is translated for it, in memory. One
+          // handed in has been translated already.
+          [region]: schematic
+            ? async () => schematic
+            : async () => realtyToRenderable(await fetchSchematic(client, world, region)()),
+        },
         // Keyed by index rather than by name so the record's insertion order is the
         // server's priority order, and two packs that happen to share a name cannot
         // collapse into one. The renderer resolves a contested texture in favour of the

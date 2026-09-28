@@ -283,11 +283,13 @@ export interface paths {
         };
         /**
          * A region's captured schematic
-         * @description The raw Sponge Schematic v3 bytes for the region, as captured in game by `/realty schematic capture`. Served as bytes rather than JSON because the browser-side renderers read an `ArrayBuffer` directly; base64 in JSON would cost a third more bytes and a decode step for nothing.
+         * @description The region's capture, as made in game by `/realty schematic capture`, in Realty's own binary format. A client decodes it before drawing it. The realty-rest README gives the layout.
          *
-         *     The schematic records block state only -- a stair's facing, a slab's half -- and deliberately not block entity NBT. Chests render as chests, but their contents are never captured and so are never served here.
+         *     Served as bytes rather than JSON because a browser-side client reads an `ArrayBuffer` directly; base64 in JSON would cost a third more bytes and a decode step for nothing.
          *
-         *     Capturing is on demand, so a region Realty manages may legitimately have no schematic yet; that is a 404 rather than an empty body.
+         *     A capture holds only the blocks that can be seen from outside the region, and no world position. It records block state only -- a stair's facing, a slab's half -- and deliberately not block entity NBT. Chests render as chests, but their contents are never captured and so are never served here.
+         *
+         *     Capturing is on demand, so a region Realty manages may legitimately have no capture yet; that is a 404 rather than an empty body. A stored capture in a format this service does not recognise is a 404 too.
          */
         get: operations["regionSchematic"];
         put?: never;
@@ -1487,7 +1489,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The schematic bytes. */
+            /** @description The capture, in Realty's own binary format. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1505,7 +1507,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `WORLD_NOT_FOUND`, or `SCHEMATIC_NOT_FOUND` when the region has never been captured. */
+            /** @description `WORLD_NOT_FOUND`, or `SCHEMATIC_NOT_FOUND` when the region has never been captured or its stored capture is in a format this service does not recognise. */
             404: {
                 headers: {
                     [name: string]: unknown;

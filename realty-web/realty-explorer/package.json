@@ -32,6 +32,7 @@
     "@types/three": "^0.180.0",
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^26.0.0",
+    "nucleation": "^0.2.18",
     "openapi-typescript": "^7.5.0",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",

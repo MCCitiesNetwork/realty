@@ -185,13 +185,47 @@ it can pause the tick for up to `request-timeout-ms` if a request is in flight w
 
 ## Schematic capture
 
-`/realty schematic capture [region] [--force]` snapshots a registered region's blocks into the
-database, from the block the player stands on up to the region's ceiling, and serves it read-only at
-`GET /v1/region/schematic`. It is players only -- the floor is taken from where the sender stands, and
-the console stands nowhere.
+`/realty schematic capture [region] [--force]` takes a snapshot of a registered region for the web
+preview. The snapshot runs from the block the player stands on up to the region's ceiling, and is
+served read-only at `GET /v1/region/schematic`. The command is players only -- the floor is taken
+from where the sender stands, and the console stands nowhere.
 
-Because a capture publishes the region's blocks to an endpoint anyone can read, the region's own
-people decide when that snapshot is taken:
+A capture stores the blocks that open air reaches from the region's sides and from above. It is
+written in a format of Realty's own, which
+[realty-rest's README](realty-web/realty-rest/README.md#the-capture-format) describes.
+
+What is left out:
+
+- The inside of a closed build: its rooms, what is in them, and its floors.
+- A room behind a window. The blocks touching the glass are captured and nothing past them.
+- What lies under a roof of slabs or stairs, under carpet, or behind a door or a trapdoor.
+
+What is not left out:
+
+- **Anything behind an opening.** A doorway with no door, a chimney flue, a hole in a roof. The
+  capture follows open air wherever it leads, so one gap brings in every room the air behind it
+  connects to.
+- **A room the region cuts through.** A region drawn inside a room's walls has no outside, so the
+  room is captured whole. So is a basement dug to the plot line, or a house that uses a
+  neighbour's wall.
+- **Blocks beside a fence, a torch or a leaf.** These hide nothing, so what touches them is kept.
+
+A capture cannot be loaded by WorldEdit or Litematica, and cannot be used to back up or restore a
+region.
+
+A capture does not record where the region stands. That is not a secret all the same: the
+region's bounds are published by `GET /v1/region` and drawn on the map.
+
+The web preview has to decode a capture to draw it, so someone determined can recover what it
+holds, which is what is described above.
+
+**Upgrading from a version that stored WorldEdit schematics.** Every capture made before the
+upgrade is deleted the first time the plugin starts. Capture each region again to bring its preview
+back. Until then its page shows "No preview captured yet". Upgrade `realty-rest` and the explorer
+with the plugin: an older `realty-rest` refuses to start against the upgraded database.
+
+A capture is published at an endpoint anyone can read, so the region's own people decide when it
+is taken:
 
 | Permission | Default | Grants |
 |---|---|---|
