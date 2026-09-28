@@ -22,7 +22,7 @@ import java.util.function.Predicate;
  *
  * <p>Reads the clipboard, never the world, so it is safe off the main thread.</p>
  */
-public final class ClipboardGrids {
+final class ClipboardGrids {
 
     /** Drawn identically, and the cull needs to ask only "is this air". */
     private static final Set<String> AIR =
@@ -38,7 +38,7 @@ public final class ClipboardGrids {
      * @param hides whether a block hides what is behind it. Asked once per distinct block
      *              state, not once per cell.
      */
-    public static @NotNull BlockGrid fromClipboard(@NotNull Clipboard clipboard,
+    static @NotNull BlockGrid fromClipboard(@NotNull Clipboard clipboard,
                                                    @NotNull Predicate<BlockState> hides) {
         Region region = clipboard.getRegion();
         BlockVector3 corner = region.getMinimumPoint();
@@ -88,12 +88,17 @@ public final class ClipboardGrids {
         if (AIR.contains(id)) {
             return BlockGrid.PaletteEntry.AIR;
         }
+        String printed = state.getAsString();
         BlockGrid.Sight sight;
         if (FLUIDS.contains(id)) {
             sight = BlockGrid.Sight.OPEN;
+        } else if (hides.test(state)) {
+            sight = BlockGrid.Sight.SOLID;
         } else {
-            sight = hides.test(state) ? BlockGrid.Sight.SOLID : BlockGrid.Sight.SEE_THROUGH;
+            // Read from the state in full, before it is reduced: which way a door
+            // stands is decided by properties the reduction has no reason to keep.
+            sight = BlockGrid.Sight.covering(FaceCover.of(printed));
         }
-        return new BlockGrid.PaletteEntry(VisualState.reduce(state.getAsString()), blockEntityId, sight);
+        return new BlockGrid.PaletteEntry(VisualState.reduce(printed), blockEntityId, sight);
     }
 }

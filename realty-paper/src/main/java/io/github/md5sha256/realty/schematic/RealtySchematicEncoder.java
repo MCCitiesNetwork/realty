@@ -19,7 +19,7 @@ import java.util.zip.DeflaterOutputStream;
  *
  * <p>Touches neither WorldEdit nor the world, so it runs wherever the caller likes.</p>
  */
-public final class RealtySchematicEncoder {
+final class RealtySchematicEncoder {
 
     private RealtySchematicEncoder() {
     }
@@ -28,7 +28,7 @@ public final class RealtySchematicEncoder {
      * @param dataVersion the Minecraft data version the block states were read under;
      *                    the explorer's renderer needs it to interpret them
      */
-    public static byte @NotNull [] encode(@NotNull BlockGrid grid, int dataVersion) throws IOException {
+    static byte @NotNull [] encode(@NotNull BlockGrid grid, int dataVersion) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         bytes.write(RealtySchematicFormat.header());
         try (DataOutputStream out = new DataOutputStream(new DeflaterOutputStream(bytes))) {

@@ -20,23 +20,38 @@ import java.util.List;
  * @param palette every distinct block in the grid; entry 0 is always air
  * @param cells   one palette index per cell
  */
-public record BlockGrid(int width,
+record BlockGrid(int width,
                         int height,
                         int length,
                         @NotNull List<PaletteEntry> palette,
                         int @NotNull [] cells) {
 
     /** The palette index of air, in every grid. */
-    public static final int AIR = 0;
+    static final int AIR = 0;
 
-    /** What a cell does to the view of someone looking at the capture from outside. */
-    public enum Sight {
-        /** Carries the view onward in every direction: air, and water or lava. */
-        OPEN,
-        /** Shows the one block directly behind it and nothing further: glass, a stair, a fence. */
-        SEE_THROUGH,
-        /** Hides what is behind it: a full, opaque cube. */
-        SOLID
+    /**
+     * What a cell does to the view of someone looking at the capture from outside.
+     *
+     * @param carries whether the view passes through and travels on, as it does through
+     *                air, water and lava
+     * @param covers  the faces of the cell the block covers completely, as {@link Faces}
+     *                bits. The view neither enters nor leaves through one of these.
+     */
+    record Sight(boolean carries, int covers) {
+
+        /** Air, water, lava. */
+        static final Sight OPEN = new Sight(true, Faces.NONE);
+        /** A full, opaque cube. */
+        static final Sight SOLID = new Sight(false, Faces.ALL);
+        /** Glass, a fence, a torch, a flower: nothing is hidden and the view still stops. */
+        static final Sight CLEAR = new Sight(false, Faces.NONE);
+
+        static @NotNull Sight covering(int faces) {
+            if (faces == Faces.ALL) {
+                return SOLID;
+            }
+            return faces == Faces.NONE ? CLEAR : new Sight(false, faces);
+        }
     }
 
     /**
@@ -46,12 +61,12 @@ public record BlockGrid(int width,
      * @param blockEntityId the block entity's id, or the empty string for none
      * @param sight         what the block does to the view; used by the cull, never written
      */
-    public record PaletteEntry(@NotNull String state, @NotNull String blockEntityId, @NotNull Sight sight) {
+    record PaletteEntry(@NotNull String state, @NotNull String blockEntityId, @NotNull Sight sight) {
 
-        public static final PaletteEntry AIR = new PaletteEntry("minecraft:air", "", Sight.OPEN);
+        static final PaletteEntry AIR = new PaletteEntry("minecraft:air", "", Sight.OPEN);
     }
 
-    public BlockGrid {
+    BlockGrid {
         if (width <= 0 || height <= 0 || length <= 0) {
             throw new IllegalArgumentException(
                     "A grid needs a positive size, got " + width + "x" + height + "x" + length);
@@ -67,7 +82,7 @@ public record BlockGrid(int width,
     }
 
     /** Where the cell at these grid coordinates sits in {@link #cells()}. */
-    public int index(int x, int y, int z) {
+    int index(int x, int y, int z) {
         return (x * this.length + z) * this.height + y;
     }
 }

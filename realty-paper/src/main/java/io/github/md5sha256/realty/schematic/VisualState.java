@@ -18,7 +18,7 @@ import java.util.StringJoiner;
  * that second reason: custom-block plugins hang their textures on note block states.
  * {@code waterlogged} is kept because the water is drawn.</p>
  */
-public final class VisualState {
+final class VisualState {
 
     /** Never visible, on any block that has them. */
     private static final Set<String> NEVER_DRAWN =
@@ -33,7 +33,7 @@ public final class VisualState {
      * @return the same state without the properties that are never drawn; the brackets
      *         go too when nothing is left inside them
      */
-    public static @NotNull String reduce(@NotNull String blockState) {
+    static @NotNull String reduce(@NotNull String blockState) {
         int open = blockState.indexOf('[');
         if (open < 0 || !blockState.endsWith("]")) {
             return blockState;

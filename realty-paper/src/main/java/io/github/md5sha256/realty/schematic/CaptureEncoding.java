@@ -10,10 +10,10 @@ import java.util.function.Predicate;
 /**
  * Everything between a filled clipboard and the bytes that are stored, in one place.
  *
- * <p>One method, so that the steps cannot be run in part. A capture that skipped the
- * cull would still encode, still store and still draw, and would publish the inside of
- * the building. Here the test that checks for that checks the very call the command
- * makes.</p>
+ * <p>The only way in. The reader, the cull and the encoder are visible inside this
+ * package and nowhere else, so the capture command cannot call one and leave out
+ * another. A capture that skipped the cull would still encode, still store and still
+ * draw, and would publish the inside of the building.</p>
  */
 public final class CaptureEncoding {
 
