@@ -54,6 +54,19 @@ class OcclusionTest {
     }
 
     @Test
+    void learningEveryMaterialLeavesEachTypeWithItsAnswer() {
+        // The answer a type gives afterwards is the one it was given here, not a fresh
+        // lookup: asked twice, it hands back the same object.
+        WorldEditTestPlatform.ensureRegistered();
+
+        Assertions.assertDoesNotThrow(Occlusion::learnEveryMaterial);
+
+        for (BlockType type : BlockType.REGISTRY) {
+            Assertions.assertSame(type.getMaterial(), type.getMaterial(), type.id());
+        }
+    }
+
+    @Test
     void aBlockWithNoMaterialHidesNothing() {
         BlockType type = Mockito.mock(BlockType.class);
         Mockito.when(type.getMaterial()).thenReturn(null);

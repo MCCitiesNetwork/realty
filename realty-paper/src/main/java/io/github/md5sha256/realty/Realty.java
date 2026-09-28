@@ -13,6 +13,7 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.schematic.CaptureCooldown;
 import io.github.md5sha256.realty.schematic.CaptureRegistry;
+import io.github.md5sha256.realty.schematic.Occlusion;
 import io.github.md5sha256.realty.schematic.TickScheduler;
 import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -331,6 +332,10 @@ public final class Realty extends JavaPlugin {
                 Realty.class.getName(),
                 getLogger());
         scheduleTasks();
+        // Once, on the first tick: after every plugin has enabled, so WorldEdit has its
+        // block data, and before any player can run a capture. The capture's encode asks
+        // what each block hides from a database thread, and must find the answers there.
+        getServer().getScheduler().runTask(this, Occlusion::learnEveryMaterial);
         registerCommands(this.paperApi,
                 this.executorState,
                 this.messageContainer,
