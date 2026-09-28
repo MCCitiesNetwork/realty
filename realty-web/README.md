@@ -133,7 +133,11 @@ A freehold with an asking price is shown as for sale whoever holds its title: a 
 who has priced a plot is selling it. Its "last sold for" figure is the last sale, never
 the asking price.
 
-The 3D preview keeps the camera outside the plot -- orbit and zoom, but never through a
+The 3D preview shows the outside of a build only. A capture holds the blocks that can be
+seen from outside the plot, so closed interiors and rooms behind glass are not drawn. The
+[root README](../README.md#schematic-capture) says what a capture holds.
+
+The preview keeps the camera outside the plot -- orbit and zoom, but never through a
 wall -- and opens on a fixed compass bearing, above the plot's south-east corner, so
 every plot is seen the same way round. The renderer's own memory of resource packs is
 cleared before every start, so a pack changed on the game server reaches every browser
@@ -170,7 +174,7 @@ their own, without the world underneath them.
 What the map draws is the low-resolution half of what BlueMap renders, which is a flat
 image one pixel to the block. The 3D half is geometry rather than pictures, and is what
 the BlueMap site itself shows; a plot's own buildings are on its listing page instead,
-in the 3D preview.
+in the 3D preview, seen from outside.
 
 ## Developing the front end
 
@@ -248,7 +252,12 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   the pack itself was chosen -- splitting the two across two hosts is how one of them
   ends up stale.
 - A region with no captured schematic is the normal case — capture is on demand via
-  `/realty schematic capture`. The detail screen shows a panel, not an error.
+  `/realty schematic capture`. The detail screen shows a panel, not an error. It shows
+  the same panel for a capture it cannot read.
+- **The preview shows the outside of a build only.** A capture leaves out every block
+  that cannot be seen from outside the plot. A closed room does not appear, even
+  through a window; only a block directly against the glass does. A room behind an open
+  gap, such as a doorway with no door, does appear.
 - **A capture starts at the block the player stands on.** A region claimed from bedrock
   to the build limit would otherwise capture as a column of stone with a house on top.
   The block under the capturing player's feet becomes the floor; the footprint and

@@ -74,12 +74,14 @@ them concurrently, so the two share one timeout budget.
 - `GET /v1/players/summary?player=` -- one player's holdings as counts.
 - `GET /v1/players/lookup?playerName=` -- resolve a name to a UUID, so a client can cache it.
 - `GET /v1/region/history?world=&region=&type=&since=&player=&page=&pageSize=` -- one region's history (the HTTP form of `/realty history`).
-- `GET /v1/region/schematic?world=&region=` -- the region's captured schematic as raw
-  Sponge Schematic v3 bytes (`application/octet-stream`), for a browser-side renderer
-  that reads an `ArrayBuffer` directly. Captured in game by `/realty schematic capture`,
-  so a region Realty manages may legitimately have none yet: that is a `404`
-  `SCHEMATIC_NOT_FOUND`. Records block state only, never block entity NBT -- chests
-  render as chests, but their contents are never captured and never served.
+- `GET /v1/region/schematic?world=&region=` -- the region's capture, in Realty's own
+  binary format (`application/octet-stream`). [The capture format](#the-capture-format)
+  gives the layout. A capture holds only the blocks visible from outside the region, and
+  no world position. Captured in game by `/realty schematic capture`, so a region Realty
+  manages may legitimately have none yet: that is a `404` `SCHEMATIC_NOT_FOUND`. A stored
+  capture in any other format gets the same `404`. Records block state only, never block
+  entity NBT -- chests render as chests, but their contents are never captured and never
+  served.
 - `GET /v1/tags` -- every tag in use, with its region count.
 - `GET /v1/stats` -- server-wide totals.
 - `GET /v1/leaderboard/owners?page=&pageSize=` -- title holders ranked by plot count.
@@ -128,6 +130,54 @@ are frequently not URL-safe:
   which may itself contain spaces -- `.Some Gamertag` becomes `?player=.Some%20Gamertag`.
 
 Send the raw name percent-encoded; do not pre-decode it.
+
+### The capture format
+
+`GET /v1/region/schematic` serves a capture in a layout of Realty's own. This is version 1.
+A client decodes it before drawing it. WorldEdit and Litematica cannot load it.
+
+The layout is published here because a client needs it to draw a preview, and the
+explorer already carries a decoder for it, in
+[`realtySchematic.ts`](../realty-explorer/src/api/realtySchematic.ts).
+
+All integers are big-endian. `text` is an unsigned 16-bit byte length followed by that many
+UTF-8 bytes. `varint` is unsigned LEB128.
+
+```
+offset 0   4 bytes   magic: 0x52 0x4C 0x54 0x59  ("RLTY")
+offset 4   1 byte    version: 0x01
+offset 5   ...       zlib stream (RFC 1950) containing the body
+
+body:
+  int32   dataVersion          Minecraft data version the states were read under
+  int32   width                x extent
+  int32   height               y extent
+  int32   length               z extent
+  int32   paletteSize          at least 1; entry 0 is always minecraft:air
+  paletteSize x { text state ; text blockEntityId }     blockEntityId is "" for none
+  int32   runCount
+  runCount x { varint paletteIndex ; varint runLength }
+```
+
+**Cell order.** Cells are listed x outermost, then z, then y innermost. The cell at
+`(x, y, z)` is number `(x * length + z) * height + y`. Sponge schematics use y, z, x; the
+difference is deliberate. Run lengths must sum to exactly `width * height * length`.
+
+**Coordinates.** There is no offset, origin or world coordinate anywhere in the format.
+Coordinates are relative to the capture's own minimum corner.
+
+**Palette.** A `state` is a block and its properties, such as
+`minecraft:oak_stairs[facing=north,half=bottom,shape=straight]`. Properties that never
+change how a block is drawn, such as a leaf block's `persistent` and `distance`, are left
+out. Every kind of air is stored as `minecraft:air`. A block entity is recorded by its id
+only, such as `minecraft:chest`.
+
+**Versions.** The service serves only a version it knows. A stored capture with any other
+header answers `404 SCHEMATIC_NOT_FOUND`.
+
+**Reading one safely.** The bytes come from the network. Check every count against what
+the body can hold before allocating for it. The plugin never writes a run of no cells,
+and the explorer's decoder refuses one.
 
 ## Browser clients (CORS)
 

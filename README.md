@@ -185,13 +185,32 @@ it can pause the tick for up to `request-timeout-ms` if a request is in flight w
 
 ## Schematic capture
 
-`/realty schematic capture [region] [--force]` snapshots a registered region's blocks into the
-database, from the block the player stands on up to the region's ceiling, and serves it read-only at
-`GET /v1/region/schematic`. It is players only -- the floor is taken from where the sender stands, and
-the console stands nowhere.
+`/realty schematic capture [region] [--force]` takes a snapshot of a registered region for the web
+preview. The snapshot runs from the block the player stands on up to the region's ceiling, and is
+served read-only at `GET /v1/region/schematic`. The command is players only -- the floor is taken
+from where the sender stands, and the console stands nowhere.
 
-Because a capture publishes the region's blocks to an endpoint anyone can read, the region's own
-people decide when that snapshot is taken:
+A capture stores only the blocks that can be seen from outside the region. It holds no world
+position. It is written in a format of Realty's own, which
+[realty-rest's README](realty-web/realty-rest/README.md#the-capture-format) describes. In practice:
+
+- The inside of a closed build is not captured.
+- An opening in a wall lets the view in. A doorway with no door is one, and the rooms it leads to
+  are captured.
+- Rooms behind glass are not captured. A block directly against a window is.
+- WorldEdit and Litematica cannot load a capture.
+- A capture cannot be used to back up or restore a region.
+
+The web preview has to decode a capture to draw it, so someone determined can recover what it
+holds: the exterior shell, which any player standing outside can already see.
+
+**Upgrading from a version that stored WorldEdit schematics.** Every capture made before the
+upgrade is deleted the first time the plugin starts. Capture each region again to bring its preview
+back. Until then its page shows "No preview captured yet". Upgrade `realty-rest` and the explorer
+with the plugin: an older `realty-rest` refuses to start against the upgraded database.
+
+A capture is published at an endpoint anyone can read, so the region's own people decide when it
+is taken:
 
 | Permission | Default | Grants |
 |---|---|---|
