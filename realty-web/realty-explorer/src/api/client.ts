@@ -28,14 +28,18 @@ function resolveBaseUrl(baseUrl: string): string {
 }
 
 /**
- * Returns a loader for the region's schematic bytes.
+ * Returns a loader for the region's capture, as the API served it.
+ *
+ * The bytes are in Realty's own format. The renderer cannot read them until
+ * {@code realtyToRenderable} has translated them.
  *
  * The {@code parseAs} below is load-bearing and cannot be type-checked: openapi-fetch
  * leaves it unconditionally optional, so omitting it on this octet-stream endpoint
  * fails at runtime rather than at compile time. This is the only call site, so the
  * mistake is available exactly once.
  *
- * The returned closure is already the shape SchematicRenderer expects.
+ * The returned closure has the shape of a SchematicRenderer loader. What it returns
+ * still has to be decoded first.
  */
 export function fetchSchematic(
   client: ApiClient,
