@@ -1,6 +1,8 @@
 package io.github.md5sha256.realty.command;
 
+import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.world.World;
@@ -13,8 +15,9 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.schematic.CaptureBounds;
 import io.github.md5sha256.realty.schematic.CaptureCooldown;
+import io.github.md5sha256.realty.schematic.CaptureEncoding;
 import io.github.md5sha256.realty.schematic.CaptureRegistry;
-import io.github.md5sha256.realty.schematic.RegionSchematicWriter;
+import io.github.md5sha256.realty.schematic.Occlusion;
 import io.github.md5sha256.realty.schematic.RegionVolume;
 import io.github.md5sha256.realty.schematic.TickScheduler;
 import io.github.md5sha256.realty.schematic.TickSlicedCopy;
@@ -51,6 +54,11 @@ import java.util.logging.Logger;
  * large region never stalls the server. It is not asynchronous: Paper forbids chunk
  * access off the main thread, so only the encode and the database write -- neither of
  * which touches the world -- leave it.</p>
+ *
+ * <p>What is stored is not a copy of the region. It is a hollowed one -- only the blocks
+ * that can be seen from outside -- with no world position, written in Realty's own
+ * format for the web preview to draw. WorldEdit cannot load it and nothing in Realty
+ * reads it back, so this command can never be used to back a region up.</p>
  */
 public record SchematicCommandGroup(
         @NotNull RealtyBackend backend,
@@ -123,6 +131,10 @@ public record SchematicCommandGroup(
         Settings current = this.settings.get();
 
         World weWorld = BukkitAdapter.adapt(region.world());
+        // Read here, on the main thread, and carried along as a plain number. The encode
+        // runs on the database executor and should ask WorldEdit's platform nothing.
+        int dataVersion = WorldEdit.getInstance().getPlatformManager()
+                .queryCapability(Capability.WORLD_EDITING).getDataVersion();
         // From the block the player stands on, up. A region claimed from bedrock to the
         // sky captures as the building and the ground it stands on, not the column of
         // stone beneath. The location's block is the one the feet occupy; the floor is
@@ -179,7 +191,8 @@ public record SchematicCommandGroup(
                             Placeholder.unparsed("region", regionId)));
                     return;
                 }
-                beginCapture(sender, regionId, worldId, weWorld, weRegion, volume, current);
+                beginCapture(sender, regionId, worldId, weWorld, weRegion, volume, current,
+                        dataVersion);
             });
         });
     }
@@ -194,10 +207,11 @@ public record SchematicCommandGroup(
                               @NotNull World weWorld,
                               @NotNull Region weRegion,
                               long volume,
-                              @NotNull Settings current) {
+                              @NotNull Settings current,
+                              int dataVersion) {
         TickSlicedCopy copy = TickSlicedCopy.start(weWorld, weRegion,
                 current.schematicCaptureBlocksPerTick(), this.scheduler,
-                clipboard -> persist(sender, regionId, worldId, clipboard),
+                clipboard -> persist(sender, regionId, worldId, clipboard, dataVersion),
                 reason -> {
                     this.registry.finish(regionId, worldId);
                     sender.sendMessage(messages.messageFor(MessageKeys.SCHEMATIC_ABORTED,
@@ -226,10 +240,15 @@ public record SchematicCommandGroup(
     private void persist(@NotNull CommandSender sender,
                          @NotNull String regionId,
                          @NotNull UUID worldId,
-                         @NotNull Clipboard clipboard) {
+                         @NotNull Clipboard clipboard,
+                         int dataVersion) {
         this.executors.dbExec().execute(() -> {
             try {
-                byte[] bytes = RegionSchematicWriter.writeClipboard(clipboard);
+                // Nothing here can be loaded by WorldEdit, and nothing that could be is kept.
+                // One call, so that no step of it can be left out: the world position is
+                // dropped, then what cannot be seen from outside, and what is left is
+                // written in Realty's own layout.
+                byte[] bytes = CaptureEncoding.encode(clipboard, Occlusion::hides, dataVersion);
                 boolean stored = this.backend.storeSchematic(regionId, worldId, bytes);
                 this.executors.mainThreadExec().execute(() -> {
                     if (stored) {
