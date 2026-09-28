@@ -135,9 +135,6 @@ public record SchematicCommandGroup(
         // runs on the database executor and should ask WorldEdit's platform nothing.
         int dataVersion = WorldEdit.getInstance().getPlatformManager()
                 .queryCapability(Capability.WORLD_EDITING).getDataVersion();
-        // Also here, on the main thread: the encode asks what each block hides, and the
-        // first time WorldEdit is asked that of a block type it writes to a map of its own.
-        Occlusion.learnEveryMaterial();
         // From the block the player stands on, up. A region claimed from bedrock to the
         // sky captures as the building and the ground it stands on, not the column of
         // stone beneath. The location's block is the one the feet occupy; the floor is

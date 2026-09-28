@@ -45,9 +45,11 @@ public final class Occlusion {
      * <p>The first lookup of a type's material writes to a map inside WorldEdit that is
      * not safe to write from two threads. {@link #hides} runs on a database thread, so
      * without this its first sight of a block type would make that write there, while the
-     * server thread may be making its own. Each type keeps its answer once it has one, so
-     * after this the database thread only reads. Looking up a type that is already known
-     * costs nothing, so this is called before every capture and keeps no flag.</p>
+     * server thread may be making its own. Each type keeps its answer once it has one, for
+     * as long as the server runs, so after this the database thread only reads.</p>
+     *
+     * <p>Called once, when the plugin starts. Block types do not change while a server
+     * is running, so there is nothing for a second call to learn.</p>
      */
     public static void learnEveryMaterial() {
         for (BlockType type : BlockType.REGISTRY) {
