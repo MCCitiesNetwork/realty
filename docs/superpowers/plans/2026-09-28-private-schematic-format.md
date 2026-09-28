@@ -110,9 +110,26 @@ The independent review in wave 5 found that the work as first built did not meet
 | A test searched compressed bytes for the word "Offset" and could not fail. | Removed. `CaptureEncodingTest` encodes one build at two places in the world and requires identical bytes. |
 | Docs and comments claimed more than the code did. | Corrected. |
 
+### The second review
+
+A second independent review probed the rewritten rule with some forty builds. It confirmed the two bugs above were fixed and that the code does what the rule says. It found the rule still kept blocks nobody outside could see.
+
+| Finding | Fix |
+|---|---|
+| Slabs, stairs, trapdoors, carpet and doors were read as glass is read. A slab roof kept what stood on the top floor. A chest under a carpet in a lawn was kept. | `FaceCover` reads from a block's state which faces of its cell it covers. The view neither enters nor leaves a cell through a covered face. `Sight` is now a record of whether the view travels on and which faces are covered. |
+| Farmland, dirt path and full-depth snow are not full cubes, so they were read as see-through. | Counted as full. |
+| The reader, the cull and the encoder were public, so the command could call one without another. | They are visible inside their package only. `CaptureEncoding` and `Occlusion` are the package's public surface. |
+| A 112 KB response cost 5 seconds and 1.4 GB: sixteen million empty palette entries. | The palette is capped at 65,536 entries and at the number of cells plus one. |
+
+**Door and trapdoor shapes are from the vanilla game's block shapes as remembered, and were not checked on a server.** If one is the wrong way round, the block behind a door is kept where it should not be, or the block in front of it is dropped. The error is one block deep either way.
+
+**Known and disclosed, not fixed.** The cull follows open air. One gap in a wall or a roof, such as a chimney flue, brings in every room the air behind it connects to. Deciding visibility by line of sight would close this and would also remove blocks that can be seen from some angle. That is a different design and the owner's decision.
+
 **Found and not fixed, because they are not part of this work. The owner has been told.**
 
-- A region that covers only the inside of a room is captured whole. It has no outside.
+- A region that covers only the inside of a room is captured whole. It has no outside. The same holds for any room the region's edge cuts through.
+- With no WorldEdit adapter for the server's version, every block reads as a full opaque cube. Nothing private is kept, and the ground under every flower and torch is removed.
+- `Occlusion.hides` still calls into the server's block data on a database thread on every capture. Warming removes the write to WorldEdit's map. Whether the server's own shape cache is safe to read from two threads was not checked.
 - A region's bounds are served by `GET /v1/region`, so where a capture stood can be worked out.
 - A polygonal region is captured as its bounding box, which takes in blocks of neighbouring plots.
 - A fence or a row of iron bars hides what is behind it as glass does, so a roofed gazebo loses its contents in the preview.
