@@ -164,7 +164,8 @@ body:
 difference is deliberate. Run lengths must sum to exactly `width * height * length`.
 
 **Coordinates.** There is no offset, origin or world coordinate anywhere in the format.
-Coordinates are relative to the capture's own minimum corner.
+Coordinates are relative to the capture's own minimum corner. Where the region stands is
+served separately, by `GET /v1/region`.
 
 **Palette.** A `state` is a block and its properties, such as
 `minecraft:oak_stairs[facing=north,half=bottom,shape=straight]`. Properties that never
@@ -175,9 +176,9 @@ only, such as `minecraft:chest`.
 **Versions.** The service serves only a version it knows. A stored capture with any other
 header answers `404 SCHEMATIC_NOT_FOUND`.
 
-**Reading one safely.** The bytes come from the network. Check every count against what
-the body can hold before allocating for it. The plugin never writes a run of no cells,
-and the explorer's decoder refuses one.
+**Reading one safely.** The bytes come from the network. Stop inflating the body at a
+fixed size, and check every count against what the body can hold before allocating for
+it. The plugin never writes a run of no cells, and the explorer's decoder refuses one.
 
 ## Browser clients (CORS)
 

@@ -190,19 +190,27 @@ preview. The snapshot runs from the block the player stands on up to the region'
 served read-only at `GET /v1/region/schematic`. The command is players only -- the floor is taken
 from where the sender stands, and the console stands nowhere.
 
-A capture stores only the blocks that can be seen from outside the region. It holds no world
-position. It is written in a format of Realty's own, which
+A capture stores only the blocks that can be seen from outside the region, looking from its sides
+and from above. It is written in a format of Realty's own, which
 [realty-rest's README](realty-web/realty-rest/README.md#the-capture-format) describes. In practice:
 
-- The inside of a closed build is not captured.
+- The inside of a closed build is not captured. That covers its rooms, what is in them, and its
+  floors.
 - An opening in a wall lets the view in. A doorway with no door is one, and the rooms it leads to
   are captured.
-- Rooms behind glass are not captured. A block directly against a window is.
+- A block you can see past shows the one block directly behind it, and nothing further. Glass is
+  such a block. So are stairs, slabs, fences, leaves and carpet. A room behind a window is not
+  captured; a block pressed against the glass is.
+- A region drawn inside a room's walls is captured whole. It has no outside, so everything in it
+  can be seen from its edge.
 - WorldEdit and Litematica cannot load a capture.
 - A capture cannot be used to back up or restore a region.
 
+A capture does not record where the region stands. That is not a secret all the same: the
+region's bounds are published by `GET /v1/region` and drawn on the map.
+
 The web preview has to decode a capture to draw it, so someone determined can recover what it
-holds: the exterior shell, which any player standing outside can already see.
+holds, which is the shell described above.
 
 **Upgrading from a version that stored WorldEdit schematics.** Every capture made before the
 upgrade is deleted the first time the plugin starts. Capture each region again to bring its preview

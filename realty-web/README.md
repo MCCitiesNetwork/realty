@@ -138,7 +138,7 @@ seen from outside the plot, so closed interiors and rooms behind glass are not d
 [root README](../README.md#schematic-capture) says what a capture holds.
 
 The preview keeps the camera outside the plot -- orbit and zoom, but never through a
-wall -- and opens on a fixed compass bearing, above the plot's south-east corner, so
+wall, and never underneath -- and opens on a fixed compass bearing, above the plot's south-east corner, so
 every plot is seen the same way round. The renderer's own memory of resource packs is
 cleared before every start, so a pack changed on the game server reaches every browser
 on its next visit.
@@ -256,8 +256,9 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
   the same panel for a capture it cannot read.
 - **The preview shows the outside of a build only.** A capture leaves out every block
   that cannot be seen from outside the plot. A closed room does not appear, even
-  through a window; only a block directly against the glass does. A room behind an open
-  gap, such as a doorway with no door, does appear.
+  through a window; only a block directly against the glass does, and a window onto a
+  closed room shows it empty and without a floor. A room behind an open gap, such as a
+  doorway with no door, does appear.
 - **A capture starts at the block the player stands on.** A region claimed from bedrock
   to the build limit would otherwise capture as a column of stone with a house on top.
   The block under the capturing player's feet becomes the floor; the footprint and

@@ -94,7 +94,32 @@ So stone is at `(0,0,0)`, the stairs at `(1,0,0)` and the chest at `(2,1,1)`.
 
 ---
 
+## What The Review Changed
+
+The independent review in wave 5 found that the work as first built did not meet its purpose. These were fixed before anything was pushed. Where this section and a task below disagree, this section and the code are right.
+
+| Finding | Fix |
+|---|---|
+| The view ran on through any chain of see-through blocks. A carpeted floor, a fence post or a flooded room carried it through a sealed building. | A see-through block now shows the one block directly behind it and the view stops there. |
+| Every cell on the bottom of the box was kept. A house level with the ground kept its whole floor and anything set into it. | The bottom of the box is no longer a way in. The view starts on the four sides and the top. The preview's camera is held level with the plot or above it. |
+| Occlusion was read per block type, from its default state. A double slab was read as a half slab. | `Occlusion.hides` recognises a double slab by its own state. |
+| The first lookup of a block type's material writes to an unsynchronised map inside WorldEdit, and it was happening on a database thread. | `Occlusion.learnEveryMaterial` runs on the main thread before each capture. |
+| No test would fail if the command stopped culling. | The command makes one call, `CaptureEncoding.encode`, and `CaptureEncodingTest` makes the same call. |
+| A 58-byte response cost the browser 26 seconds and 2.5 GB. A compressed body was inflated in full before any check. | The decoder stops inflating at 64 MiB, refuses more than 100,000 block entities, refuses a name longer than the target format can write, and `realtyToRenderable` throws only `UnreadableSchematicError`. |
+| Water was a see-through block like any other, so a pond would have shown one block of water and no bed. | Water and lava carry the view as air does. `BlockGrid.PaletteEntry` holds a `Sight` of `OPEN`, `SEE_THROUGH` or `SOLID` in place of a boolean. |
+| A test searched compressed bytes for the word "Offset" and could not fail. | Removed. `CaptureEncodingTest` encodes one build at two places in the world and requires identical bytes. |
+| Docs and comments claimed more than the code did. | Corrected. |
+
+**Found and not fixed, because they are not part of this work. The owner has been told.**
+
+- A region that covers only the inside of a room is captured whole. It has no outside.
+- A region's bounds are served by `GET /v1/region`, so where a capture stood can be worked out.
+- A polygonal region is captured as its bounding box, which takes in blocks of neighbouring plots.
+- A fence or a row of iron bars hides what is behind it as glass does, so a roofed gazebo loses its contents in the preview.
+
 ## Shell Cull Rule
+
+> Superseded in part. See **What The Review Changed**. The rule as built: the view starts on the four sides and the top; open cells, meaning air, water and lava, pass it on in every direction; every block it touches is kept; a kept see-through block also keeps the one block directly behind it, and that block passes nothing on.
 
 A block is kept only if it can be seen from outside the capture box.
 
