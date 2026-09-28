@@ -190,27 +190,34 @@ preview. The snapshot runs from the block the player stands on up to the region'
 served read-only at `GET /v1/region/schematic`. The command is players only -- the floor is taken
 from where the sender stands, and the console stands nowhere.
 
-A capture stores only the blocks that can be seen from outside the region, looking from its sides
-and from above. It is written in a format of Realty's own, which
-[realty-rest's README](realty-web/realty-rest/README.md#the-capture-format) describes. In practice:
+A capture stores the blocks that open air reaches from the region's sides and from above. It is
+written in a format of Realty's own, which
+[realty-rest's README](realty-web/realty-rest/README.md#the-capture-format) describes.
 
-- The inside of a closed build is not captured. That covers its rooms, what is in them, and its
-  floors.
-- An opening in a wall lets the view in. A doorway with no door is one, and the rooms it leads to
-  are captured.
-- A block you can see past shows the one block directly behind it, and nothing further. Glass is
-  such a block. So are stairs, slabs, fences, leaves and carpet. A room behind a window is not
-  captured; a block pressed against the glass is.
-- A region drawn inside a room's walls is captured whole. It has no outside, so everything in it
-  can be seen from its edge.
-- WorldEdit and Litematica cannot load a capture.
-- A capture cannot be used to back up or restore a region.
+What is left out:
+
+- The inside of a closed build: its rooms, what is in them, and its floors.
+- A room behind a window. The blocks touching the glass are captured and nothing past them.
+- What lies under a roof of slabs or stairs, under carpet, or behind a door or a trapdoor.
+
+What is not left out:
+
+- **Anything behind an opening.** A doorway with no door, a chimney flue, a hole in a roof. The
+  capture follows open air wherever it leads, so one gap brings in every room the air behind it
+  connects to.
+- **A room the region cuts through.** A region drawn inside a room's walls has no outside, so the
+  room is captured whole. So is a basement dug to the plot line, or a house that uses a
+  neighbour's wall.
+- **Blocks beside a fence, a torch or a leaf.** These hide nothing, so what touches them is kept.
+
+A capture cannot be loaded by WorldEdit or Litematica, and cannot be used to back up or restore a
+region.
 
 A capture does not record where the region stands. That is not a secret all the same: the
 region's bounds are published by `GET /v1/region` and drawn on the map.
 
 The web preview has to decode a capture to draw it, so someone determined can recover what it
-holds, which is the shell described above.
+holds, which is what is described above.
 
 **Upgrading from a version that stored WorldEdit schematics.** Every capture made before the
 upgrade is deleted the first time the plugin starts. Capture each region again to bring its preview

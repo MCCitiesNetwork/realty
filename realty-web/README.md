@@ -133,9 +133,10 @@ A freehold with an asking price is shown as for sale whoever holds its title: a 
 who has priced a plot is selling it. Its "last sold for" figure is the last sale, never
 the asking price.
 
-The 3D preview shows the outside of a build only. A capture holds the blocks that can be
-seen from outside the plot, so closed interiors and rooms behind glass are not drawn. The
-[root README](../README.md#schematic-capture) says what a capture holds.
+The 3D preview shows the outside of a closed build only. A capture holds the blocks that
+open air reaches from outside the plot, so closed interiors and rooms behind glass are
+not drawn. The [root README](../README.md#schematic-capture) says what a capture holds,
+and what it does not leave out.
 
 The preview keeps the camera outside the plot -- orbit and zoom, but never through a
 wall, and never underneath -- and opens on a fixed compass bearing, above the plot's south-east corner, so
@@ -254,11 +255,12 @@ installs, tests and builds. The first run downloads a toolchain and is slow.
 - A region with no captured schematic is the normal case — capture is on demand via
   `/realty schematic capture`. The detail screen shows a panel, not an error. It shows
   the same panel for a capture it cannot read.
-- **The preview shows the outside of a build only.** A capture leaves out every block
-  that cannot be seen from outside the plot. A closed room does not appear, even
-  through a window; only a block directly against the glass does, and a window onto a
-  closed room shows it empty and without a floor. A room behind an open gap, such as a
-  doorway with no door, does appear.
+- **The preview shows the outside of a closed build only.** A capture leaves out the
+  blocks that open air does not reach from outside the plot. A closed room does not
+  appear, even through a window; only the blocks touching the glass do, and a window
+  onto a closed room shows it empty and without a floor. A room behind an open gap,
+  such as a doorway with no door or a hole in the roof, does appear, along with every
+  room it opens onto.
 - **A capture starts at the block the player stands on.** A region claimed from bedrock
   to the build limit would otherwise capture as a column of stone with a house on top.
   The block under the capturing player's feet becomes the floor; the footprint and
