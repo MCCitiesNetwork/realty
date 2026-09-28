@@ -21,9 +21,11 @@ public final class Occlusion {
      * default state. A slab's default is the bottom half, so a double slab, which is a
      * full cube, would be read as half of one. It is recognised by its own state.</p>
      *
-     * <p>A block the registry knows nothing about is treated as hiding nothing. The cost
-     * of that guess is a block kept that need not have been; the other guess would punch
-     * a hole in the preview.</p>
+     * <p>A block with no material at all is treated as hiding nothing. The cost of that
+     * guess is a block kept that need not have been; the other guess would punch a hole
+     * in the preview. That is not the same as a server WorldEdit has no adapter for:
+     * there every block is given a material that says full and opaque, so everything
+     * hides, nothing private is kept, and the preview has holes in it.</p>
      */
     public static boolean hides(@NotNull BlockState state) {
         BlockMaterial material = state.getBlockType().getMaterial();

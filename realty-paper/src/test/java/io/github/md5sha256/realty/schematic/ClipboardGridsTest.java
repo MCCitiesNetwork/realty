@@ -96,7 +96,7 @@ class ClipboardGridsTest {
 
         Assertions.assertEquals(BlockGrid.Sight.SOLID,
                 grid.palette().get(grid.cells()[grid.index(0, 0, 0)]).sight());
-        Assertions.assertEquals(BlockGrid.Sight.SEE_THROUGH,
+        Assertions.assertEquals(BlockGrid.Sight.CLEAR,
                 grid.palette().get(grid.cells()[grid.index(2, 1, 1)]).sight());
     }
 

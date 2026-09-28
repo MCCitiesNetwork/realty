@@ -21,10 +21,10 @@ class RealtySchematicEncoderTest {
             new BlockGrid.PaletteEntry("minecraft:stone", "", BlockGrid.Sight.SOLID),
             new BlockGrid.PaletteEntry(
                     "minecraft:oak_stairs[facing=north,half=bottom,shape=straight]", "",
-                    BlockGrid.Sight.SEE_THROUGH),
+                    BlockGrid.Sight.CLEAR),
             new BlockGrid.PaletteEntry(
                     "minecraft:chest[facing=north,type=single]", "minecraft:chest",
-                    BlockGrid.Sight.SEE_THROUGH));
+                    BlockGrid.Sight.CLEAR));
 
     private static BlockGrid sample() {
         BlockGrid grid = new BlockGrid(3, 2, 2, PALETTE, new int[12]);
@@ -106,7 +106,7 @@ class RealtySchematicEncoderTest {
     void whatABlockDoesToTheViewIsNotWritten() throws Exception {
         List<BlockGrid.PaletteEntry> flipped = List.of(
                 BlockGrid.PaletteEntry.AIR,
-                new BlockGrid.PaletteEntry("minecraft:stone", "", BlockGrid.Sight.SEE_THROUGH));
+                new BlockGrid.PaletteEntry("minecraft:stone", "", BlockGrid.Sight.CLEAR));
         List<BlockGrid.PaletteEntry> original = List.of(
                 BlockGrid.PaletteEntry.AIR,
                 new BlockGrid.PaletteEntry("minecraft:stone", "", BlockGrid.Sight.SOLID));
