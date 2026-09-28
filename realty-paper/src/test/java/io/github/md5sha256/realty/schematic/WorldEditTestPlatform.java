@@ -71,7 +71,8 @@ final class WorldEditTestPlatform {
         // Only the blocks these tests place need to exist; their property sets come
         // from the bundled data the stub platform exposes above.
         for (String id : new String[]{"minecraft:air", "minecraft:stone", "minecraft:dirt",
-                "minecraft:chest", "minecraft:cave_air", "minecraft:oak_leaves"}) {
+                "minecraft:chest", "minecraft:cave_air", "minecraft:oak_leaves",
+                "minecraft:water", "minecraft:glass"}) {
             if (BlockType.REGISTRY.get(id) == null) {
                 BlockType.REGISTRY.register(id, new BlockType(id));
             }

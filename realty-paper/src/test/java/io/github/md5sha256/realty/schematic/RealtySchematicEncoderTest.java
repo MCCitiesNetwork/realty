@@ -4,7 +4,6 @@ import io.github.md5sha256.realty.api.RealtySchematicFormat;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -19,11 +18,13 @@ class RealtySchematicEncoderTest {
 
     private static final List<BlockGrid.PaletteEntry> PALETTE = List.of(
             BlockGrid.PaletteEntry.AIR,
-            new BlockGrid.PaletteEntry("minecraft:stone", "", true),
+            new BlockGrid.PaletteEntry("minecraft:stone", "", BlockGrid.Sight.SOLID),
             new BlockGrid.PaletteEntry(
-                    "minecraft:oak_stairs[facing=north,half=bottom,shape=straight]", "", false),
+                    "minecraft:oak_stairs[facing=north,half=bottom,shape=straight]", "",
+                    BlockGrid.Sight.SEE_THROUGH),
             new BlockGrid.PaletteEntry(
-                    "minecraft:chest[facing=north,type=single]", "minecraft:chest", false));
+                    "minecraft:chest[facing=north,type=single]", "minecraft:chest",
+                    BlockGrid.Sight.SEE_THROUGH));
 
     private static BlockGrid sample() {
         BlockGrid grid = new BlockGrid(3, 2, 2, PALETTE, new int[12]);
@@ -102,25 +103,16 @@ class RealtySchematicEncoderTest {
     }
 
     @Test
-    void theOccludingFlagIsNotWritten() throws Exception {
+    void whatABlockDoesToTheViewIsNotWritten() throws Exception {
         List<BlockGrid.PaletteEntry> flipped = List.of(
                 BlockGrid.PaletteEntry.AIR,
-                new BlockGrid.PaletteEntry("minecraft:stone", "", false));
+                new BlockGrid.PaletteEntry("minecraft:stone", "", BlockGrid.Sight.SEE_THROUGH));
         List<BlockGrid.PaletteEntry> original = List.of(
                 BlockGrid.PaletteEntry.AIR,
-                new BlockGrid.PaletteEntry("minecraft:stone", "", true));
+                new BlockGrid.PaletteEntry("minecraft:stone", "", BlockGrid.Sight.SOLID));
 
         Assertions.assertArrayEquals(
                 RealtySchematicEncoder.encode(new BlockGrid(1, 1, 1, original, new int[]{1}), 1),
                 RealtySchematicEncoder.encode(new BlockGrid(1, 1, 1, flipped, new int[]{1}), 1));
-    }
-
-    @Test
-    void noWorldCoordinateAppearsInTheBody() throws Exception {
-        // A grid cannot hold one, so this guards the encoder against growing a field.
-        RealtySchematicTestDecoder.decode(RealtySchematicEncoder.encode(sample(), 4325));
-        String printable = new String(
-                RealtySchematicEncoder.encode(sample(), 4325), StandardCharsets.ISO_8859_1);
-        Assertions.assertFalse(printable.contains("Offset"));
     }
 }

@@ -29,16 +29,26 @@ public record BlockGrid(int width,
     /** The palette index of air, in every grid. */
     public static final int AIR = 0;
 
+    /** What a cell does to the view of someone looking at the capture from outside. */
+    public enum Sight {
+        /** Carries the view onward in every direction: air, and water or lava. */
+        OPEN,
+        /** Shows the one block directly behind it and nothing further: glass, a stair, a fence. */
+        SEE_THROUGH,
+        /** Hides what is behind it: a full, opaque cube. */
+        SOLID
+    }
+
     /**
      * One distinct block.
      *
      * @param state         the block and the properties that shape it, as WorldEdit prints them
      * @param blockEntityId the block entity's id, or the empty string for none
-     * @param occluding     whether the block hides what is behind it; used by the cull, never written
+     * @param sight         what the block does to the view; used by the cull, never written
      */
-    public record PaletteEntry(@NotNull String state, @NotNull String blockEntityId, boolean occluding) {
+    public record PaletteEntry(@NotNull String state, @NotNull String blockEntityId, @NotNull Sight sight) {
 
-        public static final PaletteEntry AIR = new PaletteEntry("minecraft:air", "", false);
+        public static final PaletteEntry AIR = new PaletteEntry("minecraft:air", "", Sight.OPEN);
     }
 
     public BlockGrid {
