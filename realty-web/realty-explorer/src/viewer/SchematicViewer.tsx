@@ -29,6 +29,7 @@ type Point = { x: number; y: number; z: number };
 type OrbitControls = {
   minDistance?: number;
   maxDistance?: number;
+  maxPolarAngle?: number;
   enablePan?: boolean;
   target?: { set: (x: number, y: number, z: number) => unknown };
   update?: () => unknown;
@@ -70,8 +71,8 @@ const CAMERA_BEARING: [number, number, number] = [1, 0.7, 1];
  * pitch across 30 to 55 degrees by height against footprint. Every plot therefore opens facing
  * a little differently from its neighbour, and none of them matches the server map, whose
  * flat view is north-up. Nothing recoverable says which way a plot itself faces -- a
- * captured schematic carries its world offset but no rotation -- so one bearing for all
- * of them is as close to the map as this can get.</p>
+ * capture records neither where it stood nor which way it was turned -- so one bearing
+ * for all of them is as close to the map as this can get.</p>
  *
  * <p>Called once the schematic has rendered, which is after the renderer's own framing:
  * that runs on the schematic-added event, so the bearing set here is the one that lasts.</p>
@@ -89,6 +90,10 @@ export function faceCameraSouthEast(renderer: Renderer | undefined): void {
  * plot cannot be zoomed away to a speck. Panning is off because it moves the point
  * being orbited, and a point moved into the building takes the camera with it.</p>
  *
+ * <p>The camera also stays level with the plot's middle or above it. A capture leaves
+ * out the floor of every closed building, since nothing outside can see it, so from
+ * underneath a plot is a sheet of ground with holes where its houses stand.</p>
+ *
  * <p>Called once the schematic has rendered, since only then are its bounds known.</p>
  */
 export function keepCameraOutside(renderer: Renderer | undefined): void {
@@ -102,6 +107,8 @@ export function keepCameraOutside(renderer: Renderer | undefined): void {
   if (!Number.isFinite(radius) || radius <= 0) return;
   orbit.minDistance = radius * 1.05;
   orbit.maxDistance = radius * 8;
+  // Measured from straight up: a quarter turn is level with the point being orbited.
+  orbit.maxPolarAngle = Math.PI / 2;
   orbit.enablePan = false;
   orbit.target?.set((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, (box.min.z + box.max.z) / 2);
   orbit.update?.();
