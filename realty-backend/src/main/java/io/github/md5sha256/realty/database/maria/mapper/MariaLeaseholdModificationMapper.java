@@ -90,6 +90,29 @@ public interface MariaLeaseholdModificationMapper extends LeaseholdModificationM
     @Override
     @Update("""
             UPDATE LeaseholdModification
+            SET status = 'ACTIVE',
+                resolvedAt = NULL
+            WHERE modificationId = #{modificationId}
+            AND status = 'APPLIED'
+            """)
+    int reactivate(@Param("modificationId") int modificationId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdModification later
+            INNER JOIN LeaseholdModification earlier ON earlier.modificationId = #{fromModificationId}
+            SET later.newPrice = COALESCE(later.newPrice, earlier.newPrice),
+                later.newDurationSeconds = COALESCE(later.newDurationSeconds, earlier.newDurationSeconds),
+                later.newMaxExtensions = COALESCE(later.newMaxExtensions, earlier.newMaxExtensions)
+            WHERE later.modificationId = #{intoModificationId}
+            AND later.proposerRole = earlier.proposerRole
+            """)
+    int carryForward(@Param("fromModificationId") int fromModificationId,
+                     @Param("intoModificationId") int intoModificationId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdModification
             SET status = #{status},
                 resolvedAt = CASE WHEN #{status} IN ('APPLIED', 'REJECTED', 'WITHDRAWN', 'SUPERSEDED')
                                   THEN NOW() ELSE resolvedAt END

@@ -28,6 +28,21 @@ public interface LeaseholdModificationMapper {
     @Nullable LeaseholdModificationEntity selectActiveByRegion(@NotNull String worldGuardRegionId,
                                                                @NotNull UUID worldId);
 
+    /**
+     * Makes an applied change of terms pending again, as it was before it was applied.
+     * Only if it is still marked applied.
+     */
+    int reactivate(int modificationId);
+
+    /**
+     * Carries one change of terms forward into another from the same side: each term the
+     * later one leaves unsaid is taken from the earlier. What proposing the later one
+     * would have done, had the earlier still been pending when it was proposed.
+     *
+     * @return how many rows were changed: none if the two are from different sides
+     */
+    int carryForward(int fromModificationId, int intoModificationId);
+
     /** Sets the status of a modification, stamping {@code resolvedAt = NOW()} for terminal statuses. */
     int updateStatus(int modificationId, @NotNull String status);
 

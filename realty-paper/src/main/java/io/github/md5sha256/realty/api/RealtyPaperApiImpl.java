@@ -269,13 +269,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         if (price > 0) {
             double balance = economyProvider.getBalance(tenantId);
             if (balance < price) {
-                return rollbackRentAsync(regionId, worldId)
+                return rollbackRentAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new RentResult.InsufficientFunds(price, balance));
             }
             PaymentResult result = economyProvider.transfer(
                     tenantId, reserved.landlordId(), price, "Rental Payment: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
-                return rollbackRentAsync(regionId, worldId)
+                return rollbackRentAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new RentResult.PaymentFailed(failure.errorMessage()));
             }
         }
@@ -292,9 +292,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     private @NotNull CompletableFuture<Void> rollbackRentAsync(@NotNull String regionId,
-                                                                @NotNull UUID worldId) {
+                                                                @NotNull UUID worldId,
+                                                                @NotNull UUID tenantId,
+                                                                @NotNull RealtyBackend.RentResult.Success reserved) {
         return CompletableFuture.runAsync(
-                () -> realtyApi.rollbackRent(regionId, worldId),
+                () -> realtyApi.rollbackRent(regionId, worldId, tenantId, reserved),
                 executorState.dbExec());
     }
 
@@ -345,7 +347,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     success.landlordId(), tenantId, refund,
                     "Early Lease Termination Refund: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
-                return rollbackUnrentAsync(regionId, worldId, tenantId)
+                return rollbackUnrentAsync(regionId, worldId, tenantId, success)
                         .thenApply(ignored -> new UnrentResult.RefundFailed(failure.errorMessage()));
             }
         }
@@ -361,9 +363,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     private @NotNull CompletableFuture<Void> rollbackUnrentAsync(@NotNull String regionId,
                                                                   @NotNull UUID worldId,
-                                                                  @NotNull UUID tenantId) {
+                                                                  @NotNull UUID tenantId,
+                                                                  @NotNull RealtyBackend.UnrentResult.Success ended) {
         return CompletableFuture.runAsync(
-                () -> realtyApi.rentRegion(regionId, worldId, tenantId),
+                () -> realtyApi.rollbackUnrent(regionId, worldId, tenantId, ended),
                 executorState.dbExec());
     }
 
@@ -410,13 +413,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         if (price > 0) {
             double balance = economyProvider.getBalance(tenantId);
             if (balance < price) {
-                return rollbackExtendAsync(regionId, worldId, tenantId)
+                return rollbackExtendAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new ExtendResult.InsufficientFunds(price, balance));
             }
             PaymentResult result = economyProvider.transfer(
                     tenantId, reserved.landlordId(), price, "Lease Extension Payment: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
-                return rollbackExtendAsync(regionId, worldId, tenantId)
+                return rollbackExtendAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new ExtendResult.PaymentFailed(failure.errorMessage()));
             }
         }
@@ -426,11 +429,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 new ExtendResult.Success(price, regionId));
     }
 
-    private @NotNull CompletableFuture<Void> rollbackExtendAsync(@NotNull String regionId,
-                                                                  @NotNull UUID worldId,
-                                                                  @NotNull UUID tenantId) {
+    private @NotNull CompletableFuture<Void> rollbackExtendAsync(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID tenantId,
+            @NotNull RealtyBackend.RenewLeaseholdResult.Success reserved) {
         return CompletableFuture.runAsync(
-                () -> realtyApi.rollbackRenewLeasehold(regionId, worldId, tenantId),
+                () -> realtyApi.rollbackRenewLeasehold(regionId, worldId, tenantId, reserved),
                 executorState.dbExec());
     }
 

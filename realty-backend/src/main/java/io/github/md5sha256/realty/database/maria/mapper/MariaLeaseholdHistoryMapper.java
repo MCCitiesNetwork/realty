@@ -2,6 +2,9 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.mapper.LeaseholdHistoryMapper;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Insert;
@@ -31,6 +34,33 @@ public interface MariaLeaseholdHistoryMapper extends LeaseholdHistoryMapper {
                @Param("price") @Nullable Double price,
                @Param("durationSeconds") @Nullable Long durationSeconds,
                @Param("extensionsRemaining") @Nullable Integer extensionsRemaining);
+
+    @Override
+    // A select, because it answers with a row, and one that is declared to write. See
+    // MariaFreeholdHistoryMapper#insertReturningId.
+    @Select(value = """
+            INSERT INTO LeaseholdHistory (worldGuardRegionId, worldId, eventType, tenantId, landlordId,
+                                          price, durationSeconds, extensionsRemaining)
+            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{tenantId}, #{landlordId},
+                    #{price}, #{durationSeconds}, #{extensionsRemaining})
+            RETURNING historyId
+            """, affectData = true)
+    @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
+    int insertReturningId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                          @Param("worldId") @NotNull UUID worldId,
+                          @Param("eventType") @NotNull String eventType,
+                          @Param("tenantId") @NotNull UUID tenantId,
+                          @Param("landlordId") @NotNull UUID landlordId,
+                          @Param("price") @Nullable Double price,
+                          @Param("durationSeconds") @Nullable Long durationSeconds,
+                          @Param("extensionsRemaining") @Nullable Integer extensionsRemaining);
+
+    @Override
+    @Delete("""
+            DELETE FROM LeaseholdHistory
+            WHERE historyId = #{historyId}
+            """)
+    int deleteById(@Param("historyId") int historyId);
 
     @Override
     @SelectProvider(type = LeaseholdHistorySqlProvider.class, method = "searchHistory")
