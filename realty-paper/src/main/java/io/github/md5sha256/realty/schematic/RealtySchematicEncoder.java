@@ -12,9 +12,10 @@ import java.util.zip.DeflaterOutputStream;
 /**
  * Writes a grid in Realty's own layout.
  *
- * <p>Not a WorldEdit schematic, and not convertible to one by any existing tool: the
- * bytes are served from a public endpoint, and a saved response should load nowhere.
- * The explorer carries the matching decoder, so this is an obstacle and not a lock.</p>
+ * <p>Not a WorldEdit schematic: the bytes are served from a public endpoint, and a saved
+ * response should load in no tool a visitor already has. Realty's own explorer carries
+ * the matching decoder and ships it to every browser, so this is an obstacle and not a
+ * lock.</p>
  *
  * <p>Touches neither WorldEdit nor the world, so it runs wherever the caller likes.</p>
  */

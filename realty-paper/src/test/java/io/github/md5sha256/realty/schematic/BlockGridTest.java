@@ -28,7 +28,7 @@ class BlockGridTest {
     @Test
     void refusesAPaletteThatDoesNotStartWithAir() {
         List<BlockGrid.PaletteEntry> stoneFirst =
-                List.of(new BlockGrid.PaletteEntry("minecraft:stone", "", true));
+                List.of(new BlockGrid.PaletteEntry("minecraft:stone", "", BlockGrid.Sight.SOLID));
         Assertions.assertThrows(IllegalArgumentException.class,
                 () -> new BlockGrid(1, 1, 1, stoneFirst, new int[1]));
     }

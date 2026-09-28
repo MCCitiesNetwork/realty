@@ -28,15 +28,18 @@ public final class ClipboardGrids {
     private static final Set<String> AIR =
             Set.of("minecraft:air", "minecraft:cave_air", "minecraft:void_air");
 
+    /** Seen through from any side and to any depth, as air is: a pond shows its bed. */
+    private static final Set<String> FLUIDS = Set.of("minecraft:water", "minecraft:lava");
+
     private ClipboardGrids() {
     }
 
     /**
-     * @param occluding whether a block hides what is behind it. Asked once per distinct
-     *                  block state, not once per cell.
+     * @param hides whether a block hides what is behind it. Asked once per distinct block
+     *              state, not once per cell.
      */
     public static @NotNull BlockGrid fromClipboard(@NotNull Clipboard clipboard,
-                                                   @NotNull Predicate<BlockState> occluding) {
+                                                   @NotNull Predicate<BlockState> hides) {
         Region region = clipboard.getRegion();
         BlockVector3 corner = region.getMinimumPoint();
         int width = region.getWidth();
@@ -62,7 +65,7 @@ public final class ClipboardGrids {
                     String blockEntityId = block.getNbtReference() == null ? "" : block.getNbtId();
                     Integer known = blockEntityId.isEmpty() ? plain.get(state) : null;
                     if (known == null) {
-                        BlockGrid.PaletteEntry entry = entryFor(state, blockEntityId, occluding);
+                        BlockGrid.PaletteEntry entry = entryFor(state, blockEntityId, hides);
                         known = numbered.computeIfAbsent(entry, added -> {
                             palette.add(added);
                             return palette.size() - 1;
@@ -80,11 +83,17 @@ public final class ClipboardGrids {
 
     private static @NotNull BlockGrid.PaletteEntry entryFor(@NotNull BlockState state,
                                                             @NotNull String blockEntityId,
-                                                            @NotNull Predicate<BlockState> occluding) {
-        if (AIR.contains(state.getBlockType().id())) {
+                                                            @NotNull Predicate<BlockState> hides) {
+        String id = state.getBlockType().id();
+        if (AIR.contains(id)) {
             return BlockGrid.PaletteEntry.AIR;
         }
-        return new BlockGrid.PaletteEntry(
-                VisualState.reduce(state.getAsString()), blockEntityId, occluding.test(state));
+        BlockGrid.Sight sight;
+        if (FLUIDS.contains(id)) {
+            sight = BlockGrid.Sight.OPEN;
+        } else {
+            sight = hides.test(state) ? BlockGrid.Sight.SOLID : BlockGrid.Sight.SEE_THROUGH;
+        }
+        return new BlockGrid.PaletteEntry(VisualState.reduce(state.getAsString()), blockEntityId, sight);
     }
 }

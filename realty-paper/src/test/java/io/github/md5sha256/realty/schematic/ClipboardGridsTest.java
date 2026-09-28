@@ -87,15 +87,31 @@ class ClipboardGridsTest {
     }
 
     @Test
-    void theOccludingAnswerIsRecordedPerBlock() throws Exception {
+    void whatABlockDoesToTheViewIsRecordedPerBlock() throws Exception {
         BlockArrayClipboard clipboard = clipboard();
         clipboard.setBlock(MIN, BlockTypes.STONE.getDefaultState());
         clipboard.setBlock(MAX, BlockTypes.DIRT.getDefaultState());
 
         BlockGrid grid = ClipboardGrids.fromClipboard(clipboard, STONE_OCCLUDES);
 
-        Assertions.assertTrue(grid.palette().get(grid.cells()[grid.index(0, 0, 0)]).occluding());
-        Assertions.assertFalse(grid.palette().get(grid.cells()[grid.index(2, 1, 1)]).occluding());
+        Assertions.assertEquals(BlockGrid.Sight.SOLID,
+                grid.palette().get(grid.cells()[grid.index(0, 0, 0)]).sight());
+        Assertions.assertEquals(BlockGrid.Sight.SEE_THROUGH,
+                grid.palette().get(grid.cells()[grid.index(2, 1, 1)]).sight());
+    }
+
+    @Test
+    void waterIsSeenThroughAsAirIsWhateverTheRegistrySaysOfIt() throws Exception {
+        // A pond should show its bed. Treated as any other see-through block, water
+        // would show one block of itself and hide everything under that.
+        BlockArrayClipboard clipboard = clipboard();
+        clipboard.setBlock(MIN, BlockTypes.WATER.getDefaultState());
+
+        BlockGrid grid = ClipboardGrids.fromClipboard(clipboard, state -> true);
+
+        BlockGrid.PaletteEntry water = grid.palette().get(grid.cells()[grid.index(0, 0, 0)]);
+        Assertions.assertTrue(water.state().startsWith("minecraft:water"));
+        Assertions.assertEquals(BlockGrid.Sight.OPEN, water.sight());
     }
 
     @Test

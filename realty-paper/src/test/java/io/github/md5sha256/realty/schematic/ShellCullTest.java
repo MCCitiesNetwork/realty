@@ -13,23 +13,45 @@ class ShellCullTest {
     private static final int SPAWNER = 3;
     private static final int GLASS = 4;
     private static final int STAIRS = 5;
+    private static final int FENCE = 6;
+    private static final int CARPET = 7;
+    private static final int WATER = 8;
+    private static final int DIAMOND = 9;
 
     private static final List<BlockGrid.PaletteEntry> PALETTE = List.of(
             BlockGrid.PaletteEntry.AIR,
-            new BlockGrid.PaletteEntry("minecraft:stone", "", true),
-            new BlockGrid.PaletteEntry("minecraft:chest[facing=north,type=single]", "minecraft:chest", false),
-            new BlockGrid.PaletteEntry("minecraft:spawner", "minecraft:mob_spawner", false),
-            new BlockGrid.PaletteEntry("minecraft:glass", "", false),
-            new BlockGrid.PaletteEntry("minecraft:oak_stairs[facing=east,half=bottom,shape=straight]", "", false));
+            solid("minecraft:stone"),
+            new BlockGrid.PaletteEntry("minecraft:chest[facing=north,type=single]", "minecraft:chest",
+                    BlockGrid.Sight.SEE_THROUGH),
+            new BlockGrid.PaletteEntry("minecraft:spawner", "minecraft:mob_spawner",
+                    BlockGrid.Sight.SEE_THROUGH),
+            seeThrough("minecraft:glass"),
+            seeThrough("minecraft:oak_stairs[facing=east,half=bottom,shape=straight]"),
+            seeThrough("minecraft:oak_fence"),
+            seeThrough("minecraft:white_carpet"),
+            new BlockGrid.PaletteEntry("minecraft:water[level=0]", "", BlockGrid.Sight.OPEN),
+            solid("minecraft:diamond_block"));
 
-    /** A sealed stone house with one-block walls, standing in open air. */
+    private static BlockGrid.PaletteEntry solid(String state) {
+        return new BlockGrid.PaletteEntry(state, "", BlockGrid.Sight.SOLID);
+    }
+
+    private static BlockGrid.PaletteEntry seeThrough(String state) {
+        return new BlockGrid.PaletteEntry(state, "", BlockGrid.Sight.SEE_THROUGH);
+    }
+
+    /**
+     * A sealed stone house standing in open air: walls, floor and roof one block thick,
+     * from 1 to 5 on x and z, its floor on the bottom of the box at y 0 and its roof at
+     * y 4. The rooms inside run from 2 to 4 on x and z, and from 1 to 3 on y.
+     */
     private static BlockGrid house() {
         BlockGrid grid = new BlockGrid(7, 6, 7, PALETTE, new int[7 * 6 * 7]);
         for (int x = 1; x <= 5; x++) {
             for (int y = 0; y <= 4; y++) {
                 for (int z = 1; z <= 5; z++) {
-                    boolean wall = x == 1 || x == 5 || y == 0 || y == 4 || z == 1 || z == 5;
-                    if (wall) {
+                    boolean shell = x == 1 || x == 5 || y == 0 || y == 4 || z == 1 || z == 5;
+                    if (shell) {
                         grid.cells()[grid.index(x, y, z)] = STONE;
                     }
                 }
@@ -50,6 +72,10 @@ class ShellCullTest {
         return grid.palette().stream().map(BlockGrid.PaletteEntry::state).toList();
     }
 
+    private static long blocksIn(BlockGrid grid) {
+        return Arrays.stream(grid.cells()).filter(cell -> cell != BlockGrid.AIR).count();
+    }
+
     @Test
     void whatIsInsideASealedBuildingIsRemoved() {
         BlockGrid grid = house();
@@ -66,7 +92,7 @@ class ShellCullTest {
 
         Assertions.assertEquals("minecraft:stone", at(hollow, 1, 2, 3));
         Assertions.assertEquals("minecraft:stone", at(hollow, 3, 4, 3));
-        Assertions.assertEquals("minecraft:stone", at(hollow, 3, 0, 3));
+        Assertions.assertEquals("minecraft:stone", at(hollow, 1, 0, 3), "a wall's foot, open to the side");
     }
 
     @Test
@@ -77,7 +103,6 @@ class ShellCullTest {
 
         BlockGrid hollow = ShellCull.hollow(grid);
 
-        Assertions.assertFalse(states(hollow).contains("minecraft:spawner"));
         Assertions.assertEquals(List.of("minecraft:air", "minecraft:stone"), states(hollow));
     }
 
@@ -106,8 +131,114 @@ class ShellCullTest {
         Assertions.assertEquals("minecraft:glass", at(hollow, 1, 2, 3));
         Assertions.assertTrue(at(hollow, 2, 2, 3).startsWith("minecraft:chest"),
                 "the block directly behind the window is visible through it");
-        Assertions.assertEquals("minecraft:air", at(hollow, 4, 2, 3),
-                "the room beyond is not");
+        Assertions.assertEquals("minecraft:air", at(hollow, 4, 2, 3), "the room beyond is not");
+    }
+
+    @Test
+    void theViewDoesNotRunOnThroughAChainOfBlocksThatHideNothing() {
+        // A stair in the roof, a fence post hanging from it, a spawner at the foot of the
+        // post. Each hides nothing, and passing the view from one to the next carried it
+        // from the roof to the floor of a sealed room.
+        BlockGrid grid = house();
+        put(grid, 3, 4, 3, STAIRS);
+        put(grid, 3, 3, 3, FENCE);
+        put(grid, 3, 2, 3, FENCE);
+        put(grid, 3, 1, 3, SPAWNER);
+        put(grid, 2, 1, 3, DIAMOND);
+
+        BlockGrid hollow = ShellCull.hollow(grid);
+
+        Assertions.assertEquals("minecraft:oak_fence", at(hollow, 3, 3, 3), "directly behind the stair");
+        Assertions.assertEquals("minecraft:air", at(hollow, 3, 2, 3));
+        Assertions.assertEquals("minecraft:air", at(hollow, 3, 1, 3));
+        Assertions.assertFalse(states(hollow).contains("minecraft:spawner"));
+        Assertions.assertFalse(states(hollow).contains("minecraft:diamond_block"));
+    }
+
+    @Test
+    void aCarpetedFloorDoesNotCarryTheViewAcrossTheRoom() {
+        BlockGrid grid = house();
+        put(grid, 1, 1, 3, GLASS);
+        for (int x = 2; x <= 4; x++) {
+            for (int z = 2; z <= 4; z++) {
+                put(grid, x, 1, z, CARPET);
+            }
+        }
+        put(grid, 4, 2, 4, SPAWNER);
+
+        BlockGrid hollow = ShellCull.hollow(grid);
+
+        Assertions.assertEquals("minecraft:white_carpet", at(hollow, 2, 1, 3), "directly behind the glass");
+        Assertions.assertEquals("minecraft:air", at(hollow, 3, 1, 3));
+        Assertions.assertEquals("minecraft:air", at(hollow, 4, 1, 4));
+        Assertions.assertFalse(states(hollow).contains("minecraft:spawner"));
+    }
+
+    @Test
+    void aFloodedRoomBehindAWindowStaysHidden() {
+        // Water carries the view as air does, but only where the view reaches it in the
+        // open. Behind glass it is the one block behind the glass and no more.
+        BlockGrid grid = house();
+        put(grid, 1, 2, 3, GLASS);
+        for (int x = 2; x <= 4; x++) {
+            for (int y = 1; y <= 3; y++) {
+                for (int z = 2; z <= 4; z++) {
+                    put(grid, x, y, z, WATER);
+                }
+            }
+        }
+        put(grid, 4, 3, 4, SPAWNER);
+
+        BlockGrid hollow = ShellCull.hollow(grid);
+
+        Assertions.assertTrue(at(hollow, 2, 2, 3).startsWith("minecraft:water"), "directly behind the glass");
+        Assertions.assertEquals("minecraft:air", at(hollow, 3, 2, 3));
+        Assertions.assertFalse(states(hollow).contains("minecraft:spawner"));
+    }
+
+    @Test
+    void aFloorLevelWithTheGroundIsNotKeptForLyingOnTheBottomOfTheBox() {
+        // The bottom of the box is where the capturing player stood, so a house level
+        // with the ground has its whole floor there. Treating the bottom as seen kept
+        // every block of it, and whatever was set into it.
+        BlockGrid grid = house();
+        put(grid, 3, 0, 3, DIAMOND);
+        put(grid, 2, 0, 2, CHEST);
+
+        BlockGrid hollow = ShellCull.hollow(grid);
+
+        Assertions.assertEquals("minecraft:air", at(hollow, 3, 0, 3));
+        Assertions.assertEquals("minecraft:air", at(hollow, 2, 0, 2));
+        Assertions.assertEquals("minecraft:air", at(hollow, 4, 0, 4), "plain floor");
+        Assertions.assertEquals(List.of("minecraft:air", "minecraft:stone"), states(hollow));
+    }
+
+    @Test
+    void openGroundOnTheBottomOfTheBoxIsKept() {
+        BlockGrid grid = house();
+        put(grid, 0, 0, 0, STONE);
+        put(grid, 6, 0, 3, STONE);
+
+        BlockGrid hollow = ShellCull.hollow(grid);
+
+        Assertions.assertEquals("minecraft:stone", at(hollow, 0, 0, 0));
+        Assertions.assertEquals("minecraft:stone", at(hollow, 6, 0, 3));
+    }
+
+    @Test
+    void aPondShowsItsBed() {
+        // 5 wide, 5 long, stone all through, with a pond three deep cut into the top.
+        BlockGrid grid = new BlockGrid(5, 5, 5, PALETTE, new int[125]);
+        Arrays.fill(grid.cells(), STONE);
+        for (int y = 2; y <= 4; y++) {
+            put(grid, 2, y, 2, WATER);
+        }
+
+        BlockGrid hollow = ShellCull.hollow(grid);
+
+        Assertions.assertTrue(at(hollow, 2, 2, 2).startsWith("minecraft:water"), "the deepest water");
+        Assertions.assertEquals("minecraft:stone", at(hollow, 2, 1, 2), "the bed");
+        Assertions.assertEquals("minecraft:stone", at(hollow, 1, 3, 2), "the bank, under water");
     }
 
     @Test
@@ -120,19 +251,35 @@ class ShellCullTest {
         BlockGrid hollow = ShellCull.hollow(grid);
 
         Assertions.assertTrue(at(hollow, 4, 1, 3).startsWith("minecraft:chest"));
+        Assertions.assertEquals("minecraft:stone", at(hollow, 3, 0, 3), "and the floor it now shows");
     }
 
     @Test
-    void aSolidMassKeepsOnlyItsSkin() {
+    void aRegionThatIsOnlyTheInsideOfARoomIsKeptWhole() {
+        // Known, and not something the cull can mend. A region drawn inside a room's
+        // walls has no outside: its edges are the view. The capture holds the room.
+        BlockGrid grid = new BlockGrid(3, 3, 3, PALETTE, new int[27]);
+        put(grid, 0, 0, 0, CHEST);
+        put(grid, 1, 0, 1, SPAWNER);
+        put(grid, 2, 1, 2, CHEST);
+
+        BlockGrid hollow = ShellCull.hollow(grid);
+
+        Assertions.assertEquals(3, blocksIn(hollow));
+    }
+
+    @Test
+    void aSolidMassKeepsOnlyItsSidesAndTop() {
         BlockGrid grid = new BlockGrid(5, 5, 5, PALETTE, new int[125]);
         Arrays.fill(grid.cells(), STONE);
 
         BlockGrid hollow = ShellCull.hollow(grid);
 
         Assertions.assertEquals("minecraft:air", at(hollow, 2, 2, 2));
-        Assertions.assertEquals("minecraft:air", at(hollow, 1, 1, 1));
+        Assertions.assertEquals("minecraft:air", at(hollow, 2, 0, 2), "the bottom is not a way in");
         Assertions.assertEquals("minecraft:stone", at(hollow, 0, 2, 2));
-        Assertions.assertEquals("minecraft:stone", at(hollow, 2, 0, 2));
+        Assertions.assertEquals("minecraft:stone", at(hollow, 2, 4, 2));
+        Assertions.assertEquals("minecraft:stone", at(hollow, 0, 0, 2), "on a side, so seen");
     }
 
     @Test
