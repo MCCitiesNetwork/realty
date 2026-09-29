@@ -198,7 +198,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                 session.commit();
                 return new AcceptAgentInviteResult.AlreadyAgent();
             }
-            // D9: the invite may have been made while the invitee's groups were unknown.
+            // The invite may have been made while the invitee was offline, when their groups
+            // could not be known, so the conflict of interest is checked again here.
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
                     .selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {

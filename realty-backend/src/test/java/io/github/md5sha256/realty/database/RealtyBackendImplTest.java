@@ -17,6 +17,7 @@ import io.github.md5sha256.realty.api.RealtyBackend.PayBidResult;
 import io.github.md5sha256.realty.api.RealtyBackend.PayOfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RegionInfo;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
+import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
@@ -1400,8 +1401,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
     @DisplayName("history search by player")
     class HistorySearchByPlayer {
 
-        // Through the leasehold history mapper rather than searchHistory, which also reads the
-        // freehold history, and that is not moved onto parties until the authority is.
+        // Through the leasehold history mapper, so that the page and the count are both checked.
         private static List<LeaseholdHistoryEntity> searchByPlayer(String regionId, UUID playerId) {
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 List<LeaseholdHistoryEntity> found = wrapper.leaseholdHistoryMapper()
@@ -1440,6 +1440,48 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             Assertions.assertEquals(1, found.size());
             Assertions.assertEquals("RENT", found.getFirst().eventType());
             Assertions.assertEquals(landlord, found.getFirst().landlord());
+        }
+    }
+
+    @Nested
+    @DisplayName("freehold history search by player")
+    class FreeholdHistorySearchByPlayer {
+
+        private static List<HistoryEntry> searchByPlayer(String regionId, UUID playerId) {
+            RealtyBackend.HistoryResult result = logic.searchHistory(regionId, WORLD_ID, null, null, playerId, 50, 0);
+            Assertions.assertEquals(result.entries().size(), result.totalCount());
+            return result.entries();
+        }
+
+        @Test
+        @DisplayName("a player authority is found by its player id")
+        void playerAuthority_isFoundByPlayerId() {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0, new Party.Personal(PLAYER_A), null));
+            logic.setPrice(regionId, WORLD_ID, 1200.0);
+
+            List<HistoryEntry> found = searchByPlayer(regionId, PLAYER_A);
+            Assertions.assertEquals(1, found.size());
+            HistoryEntry.Freehold entry = Assertions.assertInstanceOf(HistoryEntry.Freehold.class, found.getFirst());
+            Assertions.assertEquals("SET_PRICE", entry.eventType());
+            Assertions.assertEquals(new Party.Personal(PLAYER_A), entry.authority());
+            Assertions.assertNull(entry.buyerId());
+            Assertions.assertEquals(List.of(), searchByPlayer(regionId, PLAYER_B));
+        }
+
+        @Test
+        @DisplayName("an account authority matches no player, and the titleholder is still found")
+        void accountAuthority_isIgnored() {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0, GOV, PLAYER_B));
+            logic.setPrice(regionId, WORLD_ID, 1200.0);
+
+            Assertions.assertEquals(List.of(), searchByPlayer(regionId, PLAYER_A));
+            List<HistoryEntry> found = searchByPlayer(regionId, PLAYER_B);
+            Assertions.assertEquals(1, found.size());
+            HistoryEntry.Freehold entry = Assertions.assertInstanceOf(HistoryEntry.Freehold.class, found.getFirst());
+            Assertions.assertEquals(GOV, entry.authority());
+            Assertions.assertEquals(PLAYER_B, entry.buyerId());
         }
     }
 
@@ -1502,7 +1544,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                     logic.proposeModification(regionId, WORLD_ID, MANAGER, 300.0, null, null));
             Assertions.assertEquals(LeaseholdRoles.LANDLORD, success.proposerRole());
             Assertions.assertTrue(success.active());
-            // D6: the landlord is not a player, so the acting player is stored as the proposer.
+            // The landlord is not a player, so the acting player is stored as the proposer.
             Assertions.assertEquals(1, logic.listPendingModificationsByProposer(PLAYER_A).size());
         }
 

@@ -45,7 +45,8 @@ public interface RealtyBackend {
     /**
      * Invites a player to act as the freehold's agent. The invitee must not deal with its authority:
      * see {@link #executeBuy} for the conflict-of-interest rule, which answers
-     * {@link InviteAgentResult.IsAuthority}. The invitee's groups may be unknown here (D9), so
+     * {@link InviteAgentResult.IsAuthority}. The invitee's groups may be unknown here, because the
+     * permission plugin cannot tell the groups of a player who is offline, so
      * {@link #acceptAgentInvite} applies the rule again.
      *
      * @param invitee        the invited player and the parties they act for
