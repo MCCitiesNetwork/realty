@@ -1197,7 +1197,8 @@ paths:
         authority of. In the response the field is still called `player`, so the
         shape of the player route does not change; here it holds the party's
         `PartyRef`. An account that no contract names answers with empty lists
-        rather than 404, because this API cannot ask Treasury whether it exists.
+        rather than 404, because this API cannot ask Treasury whether it exists;
+        an account that is stored under another kind is 404.
       parameters:
         - name: kind
           in: path
@@ -1264,7 +1265,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: "`PARTY_NOT_FOUND` -- `kind` is `group` and no group is mapped under that name."
+          description: >-
+            `PARTY_NOT_FOUND` -- `kind` is `group` and no group is mapped under that
+            name, or `kind` is an account kind and that account id is stored under
+            another kind.
           content:
             application/json:
               schema:

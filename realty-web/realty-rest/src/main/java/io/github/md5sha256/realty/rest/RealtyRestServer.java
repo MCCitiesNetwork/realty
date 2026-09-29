@@ -317,7 +317,8 @@ public final class RealtyRestServer {
 
         routes.exception(Exception.class, (ex, ctx) -> {
             ctx.attribute(HANDLED_ATTRIBUTE, true);
-            LOGGER.log(Level.SEVERE, "Unhandled failure serving " + ctx.path(), ex);
+            // The route pattern, not the request path: a path parameter is text from the network.
+            LOGGER.log(Level.SEVERE, "Unhandled failure serving " + ctx.endpoint().path, ex);
             ctx.status(500).json(new ErrorResponse("INTERNAL_ERROR",
                     "An unexpected error occurred"));
         });

@@ -40,9 +40,9 @@ final class PartyRegionsHandler {
     private @NotNull Party party(@NotNull String kind, @NotNull String id) {
         return switch (kind) {
             case "personal" -> new Party.Personal(playerId(id));
-            case "business" -> new Party.Account(accountId(id), AccountKind.BUSINESS);
-            case "government" -> new Party.Account(accountId(id), AccountKind.GOVERNMENT);
-            case "system" -> new Party.Account(accountId(id), AccountKind.SYSTEM);
+            case "business" -> account(accountId(id), AccountKind.BUSINESS);
+            case "government" -> account(accountId(id), AccountKind.GOVERNMENT);
+            case "system" -> account(accountId(id), AccountKind.SYSTEM);
             case "group" -> {
                 // Group names are stored in lower case; the backend matches without regard to case.
                 Party.Group group = this.backend.findGroupParty(id);
@@ -54,6 +54,22 @@ final class PartyRegionsHandler {
             default -> throw ApiException.badRequest("INVALID_PARTY_KIND",
                     "Path parameter 'kind' must be one of [personal, business, government, system, group]");
         };
+    }
+
+    /**
+     * An account that no contract names is listed as the kind asked for, with nothing in it:
+     * this API cannot ask Treasury whether it exists. One stored under another kind is not a
+     * party of the kind asked for.
+     */
+    private @NotNull Party.Account account(int accountId, @NotNull AccountKind kind) {
+        Party.Account stored = this.backend.findAccountParty(accountId);
+        if (stored == null) {
+            return new Party.Account(accountId, kind);
+        }
+        if (stored.kind() != kind) {
+            throw ApiException.notFound("PARTY_NOT_FOUND", "No party of that kind has that id");
+        }
+        return stored;
     }
 
     /** UUID.fromString alone also accepts short forms such as {@code 1-1-1-1-1}; only the full form is an id. */

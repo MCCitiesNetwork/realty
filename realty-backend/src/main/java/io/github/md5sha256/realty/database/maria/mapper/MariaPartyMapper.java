@@ -73,6 +73,12 @@ public interface MariaPartyMapper extends PartyMapper {
         };
     }
 
+    @Override
+    default @Nullable Party.Account findAccountParty(int accountId) {
+        PartyAccountRow row = selectAccountRow(accountId);
+        return row == null ? null : new Party.Account(accountId, row.kind());
+    }
+
     /**
      * The base row of a new party; its id comes back with {@code RETURNING}, as every insert here does.
      * Flushes the session cache like the other RETURNING inserts, so two calls in one session never

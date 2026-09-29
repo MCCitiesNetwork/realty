@@ -651,6 +651,9 @@ public interface RealtyBackend {
      */
     @Nullable Party.Group findGroupParty(@NotNull String groupName);
 
+    /** The account party stored for this account id, or null when no contract has ever named it. */
+    @Nullable Party.Account findAccountParty(int accountId);
+
     // --- Group mapping ---
 
     sealed interface MapGroupResult {

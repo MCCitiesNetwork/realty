@@ -810,6 +810,8 @@ final class TestServers {
 
         final Map<Party, RealtyBackend.ListResult> lists = new java.util.HashMap<>();
         final Map<String, Party.Group> groups = new java.util.HashMap<>();
+        /** The stored account of each account id; an id not here is one no contract names. */
+        final Map<Integer, Party.Account> accounts = new java.util.HashMap<>();
         /** The parties the backend was asked to list, in order. */
         final List<Party> asked = new java.util.ArrayList<>();
     }
@@ -826,6 +828,9 @@ final class TestServers {
             switch (method.getName()) {
                 case "findGroupParty" -> {
                     return stub.groups.get(((String) args[0]).toLowerCase(java.util.Locale.ROOT));
+                }
+                case "findAccountParty" -> {
+                    return stub.accounts.get((Integer) args[0]);
                 }
                 case "listRegions", "listOwnedRegions", "listRentedRegions" -> {
                     Party party = args[0] instanceof UUID id ? new Party.Personal(id) : (Party) args[0];

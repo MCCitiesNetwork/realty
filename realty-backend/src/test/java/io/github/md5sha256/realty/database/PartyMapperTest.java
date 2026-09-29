@@ -93,6 +93,27 @@ class PartyMapperTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void findAccountParty_returnsTheStoredKind() {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            wrapper.partyMapper().findOrInsert(new Party.Account(42, AccountKind.GOVERNMENT));
+            Assertions.assertEquals(new Party.Account(42, AccountKind.GOVERNMENT),
+                    wrapper.partyMapper().findAccountParty(42));
+        }
+    }
+
+    @Test
+    void findAccountParty_unknownIsNull_andInsertsNothing() throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            Assertions.assertNull(wrapper.partyMapper().findAccountParty(42));
+            try (Statement statement = wrapper.session().getConnection().createStatement();
+                 ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM Party")) {
+                resultSet.next();
+                Assertions.assertEquals(0, resultSet.getInt(1));
+            }
+        }
+    }
+
+    @Test
     void findOrInsert_unmappedGroupThrows() {
         Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
         try (SqlSessionWrapper wrapper = database.openSession(true)) {

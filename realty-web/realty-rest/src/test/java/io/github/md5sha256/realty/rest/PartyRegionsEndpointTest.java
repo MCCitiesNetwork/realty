@@ -139,6 +139,32 @@ class PartyRegionsEndpointTest {
     }
 
     @Test
+    void accountStoredUnderAnotherKind_is404() {
+        TestServers.PartyStub stub = new TestServers.PartyStub();
+        stub.accounts.put(TestServers.ACCOUNT_ID, GOVERNMENT);
+        JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
+            Response response = client.get("/v1/parties/business/" + TestServers.ACCOUNT_ID + "/regions");
+            Assertions.assertEquals(404, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("PARTY_NOT_FOUND"), body);
+            Assertions.assertFalse(body.contains("42"), body);
+            Assertions.assertEquals(List.of(), stub.asked);
+        });
+    }
+
+    @Test
+    void accountStoredUnderTheSameKind_listsItsRegions() {
+        TestServers.PartyStub stub = new TestServers.PartyStub();
+        stub.accounts.put(TestServers.ACCOUNT_ID, GOVERNMENT);
+        stub.lists.put(GOVERNMENT, authorityOf("town_hall"));
+        JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
+            Response response = client.get("/v1/parties/government/" + TestServers.ACCOUNT_ID + "/regions");
+            Assertions.assertEquals(200, response.code());
+            Assertions.assertTrue(response.body().string().contains("\"town_hall\""));
+        });
+    }
+
+    @Test
     void pageSize_isClamped() {
         JavalinTest.test(TestServers.withPartyHoldings(new TestServers.PartyStub(), 10).javalin(), (server, client) -> {
             String body = client.get("/v1/parties/business/42/regions?pageSize=500").body().string();
