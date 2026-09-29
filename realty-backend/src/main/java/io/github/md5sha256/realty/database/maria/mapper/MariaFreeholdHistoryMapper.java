@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
 import io.github.md5sha256.realty.database.mapper.FreeholdHistoryMapper;
 import org.apache.ibatis.annotations.Arg;
@@ -21,14 +22,14 @@ public interface MariaFreeholdHistoryMapper extends FreeholdHistoryMapper {
 
     @Override
     @Insert("""
-            INSERT INTO FreeholdHistory (worldGuardRegionId, worldId, eventType, buyerId, authorityId, price)
-            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{buyerId}, #{authorityId}, #{price})
+            INSERT INTO FreeholdHistory (worldGuardRegionId, worldId, eventType, buyerId, authorityPartyId, price)
+            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{buyerId}, #{authorityPartyId}, #{price})
             """)
     int insert(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                @Param("worldId") @NotNull UUID worldId,
                @Param("eventType") @NotNull String eventType,
                @Param("buyerId") @NotNull UUID buyerId,
-               @Param("authorityId") @NotNull UUID authorityId,
+               @Param("authorityPartyId") int authorityPartyId,
                @Param("price") double price);
 
     @Override
@@ -37,8 +38,8 @@ public interface MariaFreeholdHistoryMapper extends FreeholdHistoryMapper {
     // the only statement would commit nothing and could not be rolled back. Never from
     // the session's cache: asked twice with the same values, it has to write twice.
     @Select(value = """
-            INSERT INTO FreeholdHistory (worldGuardRegionId, worldId, eventType, buyerId, authorityId, price)
-            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{buyerId}, #{authorityId}, #{price})
+            INSERT INTO FreeholdHistory (worldGuardRegionId, worldId, eventType, buyerId, authorityPartyId, price)
+            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{buyerId}, #{authorityPartyId}, #{price})
             RETURNING historyId
             """, affectData = true)
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
@@ -46,7 +47,7 @@ public interface MariaFreeholdHistoryMapper extends FreeholdHistoryMapper {
                           @Param("worldId") @NotNull UUID worldId,
                           @Param("eventType") @NotNull String eventType,
                           @Param("buyerId") @NotNull UUID buyerId,
-                          @Param("authorityId") @NotNull UUID authorityId,
+                          @Param("authorityPartyId") int authorityPartyId,
                           @Param("price") double price);
 
     @Override
@@ -80,7 +81,7 @@ public interface MariaFreeholdHistoryMapper extends FreeholdHistoryMapper {
             @Arg(column = "worldId", javaType = UUID.class),
             @Arg(column = "eventType", javaType = String.class),
             @Arg(column = "buyerId", javaType = UUID.class),
-            @Arg(column = "authorityId", javaType = UUID.class),
+            @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "authority_", javaType = Party.class),
             @Arg(column = "price", javaType = double.class),
             @Arg(column = "eventTime", javaType = LocalDateTime.class)
     })

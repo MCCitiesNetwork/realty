@@ -37,7 +37,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId, UUID worldId, UUID authority, UUID titleHolder) {
-        boolean created = logic.createFreehold(regionId, worldId, 1000.0, authority, titleHolder);
+        boolean created = logic.createFreehold(regionId, worldId, 1000.0, new Party.Personal(authority), titleHolder);
         Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 

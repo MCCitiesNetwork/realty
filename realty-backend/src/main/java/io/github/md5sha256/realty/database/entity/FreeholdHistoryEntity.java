@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.entity;
 
+import io.github.md5sha256.realty.api.Party;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.LocalDateTime;
@@ -11,7 +12,7 @@ public record FreeholdHistoryEntity(
         @NotNull UUID worldId,
         @NotNull String eventType,
         @NotNull UUID buyerId,
-        @NotNull UUID authorityId,
+        @NotNull Party authority,
         double price,
         @NotNull LocalDateTime eventTime
 ) {

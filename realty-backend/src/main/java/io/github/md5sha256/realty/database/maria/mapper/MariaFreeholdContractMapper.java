@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.entity.TitleHeldRegionTag;
@@ -42,30 +43,22 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
      */
     @Override
     @Select("""
-            INSERT INTO FreeholdContract (authorityId, titleHolderId, price)
-            VALUES (#{authority}, #{titleHolder}, #{price})
+            INSERT INTO FreeholdContract (authorityPartyId, titleHolderId, price)
+            VALUES (#{authorityPartyId}, #{titleHolder}, #{price})
             RETURNING freeholdContractId
             """)
     int insertFreehold(@Param("regionId") int regionId,
                    @Param("price") @Nullable Double price,
-                   @Param("authority") @NotNull UUID authority,
+                   @Param("authorityPartyId") int authorityPartyId,
                    @Param("titleHolder") @Nullable UUID titleHolder);
 
     @Override
-    @Select("""
-            SELECT EXISTS (
-                SELECT 1
-                FROM FreeholdContract fc
-                INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
-                INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
-                WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
-                AND rr.worldId = #{worldId}
-                AND fc.authorityId = #{playerId}
-            )
-            """)
-    boolean existsByRegionAndAuthority(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
-                                       @Param("worldId") @NotNull UUID worldId,
-                                       @Param("playerId") @NotNull UUID playerId);
+    default boolean existsByRegionAndAuthority(@NotNull String worldGuardRegionId,
+                                               @NotNull UUID worldId,
+                                               @NotNull Party authority) {
+        FreeholdContractEntity freehold = selectByRegion(worldGuardRegionId, worldId);
+        return freehold != null && authority.equals(freehold.authority());
+    }
 
     @Override
     @Select("""
@@ -85,16 +78,18 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
 
     @Override
     @Select("""
-            SELECT fc.freeholdContractId, fc.authorityId, fc.titleHolderId, fc.price, fc.acceptingOffers
+            SELECT fc.freeholdContractId, fc.titleHolderId, fc.price, fc.acceptingOffers,
+            """ + PartySql.AUTHORITY_COLUMNS + """
             FROM FreeholdContract fc
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            """ + PartySql.AUTHORITY_JOINS_CONTRACT + """
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
     @ConstructorArgs({
             @Arg(column = "freeholdContractId", javaType = int.class),
-            @Arg(column = "authorityId", javaType = UUID.class),
+            @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "authority_", javaType = Party.class),
             @Arg(column = "titleHolderId", javaType = UUID.class),
             @Arg(column = "price", javaType = Double.class),
             @Arg(column = "acceptingOffers", javaType = boolean.class)
@@ -103,8 +98,11 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
                                                     @Param("worldId") @NotNull UUID worldId);
 
     @Override
+    // The authority is read by a second statement rather than a join, so that the lock
+    // stays on this contract's rows. Joined, FOR UPDATE would also lock the Party row,
+    // which every contract of the same authority or landlord shares.
     @Select("""
-            SELECT fc.freeholdContractId, fc.authorityId, fc.titleHolderId, fc.price, fc.acceptingOffers
+            SELECT fc.freeholdContractId, fc.authorityPartyId, fc.titleHolderId, fc.price, fc.acceptingOffers
             FROM FreeholdContract fc
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
@@ -114,7 +112,7 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             """)
     @ConstructorArgs({
             @Arg(column = "freeholdContractId", javaType = int.class),
-            @Arg(column = "authorityId", javaType = UUID.class),
+            @Arg(column = "authorityPartyId", javaType = Party.class, select = PartySql.SELECT_BY_ID),
             @Arg(column = "titleHolderId", javaType = UUID.class),
             @Arg(column = "price", javaType = Double.class),
             @Arg(column = "acceptingOffers", javaType = boolean.class)
@@ -181,13 +179,13 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             UPDATE FreeholdContract fc
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
-            SET fc.authorityId = #{authorityId}
+            SET fc.authorityPartyId = #{authorityPartyId}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
     int updateAuthorityByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                 @Param("worldId") @NotNull UUID worldId,
-                                @Param("authorityId") @NotNull UUID authorityId);
+                                @Param("authorityPartyId") int authorityPartyId);
 
     @Override
     @Update("""

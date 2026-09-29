@@ -179,14 +179,14 @@ public interface RealtyBackend {
     // --- Set Authority ---
 
     sealed interface SetAuthorityResult {
-        record Success(@NotNull UUID previousAuthority) implements SetAuthorityResult {}
+        record Success(@NotNull Party previousAuthority) implements SetAuthorityResult {}
         record NoFreeholdContract() implements SetAuthorityResult {}
         record UpdateFailed() implements SetAuthorityResult {}
     }
 
     @NotNull SetAuthorityResult setAuthority(@NotNull String worldGuardRegionId,
                                               @NotNull UUID worldId,
-                                              @NotNull UUID authorityId);
+                                              @NotNull Party authority);
 
     // --- Set Title Holder ---
 
@@ -230,7 +230,7 @@ public interface RealtyBackend {
         /**
          * @param undo what {@link #rollbackBuy} needs to put the region back as it was
          */
-        record Success(double price, @NotNull UUID authorityId, @Nullable UUID titleHolderId,
+        record Success(double price, @NotNull Party authority, @Nullable UUID titleHolderId,
                        @NotNull BuyUndo undo) implements BuyResult {}
         record NoFreeholdContract() implements BuyResult {}
         record NotForFreehold() implements BuyResult {}
@@ -289,7 +289,7 @@ public interface RealtyBackend {
     boolean createFreehold(@NotNull String worldGuardRegionId,
                            @NotNull UUID worldId,
                            @Nullable Double price,
-                           @NotNull UUID authority,
+                           @NotNull Party authority,
                            @Nullable UUID titleHolder);
 
     // --- Create Leasehold ---
@@ -724,8 +724,8 @@ public interface RealtyBackend {
 
     sealed interface PayOfferResult {
         record Success(double newTotal, double remaining,
-                       @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
-        record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
+                       @NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
+        record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record NoPaymentRecord() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
     }
@@ -753,8 +753,8 @@ public interface RealtyBackend {
 
     sealed interface PayBidResult {
         record Success(double newTotal, double remaining,
-                       @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
-        record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
+                       @NotNull Party authority, @Nullable UUID titleHolderId) implements PayBidResult {}
+        record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId) implements PayBidResult {}
         record NoPaymentRecord() implements PayBidResult {}
         record PaymentExpired() implements PayBidResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
@@ -861,7 +861,7 @@ public interface RealtyBackend {
 
     int countActiveAuctions();
 
-    int countRegionsByAuthority(@NotNull UUID playerId);
+    int countRegionsByAuthority(@NotNull Party authority);
 
     @NotNull List<String> listRegionNamesByTitleHolder(@NotNull UUID playerId);
 

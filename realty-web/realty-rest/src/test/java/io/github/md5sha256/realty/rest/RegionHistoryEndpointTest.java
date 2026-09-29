@@ -21,7 +21,7 @@ class RegionHistoryEndpointTest {
     @Test
     void discriminatesAFreeholdEntryByKind() {
         HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
-                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, AUTHORITY, 21500.0);
+                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, new Party.Personal(AUTHORITY), 21500.0);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of(BUYER, "Alice"));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get(URL);

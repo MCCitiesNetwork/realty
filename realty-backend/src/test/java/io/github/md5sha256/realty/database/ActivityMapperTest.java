@@ -32,13 +32,13 @@ class ActivityMapperTest extends AbstractDatabaseTest {
     @BeforeEach
     void seed() {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            session.freeholdHistoryMapper().insert("plot_a", WORLD_ID, "BUY", ALICE, BOB, 21500.0);
-            session.leaseholdHistoryMapper().insert("plot_b", WORLD_ID, "RENT", ALICE,
-                    session.partyMapper().findOrInsert(new Party.Personal(BOB)),
+            int bobPartyId = session.partyMapper().findOrInsert(new Party.Personal(BOB));
+            session.freeholdHistoryMapper().insert("plot_a", WORLD_ID, "BUY", ALICE, bobPartyId, 21500.0);
+            session.leaseholdHistoryMapper().insert("plot_b", WORLD_ID, "RENT", ALICE, bobPartyId,
                     800.0, 604800L, 3);
             session.agentHistoryMapper().insert("plot_c", WORLD_ID, "AGENT_ADD", ALICE, BOB);
-            session.freeholdHistoryMapper().insert("plot_d", WORLD_ID, "SET_PRICE", ALICE, BOB, 100.0);
-            session.freeholdHistoryMapper().insert("plot_e", OTHER_WORLD, "BUY", ALICE, BOB, 50.0);
+            session.freeholdHistoryMapper().insert("plot_d", WORLD_ID, "SET_PRICE", ALICE, bobPartyId, 100.0);
+            session.freeholdHistoryMapper().insert("plot_e", OTHER_WORLD, "BUY", ALICE, bobPartyId, 50.0);
         }
     }
 
@@ -179,5 +179,19 @@ class ActivityMapperTest extends AbstractDatabaseTest {
         List<String> rentals = ids(page(List.of("RENT"), null, null, 50, 0));
         Assertions.assertEquals(2, rentals.stream().filter("plot_twice"::equals).count(),
                 "two events alike in every column but their id are still two events");
+    }
+
+    @Test
+    void keepsTwoIdenticalFreeholdEventsApart() {
+        try (SqlSessionWrapper session = database.openSession(true)) {
+            int authorityPartyId = session.partyMapper().findOrInsert(new Party.Personal(BOB));
+            for (int i = 0; i < 2; i++) {
+                session.freeholdHistoryMapper().insert("plot_sold_twice", WORLD_ID, "BUY", ALICE,
+                        authorityPartyId, 900.0);
+            }
+        }
+        List<String> sales = ids(page(List.of("BUY"), null, null, 50, 0));
+        Assertions.assertEquals(2, sales.stream().filter("plot_sold_twice"::equals).count(),
+                "two sales alike in every column but their id are still two sales");
     }
 }

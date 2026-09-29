@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -92,7 +93,7 @@ class RealtyPaperApiImplTest {
                     10);
     /** A reservation at 1000 that withdrew one offer, which a rollback has to put back. */
     private static final RealtyBackend.BuyResult.Success RESERVED = new RealtyBackend.BuyResult.Success(
-            1000.0, AUTHORITY_ID, TITLE_HOLDER_ID,
+            1000.0, new Party.Personal(AUTHORITY_ID), TITLE_HOLDER_ID,
             new RealtyBackend.BuyUndo(42,
                     List.of(new RealtyBackend.WithdrawnOffer(
                             UUID.randomUUID(), 500.0, LocalDateTime.of(2026, 8, 1, 12, 0))),
@@ -893,7 +894,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success adds authority as member and applies flags")
         void success() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, AUTHORITY_ID, null))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, new Party.Personal(AUTHORITY_ID), null))
                     .thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
@@ -910,7 +911,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success with title holder applies SOLD state")
         void successWithTitleHolder() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, AUTHORITY_ID, TITLE_HOLDER_ID))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, new Party.Personal(AUTHORITY_ID), TITLE_HOLDER_ID))
                     .thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
@@ -926,7 +927,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns AlreadyRegistered when region exists")
         void alreadyRegistered() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, AUTHORITY_ID, null))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, new Party.Personal(AUTHORITY_ID), null))
                     .thenReturn(false);
 
             RealtyPaperApi.CreateFreeholdResult result =

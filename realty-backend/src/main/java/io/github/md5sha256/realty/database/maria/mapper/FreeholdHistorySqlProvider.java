@@ -6,22 +6,32 @@ import java.util.Map;
 
 public class FreeholdHistorySqlProvider {
 
+    /** A player is on a record as its buyer, or as its authority when the authority is that player. */
+    private static final String PLAYER_FILTER =
+            "(fh.buyerId = #{playerId} OR " + PartySql.AUTHORITY_IS_PLAYER + ")";
+
     public String searchHistory(Map<String, Object> params) {
         return new SQL() {{
-            SELECT("historyId, worldGuardRegionId, worldId, eventType, buyerId, authorityId, price, eventTime");
-            FROM("FreeholdHistory");
-            WHERE("worldGuardRegionId = #{worldGuardRegionId}");
-            WHERE("worldId = #{worldId}");
+            SELECT("fh.historyId, fh.worldGuardRegionId, fh.worldId, fh.eventType, fh.buyerId,"
+                    + PartySql.AUTHORITY_COLUMNS
+                    + ", fh.price, fh.eventTime");
+            FROM("FreeholdHistory fh");
+            LEFT_OUTER_JOIN("PersonalParty app ON app.partyId = fh.authorityPartyId");
+            LEFT_OUTER_JOIN("AccountParty aap ON aap.partyId = fh.authorityPartyId");
+            LEFT_OUTER_JOIN("GroupParty agp ON agp.partyId = fh.authorityPartyId");
+            LEFT_OUTER_JOIN("AccountParty aga ON aga.partyId = agp.accountPartyId");
+            WHERE("fh.worldGuardRegionId = #{worldGuardRegionId}");
+            WHERE("fh.worldId = #{worldId}");
             if (params.get("eventType") != null) {
-                WHERE("eventType = #{eventType}");
+                WHERE("fh.eventType = #{eventType}");
             }
             if (params.get("since") != null) {
-                WHERE("eventTime >= #{since}");
+                WHERE("fh.eventTime >= #{since}");
             }
             if (params.get("playerId") != null) {
-                WHERE("(buyerId = #{playerId} OR authorityId = #{playerId})");
+                WHERE(PLAYER_FILTER);
             }
-            ORDER_BY("eventTime DESC");
+            ORDER_BY("fh.eventTime DESC");
             LIMIT("#{limit}");
             OFFSET("#{offset}");
         }}.toString();
@@ -30,17 +40,21 @@ public class FreeholdHistorySqlProvider {
     public String countHistory(Map<String, Object> params) {
         return new SQL() {{
             SELECT("COUNT(*)");
-            FROM("FreeholdHistory");
-            WHERE("worldGuardRegionId = #{worldGuardRegionId}");
-            WHERE("worldId = #{worldId}");
+            FROM("FreeholdHistory fh");
+            LEFT_OUTER_JOIN("PersonalParty app ON app.partyId = fh.authorityPartyId");
+            LEFT_OUTER_JOIN("AccountParty aap ON aap.partyId = fh.authorityPartyId");
+            LEFT_OUTER_JOIN("GroupParty agp ON agp.partyId = fh.authorityPartyId");
+            LEFT_OUTER_JOIN("AccountParty aga ON aga.partyId = agp.accountPartyId");
+            WHERE("fh.worldGuardRegionId = #{worldGuardRegionId}");
+            WHERE("fh.worldId = #{worldId}");
             if (params.get("eventType") != null) {
-                WHERE("eventType = #{eventType}");
+                WHERE("fh.eventType = #{eventType}");
             }
             if (params.get("since") != null) {
-                WHERE("eventTime >= #{since}");
+                WHERE("fh.eventTime >= #{since}");
             }
             if (params.get("playerId") != null) {
-                WHERE("(buyerId = #{playerId} OR authorityId = #{playerId})");
+                WHERE(PLAYER_FILTER);
             }
         }}.toString();
     }

@@ -154,7 +154,7 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                                 @Nullable Double lastSoldPrice,
                                 @NotNull String membersStr) {
         String titleHolder = freehold.titleHolderId() != null ? resolveName(freehold.titleHolderId()) : "N/A";
-        String authority = resolveName(freehold.authorityId());
+        String authority = resolveName(freehold.authority());
 
         if (freehold.price() != null) {
             builder.appendNewline()

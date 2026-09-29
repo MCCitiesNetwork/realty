@@ -37,7 +37,7 @@ class RegionContractFieldsTest {
 
     @Test
     void reportsWhetherAFreeholdIsAcceptingOffers() {
-        FreeholdContractEntity freehold = new FreeholdContractEntity(1, LANDLORD, null, 25000.0, false);
+        FreeholdContractEntity freehold = new FreeholdContractEntity(1, new Party.Personal(LANDLORD), null, 25000.0, false);
         RealtyRestServer server = TestServers.withRegionInfo(
                 new RealtyBackend.RegionInfo(freehold, null, null, null, null),
                 RegionState.FOR_SALE,

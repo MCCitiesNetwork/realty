@@ -115,7 +115,7 @@ final class RegionHistoryHandler {
         switch (entry) {
             case HistoryEntry.Freehold freehold -> {
                 ids.add(freehold.buyerId());
-                ids.add(freehold.authorityId());
+                ids.add(Party.playerUuidOf(freehold.authority()).orElse(null));
             }
             case HistoryEntry.Leasehold leasehold -> {
                 ids.add(leasehold.tenantId());
@@ -134,7 +134,7 @@ final class RegionHistoryHandler {
         return switch (entry) {
             case HistoryEntry.Freehold freehold -> HistoryResponse.Entry.freehold(
                     freehold.eventType(), eventTime,
-                    ref(freehold.buyerId(), names), ref(freehold.authorityId(), names),
+                    ref(freehold.buyerId(), names), ref(Party.playerUuidOf(freehold.authority()), names),
                     freehold.price());
             case HistoryEntry.Leasehold leasehold -> HistoryResponse.Entry.leasehold(
                     leasehold.eventType(), eventTime,

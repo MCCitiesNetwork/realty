@@ -14,7 +14,7 @@ public interface FreeholdHistoryMapper {
                @NotNull UUID worldId,
                @NotNull String eventType,
                @NotNull UUID buyerId,
-               @NotNull UUID authorityId,
+               int authorityPartyId,
                double price);
 
     /**
@@ -25,7 +25,7 @@ public interface FreeholdHistoryMapper {
                           @NotNull UUID worldId,
                           @NotNull String eventType,
                           @NotNull UUID buyerId,
-                          @NotNull UUID authorityId,
+                          int authorityPartyId,
                           double price);
 
     /** Removes one record. For taking back a record of something that was then undone. */

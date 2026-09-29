@@ -159,7 +159,7 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                         messages.messageFor(messageKey,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), freehold.eventTime())),
                                                 Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
-                                                Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
+                                                Placeholder.unparsed("authority", resolveName(freehold.authority())),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
                             }
                             case HistoryEntry.Agent agent -> {

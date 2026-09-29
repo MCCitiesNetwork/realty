@@ -85,7 +85,7 @@ final class RegionHandler {
         List<UUID> playerIds = new ArrayList<>();
         if (info.freehold() != null) {
             playerIds.add(info.freehold().titleHolderId());
-            playerIds.add(info.freehold().authorityId());
+            playerIds.add(Party.playerUuidOf(info.freehold().authority()).orElse(null));
         }
         if (info.leasehold() != null) {
             playerIds.add(Party.playerUuidOf(info.leasehold().landlord()).orElse(null));
@@ -124,7 +124,8 @@ final class RegionHandler {
             return null;
         }
         PlayerRef titleHolder = PlayerNames.ref(freehold.titleHolderId(), names);
-        PlayerRef authority = Objects.requireNonNull(PlayerNames.ref(freehold.authorityId(), names));
+        PlayerRef authority = Objects.requireNonNull(
+                PlayerNames.ref(Party.playerUuidOf(freehold.authority()).orElse(null), names));
         return new RegionResponse.Freehold(titleHolder, authority, freehold.price(), lastSoldPrice,
                 freehold.acceptingOffers());
     }

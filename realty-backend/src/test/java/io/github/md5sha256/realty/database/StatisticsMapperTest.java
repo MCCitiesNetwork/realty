@@ -34,8 +34,8 @@ class StatisticsMapperTest extends AbstractDatabaseTest {
 
     @Test
     void agreesWithEveryStandaloneCounter() {
-        Assertions.assertTrue(logic.createFreehold("stats_listed", WORLD_ID, 5000.0, AUTHORITY, null));
-        Assertions.assertTrue(logic.createFreehold("stats_sold", WORLD_ID, null, AUTHORITY, OWNER));
+        Assertions.assertTrue(logic.createFreehold("stats_listed", WORLD_ID, 5000.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("stats_sold", WORLD_ID, null, new Party.Personal(AUTHORITY), OWNER));
         Assertions.assertTrue(logic.createLeasehold("stats_rental", WORLD_ID, 250.0, 604800L, -1, new Party.Personal(LANDLORD)));
 
         StatisticsEntity stats = statistics();

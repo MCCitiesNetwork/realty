@@ -197,7 +197,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         .thenApply(ignored -> new BuyResult.InsufficientFunds(price, balance));
             }
             UUID recipientId = reserved.titleHolderId() != null
-                    ? reserved.titleHolderId() : reserved.authorityId();
+                    ? reserved.titleHolderId() : Party.playerUuidOf(reserved.authority()).orElse(null);
             PaymentResult result = economyProvider.transfer(
                     buyerId, recipientId, price, "Plot Purchase: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
@@ -589,7 +589,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
         UUID recipientId = success.titleHolderId() != null
-                ? success.titleHolderId() : success.authorityId();
+                ? success.titleHolderId() : Party.playerUuidOf(success.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
                 bidderId, recipientId, amount,
                 "Auction Bid Payment (partial): " + regionId);
@@ -611,7 +611,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
         UUID recipientId = fullyPaid.titleHolderId() != null
-                ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
+                ? fullyPaid.titleHolderId() : Party.playerUuidOf(fullyPaid.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
                 bidderId, recipientId, amount,
                 "Auction Bid Payment (final): " + regionId);
@@ -682,7 +682,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
         UUID recipientId = success.titleHolderId() != null
-                ? success.titleHolderId() : success.authorityId();
+                ? success.titleHolderId() : Party.playerUuidOf(success.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
                 offererId, recipientId, amount,
                 "Purchase Offer Payment (partial): " + regionId);
@@ -704,7 +704,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
         UUID recipientId = fullyPaid.titleHolderId() != null
-                ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
+                ? fullyPaid.titleHolderId() : Party.playerUuidOf(fullyPaid.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
                 offererId, recipientId, amount,
                 "Purchase Offer Payment (final): " + regionId);
@@ -930,7 +930,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> {
-            boolean created = realtyApi.createFreehold(regionId, worldId, price, authority, titleHolder);
+            boolean created = realtyApi.createFreehold(regionId, worldId, price, new Party.Personal(authority), titleHolder);
             Map<String, String> placeholders = created
                     ? realtyApi.getRegionPlaceholders(regionId, worldId)
                     : Map.<String, String>of();
@@ -1265,7 +1265,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID authorityId) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setAuthority(regionId, worldId, authorityId),
+                () -> realtyApi.setAuthority(regionId, worldId, new Party.Personal(authorityId)),
                 executorState.dbExec());
     }
 

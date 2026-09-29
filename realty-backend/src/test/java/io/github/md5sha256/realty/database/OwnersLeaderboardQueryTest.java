@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import org.junit.jupiter.api.Assertions;
@@ -24,12 +25,12 @@ class OwnersLeaderboardQueryTest extends AbstractDatabaseTest {
     @BeforeEach
     void seed() {
         for (int i = 0; i < 3; i++) {
-            Assertions.assertTrue(logic.createFreehold("alice_" + i, WORLD_ID, null, AUTHORITY, ALICE));
+            Assertions.assertTrue(logic.createFreehold("alice_" + i, WORLD_ID, null, new Party.Personal(AUTHORITY), ALICE));
         }
-        Assertions.assertTrue(logic.createFreehold("bob_0", WORLD_ID, null, AUTHORITY, BOB));
-        Assertions.assertTrue(logic.createFreehold("carol_0", WORLD_ID, null, AUTHORITY, CAROL));
+        Assertions.assertTrue(logic.createFreehold("bob_0", WORLD_ID, null, new Party.Personal(AUTHORITY), BOB));
+        Assertions.assertTrue(logic.createFreehold("carol_0", WORLD_ID, null, new Party.Personal(AUTHORITY), CAROL));
         // Unsold: it has no title holder, so nobody should be credited with it.
-        Assertions.assertTrue(logic.createFreehold("unsold", WORLD_ID, 100.0, AUTHORITY, null));
+        Assertions.assertTrue(logic.createFreehold("unsold", WORLD_ID, 100.0, new Party.Personal(AUTHORITY), null));
     }
 
     private static List<PlotOwnerCount> page(int limit, int offset) {

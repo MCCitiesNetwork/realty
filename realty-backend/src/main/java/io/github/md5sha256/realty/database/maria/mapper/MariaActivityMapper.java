@@ -54,25 +54,25 @@ public interface MariaActivityMapper extends ActivityMapper {
             <script>
             <bind name="window" value="limit + offset" />
             SELECT * FROM (
-                (SELECT 'freehold' AS kind, historyId, worldGuardRegionId, worldId, eventType, eventTime,
-                        buyerId AS firstPlayerId,
-                        price, CAST(NULL AS SIGNED) AS durationSeconds,
+                (SELECT 'freehold' AS kind, fh.historyId, fh.worldGuardRegionId, fh.worldId, fh.eventType,
+                        fh.eventTime, fh.buyerId AS firstPlayerId,
+                        fh.price, CAST(NULL AS SIGNED) AS durationSeconds,
                         CAST(NULL AS SIGNED) AS extensionsRemaining,
-                        'PERSONAL' AS second_kind, authorityId AS second_playerUuid,
-                 """ + PartySql.NULL_SECOND_ACCOUNT_COLUMNS + """
-                 FROM FreeholdHistory
-                 WHERE eventType IN
+                 """ + PartySql.AUTHORITY_AS_SECOND_COLUMNS + """
+                 FROM FreeholdHistory fh
+                 """ + PartySql.AUTHORITY_JOINS_HISTORY + """
+                 WHERE fh.eventType IN
                  <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
-                 <if test="worldId != null">AND worldId = #{worldId}</if>
-                 <if test="since != null">AND eventTime &gt;= #{since}</if>
-                 ORDER BY eventTime DESC, worldGuardRegionId, historyId DESC LIMIT #{window})
+                 <if test="worldId != null">AND fh.worldId = #{worldId}</if>
+                 <if test="since != null">AND fh.eventTime &gt;= #{since}</if>
+                 ORDER BY fh.eventTime DESC, fh.worldGuardRegionId, fh.historyId DESC LIMIT #{window})
                 UNION ALL
                 (SELECT 'leasehold' AS kind, lh.historyId, lh.worldGuardRegionId, lh.worldId, lh.eventType,
                         lh.eventTime, lh.tenantId AS firstPlayerId,
                         lh.price, lh.durationSeconds, lh.extensionsRemaining,
                  """ + PartySql.LANDLORD_AS_SECOND_COLUMNS + """
                  FROM LeaseholdHistory lh
-                 INNER JOIN Party lp ON lp.partyId = lh.landlordPartyId
+                 """ + PartySql.LANDLORD_JOINS_HISTORY + """
                  WHERE lh.eventType IN
                  <foreach item="t" collection="eventTypes" open="(" separator="," close=")">#{t}</foreach>
                  <if test="worldId != null">AND lh.worldId = #{worldId}</if>

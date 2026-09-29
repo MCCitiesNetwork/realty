@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
 import io.github.md5sha256.realty.database.entity.AuctionSort;
 import org.junit.jupiter.api.Assertions;
@@ -28,9 +29,9 @@ class ActiveAuctionQueryTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void seed() {
-        Assertions.assertTrue(logic.createFreehold("plot_quiet", WORLD_ID, 1000.0, AUTHORITY, null));
-        Assertions.assertTrue(logic.createFreehold("plot_busy", WORLD_ID, 1000.0, AUTHORITY, null));
-        Assertions.assertTrue(logic.createFreehold("plot_elsewhere", OTHER_WORLD, 1000.0, AUTHORITY, null));
+        Assertions.assertTrue(logic.createFreehold("plot_quiet", WORLD_ID, 1000.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("plot_busy", WORLD_ID, 1000.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("plot_elsewhere", OTHER_WORLD, 1000.0, new Party.Personal(AUTHORITY), null));
         logic.createAuction("plot_quiet", WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
         logic.createAuction("plot_busy", WORLD_ID, AUTHORITY, 7200, 3600, 100.0, 10.0);
         logic.createAuction("plot_elsewhere", OTHER_WORLD, AUTHORITY, 3600, 3600, 100.0, 10.0);

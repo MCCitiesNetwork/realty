@@ -1719,8 +1719,7 @@ class MapperTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("a freehold reads back the authority it was created with, of every kind")
         void freehold_authorityRoundTripsForEachKind() throws SQLException {
-            try (SqlSessionWrapper wrapper = database.openSession(true);
-                 Statement statement = wrapper.session().getConnection().createStatement()) {
+            try (SqlSessionWrapper wrapper = database.openSession(true)) {
                 TestParties.insertGroup(wrapper.session().getConnection(), "police", 42, AccountKind.GOVERNMENT);
             }
             List<Party> authorities = List.of(

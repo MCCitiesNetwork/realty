@@ -43,7 +43,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId, UUID worldId, UUID authority, UUID titleHolder) {
-        boolean created = logic.createFreehold(regionId, worldId, 1000.0, authority, titleHolder);
+        boolean created = logic.createFreehold(regionId, worldId, 1000.0, new Party.Personal(authority), titleHolder);
         Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 
@@ -102,7 +102,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("succeeds for a new region")
         void succeeds() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
+            boolean result = logic.createFreehold(regionId, WORLD_ID, 500.0, new Party.Personal(AUTHORITY), PLAYER_A);
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
@@ -113,9 +113,9 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("returns false for duplicate region")
         void duplicateRegion() {
             String regionId = uniqueRegionId();
-            logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
+            logic.createFreehold(regionId, WORLD_ID, 500.0, new Party.Personal(AUTHORITY), PLAYER_A);
 
-            boolean second = logic.createFreehold(regionId, WORLD_ID, 800.0, AUTHORITY, PLAYER_B);
+            boolean second = logic.createFreehold(regionId, WORLD_ID, 800.0, new Party.Personal(AUTHORITY), PLAYER_B);
             Assertions.assertFalse(second);
         }
 
@@ -123,7 +123,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("succeeds with null titleholder (for freehold)")
         void succeedsWithNullTitleHolder() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, null);
+            boolean result = logic.createFreehold(regionId, WORLD_ID, 500.0, new Party.Personal(AUTHORITY), null);
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
@@ -153,7 +153,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("returns false for duplicate region")
         void duplicateRegion() {
             String regionId = uniqueRegionId();
-            logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
+            logic.createFreehold(regionId, WORLD_ID, 500.0, new Party.Personal(AUTHORITY), PLAYER_A);
 
             boolean second = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_B));
             Assertions.assertFalse(second);

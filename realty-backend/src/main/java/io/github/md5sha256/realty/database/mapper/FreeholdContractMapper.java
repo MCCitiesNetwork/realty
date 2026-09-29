@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.mapper;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.entity.TitleHeldRegionTag;
@@ -27,28 +28,27 @@ public interface FreeholdContractMapper {
      *
      * @param regionId    the {@code realtyRegionId} of the region being sold
      * @param price       the freehold price (must be &gt; 0), or {@code null} if not for freehold
-     * @param authority   UUID of the authority overseeing the freehold
+     * @param authorityPartyId the {@code Party} row id of the authority overseeing the freehold
      * @param titleHolder UUID of the current title holder
      * @return number of rows inserted (1 on success)
      */
     int insertFreehold(int regionId,
                    @Nullable Double price,
-                   @NotNull UUID authority,
+                   int authorityPartyId,
                    @Nullable UUID titleHolder);
 
     /**
-     * Checks whether the given player is the authority on any freehold contract for the
-     * specified WorldGuard region, joining through the {@code RealtyRegion} and
-     * {@code Contract} tables.
+     * Checks whether the given party is the authority on the freehold contract for the
+     * specified WorldGuard region.
      *
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region
-     * @param playerId           UUID of the player to check
-     * @return {@code true} if the player is an authority on at least one freehold contract
+     * @param authority          the party to check
+     * @return {@code true} if the party is the authority on the region's freehold contract
      */
     boolean existsByRegionAndAuthority(@NotNull String worldGuardRegionId,
                                        @NotNull UUID worldId,
-                                       @NotNull UUID playerId);
+                                       @NotNull Party authority);
 
     /**
      * Checks whether the given player is the title holder on any freehold contract for the
@@ -147,12 +147,12 @@ public interface FreeholdContractMapper {
      *
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region
-     * @param authorityId        UUID of the new authority
+     * @param authorityPartyId   the {@code Party} row id of the new authority
      * @return number of rows updated (1 on success, 0 if no matching contract)
      */
     int updateAuthorityByRegion(@NotNull String worldGuardRegionId,
                                 @NotNull UUID worldId,
-                                @NotNull UUID authorityId);
+                                int authorityPartyId);
 
     int atomicBuy(@NotNull String worldGuardRegionId,
                   @NotNull UUID worldId,

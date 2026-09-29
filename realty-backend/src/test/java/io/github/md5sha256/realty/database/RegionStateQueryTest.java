@@ -28,13 +28,13 @@ class RegionStateQueryTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void seed() {
-        Assertions.assertTrue(logic.createFreehold("plot_for_sale", WORLD_ID, 5000.0, AUTHORITY, null));
-        Assertions.assertTrue(logic.createFreehold("plot_sold", WORLD_ID, null, AUTHORITY, OWNER));
+        Assertions.assertTrue(logic.createFreehold("plot_for_sale", WORLD_ID, 5000.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("plot_sold", WORLD_ID, null, new Party.Personal(AUTHORITY), OWNER));
         Assertions.assertTrue(logic.createLeasehold("plot_for_lease", WORLD_ID, 250.0, 604800L, -1, new Party.Personal(LANDLORD)));
         try (SqlSessionWrapper session = database.openSession(true)) {
             session.realtyRegionMapper().registerWorldGuardRegion("plot_bare", WORLD_ID);
         }
-        Assertions.assertTrue(logic.createFreehold("plot_elsewhere", OTHER_WORLD, 100.0, AUTHORITY, null));
+        Assertions.assertTrue(logic.createFreehold("plot_elsewhere", OTHER_WORLD, 100.0, new Party.Personal(AUTHORITY), null));
     }
 
     private static List<RegionStateRow> page(int limit, int offset) {

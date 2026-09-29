@@ -39,6 +39,6 @@ final class PlayerSummaryHandler {
                 this.backend.countRegionsByLandlord(new Party.Personal(playerId)),
                 this.backend.countOccupiedLeaseholdsByLandlord(new Party.Personal(playerId)),
                 this.backend.countRegionsByTenant(playerId),
-                this.backend.countRegionsByAuthority(playerId)));
+                this.backend.countRegionsByAuthority(new Party.Personal(playerId))));
     }
 }
