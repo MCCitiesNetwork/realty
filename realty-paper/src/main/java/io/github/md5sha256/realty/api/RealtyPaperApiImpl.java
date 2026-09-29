@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.GroupMapping;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
@@ -1279,6 +1280,26 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.setAuthority(regionId, worldId, authority),
                 executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.MapGroupResult> mapGroup(
+            @NotNull String groupName, @NotNull Party.Account account) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.mapGroup(groupName, account),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.UnmapGroupResult> unmapGroup(@NotNull String groupName) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.unmapGroup(groupName),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<GroupMapping>> listGroupMappings() {
+        return CompletableFuture.supplyAsync(realtyApi::listGroupMappings, executorState.dbExec());
     }
 
     @Override

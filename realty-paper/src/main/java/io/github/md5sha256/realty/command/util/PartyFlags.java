@@ -107,24 +107,56 @@ public final class PartyFlags {
             UUID senderId = ctx.sender().source() instanceof Player player ? player.getUniqueId() : null;
             return CompletableFuture.supplyAsync(() -> {
                 List<Suggestion> all = new ArrayList<>(players);
-                if (senderId != null) {
-                    for (Account account : treasury.getAccountsByMember(senderId)) {
-                        if (account.getAccountType() == AccountType.PERSONAL || account.isArchived()) {
-                            continue;
-                        }
-                        String name = account.getDisplayName();
-                        all.add(Suggestion.suggestion(name == null || name.isBlank() || name.contains(" ")
-                                ? "#" + account.getAccountId() : name));
-                    }
-                }
-                for (Party party : backend.listNonPlayerParties()) {
-                    if (party instanceof Party.Group group) {
-                        all.add(Suggestion.suggestion(group.groupName()));
-                    }
-                }
+                all.addAll(accountsOf(treasury, senderId));
+                all.addAll(mappedGroups(backend));
                 return all;
             }, lookupExecutor).exceptionally(_ -> players);
         };
+    }
+
+    /**
+     * The sender's accounts only, offered as {@link #suggestions} offers them, for an argument
+     * that must name an account.
+     */
+    public static @NotNull SuggestionProvider<Source> accountSuggestions(@Nullable TreasuryApi treasury,
+                                                                         @NotNull Executor lookupExecutor) {
+        return (ctx, input) -> {
+            if (treasury == null) {
+                return CompletableFuture.completedFuture(List.of());
+            }
+            UUID senderId = ctx.sender().source() instanceof Player player ? player.getUniqueId() : null;
+            return CompletableFuture.supplyAsync(() -> accountsOf(treasury, senderId), lookupExecutor)
+                    .exceptionally(_ -> List.of());
+        };
+    }
+
+    /** Mapped groups only, looked up on {@code lookupExecutor}. */
+    public static @NotNull SuggestionProvider<Source> groupSuggestions(@NotNull RealtyBackend backend,
+                                                                       @NotNull Executor lookupExecutor) {
+        return (ctx, input) -> CompletableFuture.supplyAsync(() -> mappedGroups(backend), lookupExecutor)
+                .exceptionally(_ -> List.of());
+    }
+
+    private static @NotNull List<Suggestion> accountsOf(@NotNull TreasuryApi treasury, @Nullable UUID senderId) {
+        if (senderId == null) {
+            return List.of();
+        }
+        List<Suggestion> accounts = new ArrayList<>();
+        for (Account account : treasury.getAccountsByMember(senderId)) {
+            if (account.getAccountType() == AccountType.PERSONAL || account.isArchived()) {
+                continue;
+            }
+            String name = account.getDisplayName();
+            accounts.add(Suggestion.suggestion(name == null || name.isBlank() || name.contains(" ")
+                    ? "#" + account.getAccountId() : name));
+        }
+        return accounts;
+    }
+
+    private static @NotNull List<Suggestion> mappedGroups(@NotNull RealtyBackend backend) {
+        return backend.listGroupMappings().stream()
+                .map(mapping -> Suggestion.suggestion(mapping.group().groupName()))
+                .toList();
     }
 
     /**

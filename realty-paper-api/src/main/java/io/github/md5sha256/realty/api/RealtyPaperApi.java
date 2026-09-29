@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.api;
 
 import com.sk89q.worldedit.regions.Region;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.GroupMapping;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
@@ -424,6 +425,15 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, boolean accepting);
+
+    // --- Group mapping ---
+
+    @NotNull CompletableFuture<RealtyBackend.MapGroupResult> mapGroup(
+            @NotNull String groupName, @NotNull Party.Account account);
+
+    @NotNull CompletableFuture<RealtyBackend.UnmapGroupResult> unmapGroup(@NotNull String groupName);
+
+    @NotNull CompletableFuture<List<GroupMapping>> listGroupMappings();
 
     // --- Leasehold Modifications ---
 

@@ -27,6 +27,14 @@ party:
         can give this role to someone else.
     not-allowed-to-assign: <prefix> <red>You cannot give this role to <yellow><name></yellow>,
         because you do not act for it.
+group:
+    mapped: <prefix> Group <yellow><group></yellow> now uses the account <green><account></green>.
+    unmapped: <prefix> Group <yellow><group></yellow> no longer has an account.
+    not-mapped: <prefix> <red>The group <yellow><group></yellow> has no account.
+    still-in-use: <prefix> <red>The group <yellow><group></yellow> is still named by <contracts> contracts and <history> history entries. You can change its account with <yellow>/realty group map</yellow>.
+    list-entry: <yellow><group></yellow> → <green><account></green> (<contracts> contracts)
+    list-empty: <prefix> No group has an account yet.
+    account-flag-required: <prefix> <red>Give the account's type with <yellow>--government</yellow>, <yellow>--business</yellow> or <yellow>--system</yellow>. A player or another group cannot be a group's account.
 accept-offer:
     success: <prefix> You have <green>accepted <player>'s offer</green> for region
         <yellow><region>.</yellow>
@@ -279,10 +287,10 @@ help:
         a lease to end after notice</grey>
     - <dark_grey>►</dark_grey> <green>/realty terminate cancel <region></green> <grey>-
         Cancel a scheduled termination</grey>
-    - <dark_grey>►</dark_grey> <green>/realty add <player> <region></green> <grey>-
-        Add a player to a region</grey>
-    - <dark_grey>►</dark_grey> <green>/realty remove <player> <region></green> <grey>-
-        Remove a player from a region</grey>
+    - <dark_grey>►</dark_grey> <green>/realty add <player> <region> [--group]</green> <grey>-
+        Add a player, or with --group a permission group, to a region</grey>
+    - <dark_grey>►</dark_grey> <green>/realty remove <player> <region> [--group]</green> <grey>-
+        Remove a player, or with --group a permission group, from a region</grey>
     offers:
     - <prefix> Offer Commands
     - <dark_grey>►</dark_grey> <yellow>/realty offer send <price> <region></yellow>
@@ -320,6 +328,12 @@ help:
     - <dark_grey>►</dark_grey> <red>/realty reload</red> <grey>- Reload configuration</grey>
     - <dark_grey>►</dark_grey> <red>/realty set authority <name> [region] [type flag]</red>
         <gray>- Set freehold authority</gray>
+    - <dark_grey>►</dark_grey> <red>/realty group map <group> <account> <type flag></red>
+        <grey>- Give a permission group an account, so it can be a landlord or authority</grey>
+    - <dark_grey>►</dark_grey> <red>/realty group unmap <group></red> <grey>- Remove a group's
+        account</grey>
+    - <dark_grey>►</dark_grey> <red>/realty group list</red> <grey>- List groups and their
+        accounts</grey>
     - <dark_grey>►</dark_grey> <grey>A type flag, one of --government, --business, --system
         or --group, makes the name an account or a group instead of a player. It goes last.</grey>
     management:

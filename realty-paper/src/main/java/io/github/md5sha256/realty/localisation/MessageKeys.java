@@ -28,6 +28,15 @@ public final class MessageKeys {
     public static final String PARTY_NOT_ALLOWED_TO_REASSIGN = "party.not-allowed-to-reassign";
     public static final String PARTY_NOT_ALLOWED_TO_ASSIGN = "party.not-allowed-to-assign";
 
+    // group
+    public static final String GROUP_MAPPED = "group.mapped";
+    public static final String GROUP_UNMAPPED = "group.unmapped";
+    public static final String GROUP_NOT_MAPPED = "group.not-mapped";
+    public static final String GROUP_STILL_IN_USE = "group.still-in-use";
+    public static final String GROUP_LIST_ENTRY = "group.list-entry";
+    public static final String GROUP_LIST_EMPTY = "group.list-empty";
+    public static final String GROUP_ACCOUNT_FLAG_REQUIRED = "group.account-flag-required";
+
     // accept-offer
     public static final String ACCEPT_OFFER_SUCCESS = "accept-offer.success";
     public static final String ACCEPT_OFFER_NO_OFFER = "accept-offer.no-offer";

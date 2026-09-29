@@ -15,6 +15,7 @@ import io.github.md5sha256.realty.database.entity.AgentHistoryEntity;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAgentInviteEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
+import io.github.md5sha256.realty.database.entity.GroupMapping;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
@@ -40,6 +41,7 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractBidPaymentMapp
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferPaymentMapper;
+import io.github.md5sha256.realty.database.mapper.PartyMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -49,6 +51,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -1333,6 +1336,65 @@ public class RealtyBackendImpl implements RealtyBackend {
     public @Nullable Party.Group findGroupParty(@NotNull String groupName) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             return wrapper.partyMapper().findGroupParty(groupName);
+        }
+    }
+
+    // --- Group mapping ---
+
+    @Override
+    public @NotNull MapGroupResult mapGroup(@NotNull String groupName, @NotNull Party.Account account) {
+        Party.Group mapped = new Party.Group(groupName, account.accountId(), account.kind());
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            PartyMapper partyMapper = wrapper.partyMapper();
+            Integer partyId = partyMapper.lockGroupId(mapped.groupName());
+            if (partyId == null) {
+                // Should another thread insert the same group first, the unique groupName makes
+                // this insert fail rather than add a second row.
+                partyMapper.insertGroup(mapped.groupName(), account.accountId(), account.kind());
+                wrapper.session().commit();
+                return new MapGroupResult.Created(mapped);
+            }
+            if (!(partyMapper.selectById(partyId) instanceof Party.Group previous)) {
+                throw new IllegalStateException("party #" + partyId + " is not a group");
+            }
+            if (previous.equals(mapped)) {
+                return new MapGroupResult.NoChange(previous);
+            }
+            // Updated in place, so the party id every contract and history entry points at stays.
+            partyMapper.updateGroupAccount(partyId, account.accountId(), account.kind());
+            wrapper.session().commit();
+            return new MapGroupResult.Changed(previous, mapped);
+        }
+    }
+
+    @Override
+    public @NotNull UnmapGroupResult unmapGroup(@NotNull String groupName) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            PartyMapper partyMapper = wrapper.partyMapper();
+            // The lock keeps a contract or history entry from naming the group between the
+            // counts and the delete.
+            Integer partyId = partyMapper.lockGroupId(groupName.toLowerCase(Locale.ROOT));
+            if (partyId == null) {
+                return new UnmapGroupResult.NotMapped();
+            }
+            if (!(partyMapper.selectById(partyId) instanceof Party.Group group)) {
+                throw new IllegalStateException("party #" + partyId + " is not a group");
+            }
+            int contractCount = partyMapper.countContractsNaming(partyId);
+            int historyCount = partyMapper.countHistoryNaming(partyId);
+            if (contractCount > 0 || historyCount > 0) {
+                return new UnmapGroupResult.StillInUse(contractCount, historyCount);
+            }
+            partyMapper.deleteGroup(partyId);
+            wrapper.session().commit();
+            return new UnmapGroupResult.Success(group);
+        }
+    }
+
+    @Override
+    public @NotNull List<GroupMapping> listGroupMappings() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.partyMapper().selectGroupMappings();
         }
     }
 

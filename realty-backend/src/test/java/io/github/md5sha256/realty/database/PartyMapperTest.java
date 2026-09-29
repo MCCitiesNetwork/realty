@@ -216,6 +216,76 @@ class PartyMapperTest extends AbstractDatabaseTest {
         }
     }
 
+    @Test
+    void insertGroup_createsTheAccountPartyWhenMissing() throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            int groupId = wrapper.partyMapper().insertGroup("police", 42, AccountKind.GOVERNMENT);
+            Assertions.assertEquals(new Party.Group("police", 42, AccountKind.GOVERNMENT),
+                    wrapper.partyMapper().selectById(groupId));
+            Integer accountPartyId = wrapper.partyMapper().findId(new Party.Account(42, AccountKind.GOVERNMENT));
+            Assertions.assertNotNull(accountPartyId);
+            Assertions.assertEquals(new Party.Account(42, AccountKind.GOVERNMENT),
+                    wrapper.partyMapper().selectById(accountPartyId));
+        }
+    }
+
+    @Test
+    void insertGroup_reusesTheAccountParty() throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            int accountPartyId = wrapper.partyMapper().findOrInsert(new Party.Account(42, AccountKind.GOVERNMENT));
+            wrapper.partyMapper().insertGroup("police", 42, AccountKind.GOVERNMENT);
+            wrapper.partyMapper().insertGroup("rangers", 42, AccountKind.GOVERNMENT);
+            try (Statement statement = wrapper.session().getConnection().createStatement();
+                 ResultSet rs = statement.executeQuery("""
+                         SELECT (SELECT COUNT(*) FROM AccountParty WHERE accountId = 42),
+                                (SELECT COUNT(*) FROM GroupParty WHERE accountPartyId = %d)
+                         """.formatted(accountPartyId))) {
+                rs.next();
+                Assertions.assertEquals(1, rs.getInt(1), "one account party");
+                Assertions.assertEquals(2, rs.getInt(2), "both groups point at it");
+            }
+        }
+    }
+
+    @Test
+    void insertGroup_accountStoredUnderAnotherKind_throws() {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            PartyMapper mapper = wrapper.partyMapper();
+            mapper.findOrInsert(new Party.Account(42, AccountKind.GOVERNMENT));
+            IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class,
+                    () -> mapper.insertGroup("police", 42, AccountKind.BUSINESS));
+            Assertions.assertEquals("account #42 is stored as GOVERNMENT, not BUSINESS", exception.getMessage());
+        }
+    }
+
+    @Test
+    void updateGroupAccount_repointsTheGroup() throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            PartyMapper mapper = wrapper.partyMapper();
+            int groupId = mapper.insertGroup("police", 42, AccountKind.GOVERNMENT);
+            mapper.updateGroupAccount(groupId, 7, AccountKind.BUSINESS);
+            Assertions.assertEquals(new Party.Group("police", 7, AccountKind.BUSINESS), mapper.selectById(groupId));
+            Assertions.assertNotNull(mapper.findId(new Party.Account(42, AccountKind.GOVERNMENT)),
+                    "the old account keeps its party");
+        }
+    }
+
+    @Test
+    void deleteGroup_removesBothRowsAndKeepsTheAccountParty() throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            PartyMapper mapper = wrapper.partyMapper();
+            int groupId = mapper.insertGroup("police", 42, AccountKind.GOVERNMENT);
+            Assertions.assertEquals(1, mapper.deleteGroup(groupId));
+            Assertions.assertNull(mapper.selectById(groupId));
+            try (Statement statement = wrapper.session().getConnection().createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM Party WHERE partyId = " + groupId)) {
+                rs.next();
+                Assertions.assertEquals(0, rs.getInt(1), "the base row is gone too");
+            }
+            Assertions.assertNotNull(mapper.findId(new Party.Account(42, AccountKind.GOVERNMENT)));
+        }
+    }
+
     private static int insertGroupRow(SqlSessionWrapper wrapper, String groupName, int accountId,
                                       AccountKind accountKind) throws SQLException {
         return TestParties.insertGroup(wrapper.session().getConnection(), groupName, accountId, accountKind);

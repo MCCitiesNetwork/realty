@@ -187,6 +187,28 @@ class PartyResolverTest {
         assertEquals(new PartyResolver.Resolution.Refused(MessageKeys.PARTY_REQUIRES_AUTHORIZATION, "police"), result);
     }
 
+    @Test
+    void group_accountNoLongerOfTheStoredType_isRefused() {
+        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        when(backend.findGroupParty("police")).thenReturn(group);
+        when(treasury.getAccountById(42)).thenReturn(account(42, AccountType.BUSINESS, "police"));
+
+        PartyResolver.Resolution result = resolver.resolve("police", PartyFlag.GROUP, null);
+
+        assertEquals(new PartyResolver.Resolution.Refused(MessageKeys.PARTY_TYPE_MISMATCH, "police"), result);
+    }
+
+    @Test
+    void group_accountNowPersonal_isRefused() {
+        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        when(backend.findGroupParty("police")).thenReturn(group);
+        when(treasury.getAccountById(42)).thenReturn(account(42, AccountType.PERSONAL, "Steve"));
+
+        PartyResolver.Resolution result = resolver.resolve("police", PartyFlag.GROUP, null);
+
+        assertEquals(new PartyResolver.Resolution.Refused(MessageKeys.PARTY_TYPE_MISMATCH, "police"), result);
+    }
+
     // --- GOVERNMENT by name ---
 
     @Test

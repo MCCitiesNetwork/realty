@@ -83,6 +83,11 @@ public final class PartyResolver {
         if (account == null) {
             return refused(MessageKeys.PARTY_UNKNOWN_ACCOUNT, name);
         }
+        // The mapping stores the account's type; an account whose type has changed since, or
+        // that is PERSONAL, is no longer the account the group was mapped to.
+        if (account.getAccountType() != AccountType.valueOf(group.accountKind().name())) {
+            return refused(MessageKeys.PARTY_TYPE_MISMATCH, name);
+        }
         Resolution unavailable = checkAvailable(account, name);
         return unavailable != null ? unavailable : new Resolution.Resolved(group);
     }

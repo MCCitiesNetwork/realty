@@ -45,6 +45,7 @@ import io.github.md5sha256.realty.command.CreateCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
 import io.github.md5sha256.realty.command.ExtendCommand;
+import io.github.md5sha256.realty.command.GroupCommandGroup;
 import io.github.md5sha256.realty.command.HelpCommand;
 import io.github.md5sha256.realty.command.HistoryCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
@@ -941,6 +942,10 @@ public final class Realty extends JavaPlugin {
                 new RegisterCommand(paperApi, this.defaultParties, this.partyResolver, partySuggestions,
                         executorState, messageContainer, this.eventDispatch),
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
+                new GroupCommandGroup(paperApi, this.treasury, this.partyResolver,
+                        PartyFlags.groupSuggestions(this.logic, executorState.dbExec()),
+                        PartyFlags.accountSuggestions(this.treasury, executorState.dbExec()),
+                        executorState, messageContainer),
                 new HistoryCommand(paperApi, this.settings, messageContainer),
                 new InfoCommand(paperApi,
                         this.settings,
