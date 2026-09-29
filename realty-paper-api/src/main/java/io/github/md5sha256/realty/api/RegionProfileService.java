@@ -10,6 +10,8 @@ import com.sk89q.worldguard.protection.flags.registry.FlagRegistry;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,8 +23,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Service that manages and applies WorldGuard flag profiles (including region priority)
@@ -30,6 +35,13 @@ import java.util.logging.Logger;
  * (applied to all regions) and grouped profiles (applied only to specific named regions).
  */
 public class RegionProfileService {
+
+    /** A {@code <key>} in a command or a flag value. */
+    private static final Pattern PLACEHOLDER = Pattern.compile("<([^<>]+)>");
+    /** The names MiniMessage accepts for a tag. */
+    private static final Pattern VALID_TAG_NAME = Pattern.compile("[a-z0-9_-]+");
+
+    private final Set<String> warnedKeys = ConcurrentHashMap.newKeySet();
 
     private final Logger logger;
     private final EnumMap<RegionState, FlagProfile> globalFlagProfiles;
@@ -194,14 +206,10 @@ public class RegionProfileService {
         }
 
         MiniMessage miniMessage = MiniMessage.miniMessage();
-        // The lines are MiniMessage, but a value is not: a landlord or authority may be an account
-        // whose display name its owner chooses. Escaped, a value shows as text and adds no tags.
-        // Commands and flags are not MiniMessage and take the values as they are.
-        Map<String, String> escaped = new HashMap<>(placeholders.size());
-        placeholders.forEach((key, value) -> escaped.put(key, miniMessage.escapeTags(value)));
+        TagResolver values = lineResolver(placeholders);
         List<Component> resolvedLines = new ArrayList<>(effective.lines().size());
         for (String line : effective.lines()) {
-            resolvedLines.add(miniMessage.deserialize(replacePlaceholders(line, escaped)));
+            resolvedLines.add(miniMessage.deserialize(line, values));
         }
 
         List<String> resolvedRightClick = resolveCommands(effective.rightClickCommands(), placeholders);
@@ -226,7 +234,7 @@ public class RegionProfileService {
      * Applies the global and grouped flag profiles for the given state to the
      * specified WorldGuard region. All existing flags on the region are cleared
      * before the new profile is applied. Placeholder tokens in flag values
-     * (e.g. {@code {region}}, {@code {price}}) are replaced with the
+     * (e.g. {@code <region>}, {@code <price>}) are replaced with the
      * corresponding values from the provided map before being parsed by WorldGuard.
      *
      * @param region       the WorldGuard region to apply flags to
@@ -327,16 +335,52 @@ public class RegionProfileService {
         }
     }
 
+    /**
+     * The placeholders of a sign line, as MiniMessage tags that insert their value as text.
+     *
+     * <p>A line is MiniMessage the operator wrote, but a value is not: a landlord or an authority
+     * may be an account whose display name its owner chooses. Each value is inserted by the parser
+     * as unparsed text, so it can carry no formatting or click of its own, and it is never read
+     * again for another placeholder.</p>
+     *
+     * <p>A key that is not a valid tag name (lower case letters, digits, {@code _} and {@code -})
+     * cannot be a tag. It is left out of sign lines, so {@code <Key>} shows as written, and a
+     * warning names it once.</p>
+     */
+    private @NotNull TagResolver lineResolver(@NotNull Map<String, String> placeholders) {
+        TagResolver.Builder builder = TagResolver.builder();
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            if (!VALID_TAG_NAME.matcher(entry.getKey()).matches()) {
+                if (this.warnedKeys.add(entry.getKey())) {
+                    this.logger.warning("Placeholder '" + entry.getKey()
+                            + "' is not a valid MiniMessage tag name, so sign lines cannot use it");
+                }
+                continue;
+            }
+            builder.resolver(Placeholder.unparsed(entry.getKey(), entry.getValue()));
+        }
+        return builder.build();
+    }
+
+    /**
+     * Replaces each {@code <key>} in a command or a flag value with its value, in one pass over
+     * {@code value}: text that was inserted is never scanned for another key, so a value that
+     * reads {@code <tenant>} stays as it is. Unknown keys are left as written.
+     */
     private @NotNull String replacePlaceholders(@NotNull String value,
                                                 @NotNull Map<String, String> placeholders) {
         if (placeholders.isEmpty() || value.indexOf('<') == -1) {
             return value;
         }
-        String result = value;
-        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            result = result.replace("<" + entry.getKey() + ">", entry.getValue());
+        Matcher matcher = PLACEHOLDER.matcher(value);
+        StringBuilder result = new StringBuilder(value.length());
+        while (matcher.find()) {
+            String replacement = placeholders.get(matcher.group(1));
+            matcher.appendReplacement(result,
+                    Matcher.quoteReplacement(replacement != null ? replacement : matcher.group()));
         }
-        return result;
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     /**
