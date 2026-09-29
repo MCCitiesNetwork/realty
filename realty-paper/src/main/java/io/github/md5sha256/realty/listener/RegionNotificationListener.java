@@ -64,10 +64,14 @@ public final class RegionNotificationListener implements Listener {
 
     @EventHandler
     public void onRegionRented(@NotNull RegionRentedEvent event) {
-        this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getLandlord())),
+        List<UUID> recipients = recipientsOf(event.getLandlord());
+        if (recipients.isEmpty()) {
+            return;
+        }
+        this.events.fireSync(new RealtyNotificationEvent(recipients,
                 MessageKeys.NOTIFICATION_REGION_RENTED,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
-                        Placeholder.unparsed("player", resolveName(Party.playerUuidOf(event.getTenant()))),
+                        Placeholder.unparsed("player", resolveName(event.getTenant())),
                         Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
                         Placeholder.unparsed("region", event.getRegionId())),
                 event.getRegion()));
@@ -75,10 +79,14 @@ public final class RegionNotificationListener implements Listener {
 
     @EventHandler
     public void onRegionUnrented(@NotNull RegionUnrentedEvent event) {
-        this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getLandlord())),
+        List<UUID> recipients = recipientsOf(event.getLandlord());
+        if (recipients.isEmpty()) {
+            return;
+        }
+        this.events.fireSync(new RealtyNotificationEvent(recipients,
                 MessageKeys.NOTIFICATION_REGION_UNRENTED,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_REGION_UNRENTED,
-                        Placeholder.unparsed("player", resolveName(Party.playerUuidOf(event.getTenant()))),
+                        Placeholder.unparsed("player", resolveName(event.getTenant())),
                         Placeholder.unparsed("region", event.getRegionId()),
                         Placeholder.unparsed("refund", CurrencyFormatter.format(event.getRefund()))),
                 event.getRegion()));
@@ -86,30 +94,37 @@ public final class RegionNotificationListener implements Listener {
 
     @EventHandler
     public void onLeaseExpired(@NotNull LeaseExpiredEvent event) {
-        this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getTenant())),
+        this.events.fireSync(new RealtyNotificationEvent(recipientsOf(event.getTenant()),
                 MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED,
                         Placeholder.unparsed("region", event.getRegionId())),
                 event.getRegion()));
-        this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getLandlord())),
-                MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD,
-                this.messages.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD,
-                        Placeholder.unparsed("region", event.getRegionId())),
-                event.getRegion()));
+        List<UUID> landlordRecipients = recipientsOf(event.getLandlord());
+        if (!landlordRecipients.isEmpty()) {
+            this.events.fireSync(new RealtyNotificationEvent(landlordRecipients,
+                    MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD,
+                    this.messages.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD,
+                            Placeholder.unparsed("region", event.getRegionId())),
+                    event.getRegion()));
+        }
     }
 
     @EventHandler
     public void onModificationProposed(@NotNull LeaseModificationProposedEvent event) {
         if (LeaseholdRoles.LANDLORD.equals(event.getProposerRole())) {
             // Landlord proposed: notify the tenant, who decides by renewing or not.
-            this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getTenant())),
+            this.events.fireSync(new RealtyNotificationEvent(recipientsOf(event.getTenant()),
                     MessageKeys.NOTIFICATION_MODIFY_PROPOSED_LANDLORD,
                     this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_PROPOSED_LANDLORD,
                             Placeholder.unparsed("region", event.getRegionId())),
                     event.getRegion()));
         } else {
             // Tenant proposed: notify the landlord, who must accept or reject.
-            this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getLandlord())),
+            List<UUID> recipients = recipientsOf(event.getLandlord());
+            if (recipients.isEmpty()) {
+                return;
+            }
+            this.events.fireSync(new RealtyNotificationEvent(recipients,
                     MessageKeys.NOTIFICATION_MODIFY_PROPOSED_TENANT,
                     this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_PROPOSED_TENANT,
                             Placeholder.unparsed("player", resolveName(event.getProposerId())),
@@ -121,25 +136,27 @@ public final class RegionNotificationListener implements Listener {
     @EventHandler
     public void onModificationResolved(@NotNull LeaseModificationResolvedEvent event) {
         switch (event.getResolution()) {
-            case "ACCEPTED" -> this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getTenant())),
+            case "ACCEPTED" -> this.events.fireSync(new RealtyNotificationEvent(recipientsOf(event.getTenant()),
                     MessageKeys.NOTIFICATION_MODIFY_ACCEPTED,
                     this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_ACCEPTED,
                             Placeholder.unparsed("region", event.getRegionId())),
                     event.getRegion()));
-            case "REJECTED" -> this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getTenant())),
+            case "REJECTED" -> this.events.fireSync(new RealtyNotificationEvent(recipientsOf(event.getTenant()),
                     MessageKeys.NOTIFICATION_MODIFY_REJECTED,
                     this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_REJECTED,
                             Placeholder.unparsed("region", event.getRegionId())),
                     event.getRegion()));
             case "WITHDRAWN" -> {
                 // Notify the party that did not withdraw.
-                UUID target = LeaseholdRoles.LANDLORD.equals(event.getProposerRole())
-                        ? Party.playerUuidOf(event.getTenant()) : Party.playerUuidOf(event.getLandlord());
-                this.events.fireSync(new RealtyNotificationEvent(List.of(target),
-                        MessageKeys.NOTIFICATION_MODIFY_WITHDRAWN,
-                        this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_WITHDRAWN,
-                                Placeholder.unparsed("region", event.getRegionId())),
-                        event.getRegion()));
+                List<UUID> recipients = LeaseholdRoles.LANDLORD.equals(event.getProposerRole())
+                        ? recipientsOf(event.getTenant()) : recipientsOf(event.getLandlord());
+                if (!recipients.isEmpty()) {
+                    this.events.fireSync(new RealtyNotificationEvent(recipients,
+                            MessageKeys.NOTIFICATION_MODIFY_WITHDRAWN,
+                            this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_WITHDRAWN,
+                                    Placeholder.unparsed("region", event.getRegionId())),
+                            event.getRegion()));
+                }
             }
             default -> { }
         }
@@ -149,14 +166,18 @@ public final class RegionNotificationListener implements Listener {
     public void onTerminationScheduled(@NotNull LeaseTerminationScheduledEvent event) {
         String date = event.getEffectiveDate().format(DateTimeFormatters.DATE_TIME);
         if (LeaseholdRoles.LANDLORD.equals(event.getTerminatedByRole())) {
-            this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getTenant())),
+            this.events.fireSync(new RealtyNotificationEvent(recipientsOf(event.getTenant()),
                     MessageKeys.NOTIFICATION_TERMINATION_SCHEDULED_TENANT,
                     this.messages.messageFor(MessageKeys.NOTIFICATION_TERMINATION_SCHEDULED_TENANT,
                             Placeholder.unparsed("region", event.getRegionId()),
                             Placeholder.unparsed("date", date)),
                     event.getRegion()));
         } else {
-            this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getLandlord())),
+            List<UUID> recipients = recipientsOf(event.getLandlord());
+            if (recipients.isEmpty()) {
+                return;
+            }
+            this.events.fireSync(new RealtyNotificationEvent(recipients,
                     MessageKeys.NOTIFICATION_TERMINATION_SCHEDULED_LANDLORD,
                     this.messages.messageFor(MessageKeys.NOTIFICATION_TERMINATION_SCHEDULED_LANDLORD,
                             Placeholder.unparsed("region", event.getRegionId()),
@@ -168,9 +189,12 @@ public final class RegionNotificationListener implements Listener {
     @EventHandler
     public void onTerminationCancelled(@NotNull LeaseTerminationCancelledEvent event) {
         // Notify the party that did not initiate the (now-cancelled) termination.
-        UUID target = LeaseholdRoles.LANDLORD.equals(event.getTerminatedByRole())
-                ? Party.playerUuidOf(event.getTenant()) : Party.playerUuidOf(event.getLandlord());
-        this.events.fireSync(new RealtyNotificationEvent(List.of(target),
+        List<UUID> recipients = LeaseholdRoles.LANDLORD.equals(event.getTerminatedByRole())
+                ? recipientsOf(event.getTenant()) : recipientsOf(event.getLandlord());
+        if (recipients.isEmpty()) {
+            return;
+        }
+        this.events.fireSync(new RealtyNotificationEvent(recipients,
                 MessageKeys.NOTIFICATION_TERMINATION_CANCELLED,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_TERMINATION_CANCELLED,
                         Placeholder.unparsed("region", event.getRegionId())),
@@ -179,17 +203,30 @@ public final class RegionNotificationListener implements Listener {
 
     @EventHandler
     public void onLeaseTerminated(@NotNull LeaseTerminatedEvent event) {
-        this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getTenant())),
+        this.events.fireSync(new RealtyNotificationEvent(recipientsOf(event.getTenant()),
                 MessageKeys.NOTIFICATION_LEASEHOLD_TERMINATED_TENANT,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_TERMINATED_TENANT,
                         Placeholder.unparsed("region", event.getRegionId()),
                         Placeholder.unparsed("refund", CurrencyFormatter.format(event.getRefund()))),
                 event.getRegion()));
-        this.events.fireSync(new RealtyNotificationEvent(List.of(Party.playerUuidOf(event.getLandlord())),
-                MessageKeys.NOTIFICATION_LEASEHOLD_TERMINATED_LANDLORD,
-                this.messages.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_TERMINATED_LANDLORD,
-                        Placeholder.unparsed("region", event.getRegionId())),
-                event.getRegion()));
+        List<UUID> landlordRecipients = recipientsOf(event.getLandlord());
+        if (!landlordRecipients.isEmpty()) {
+            this.events.fireSync(new RealtyNotificationEvent(landlordRecipients,
+                    MessageKeys.NOTIFICATION_LEASEHOLD_TERMINATED_LANDLORD,
+                    this.messages.messageFor(MessageKeys.NOTIFICATION_LEASEHOLD_TERMINATED_LANDLORD,
+                            Placeholder.unparsed("region", event.getRegionId())),
+                    event.getRegion()));
+        }
+    }
+
+    /**
+     * The players to notify on behalf of {@code party}: the player themselves for a
+     * {@link Party.Personal}, or nobody for any other kind of party. A later task expands
+     * a non-player party into its members; until then, a notification addressed to one is
+     * simply not sent, rather than address an empty list or throw.
+     */
+    private static @NotNull List<UUID> recipientsOf(@NotNull Party party) {
+        return Party.playerUuidOf(party).map(playerId -> List.of(playerId)).orElse(List.of());
     }
 
     /**
@@ -204,5 +241,10 @@ public final class RegionNotificationListener implements Listener {
         OfflinePlayer offline = Bukkit.getOfflinePlayer(playerId);
         String name = offline.getName();
         return name != null ? name : playerId.toString();
+    }
+
+    /** Interim: a player by name, any other party by its record form. */
+    private @NotNull String resolveName(@NotNull Party party) {
+        return Party.playerUuidOf(party).map(playerId -> resolveName(playerId)).orElse(party.toString());
     }
 }
