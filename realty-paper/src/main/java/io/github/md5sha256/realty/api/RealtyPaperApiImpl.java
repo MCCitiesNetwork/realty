@@ -193,7 +193,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         if (price > 0) {
             double balance = economyProvider.getBalance(buyerId);
             if (balance < price) {
-                return rollbackBuyAsync(regionId, worldId, reserved.titleHolderId(), price)
+                return rollbackBuyAsync(regionId, worldId, buyerId, reserved)
                         .thenApply(ignored -> new BuyResult.InsufficientFunds(price, balance));
             }
             UUID recipientId = reserved.titleHolderId() != null
@@ -201,7 +201,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             PaymentResult result = economyProvider.transfer(
                     buyerId, recipientId, price, "Plot Purchase: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
-                return rollbackBuyAsync(regionId, worldId, reserved.titleHolderId(), price)
+                return rollbackBuyAsync(regionId, worldId, buyerId, reserved)
                         .thenApply(ignored -> new BuyResult.PaymentFailed(failure.errorMessage()));
             }
         }
@@ -219,10 +219,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     private @NotNull CompletableFuture<Void> rollbackBuyAsync(@NotNull String regionId,
                                                                @NotNull UUID worldId,
-                                                               @Nullable UUID previousTitleHolderId,
-                                                               double previousPrice) {
+                                                               @NotNull UUID buyerId,
+                                                               @NotNull RealtyBackend.BuyResult.Success reserved) {
         return CompletableFuture.runAsync(
-                () -> realtyApi.rollbackBuy(regionId, worldId, previousTitleHolderId, previousPrice),
+                () -> realtyApi.rollbackBuy(regionId, worldId, buyerId, reserved),
                 executorState.dbExec());
     }
 
