@@ -183,6 +183,10 @@ list:
     invalid-page: <prefix> Page <page> does not exist. There are <total> page(s).
     header: <prefix> Regions for <player>
     category: '<label>:'
+    label-owned: Owned
+    label-authority: Freehold authority
+    label-landlord: Landlord of leases
+    label-rented: Rented
     entry: ' <#00aaff><bold>»</bold></#00aaff> <click:run_command:''/realty info <region>''><white><region></white></click>'
     rented-entry: ' <#00aaff><bold>»</bold></#00aaff> <click:run_command:''/realty
         info <region>''><white><region></white> <gray>(<time_left>)</gray></click>'
@@ -273,7 +277,7 @@ help:
     - <dark_grey>►</dark_grey> <green>/realty help</green> <grey>- Show help categories</grey>
     - <dark_grey>►</dark_grey> <green>/realty info <region></green> <grey>- Display
         region info</grey>
-    - <dark_grey>►</dark_grey> <green>/realty list [owned|rented] [name] [--page <page>] [--government|--business|--system|--group]</green>
+    - <dark_grey>►</dark_grey> <green>/realty list [owned|authority|landlord|rented] [name] [--page <page>] [--government|--business|--system|--group]</green>
         <grey>- List your regions, or those of a player, account or group</grey>
     - <dark_grey>►</dark_grey> <green>/realty buy <region></green> <grey>- Buy a region
         at the listed price</grey>

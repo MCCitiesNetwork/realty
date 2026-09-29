@@ -1646,36 +1646,47 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     @Override
     public @NotNull ListResult listRegions(@NotNull Party target, int limit, int offset) {
-        // Only a player holds a title or rents in stage 1, so for any other party those two
-        // categories are empty and only the regions it is the authority of are listed.
+        // Only a player holds a title or rents in this version, so for any other party those two
+        // categories are empty and only the regions it is the authority or the landlord of are listed.
         UUID playerId = target instanceof Party.Personal personal ? personal.playerUuid() : null;
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
+            // A party with no row names no contract; looking it up must not create the row.
+            Integer partyId = wrapper.partyMapper().findId(target);
             int ownedCount = playerId == null ? 0 : regionMapper.countRegionsByTitleHolder(playerId);
-            Integer authorityPartyId = wrapper.partyMapper().findId(target);
-            int landlordCount = authorityPartyId == null ? 0 : regionMapper.countRegionsByAuthority(authorityPartyId);
+            int authorityCount = partyId == null ? 0 : regionMapper.countRegionsByAuthority(partyId);
+            int landlordCount = partyId == null ? 0 : regionMapper.countRegionsByLandlord(partyId);
             int rentedCount = playerId == null ? 0 : regionMapper.countRegionsByTenant(playerId);
 
+            // One offset runs over the four categories in order: each takes what is left of the
+            // page, starting where the offset falls inside it.
             int remaining = limit;
             int catOffset = offset;
 
-            List<RealtyRegionEntity> owned = playerId != null
+            List<RealtyRegionEntity> owned = remaining > 0 && playerId != null
                     ? regionMapper.selectRegionsByTitleHolder(playerId, remaining, catOffset)
                     : List.of();
             remaining -= owned.size();
             catOffset = Math.max(0, catOffset - ownedCount);
 
-            List<RealtyRegionEntity> landlordRegions = remaining > 0 && authorityPartyId != null
-                    ? regionMapper.selectRegionsByAuthority(authorityPartyId, remaining, catOffset)
+            List<RealtyRegionEntity> authority = remaining > 0 && partyId != null
+                    ? regionMapper.selectRegionsByAuthority(partyId, remaining, catOffset)
                     : List.of();
-            remaining -= landlordRegions.size();
+            remaining -= authority.size();
+            catOffset = Math.max(0, catOffset - authorityCount);
+
+            List<RealtyRegionEntity> landlord = remaining > 0 && partyId != null
+                    ? regionMapper.selectRegionsByLandlord(partyId, remaining, catOffset)
+                    : List.of();
+            remaining -= landlord.size();
             catOffset = Math.max(0, catOffset - landlordCount);
 
             List<RealtyRegionEntity> rented = remaining > 0 && playerId != null
                     ? regionMapper.selectRegionsByTenant(playerId, remaining, catOffset)
                     : List.of();
 
-            return new ListResult(ownedCount, landlordCount, rentedCount, owned, landlordRegions, rented);
+            return new ListResult(ownedCount, authorityCount, landlordCount, rentedCount,
+                    owned, authority, landlord, rented);
         }
     }
 
@@ -1689,6 +1700,34 @@ public class RealtyBackendImpl implements RealtyBackend {
             RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
             int count = mapper.countRegionsByTitleHolder(personal.playerUuid());
             List<RealtyRegionEntity> regions = mapper.selectRegionsByTitleHolder(personal.playerUuid(), limit, offset);
+            return new SingleCategoryResult(count, regions);
+        }
+    }
+
+    @Override
+    public @NotNull SingleCategoryResult listAuthorityRegions(@NotNull Party target, int limit, int offset) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            Integer partyId = wrapper.partyMapper().findId(target);
+            if (partyId == null) {
+                return new SingleCategoryResult(0, List.of());
+            }
+            RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
+            int count = mapper.countRegionsByAuthority(partyId);
+            List<RealtyRegionEntity> regions = mapper.selectRegionsByAuthority(partyId, limit, offset);
+            return new SingleCategoryResult(count, regions);
+        }
+    }
+
+    @Override
+    public @NotNull SingleCategoryResult listLandlordRegions(@NotNull Party target, int limit, int offset) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            Integer partyId = wrapper.partyMapper().findId(target);
+            if (partyId == null) {
+                return new SingleCategoryResult(0, List.of());
+            }
+            RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
+            int count = mapper.countRegionsByLandlord(partyId);
+            List<RealtyRegionEntity> regions = mapper.selectRegionsByLandlord(partyId, limit, offset);
             return new SingleCategoryResult(count, regions);
         }
     }

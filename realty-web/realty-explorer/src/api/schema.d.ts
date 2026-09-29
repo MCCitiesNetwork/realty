@@ -358,8 +358,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List a player's owned, landlorded and rented regions
-         * @description The HTTP form of the in-game `/realty list` command. When `category` is `all` (the default), the three category lists -- owned, landlord and rented -- are paged against **one shared offset**, exactly as `/realty list` does in-game: the page boundary can fall inside a category rather than starting each category's own list at 1, so `owned`, `landlord` and `rented` on a given page are the slice of the combined, concatenated sequence that lands on that page, not independently-paged lists of their own length. When `category` is `owned` or `rented`, that single category is paged normally and returned under `regions` instead.
+         * List the regions a player holds, is authority of, lets and rents
+         * @description The HTTP form of the in-game `/realty list` command. When `category` is `all` (the default), the four category lists -- owned, authority, landlord and rented, in that order -- are paged against **one shared offset**, exactly as `/realty list` does in-game: the page boundary can fall inside a category rather than starting each category's own list at 1, so `owned`, `authority`, `landlord` and `rented` on a given page are the slice of the combined, concatenated sequence that lands on that page, not independently-paged lists of their own length. When `category` is `owned`, `authority`, `landlord` or `rented`, that single category is paged normally and returned under `regions` instead. Before 2.0.0, `landlord` held the freeholds the player is authority of; those are now in `authority`, and `landlord` holds the leaseholds the player lets.
          */
         get: operations["listPlayerRegions"];
         put?: never;
@@ -399,7 +399,7 @@ export interface paths {
         };
         /**
          * List the regions of any party
-         * @description The same listing as `/v1/players/regions`, for any party: a player, a Treasury account or a permission group, addressed by kind and id. The query parameters and the response are the same, and so is the paging: with `category=all` the three lists share one offset. For `personal` the lists are the ones `/v1/players/regions?player=<uuid>` returns. For any other party `owned` and `rented` are empty, because only a player holds a title or rents; `landlord` lists the regions the party is the freehold authority of. In the response the field is still called `player`, so the shape of the player route does not change; here it holds the party's `PartyRef`. An account that no contract names answers with empty lists rather than 404, because this API cannot ask Treasury whether it exists; an account that is stored under another kind is 404.
+         * @description The same listing as `/v1/players/regions`, for any party: a player, a Treasury account or a permission group, addressed by kind and id. The query parameters and the response are the same, and so is the paging: with `category=all` the four lists share one offset. For `personal` the lists are the ones `/v1/players/regions?player=<uuid>` returns. For any other party `owned` and `rented` are empty, because only a player holds a title or rents; `authority` lists the freeholds the party is the authority of, and `landlord` lists the leaseholds it lets. In the response the field is still called `player`, so the shape of the player route does not change; here it holds the party's `PartyRef`. An account that no contract names answers with empty lists rather than 404, because this API cannot ask Treasury whether it exists; an account that is stored under another kind is 404.
          */
         get: operations["listPartyRegions"];
         put?: never;
@@ -511,11 +511,15 @@ export interface components {
         };
         PlayerSummaryResponse: {
             player: components["schemas"]["PartyRef"];
+            /** @description How many freeholds the player holds the title of, as titleholder. */
             titleHeld: number;
+            /** @description How many leaseholds the player lets as their landlord. */
             landlordOf: number;
             /** @description The subset of `landlordOf` that currently has a tenant, so a caller can show let versus vacant without a second call. */
             occupiedLandlordOf: number;
+            /** @description How many leaseholds the player rents, as tenant. */
             renting: number;
+            /** @description How many freeholds the player is the freehold authority of. */
             authorityOver: number;
         };
         HistoryResponse: {
@@ -765,17 +769,22 @@ export interface components {
             x: number;
             z: number;
         };
-        /** @description The response for GET /v1/players/regions and GET /v1/parties/{kind}/{id}/regions, where `player` holds the party. When category=owned or category=rented was requested, `regions` carries that category's entries and `owned`/`landlord`/`rented` are omitted (not serialised as null). When category=all (the default), `owned`, `landlord` and `rented` are populated instead and `regions` is omitted. See the endpoint description for the shared-offset paging behaviour of category=all. */
+        /** @description The response for GET /v1/players/regions and GET /v1/parties/{kind}/{id}/regions, where `player` holds the party. When a single category (owned, authority, landlord or rented) was requested, `regions` carries that category's entries and `owned`/`authority`/`landlord`/`rented` are omitted (not serialised as null). When category=all (the default), `owned`, `authority`, `landlord` and `rented` are populated instead and `regions` is omitted. See the endpoint description for the shared-offset paging behaviour of category=all. */
         PlayerRegionsResponse: {
             player: components["schemas"]["PartyRef"];
             page: number;
             pageSize: number;
             totalCount: number;
             totalPages: number;
+            /** @description The freeholds whose title the party holds, as titleholder. */
             owned?: components["schemas"]["PlayerRegionsResponse_RegionRef"][];
+            /** @description The freeholds whose freehold authority the party is. */
+            authority?: components["schemas"]["PlayerRegionsResponse_RegionRef"][];
+            /** @description The leaseholds the party lets as their landlord, with or without a tenant; before 2.0.0 this field held the freeholds now in `authority`. */
             landlord?: components["schemas"]["PlayerRegionsResponse_RegionRef"][];
+            /** @description The leaseholds the party rents, as tenant. */
             rented?: components["schemas"]["PlayerRegionsResponse_RentedRef"][];
-            /** @description Present only for a single-category request (category=owned or category=rented); its entries are RegionRef or RentedRef shaped per that category. */
+            /** @description Present only for a single-category request (category=owned, authority, landlord or rented); its entries are RentedRef shaped for category=rented and RegionRef shaped otherwise. */
             regions?: unknown[];
         };
         PlayerRegionsResponse_RegionRef: {
@@ -1646,8 +1655,8 @@ export interface operations {
             query: {
                 /** @description The player, as a UUID or a name. A UUID is answered from the database alone, so this form keeps working while the query-service module is down -- the returned `name` is simply null, as every other module-sourced field degrades. A name is resolved through the module, so it answers 404 for an unknown name and 502 when the module is unreachable. A Floodgate (Bedrock) player's name is a `.` followed by their Xbox gamertag, which may itself contain spaces -- send it percent-encoded, so `.Some Gamertag` becomes `.Some%20Gamertag`. */
                 player: string;
-                /** @description One of `all` (default), `owned`, or `rented`. */
-                category?: "all" | "owned" | "rented";
+                /** @description One of `all` (default), `owned`, `authority`, `landlord` or `rented`. See `PlayerRegionsResponse` for what each category holds. */
+                category?: "all" | "owned" | "authority" | "landlord" | "rented";
                 /** @description 1-based page number. Defaults to 1. */
                 page?: number;
                 /** @description Page size, clamped to the server's configured maximum, which is itself capped at 100. Defaults to 10 (or the configured maximum if it is lower). A larger value is clamped rather than rejected. */
@@ -1668,7 +1677,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlayerRegionsResponse"];
                 };
             };
-            /** @description `MISSING_PARAMETER` when `player` was not given; `MALFORMED_UUID` when a UUID-shaped `player` does not parse; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when `category` is present but not one of `all`, `owned`, `rented`. */
+            /** @description `MISSING_PARAMETER` when `player` was not given; `MALFORMED_UUID` when a UUID-shaped `player` does not parse; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when `category` is present but not one of `all`, `owned`, `authority`, `landlord`, `rented`. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1768,8 +1777,8 @@ export interface operations {
     listPartyRegions: {
         parameters: {
             query?: {
-                /** @description One of `all` (default), `owned`, or `rented`. */
-                category?: "all" | "owned" | "rented";
+                /** @description One of `all` (default), `owned`, `authority`, `landlord` or `rented`. See `PlayerRegionsResponse` for what each category holds. */
+                category?: "all" | "owned" | "authority" | "landlord" | "rented";
                 /** @description 1-based page number. Defaults to 1. */
                 page?: number;
                 /** @description Page size, clamped to the server's configured maximum, which is itself capped at 100. Defaults to 10 (or the configured maximum if it is lower). A larger value is clamped rather than rejected. */
@@ -1795,7 +1804,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlayerRegionsResponse"];
                 };
             };
-            /** @description `INVALID_PARTY_KIND` when `kind` is not one of the five values; `MALFORMED_UUID` when `kind` is `personal` and `id` is not a UUID; `INVALID_ACCOUNT_ID` when `kind` is an account kind and `id` is not a positive integer; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when `category` is present but not one of `all`, `owned`, `rented`. */
+            /** @description `INVALID_PARTY_KIND` when `kind` is not one of the five values; `MALFORMED_UUID` when `kind` is `personal` and `id` is not a UUID; `INVALID_ACCOUNT_ID` when `kind` is an account kind and `id` is not a positive integer; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when `category` is present but not one of `all`, `owned`, `authority`, `landlord`, `rented`. */
             400: {
                 headers: {
                     [name: string]: unknown;

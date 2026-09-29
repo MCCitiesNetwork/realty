@@ -593,6 +593,24 @@ public interface RealtyPaperApi {
         return listOwnedRegions(new Party.Personal(targetId), limit, offset);
     }
 
+    /** See {@link RealtyBackend#listAuthorityRegions(Party, int, int)}. */
+    @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listAuthorityRegions(
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listAuthorityRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listAuthorityRegions(new Party.Personal(targetId), limit, offset);
+    }
+
+    /** See {@link RealtyBackend#listLandlordRegions(Party, int, int)}. */
+    @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listLandlordRegions(
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listLandlordRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listLandlordRegions(new Party.Personal(targetId), limit, offset);
+    }
+
     @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
             @NotNull Party target, int limit, int offset);
 

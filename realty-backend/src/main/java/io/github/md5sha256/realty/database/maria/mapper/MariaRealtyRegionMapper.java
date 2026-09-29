@@ -143,6 +143,24 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             FROM RealtyRegion rr
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
             INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
+            WHERE lc.landlordPartyId = #{landlordPartyId}
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "realtyRegionId", javaType = int.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<RealtyRegionEntity> selectRegionsByLandlord(@Param("landlordPartyId") int landlordPartyId,
+                                                              @Param("limit") int limit,
+                                                              @Param("offset") int offset);
+
+    @Override
+    @Select("""
+            SELECT rr.realtyRegionId, rr.worldGuardRegionId, rr.worldId
+            FROM RealtyRegion rr
+            INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
+            INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
             WHERE lc.tenantId = #{playerId}
             LIMIT #{limit} OFFSET #{offset}
             """)

@@ -21,15 +21,55 @@ class PlayerRegionsEndpointTest {
     private static final String UUID_SHAPED_BUT_INVALID = "3a1c88f0-0000-0000-0000-00000000zzzz";
 
     @Test
-    void returnsThreeCategoriesForCategoryAll() {
+    void all_hasTheFourParts() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get("/v1/players/regions?player=" + UUID_PARAM);
             Assertions.assertEquals(200, response.code());
             String body = response.body().string();
-            Assertions.assertTrue(body.contains("\"owned\""));
-            Assertions.assertTrue(body.contains("\"landlord\""));
-            Assertions.assertTrue(body.contains("\"rented\""));
+            Assertions.assertTrue(body.contains("\"owned\":[{\"worldGuardRegionId\":\"owned_plot\""), body);
+            Assertions.assertTrue(body.contains("\"authority\":[{\"worldGuardRegionId\":\"authority_plot\""), body);
+            Assertions.assertTrue(body.contains("\"landlord\":[{\"worldGuardRegionId\":\"let_plot\""), body);
+            Assertions.assertTrue(body.contains("\"rented\":[{\"worldGuardRegionId\":\"rented_plot\""), body);
+            Assertions.assertTrue(body.contains("\"totalCount\":4"), body);
+        });
+    }
+
+    @Test
+    void all_aPageFilledBeforeTheRentedPart_listsNoRentedRegion() {
+        // One owned, one authority and one let region fill a page of three, so the shared
+        // offset leaves no room for the rented region the database would offer.
+        RealtyRestServer server = TestServers.withPlayerHoldings();
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&pageSize=3").body().string();
+            Assertions.assertTrue(body.contains("\"let_plot\""), body);
+            Assertions.assertTrue(body.contains("\"rented\":[]"), body);
+        });
+    }
+
+    @Test
+    void categoryAuthority_listsAuthorityLand() {
+        RealtyRestServer server = TestServers.withPlayerHoldings();
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            Response response = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=authority");
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("\"regions\":[{\"worldGuardRegionId\":\"authority_plot\""), body);
+            Assertions.assertTrue(body.contains("\"totalCount\":1"), body);
+            Assertions.assertFalse(body.contains("let_plot"), body);
+        });
+    }
+
+    @Test
+    void categoryLandlord_listsLetLand() {
+        RealtyRestServer server = TestServers.withPlayerHoldings();
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            Response response = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=landlord");
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("\"regions\":[{\"worldGuardRegionId\":\"let_plot\""), body);
+            Assertions.assertTrue(body.contains("\"totalCount\":1"), body);
+            Assertions.assertFalse(body.contains("authority_plot"), body);
         });
     }
 
@@ -97,6 +137,7 @@ class PlayerRegionsEndpointTest {
             String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=all")
                     .body().string();
             Assertions.assertTrue(body.contains("\"owned\""));
+            Assertions.assertTrue(body.contains("\"authority\""));
             Assertions.assertTrue(body.contains("\"landlord\""));
             Assertions.assertTrue(body.contains("\"rented\""));
             Assertions.assertFalse(body.contains("\"regions\""));
@@ -104,13 +145,14 @@ class PlayerRegionsEndpointTest {
     }
 
     @Test
-    void categoryOwnedOmitsTheThreeCategoryFields() {
+    void categoryOwnedOmitsTheFourCategoryFields() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=owned")
                     .body().string();
             Assertions.assertTrue(body.contains("\"regions\""));
             Assertions.assertFalse(body.contains("\"owned\""));
+            Assertions.assertFalse(body.contains("\"authority\""));
             Assertions.assertFalse(body.contains("\"landlord\""));
             Assertions.assertFalse(body.contains("\"rented\""));
         });
@@ -129,14 +171,16 @@ class PlayerRegionsEndpointTest {
     }
 
     @Test
-    void returns400ForAnUnrecognisedCategory() {
+    void unknownCategory_is400() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
-            Response response = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=owned2");
-            Assertions.assertEquals(400, response.code());
-            String body = response.body().string();
-            Assertions.assertTrue(body.contains("INVALID_CATEGORY"), body);
-            Assertions.assertFalse(body.contains("owned2"), body);
+            for (String category : List.of("owned2", "authorities", "Landlord", "tenant")) {
+                Response response = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=" + category);
+                Assertions.assertEquals(400, response.code(), category);
+                String body = response.body().string();
+                Assertions.assertTrue(body.contains("INVALID_CATEGORY"), body);
+                Assertions.assertFalse(body.contains(category), body);
+            }
         });
     }
 
@@ -151,13 +195,14 @@ class PlayerRegionsEndpointTest {
     }
 
     @Test
-    void categoryRentedOmitsTheThreeCategoryFields() {
+    void categoryRentedOmitsTheFourCategoryFields() {
         RealtyRestServer server = TestServers.withPlayerHoldings();
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             String body = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=rented")
                     .body().string();
             Assertions.assertTrue(body.contains("\"regions\""));
             Assertions.assertFalse(body.contains("\"owned\""));
+            Assertions.assertFalse(body.contains("\"authority\""));
             Assertions.assertFalse(body.contains("\"landlord\""));
             Assertions.assertFalse(body.contains("\"rented\""));
         });

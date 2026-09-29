@@ -1497,6 +1497,22 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     @Override
+    public @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listAuthorityRegions(
+            @NotNull Party target, int limit, int offset) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.listAuthorityRegions(target, limit, offset),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listLandlordRegions(
+            @NotNull Party target, int limit, int offset) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.listLandlordRegions(target, limit, offset),
+                executorState.dbExec());
+    }
+
+    @Override
     public @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
             @NotNull Party target, int limit, int offset) {
         return CompletableFuture.supplyAsync(

@@ -17,11 +17,17 @@ type RegionRef = components["schemas"]["PlayerRegionsResponse_RegionRef"];
 type RentedRef = components["schemas"]["PlayerRegionsResponse_RentedRef"];
 type Category = NonNullable<NonNullable<paths["/v1/players/regions"]["get"]["parameters"]["query"]>["category"]>;
 
+// The parts of a listing, in the order the API pages them. `authority` holds the
+// freeholds the player is authority of; `landlord` holds the leases they let.
 const CATEGORIES: ReadonlyArray<{ value: Category; label: string }> = [
   { value: "all", label: "Everything" },
   { value: "owned", label: "Owned" },
+  { value: "authority", label: "Authority over" },
+  { value: "landlord", label: "Landlord of" },
   { value: "rented", label: "Renting" },
 ];
+
+const labelOf = (category: Category) => CATEGORIES.find((entry) => entry.value === category)?.label ?? category;
 
 const PAGE_SIZE = 20;
 
@@ -144,20 +150,22 @@ export function PlayerScreen({ client, id }: Props) {
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing in this category." />
           )}
           {category === "all" && (
-            // The three lists share one page offset, exactly as `/realty list` pages
+            // The four lists share one page offset, exactly as `/realty list` pages
             // them in game: a page boundary can fall inside a category, so a page shows
-            // whichever groups land on it rather than three lists paged separately.
+            // whichever groups land on it rather than four lists paged separately.
             <>
-              <Group title="Owned" regions={holdings.data.owned ?? []} />
-              <Group title="Landlord of" regions={holdings.data.landlord ?? []} />
-              <Group title="Renting" regions={holdings.data.rented ?? []} />
+              <Group title={labelOf("owned")} regions={holdings.data.owned ?? []} />
+              <Group title={labelOf("authority")} regions={holdings.data.authority ?? []} />
+              <Group title={labelOf("landlord")} regions={holdings.data.landlord ?? []} />
+              <Group title={labelOf("rented")} regions={holdings.data.rented ?? []} />
             </>
           )}
-          {category === "owned" && (
-            <Group title="Owned" regions={(holdings.data.regions ?? []) as RegionRef[]} />
-          )}
-          {category === "rented" && (
-            <Group title="Renting" regions={(holdings.data.regions ?? []) as RentedRef[]} />
+          {category !== "all" && (
+            // A single category arrives under `regions`; only rented entries carry an end date.
+            <Group
+              title={labelOf(category)}
+              regions={(holdings.data.regions ?? []) as Array<RegionRef | RentedRef>}
+            />
           )}
           {holdings.data.totalCount > PAGE_SIZE && (
             <Pagination
@@ -180,7 +188,7 @@ function Group({ title, regions: all }: { title: string; regions: ReadonlyArray<
   const regions = all.filter((entry) => allowsWorld(visibility, entry.world));
   if (regions.length === 0) return null;
   return (
-    <Card size="small" title={title} styles={{ body: { padding: "0 12px" } }}>
+    <Card size="small" title={title} role="region" aria-label={title} styles={{ body: { padding: "0 12px" } }}>
       <Rows
         items={regions}
         itemKey={(entry) => `${entry.world.id}/${entry.worldGuardRegionId}`}

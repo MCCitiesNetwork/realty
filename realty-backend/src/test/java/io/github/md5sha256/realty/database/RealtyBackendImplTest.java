@@ -554,6 +554,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             ListResult result = logic.listRegions(PLAYER_A, 10, 0);
             Assertions.assertEquals(0, result.totalCount());
             Assertions.assertTrue(result.owned().isEmpty());
+            Assertions.assertTrue(result.authority().isEmpty());
             Assertions.assertTrue(result.landlord().isEmpty());
             Assertions.assertTrue(result.rented().isEmpty());
         }
@@ -570,13 +571,25 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("counts landlord region for authority")
-        void landlordRegion() {
+        @DisplayName("counts authority region for the freehold authority")
+        void authorityRegion() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, WORLD_ID, PLAYER_A, PLAYER_B);
 
             ListResult result = logic.listRegions(PLAYER_A, 10, 0);
+            Assertions.assertEquals(1, result.authorityCount());
+            Assertions.assertEquals(0, result.landlordCount());
+        }
+
+        @Test
+        @DisplayName("counts landlord region for the landlord of a lease")
+        void landlordRegion() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
+
+            ListResult result = logic.listRegions(PLAYER_A, 10, 0);
             Assertions.assertEquals(1, result.landlordCount());
+            Assertions.assertEquals(0, result.authorityCount());
         }
 
         @Test
