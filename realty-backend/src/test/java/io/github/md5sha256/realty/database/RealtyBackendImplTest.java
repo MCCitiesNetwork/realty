@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyBackend.CreateAuctionResult;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptOfferResult;
@@ -13,6 +15,7 @@ import io.github.md5sha256.realty.api.RealtyBackend.PayOfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RegionInfo;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
@@ -139,7 +142,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("succeeds for a new region")
         void succeeds() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            boolean result = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
@@ -152,7 +155,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             logic.createFreehold(regionId, WORLD_ID, 500.0, AUTHORITY, PLAYER_A);
 
-            boolean second = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_B);
+            boolean second = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_B));
             Assertions.assertFalse(second);
         }
 
@@ -160,7 +163,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("succeeds with null tenant (for rent)")
         void succeedsWithNullTenant() {
             String regionId = uniqueRegionId();
-            boolean result = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            boolean result = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
             Assertions.assertTrue(result);
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
@@ -180,7 +183,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         void renewThenUnrentIsClampedToOnePeriod() {
             String regionId = uniqueRegionId();
             // price 200 per period, 1-day period, up to 5 renewals.
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             // Each renewal pushes endDate out by another period without re-escrowing.
@@ -209,7 +212,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("a landlord proposal is active and applies on the tenant's next renewal")
         void landlordProposalAppliesOnRenew() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             RealtyBackend.ProposeModificationResult proposal = logic.proposeModification(
@@ -232,7 +235,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("a tenant proposal only applies after the landlord accepts it")
         void tenantProposalRequiresAccept() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             RealtyBackend.ProposeModificationResult proposal = logic.proposeModification(
@@ -258,20 +261,20 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("inbox lists tenant proposals awaiting the landlord; outbox lists the proposer's own")
         void inboxAndOutbox() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
             logic.proposeModification(regionId, WORLD_ID, PLAYER_B, false, 150.0, null, null);
 
             // Landlord (PLAYER_A) sees it in their inbox; tenant (PLAYER_B) sees it in their outbox.
-            Assertions.assertEquals(1, logic.listModificationsAwaitingLandlord(PLAYER_A).size());
+            Assertions.assertEquals(1, logic.listModificationsAwaitingLandlord(new Party.Personal(PLAYER_A)).size());
             Assertions.assertEquals(1, logic.listPendingModificationsByProposer(PLAYER_B).size());
             // The tenant has nothing awaiting them as a landlord; the landlord proposed nothing.
-            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(PLAYER_B).isEmpty());
+            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(new Party.Personal(PLAYER_B)).isEmpty());
             Assertions.assertTrue(logic.listPendingModificationsByProposer(PLAYER_A).isEmpty());
 
             // Once the landlord rejects it, both listings clear.
             logic.rejectModification(regionId, WORLD_ID, PLAYER_A, false);
-            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(PLAYER_A).isEmpty());
+            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(new Party.Personal(PLAYER_A)).isEmpty());
             Assertions.assertTrue(logic.listPendingModificationsByProposer(PLAYER_B).isEmpty());
         }
 
@@ -279,7 +282,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("a stranger cannot propose a modification")
         void strangerCannotPropose() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             Assertions.assertInstanceOf(RealtyBackend.ProposeModificationResult.NotAuthorized.class,
@@ -297,7 +300,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("scheduling a termination blocks extension and is honoured by the sweep")
         void scheduleBlocksExtensionAndSweepEndsLease() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, new Party.Personal(PLAYER_A));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             LocalDateTime effective = LocalDateTime.now().minusMinutes(1);
@@ -325,7 +328,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("a tenant under eviction cannot unrent their way out and re-rent")
         void unrentBlockedWhileTerminating() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, new Party.Personal(PLAYER_A));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             LocalDateTime effective = LocalDateTime.now().plusDays(7);
@@ -349,7 +352,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("cannot terminate a vacant lease")
         void cannotTerminateVacant() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, new Party.Personal(PLAYER_A));
 
             Assertions.assertInstanceOf(RealtyBackend.TerminateLeaseholdResult.NotOccupied.class,
                     logic.terminateLease(regionId, WORLD_ID, LocalDateTime.now().plusDays(7),
@@ -367,7 +370,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("a closed leasehold cannot be rented, and reopening restores it")
         void closedBlocksRent() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, new Party.Personal(PLAYER_A));
 
             // Landlord closes it to new tenants.
             Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.Success.class,
@@ -388,7 +391,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("only the landlord (or an admin) can toggle rentable")
         void onlyLandlordCanToggle() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, new Party.Personal(PLAYER_A));
 
             Assertions.assertInstanceOf(RealtyBackend.SetRentableResult.NotAuthorized.class,
                     logic.setRentable(regionId, WORLD_ID, PLAYER_C, false, false));
@@ -471,7 +474,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("returns leasehold when rental exists")
         void withLeasehold() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
 
             RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
             Assertions.assertNotNull(info.leasehold());
@@ -507,7 +510,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("returns true when player is tenant of leasehold")
         void isTenant() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
 
             Assertions.assertTrue(logic.checkRegionAuthority(regionId, WORLD_ID, PLAYER_A));
         }
@@ -569,7 +572,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         @DisplayName("counts rented region for tenant")
         void rentedRegion() {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, PLAYER_A);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
 
             ListResult result = logic.listRegions(PLAYER_B, 10, 0);
@@ -1380,6 +1383,53 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
 
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
             Assertions.assertInstanceOf(OfferResult.Success.class, result);
+        }
+    }
+
+    @Nested
+    @DisplayName("history search by player")
+    class HistorySearchByPlayer {
+
+        // Through the leasehold history mapper rather than searchHistory, which also reads the
+        // freehold history, and that is not moved onto parties until the authority is.
+        private static List<LeaseholdHistoryEntity> searchByPlayer(String regionId, UUID playerId) {
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                List<LeaseholdHistoryEntity> found = wrapper.leaseholdHistoryMapper()
+                        .searchHistory(regionId, WORLD_ID, null, null, playerId, 50, 0);
+                Assertions.assertEquals(found.size(), wrapper.leaseholdHistoryMapper()
+                        .countHistory(regionId, WORLD_ID, null, null, playerId));
+                return found;
+            }
+        }
+
+        @Test
+        @DisplayName("a player is found as the landlord of a record")
+        void historySearchByPlayer_stillFindsAPlayerLandlord() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
+            logic.setDuration(regionId, WORLD_ID, 3600);
+
+            List<LeaseholdHistoryEntity> found = searchByPlayer(regionId, PLAYER_A);
+            Assertions.assertEquals(1, found.size());
+            Assertions.assertEquals(new Party.Personal(PLAYER_A), found.getFirst().landlord());
+            Assertions.assertNull(found.getFirst().tenantId());
+            Assertions.assertEquals(List.of(), searchByPlayer(regionId, PLAYER_B));
+        }
+
+        @Test
+        @DisplayName("an account landlord matches no player, and its tenant is still found")
+        void historySearchByPlayer_ignoresAccountLandlords() {
+            String regionId = uniqueRegionId();
+            Party.Account landlord = new Party.Account(42, AccountKind.GOVERNMENT);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, landlord);
+            logic.setDuration(regionId, WORLD_ID, 3600);
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+
+            Assertions.assertEquals(List.of(), searchByPlayer(regionId, PLAYER_A));
+            List<LeaseholdHistoryEntity> found = searchByPlayer(regionId, PLAYER_B);
+            Assertions.assertEquals(1, found.size());
+            Assertions.assertEquals("RENT", found.getFirst().eventType());
+            Assertions.assertEquals(landlord, found.getFirst().landlord());
         }
     }
 }

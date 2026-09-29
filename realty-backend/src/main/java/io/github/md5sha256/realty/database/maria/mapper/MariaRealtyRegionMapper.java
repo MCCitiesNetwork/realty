@@ -211,9 +211,9 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             FROM RealtyRegion rr
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
             INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
-            WHERE lc.landlordId = #{playerId}
+            WHERE lc.landlordPartyId = #{landlordPartyId}
             """)
-    @NotNull List<String> selectRegionNamesByLandlord(@Param("playerId") @NotNull UUID playerId);
+    @NotNull List<String> selectRegionNamesByLandlord(@Param("landlordPartyId") int landlordPartyId);
 
     @Override
     @Select("""
@@ -221,9 +221,9 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             FROM RealtyRegion rr
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
             INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
-            WHERE lc.landlordId = #{playerId}
+            WHERE lc.landlordPartyId = #{landlordPartyId}
             """)
-    int countRegionsByLandlord(@Param("playerId") @NotNull UUID playerId);
+    int countRegionsByLandlord(@Param("landlordPartyId") int landlordPartyId);
 
     @Override
     @Select("""

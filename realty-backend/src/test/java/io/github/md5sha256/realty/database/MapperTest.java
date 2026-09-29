@@ -1,5 +1,8 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.Party;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
@@ -11,12 +14,16 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEnti
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -37,12 +44,12 @@ class MapperTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId, UUID authority, UUID titleHolder) {
-        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, authority, titleHolder);
+        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, new Party.Personal(authority), titleHolder);
         Assertions.assertTrue(created);
     }
 
     private static void createLeaseholdRegion(String regionId, UUID landlord) {
-        boolean created = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, landlord);
+        boolean created = logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(landlord));
         Assertions.assertTrue(created);
     }
 
@@ -171,8 +178,9 @@ class MapperTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
+                int authorityPartyId = wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY));
                 List<RealtyRegionEntity> regions = wrapper.realtyRegionMapper()
-                        .selectRegionsByAuthority(AUTHORITY, 10, 0);
+                        .selectRegionsByAuthority(authorityPartyId, 10, 0);
                 Assertions.assertFalse(regions.isEmpty());
             }
         }
@@ -209,7 +217,8 @@ class MapperTest extends AbstractDatabaseTest {
             createFreeholdRegion(uniqueRegionId(), AUTHORITY, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                int count = wrapper.realtyRegionMapper().countRegionsByAuthority(AUTHORITY);
+                int authorityPartyId = wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY));
+                int count = wrapper.realtyRegionMapper().countRegionsByAuthority(authorityPartyId);
                 Assertions.assertTrue(count >= 1);
             }
         }
@@ -244,7 +253,7 @@ class MapperTest extends AbstractDatabaseTest {
                 FreeholdContractEntity entity = wrapper.freeholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
-                Assertions.assertEquals(AUTHORITY, entity.authorityId());
+                Assertions.assertEquals(new Party.Personal(AUTHORITY), entity.authority());
                 Assertions.assertEquals(PLAYER_A, entity.titleHolderId());
                 Assertions.assertEquals(1000.0, entity.price());
             }
@@ -268,7 +277,7 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 Assertions.assertTrue(wrapper.freeholdContractMapper()
-                        .existsByRegionAndAuthority(regionId, WORLD_ID, AUTHORITY));
+                        .existsByRegionAndAuthority(regionId, WORLD_ID, new Party.Personal(AUTHORITY)));
             }
         }
 
@@ -280,7 +289,7 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 Assertions.assertFalse(wrapper.freeholdContractMapper()
-                        .existsByRegionAndAuthority(regionId, WORLD_ID, PLAYER_B));
+                        .existsByRegionAndAuthority(regionId, WORLD_ID, new Party.Personal(PLAYER_B)));
             }
         }
 
@@ -393,7 +402,7 @@ class MapperTest extends AbstractDatabaseTest {
                 LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
                 Assertions.assertNotNull(entity);
-                Assertions.assertEquals(AUTHORITY, entity.landlordId());
+                Assertions.assertEquals(new Party.Personal(AUTHORITY), entity.landlord());
                 Assertions.assertEquals(200.0, entity.price());
                 Assertions.assertEquals(86400, entity.durationSeconds());
             }
@@ -493,7 +502,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("applyModificationTerms seeds the extension count when capping an uncapped lease")
         void applyModificationTermsSeedsExtensionCount() {
             String regionId = uniqueRegionId();
-            Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, -1, AUTHORITY));
+            Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, -1, new Party.Personal(AUTHORITY)));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             try (SqlSessionWrapper wrapper = database.openSession();
@@ -550,7 +559,7 @@ class MapperTest extends AbstractDatabaseTest {
         @DisplayName("selectExpiredLeaseholds returns expired leases with tenants")
         void selectExpiredLeaseholds() throws InterruptedException {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 100.0, 1, -1, AUTHORITY);
+            logic.createLeasehold(regionId, WORLD_ID, 100.0, 1, -1, new Party.Personal(AUTHORITY));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             Thread.sleep(2500);
@@ -622,14 +631,15 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
+                int partyId = wrapper.partyMapper().findOrInsert(new Party.Personal(PLAYER_A));
                 int updated = wrapper.leaseholdContractMapper()
-                        .updateLandlordByRegion(regionId, WORLD_ID, PLAYER_A);
+                        .updateLandlordByRegion(regionId, WORLD_ID, partyId);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
                 LeaseholdContractEntity entity = wrapper.leaseholdContractMapper()
                         .selectByRegion(regionId, WORLD_ID);
-                Assertions.assertEquals(PLAYER_A, entity.landlordId());
+                Assertions.assertEquals(new Party.Personal(PLAYER_A), entity.landlord());
             }
         }
 
@@ -638,8 +648,9 @@ class MapperTest extends AbstractDatabaseTest {
         void updateLandlordNonexistent() {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
+                int partyId = wrapper.partyMapper().findOrInsert(new Party.Personal(PLAYER_A));
                 int updated = wrapper.leaseholdContractMapper()
-                        .updateLandlordByRegion("nonexistent", WORLD_ID, PLAYER_A);
+                        .updateLandlordByRegion("nonexistent", WORLD_ID, partyId);
                 session.commit();
                 Assertions.assertEquals(0, updated);
             }
@@ -1483,8 +1494,9 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
+                int authorityPartyId = wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY));
                 int inserted = wrapper.freeholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "BUY", PLAYER_B, AUTHORITY, 1000.0);
+                        .insert(regionId, WORLD_ID, "BUY", PLAYER_B, authorityPartyId, 1000.0);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
             }
@@ -1498,10 +1510,11 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
+                int authorityPartyId = wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY));
                 wrapper.freeholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "BUY", PLAYER_B, AUTHORITY, 1000.0);
+                        .insert(regionId, WORLD_ID, "BUY", PLAYER_B, authorityPartyId, 1000.0);
                 wrapper.freeholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "BUY", PLAYER_A, AUTHORITY, 2000.0);
+                        .insert(regionId, WORLD_ID, "BUY", PLAYER_A, authorityPartyId, 2000.0);
                 session.commit();
 
                 Double lastPrice = wrapper.freeholdHistoryMapper()
@@ -1519,12 +1532,13 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
+                int authorityPartyId = wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY));
                 wrapper.freeholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "BUY", PLAYER_B, AUTHORITY, 8205.0);
+                        .insert(regionId, WORLD_ID, "BUY", PLAYER_B, authorityPartyId, 8205.0);
                 wrapper.freeholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "SET_TITLEHOLDER", PLAYER_A, AUTHORITY, 0.0);
+                        .insert(regionId, WORLD_ID, "SET_TITLEHOLDER", PLAYER_A, authorityPartyId, 0.0);
                 wrapper.freeholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "SET_PRICE", AUTHORITY, AUTHORITY, 78000.0);
+                        .insert(regionId, WORLD_ID, "SET_PRICE", AUTHORITY, authorityPartyId, 78000.0);
                 session.commit();
 
                 // The holder put the plot up for 78,000; nobody has paid that.
@@ -1542,8 +1556,9 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
+                int authorityPartyId = wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY));
                 wrapper.freeholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "SET_PRICE", AUTHORITY, AUTHORITY, 500.0);
+                        .insert(regionId, WORLD_ID, "SET_PRICE", AUTHORITY, authorityPartyId, 500.0);
                 session.commit();
 
                 Assertions.assertNull(wrapper.freeholdHistoryMapper()
@@ -1576,8 +1591,9 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
+                int landlordPartyId = wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY));
                 int inserted = wrapper.leaseholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "RENT", PLAYER_A, AUTHORITY,
+                        .insert(regionId, WORLD_ID, "RENT", PLAYER_A, landlordPartyId,
                                 200.0, 86400L, 5);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
@@ -1592,11 +1608,212 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
+                int landlordPartyId = wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY));
                 int inserted = wrapper.leaseholdHistoryMapper()
-                        .insert(regionId, WORLD_ID, "LEASEHOLD_EXPIRY", PLAYER_A, AUTHORITY,
+                        .insert(regionId, WORLD_ID, "LEASEHOLD_EXPIRY", PLAYER_A, landlordPartyId,
                                 null, null, null);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
+            }
+        }
+    }
+
+    // ==================== Leasehold landlord as a party ====================
+
+    @Nested
+    @DisplayName("Leasehold landlord as a party")
+    class LeaseLandlordPartyTests {
+
+        private static final String POLICE = "police";
+
+        private static void insertPoliceGroup() throws SQLException {
+            try (SqlSessionWrapper wrapper = database.openSession(true)) {
+                TestParties.insertGroup(wrapper.session().getConnection(), "police", 42, AccountKind.GOVERNMENT);
+            }
+        }
+
+        private static int queryInt(String sql) throws SQLException {
+            try (SqlSessionWrapper wrapper = database.openSession(true);
+                 Statement statement = wrapper.session().getConnection().createStatement();
+                 ResultSet resultSet = statement.executeQuery(sql)) {
+                resultSet.next();
+                return resultSet.getInt(1);
+            }
+        }
+
+        @Test
+        @DisplayName("a lease reads back the landlord it was created with, of every kind")
+        void lease_landlordRoundTripsForEachKind() throws SQLException {
+            insertPoliceGroup();
+            List<Party> landlords = List.of(
+                    new Party.Personal(PLAYER_A),
+                    new Party.Account(42, AccountKind.GOVERNMENT),
+                    new Party.Group(POLICE, 42, AccountKind.GOVERNMENT));
+            for (Party landlord : landlords) {
+                String regionId = uniqueRegionId();
+                Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, landlord));
+                try (SqlSessionWrapper wrapper = database.openSession()) {
+                    LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
+                            .selectByRegion(regionId, WORLD_ID);
+                    Assertions.assertNotNull(lease);
+                    Assertions.assertEquals(landlord, lease.landlord());
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("two leases with the same landlord share one Party row")
+        void lease_twoLeasesShareOnePartyRow() throws SQLException {
+            Party.Account landlord = new Party.Account(7, AccountKind.BUSINESS);
+            Assertions.assertTrue(logic.createLeasehold(uniqueRegionId(), WORLD_ID, 200.0, 86400, 5, landlord));
+            Assertions.assertTrue(logic.createLeasehold(uniqueRegionId(), WORLD_ID, 300.0, 86400, 5, landlord));
+            Assertions.assertEquals(1, queryInt("SELECT COUNT(*) FROM Party"));
+        }
+
+        @Test
+        @DisplayName("a history row of a vacant lease stores no tenant")
+        void history_withoutTenantStoresNull() throws SQLException {
+            String regionId = uniqueRegionId();
+            createLeaseholdRegion(regionId, AUTHORITY);
+            // setDuration rather than setPrice: setPrice reads the freehold first, and the
+            // freehold's SQL is not moved onto parties until the authority is.
+            Assertions.assertInstanceOf(RealtyBackend.SetDurationResult.Success.class,
+                    logic.setDuration(regionId, WORLD_ID, 3600));
+
+            try (SqlSessionWrapper wrapper = database.openSession(true);
+                 Statement statement = wrapper.session().getConnection().createStatement();
+                 ResultSet resultSet = statement.executeQuery("""
+                         SELECT tenantId, eventType
+                         FROM LeaseholdHistory
+                         ORDER BY historyId DESC
+                         LIMIT 1
+                         """)) {
+                Assertions.assertTrue(resultSet.next());
+                Assertions.assertEquals("SET_DURATION", resultSet.getString("eventType"));
+                Assertions.assertNull(resultSet.getObject("tenantId"));
+            }
+        }
+
+        @Test
+        @DisplayName("a landlord with no Party row owns nothing, and asking does not create the row")
+        void countByLandlord_unknownPartyIsZeroAndInsertsNothing() throws SQLException {
+            createLeaseholdRegion(uniqueRegionId(), AUTHORITY);
+            int partiesBefore = queryInt("SELECT COUNT(*) FROM Party");
+
+            Party.Account stranger = new Party.Account(99, AccountKind.BUSINESS);
+            Assertions.assertEquals(0, logic.countRegionsByLandlord(stranger));
+            Assertions.assertEquals(0, logic.countOccupiedLeaseholdsByLandlord(stranger));
+            Assertions.assertEquals(List.of(), logic.listRegionNamesByLandlord(stranger));
+            Assertions.assertEquals(List.of(), logic.listModificationsAwaitingLandlord(stranger));
+
+            Assertions.assertEquals(partiesBefore, queryInt("SELECT COUNT(*) FROM Party"));
+        }
+    }
+
+    // ==================== Freehold authority as a party ====================
+
+    @Nested
+    @DisplayName("Freehold authority as a party")
+    class FreeholdAuthorityPartyTests {
+
+        @Test
+        @DisplayName("a freehold reads back the authority it was created with, of every kind")
+        void freehold_authorityRoundTripsForEachKind() throws SQLException {
+            try (SqlSessionWrapper wrapper = database.openSession(true);
+                 Statement statement = wrapper.session().getConnection().createStatement()) {
+                TestParties.insertGroup(wrapper.session().getConnection(), "police", 42, AccountKind.GOVERNMENT);
+            }
+            List<Party> authorities = List.of(
+                    new Party.Personal(PLAYER_A),
+                    new Party.Account(42, AccountKind.GOVERNMENT),
+                    new Party.Group("police", 42, AccountKind.GOVERNMENT));
+            for (Party authority : authorities) {
+                String regionId = uniqueRegionId();
+                Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0, authority, null));
+                try (SqlSessionWrapper wrapper = database.openSession()) {
+                    FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                            .selectByRegion(regionId, WORLD_ID);
+                    Assertions.assertNotNull(freehold);
+                    Assertions.assertEquals(authority, freehold.authority());
+                    FreeholdContractEntity locked = wrapper.freeholdContractMapper()
+                            .selectByRegionForUpdate(regionId, WORLD_ID);
+                    Assertions.assertNotNull(locked);
+                    Assertions.assertEquals(authority, locked.authority());
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("the history of a sale keeps the authority party")
+        void freeholdHistory_keepsTheAuthorityParty() {
+            Party.Account authority = new Party.Account(42, AccountKind.GOVERNMENT);
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0, authority, null));
+
+            Assertions.assertInstanceOf(RealtyBackend.BuyResult.Success.class,
+                    logic.executeBuy(regionId, WORLD_ID, PLAYER_B));
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                List<FreeholdHistoryEntity> sales = wrapper.freeholdHistoryMapper()
+                        .searchHistory(regionId, WORLD_ID, "BUY", null, null, 10, 0);
+                Assertions.assertEquals(1, sales.size());
+                Assertions.assertEquals(authority, sales.getFirst().authority());
+            }
+        }
+
+        private static ResultSet newestFreeholdHistory(Statement statement) throws SQLException {
+            return statement.executeQuery("""
+                    SELECT buyerId, eventType
+                    FROM FreeholdHistory
+                    ORDER BY historyId DESC
+                    LIMIT 1
+                    """);
+        }
+
+        @Test
+        @DisplayName("a history row of a freehold with no title holder names no buyer")
+        void freeholdHistory_withoutTitleholderStoresNullBuyer() throws SQLException {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0,
+                    new Party.Personal(AUTHORITY), null));
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class,
+                    logic.setPrice(regionId, WORLD_ID, 1500.0));
+
+            try (SqlSessionWrapper wrapper = database.openSession(true);
+                 Statement statement = wrapper.session().getConnection().createStatement();
+                 ResultSet resultSet = newestFreeholdHistory(statement)) {
+                Assertions.assertTrue(resultSet.next());
+                Assertions.assertEquals("SET_PRICE", resultSet.getString("eventType"));
+                Assertions.assertNull(resultSet.getObject("buyerId"));
+            }
+        }
+
+        @Test
+        @DisplayName("the price of a freehold whose authority is an account can be set and unset")
+        void setPrice_onAFreeholdOfAnAccountAuthority_succeeds() {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0,
+                    new Party.Account(42, AccountKind.GOVERNMENT), null));
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class,
+                    logic.setPrice(regionId, WORLD_ID, 1500.0));
+            Assertions.assertInstanceOf(RealtyBackend.UnsetPriceResult.Success.class,
+                    logic.unsetPrice(regionId, WORLD_ID));
+        }
+
+        @Test
+        @DisplayName("a history row of a freehold with a title holder names the title holder as buyer")
+        void freeholdHistory_withTitleholderKeepsTheBuyer() throws SQLException {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class,
+                    logic.setPrice(regionId, WORLD_ID, 1500.0));
+
+            try (SqlSessionWrapper wrapper = database.openSession(true);
+                 Statement statement = wrapper.session().getConnection().createStatement();
+                 ResultSet resultSet = newestFreeholdHistory(statement)) {
+                Assertions.assertTrue(resultSet.next());
+                Assertions.assertEquals("SET_PRICE", resultSet.getString("eventType"));
+                Assertions.assertEquals(PLAYER_A, resultSet.getObject("buyerId", UUID.class));
             }
         }
     }

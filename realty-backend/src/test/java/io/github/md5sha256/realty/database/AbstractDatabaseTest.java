@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.DatabaseSettings;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
@@ -49,7 +50,9 @@ abstract class AbstractDatabaseTest {
         String url = jdbcUrl.substring("jdbc:".length());
         DatabaseSettings settings = new DatabaseSettings(url, CONTAINER.getUsername(), CONTAINER.getPassword());
         database = new MariaDatabase(settings, Logger.getLogger("test"));
-        logic = new RealtyBackendImpl(database, uuid -> CompletableFuture.completedFuture(uuid.toString()),
+        logic = new RealtyBackendImpl(database,
+                party -> CompletableFuture.completedFuture(party instanceof Party.Personal personal
+                        ? personal.playerUuid().toString() : party.toString()),
                 java.time.LocalDateTime::toString, () -> 86400);
     }
 

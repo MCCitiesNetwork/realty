@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.command;
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -72,6 +73,11 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
     private static @NotNull String resolveName(@NotNull UUID uuid) {
         String name = Bukkit.getOfflinePlayer(uuid).getName();
         return name != null ? name : uuid.toString();
+    }
+
+    /** Interim: a player by name, any other party by its record form. */
+    private static @NotNull String resolveName(@NotNull Party party) {
+        return Party.playerUuidOf(party).map(playerUuid -> resolveName(playerUuid)).orElse(party.toString());
     }
 
 
@@ -198,7 +204,7 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
 
         builder.appendNewline()
                 .append(messages.messageFor(MessageKeys.INFO_LEASEHOLD,
-                        Placeholder.unparsed("landlord", resolveName(leasehold.landlordId())),
+                        Placeholder.unparsed("landlord", resolveName(leasehold.landlord())),
                         Placeholder.unparsed("members", membersStr),
                         Placeholder.unparsed("tenant", tenant),
                         Placeholder.unparsed("price", CurrencyFormatter.format(leasehold.price())),

@@ -13,8 +13,8 @@ public interface LeaseholdHistoryMapper {
     int insert(@NotNull String worldGuardRegionId,
                @NotNull UUID worldId,
                @NotNull String eventType,
-               @NotNull UUID tenantId,
-               @NotNull UUID landlordId,
+               @Nullable UUID tenantId,
+               int landlordPartyId,
                @Nullable Double price,
                @Nullable Long durationSeconds,
                @Nullable Integer extensionsRemaining);
@@ -26,8 +26,8 @@ public interface LeaseholdHistoryMapper {
     int insertReturningId(@NotNull String worldGuardRegionId,
                           @NotNull UUID worldId,
                           @NotNull String eventType,
-                          @NotNull UUID tenantId,
-                          @NotNull UUID landlordId,
+                          @Nullable UUID tenantId,
+                          int landlordPartyId,
                           @Nullable Double price,
                           @Nullable Long durationSeconds,
                           @Nullable Integer extensionsRemaining);

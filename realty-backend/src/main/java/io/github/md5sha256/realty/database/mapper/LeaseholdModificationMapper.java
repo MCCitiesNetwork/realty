@@ -47,7 +47,7 @@ public interface LeaseholdModificationMapper {
     int updateStatus(int modificationId, @NotNull String status);
 
     /** Tenant proposals awaiting a decision from the given landlord ({@code AWAITING_LANDLORD}). */
-    @NotNull List<LeaseholdModificationView> selectAwaitingByLandlord(@NotNull UUID landlordId);
+    @NotNull List<LeaseholdModificationView> selectAwaitingByLandlord(int landlordPartyId);
 
     /** Non-terminal proposals made by the given player (their own pending requests/changes). */
     @NotNull List<LeaseholdModificationView> selectPendingByProposer(@NotNull UUID proposerId);

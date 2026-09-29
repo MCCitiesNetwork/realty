@@ -53,7 +53,7 @@ public record HistoryResponse(
         }
 
         public static @NotNull Entry leasehold(@NotNull String eventType, @NotNull String eventTime,
-                                               @NotNull PlayerRef tenant, @NotNull PlayerRef landlord,
+                                               @Nullable PlayerRef tenant, @NotNull PlayerRef landlord,
                                                @Nullable Double price, @Nullable Long durationSeconds,
                                                @Nullable Integer extensionsRemaining) {
             return new Entry("leasehold", eventType, eventTime, null, null, tenant, landlord,

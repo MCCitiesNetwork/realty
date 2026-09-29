@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LeaseTerminateEvent;
@@ -148,7 +149,7 @@ public record TerminateCommand(
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_CANCEL_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
-                            events.fireSync(new LeaseTerminationCancelledEvent(region, success.landlordId(),
+                            events.fireSync(new LeaseTerminationCancelledEvent(region, Party.playerUuidOf(success.landlord()),
                                     success.tenantId(), success.terminatedByRole()));
                         }
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.NoLeaseholdContract ignored ->

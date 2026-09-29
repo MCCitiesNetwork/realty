@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.RegionStateRow;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +30,7 @@ class RegionStateQueryTest extends AbstractDatabaseTest {
     void seed() {
         Assertions.assertTrue(logic.createFreehold("plot_for_sale", WORLD_ID, 5000.0, AUTHORITY, null));
         Assertions.assertTrue(logic.createFreehold("plot_sold", WORLD_ID, null, AUTHORITY, OWNER));
-        Assertions.assertTrue(logic.createLeasehold("plot_for_lease", WORLD_ID, 250.0, 604800L, -1, LANDLORD));
+        Assertions.assertTrue(logic.createLeasehold("plot_for_lease", WORLD_ID, 250.0, 604800L, -1, new Party.Personal(LANDLORD)));
         try (SqlSessionWrapper session = database.openSession(true)) {
             session.realtyRegionMapper().registerWorldGuardRegion("plot_bare", WORLD_ID);
         }

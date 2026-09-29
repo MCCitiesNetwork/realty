@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.entity;
 
+import io.github.md5sha256.realty.api.Party;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,8 +24,8 @@ public sealed interface HistoryEntry permits HistoryEntry.Freehold, HistoryEntry
     record Leasehold(
             @NotNull String eventType,
             @NotNull LocalDateTime eventTime,
-            @NotNull UUID tenantId,
-            @NotNull UUID landlordId,
+            @Nullable UUID tenantId,
+            @NotNull Party landlord,
             @Nullable Double price,
             @Nullable Long durationSeconds,
             @Nullable Integer extensionsRemaining

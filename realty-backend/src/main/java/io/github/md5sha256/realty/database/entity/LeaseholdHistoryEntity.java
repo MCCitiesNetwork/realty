@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.entity;
 
+import io.github.md5sha256.realty.api.Party;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -11,8 +12,8 @@ public record LeaseholdHistoryEntity(
         @NotNull String worldGuardRegionId,
         @NotNull UUID worldId,
         @NotNull String eventType,
-        @NotNull UUID tenantId,
-        @NotNull UUID landlordId,
+        @Nullable UUID tenantId,
+        @NotNull Party landlord,
         @Nullable Double price,
         @Nullable Long durationSeconds,
         @Nullable Integer extensionsRemaining,

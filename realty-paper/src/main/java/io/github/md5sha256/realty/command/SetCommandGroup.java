@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
@@ -96,7 +97,7 @@ public record SetCommandGroup(
                 } else if (lease.tenantId() != null) {
                     player.sendMessage(messages.messageFor(MessageKeys.SET_OCCUPIED_USE_MODIFY,
                             Placeholder.unparsed("region", regionId)));
-                } else if (!player.getUniqueId().equals(lease.landlordId())) {
+                } else if (!new Party.Personal(player.getUniqueId()).equals(lease.landlord())) {
                     player.sendMessage(messages.messageFor(MessageKeys.SET_NOT_LANDLORD,
                             Placeholder.unparsed("region", regionId)));
                 } else {

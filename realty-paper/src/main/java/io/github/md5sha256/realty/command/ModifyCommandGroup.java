@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -203,7 +204,7 @@ public record ModifyCommandGroup(
                             : MessageKeys.MODIFY_PROPOSE_SUCCESS_TENANT;
                     sender.sendMessage(messages.messageFor(key, Placeholder.unparsed("region", regionId)));
                     events.fireSync(new LeaseModificationProposedEvent(region, success.proposerRole(),
-                            sender.getUniqueId(), success.landlordId(), success.tenantId(), success.active()));
+                            sender.getUniqueId(), Party.playerUuidOf(success.landlord()), success.tenantId(), success.active()));
                 }
                 case RealtyBackend.ProposeModificationResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NO_LEASEHOLD_CONTRACT,
@@ -254,7 +255,7 @@ public record ModifyCommandGroup(
                     sender.sendMessage(messages.messageFor(action.successKey,
                             Placeholder.unparsed("region", regionId)));
                     events.fireSync(new LeaseModificationResolvedEvent(region, action.resolution,
-                            success.proposerRole(), success.landlordId(), success.tenantId()));
+                            success.proposerRole(), Party.playerUuidOf(success.landlord()), success.tenantId()));
                 }
                 case RealtyBackend.ResolveModificationResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NO_LEASEHOLD_CONTRACT,

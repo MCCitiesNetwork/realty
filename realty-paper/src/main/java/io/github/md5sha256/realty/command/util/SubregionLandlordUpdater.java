@@ -4,6 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.ExecutorState;
 import org.bukkit.World;
@@ -52,7 +53,7 @@ public final class SubregionLandlordUpdater {
         List<String> childIds = children.stream().map(ProtectedRegion::getId).toList();
         UUID worldId = world.getUID();
         CompletableFuture.runAsync(
-                () -> logic.updateSubregionLandlords(childIds, worldId, newLandlord),
+                () -> logic.updateSubregionLandlords(childIds, worldId, new Party.Personal(newLandlord)),
                 executorState.dbExec()
         );
     }

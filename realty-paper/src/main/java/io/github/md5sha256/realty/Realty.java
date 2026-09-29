@@ -11,6 +11,7 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.schematic.CaptureCooldown;
 import io.github.md5sha256.realty.schematic.CaptureRegistry;
 import io.github.md5sha256.realty.schematic.Occlusion;
@@ -138,6 +139,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -290,8 +292,11 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        // Interim: a player resolves to their username, any other party to its record form.
         this.logic = new RealtyBackendImpl(mariaDatabase,
-                this.nameResolver::getUsername,
+                party -> party instanceof Party.Personal personal
+                        ? this.nameResolver.getUsername(personal.playerUuid())
+                        : CompletableFuture.completedFuture(party.toString()),
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
         EconomyProvider economyProvider = resolveEconomyProvider();
@@ -518,7 +523,7 @@ public final class Realty extends JavaPlugin {
                                                     Map.of()));
                                     // Post-event; RegionNotificationListener notifies tenant + landlord.
                                     this.eventDispatch.fireSync(new LeaseExpiredEvent(
-                                            wgRegion, expired.tenantId(), expired.landlordId()));
+                                            wgRegion, expired.tenantId(), Party.playerUuidOf(expired.landlord())));
                                 }
                             }
                         }
@@ -538,7 +543,7 @@ public final class Realty extends JavaPlugin {
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.TerminatedLeasehold terminated : terminatedLeaseholds) {
                         if (terminated.refund() > 0 && this.economyProvider != null) {
-                            this.economyProvider.transfer(terminated.landlordId(), terminated.tenantId(),
+                            this.economyProvider.transfer(Party.playerUuidOf(terminated.landlord()).orElse(null), terminated.tenantId(),
                                     terminated.refund(), "Lease Termination Refund: " + terminated.worldGuardRegionId());
                         }
                         World world = getServer().getWorld(terminated.worldId());
@@ -556,7 +561,7 @@ public final class Realty extends JavaPlugin {
                                             terminatedPlaceholders.getOrDefault(terminated.worldGuardRegionId(),
                                                     Map.of()));
                                     this.eventDispatch.fireSync(new LeaseTerminatedEvent(wgRegion,
-                                            terminated.tenantId(), terminated.landlordId(),
+                                            terminated.tenantId(), Party.playerUuidOf(terminated.landlord()),
                                             terminated.refund(), terminated.terminatedByRole()));
                                 }
                             }

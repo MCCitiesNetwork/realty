@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.Database;
@@ -87,7 +88,7 @@ final class RegionHandler {
             playerIds.add(info.freehold().authorityId());
         }
         if (info.leasehold() != null) {
-            playerIds.add(info.leasehold().landlordId());
+            playerIds.add(Party.playerUuidOf(info.leasehold().landlord()).orElse(null));
             playerIds.add(info.leasehold().tenantId());
         }
         if (info.auction() != null) {
@@ -133,7 +134,8 @@ final class RegionHandler {
         if (leasehold == null) {
             return null;
         }
-        PlayerRef landlord = Objects.requireNonNull(PlayerNames.ref(leasehold.landlordId(), names));
+        PlayerRef landlord = Objects.requireNonNull(
+                PlayerNames.ref(Party.playerUuidOf(leasehold.landlord()).orElse(null), names));
         PlayerRef tenant = PlayerNames.ref(leasehold.tenantId(), names);
         return new RegionResponse.Leasehold(
                 landlord,

@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.ProposeModificationResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RenewLeaseholdResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RentResult;
@@ -35,7 +36,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     private static String regionToLet() {
         String regionId = "failed_tenancy_" + REGION_COUNTER.incrementAndGet();
         Assertions.assertTrue(logic.createLeasehold(
-                regionId, WORLD_ID, RENT, PERIOD_SECONDS, MAX_EXTENSIONS, LANDLORD));
+                regionId, WORLD_ID, RENT, PERIOD_SECONDS, MAX_EXTENSIONS, new Party.Personal(LANDLORD)));
         return regionId;
     }
 
@@ -106,7 +107,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
         List<LeaseholdHistoryEntity> lettings = recorded(regionId, HistoryEventType.RENT);
         Assertions.assertEquals(1, lettings.size());
         Assertions.assertEquals(TENANT, lettings.getFirst().tenantId());
-        Assertions.assertEquals(LANDLORD, lettings.getFirst().landlordId());
+        Assertions.assertEquals(new Party.Personal(LANDLORD), lettings.getFirst().landlord());
         Assertions.assertEquals(RENT, lettings.getFirst().price());
         Assertions.assertEquals(PERIOD_SECONDS, lettings.getFirst().durationSeconds());
     }
@@ -390,7 +391,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     void aLeaseWithNoCapIsPutBackWithNoCountOfExtensions() {
         // A count beside no cap is a row the database refuses.
         String regionId = "failed_tenancy_" + REGION_COUNTER.incrementAndGet();
-        Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, RENT, PERIOD_SECONDS, -1, LANDLORD));
+        Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, RENT, PERIOD_SECONDS, -1, new Party.Personal(LANDLORD)));
         let(regionId, TENANT);
         Assertions.assertNull(lease(regionId).maxExtensions(), "this test needs a lease with no cap");
         renew(regionId);
@@ -410,7 +411,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     @Test
     void aChangeOfTermsThatCappedALeaseLeavesItWithoutACapWhenTakenBack() {
         String regionId = "failed_tenancy_" + REGION_COUNTER.incrementAndGet();
-        Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, RENT, PERIOD_SECONDS, -1, LANDLORD));
+        Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, RENT, PERIOD_SECONDS, -1, new Party.Personal(LANDLORD)));
         let(regionId, TENANT);
         Assertions.assertNull(lease(regionId).maxExtensions(), "this test needs a lease with no cap");
         logic.proposeModification(regionId, WORLD_ID, LANDLORD, false, null, null, 3);
