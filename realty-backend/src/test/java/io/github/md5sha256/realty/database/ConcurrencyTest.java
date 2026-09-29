@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -16,9 +17,15 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.Test;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -400,6 +407,111 @@ class ConcurrencyTest extends AbstractDatabaseTest {
                     "Region ended up with both an offer and an auction");
             Assertions.assertEquals(1, succeeded + dbRejections,
                     "Exactly one side should have won (or been rejected by the DB)");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // A new party named by many callers at once
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("first use of a new party")
+    class NewParty {
+
+        private static final int THREADS = 8;
+        private static final int ROUNDS = 10;
+
+        /**
+         * Every caller creates its own region and names the same party that no row
+         * exists for yet. The party's row must be created once and shared, and no
+         * caller may fail because another created the row a moment earlier.
+         */
+        private static void nameOneNewPartyAtOnce(Party landlord, String countQuery) throws Exception {
+            CyclicBarrier barrier = new CyclicBarrier(THREADS);
+            ConcurrentLinkedQueue<Object> failures = new ConcurrentLinkedQueue<>();
+            List<Thread> threads = new ArrayList<>();
+            for (int i = 0; i < THREADS; i++) {
+                String regionId = uniqueRegionId();
+                threads.add(Thread.ofVirtual().start(() -> {
+                    try {
+                        barrier.await();
+                        if (!logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, landlord)) {
+                            failures.add("createLeasehold returned false for " + regionId);
+                        }
+                    } catch (Exception ex) {
+                        failures.add(ex);
+                    }
+                }));
+            }
+            for (Thread thread : threads) {
+                thread.join(10_000);
+            }
+            Assertions.assertEquals(List.of(), List.copyOf(failures));
+            Assertions.assertEquals(1, queryInt(countQuery));
+            Assertions.assertEquals(queryInt("SELECT COUNT(*) FROM Party"),
+                    queryInt("SELECT (SELECT COUNT(*) FROM PersonalParty) + (SELECT COUNT(*) FROM AccountParty) + (SELECT COUNT(*) FROM GroupParty)"),
+                    "no base row without its kind row survives a race");
+            Assertions.assertEquals(THREADS, queryInt(
+                    "SELECT COUNT(*) FROM LeaseholdContract WHERE landlordPartyId IN ("
+                            + countQuery.replace("COUNT(*)", "partyId") + ")"));
+        }
+
+        @Test
+        @DisplayName("many callers naming one new account all succeed and share one party")
+        void manyCallersNamingOneNewAccount_allSucceedAndShareOneParty() throws Exception {
+            for (int round = 0; round < ROUNDS; round++) {
+                int accountId = 4200 + round;
+                nameOneNewPartyAtOnce(new Party.Account(accountId, AccountKind.GOVERNMENT),
+                        "SELECT COUNT(*) FROM AccountParty WHERE accountId = " + accountId);
+            }
+        }
+
+        @Test
+        @DisplayName("many callers naming one new player all succeed and share one party")
+        void manyCallersNamingOneNewPlayer_allSucceedAndShareOneParty() throws Exception {
+            for (int round = 0; round < ROUNDS; round++) {
+                UUID player = UUID.randomUUID();
+                nameOneNewPartyAtOnce(new Party.Personal(player), "SELECT COUNT(*) FROM PersonalParty WHERE playerUuid = '" + player + "'");
+            }
+        }
+
+        /**
+         * A history row names the landlord the lease already has, so writing it must
+         * neither add a party row nor use up a party id.
+         */
+        @Test
+        @DisplayName("history writes do not use up party ids")
+        void historyWrites_doNotUseUpPartyIds() throws Exception {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 25,
+                    new Party.Personal(AUTHORITY)));
+            int rowsBefore = queryInt("SELECT COUNT(*) FROM Party");
+            long nextIdBefore = nextPartyId();
+
+            Assertions.assertInstanceOf(RentResult.Success.class, logic.rentRegion(regionId, WORLD_ID, PLAYER_A));
+            for (int i = 0; i < 20; i++) {
+                Assertions.assertInstanceOf(RenewLeaseholdResult.Success.class,
+                        logic.renewLeasehold(regionId, WORLD_ID, PLAYER_A));
+            }
+
+            Assertions.assertEquals(rowsBefore, queryInt("SELECT COUNT(*) FROM Party"));
+            Assertions.assertEquals(nextIdBefore, nextPartyId(), "a history write used up a party id");
+        }
+
+        private static long nextPartyId() throws SQLException {
+            return queryInt("""
+                    SELECT AUTO_INCREMENT FROM information_schema.TABLES
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Party'
+                    """);
+        }
+    }
+
+    private static int queryInt(String sql) throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true);
+             Statement statement = wrapper.session().getConnection().createStatement();
+             ResultSet resultSet = statement.executeQuery(sql)) {
+            resultSet.next();
+            return resultSet.getInt(1);
         }
     }
 
