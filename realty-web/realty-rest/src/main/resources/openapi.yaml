@@ -1452,6 +1452,7 @@ components:
         "this kind has no such field" for "this field happened to be empty".
         Switch on `kind`: freehold carries buyer, authority and price; leasehold
         carries tenant, landlord and the lease terms; agent carries agent and actor.
+        `buyer` and `tenant` are left out when the event had none.
       properties:
         kind:
           type: string
@@ -1503,7 +1504,8 @@ components:
         The same polymorphic shape as HistoryResponse_Entry, with the region and world
         added since a server-wide feed must say where each event happened. `kind`
         decides which party and detail fields are present; the others are omitted
-        rather than sent as null.
+        rather than sent as null. `buyer` and `tenant` are left out when the event
+        had none.
       properties:
         kind:
           type: string

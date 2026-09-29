@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.rest;
 import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
+import io.github.md5sha256.realty.rest.json.PartyRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.github.md5sha256.realty.rest.module.PartyNames;
 import io.javalin.http.Context;
@@ -33,13 +34,22 @@ final class PartyRegionsHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        Party party = party(ctx.pathParam("kind"), ctx.pathParam("id"));
-        this.listing.respond(ctx, party, PartyNames.resolve(this.moduleClient, List.of(party)).ref(party));
+        Addressed addressed = party(ctx.pathParam("kind"), ctx.pathParam("id"));
+        Party party = addressed.party();
+        // An account Realty does not store is not named. The module can name any Treasury
+        // account, and would name it under whatever kind the caller wrote.
+        PartyRef ref = addressed.stored()
+                ? PartyNames.resolve(this.moduleClient, List.of(party)).ref(party)
+                : new PartyRef(PartyNames.kind(party), PartyNames.id(party), null);
+        this.listing.respond(ctx, party, ref);
     }
 
-    private @NotNull Party party(@NotNull String kind, @NotNull String id) {
+    /** The party the path names, and whether Realty stores it. */
+    private record Addressed(@NotNull Party party, boolean stored) {}
+
+    private @NotNull Addressed party(@NotNull String kind, @NotNull String id) {
         return switch (kind) {
-            case "personal" -> new Party.Personal(playerId(id));
+            case "personal" -> new Addressed(new Party.Personal(playerId(id)), true);
             case "business" -> account(accountId(id), AccountKind.BUSINESS);
             case "government" -> account(accountId(id), AccountKind.GOVERNMENT);
             case "system" -> account(accountId(id), AccountKind.SYSTEM);
@@ -49,7 +59,7 @@ final class PartyRegionsHandler {
                 if (group == null) {
                     throw ApiException.notFound("PARTY_NOT_FOUND", "No group is mapped under that name");
                 }
-                yield group;
+                yield new Addressed(group, true);
             }
             default -> throw ApiException.badRequest("INVALID_PARTY_KIND",
                     "Path parameter 'kind' must be one of [personal, business, government, system, group]");
@@ -61,15 +71,15 @@ final class PartyRegionsHandler {
      * this API cannot ask Treasury whether it exists. One stored under another kind is not a
      * party of the kind asked for.
      */
-    private @NotNull Party.Account account(int accountId, @NotNull AccountKind kind) {
+    private @NotNull Addressed account(int accountId, @NotNull AccountKind kind) {
         Party.Account stored = this.backend.findAccountParty(accountId);
         if (stored == null) {
-            return new Party.Account(accountId, kind);
+            return new Addressed(new Party.Account(accountId, kind), false);
         }
         if (stored.kind() != kind) {
             throw ApiException.notFound("PARTY_NOT_FOUND", "No party of that kind has that id");
         }
-        return stored;
+        return new Addressed(stored, true);
     }
 
     /** UUID.fromString alone also accepts short forms such as {@code 1-1-1-1-1}; only the full form is an id. */

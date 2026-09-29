@@ -134,7 +134,19 @@ class PlayerRegionsEndpointTest {
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get("/v1/players/regions?player=" + UUID_PARAM + "&category=owned2");
             Assertions.assertEquals(400, response.code());
-            Assertions.assertTrue(response.body().string().contains("INVALID_CATEGORY"));
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("INVALID_CATEGORY"), body);
+            Assertions.assertFalse(body.contains("owned2"), body);
+        });
+    }
+
+    @Test
+    void returns400ForAPageSoLargeItsOffsetOverflows() {
+        RealtyRestServer server = TestServers.withPlayerHoldings();
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            Response response = client.get("/v1/players/regions?player=" + UUID_PARAM + "&page=2147483647");
+            Assertions.assertEquals(400, response.code());
+            Assertions.assertTrue(response.body().string().contains("INVALID_PAGE"));
         });
     }
 
