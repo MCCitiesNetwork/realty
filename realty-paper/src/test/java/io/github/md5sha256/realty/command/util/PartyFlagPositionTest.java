@@ -11,6 +11,7 @@ import org.incendo.cloud.setting.ManagerSetting;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -21,15 +22,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Where a type flag may stand in {@code /realty set landlord <name> [region] [type flag]}. The
- * manager parses as the one {@code Realty} builds: no manager setting is changed. The region
- * argument is a {@link RegionOrFlagParser} around a stand-in that takes any word as a region.
+ * Where a type flag may stand in {@code /realty set landlord <name> [region] [type flag]} and
+ * {@code /realty list [owned|rented] [name] [--page <n>] [type flag]}. The manager parses as the
+ * one {@code Realty} builds: no manager setting is changed. The region argument is a
+ * {@link RegionOrFlagParser} around a stand-in that takes any word as a region.
  */
 class PartyFlagPositionTest {
 
     private record Parsed(String landlord, Optional<String> region, PartyFlags.Read flag) {}
 
     private final AtomicReference<CommandContext<Object>> last = new AtomicReference<>();
+    /** Which list command ran: {@code ""}, {@code "owned"} or {@code "rented"}. */
+    private final AtomicReference<String> listCategory = new AtomicReference<>();
     private CommandManager<Object> manager;
 
     private CommandManager<Object> manager(boolean liberalFlagParsing) {
@@ -53,6 +57,17 @@ class PartyFlagPositionTest {
                         .flag(CommandFlag.builder("landlord").withComponent(StringParser.stringParser()))
                         .optional("region", StringParser.stringParser()))
                 .handler(last::set));
+        // Shaped like /realty list [owned|rented] [name] [--page <n>] [type flag].
+        var list = manager.commandBuilder("list");
+        for (String category : List.of("", "owned", "rented")) {
+            manager.command(PartyFlags.addTo((category.isEmpty() ? list : list.literal(category))
+                            .optional("name", RegionOrFlagParser.of(StringParser.<Object>stringParser()))
+                            .flag(CommandFlag.builder("page").withComponent(IntegerParser.integerParser(1))))
+                    .handler(ctx -> {
+                        listCategory.set(category);
+                        last.set(ctx);
+                    }));
+        }
         return manager;
     }
 
@@ -123,5 +138,44 @@ class PartyFlagPositionTest {
         manager = manager(true);
         assertThrows(CompletionException.class,
                 () -> run("register leasehold -1 myregion --landlord Acme --business"));
+    }
+
+    private record Listed(String category, Optional<String> name, Integer page, PartyFlags.Read flag) {}
+
+    private Listed list(String input) {
+        CommandContext<Object> ctx = run(input);
+        Optional<String> name = ctx.<Optional<String>>optional("name").flatMap(Function.identity());
+        return new Listed(listCategory.get(), name, ctx.flags().getValue("page", null), PartyFlags.read(ctx));
+    }
+
+    @Test
+    void listWithoutAName_acceptsThePageFlag() {
+        assertEquals(new Listed("", Optional.empty(), 2, new PartyFlags.Read.One(null)), list("list --page 2"));
+    }
+
+    @Test
+    void listWithAName_andATypeFlag() {
+        assertEquals(new Listed("", Optional.of("GovSecurity"), null,
+                        new PartyFlags.Read.One(PartyFlag.GOVERNMENT)),
+                list("list GovSecurity --government"));
+    }
+
+    @Test
+    void listCategoryWithAName_andFlags() {
+        assertEquals(new Listed("owned", Optional.of("GovSecurity"), 2,
+                        new PartyFlags.Read.One(PartyFlag.GOVERNMENT)),
+                list("list owned GovSecurity --government --page 2"));
+    }
+
+    @Test
+    void listWithAPlayerName() {
+        assertEquals(new Listed("", Optional.of("Steve"), null, new PartyFlags.Read.One(null)),
+                list("list Steve"));
+    }
+
+    @Test
+    void listCategoryAlone_isTheCategoryNotAName() {
+        assertEquals(new Listed("rented", Optional.empty(), null, new PartyFlags.Read.One(null)),
+                list("list rented"));
     }
 }

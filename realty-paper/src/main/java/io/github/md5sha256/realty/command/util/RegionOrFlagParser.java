@@ -22,7 +22,10 @@ import java.util.concurrent.CompletableFuture;
  * parser consumes nothing and yields an empty {@link Optional}, which the handler treats as "no
  * region given"; every other word goes to the delegate parser.
  *
- * <p>A region whose id starts with {@code --} therefore cannot be named where this parser is used.</p>
+ * <p>{@link #of} wraps any other optional argument the same way, such as the name in
+ * {@code /realty list [name] [--page <n>]}.</p>
+ *
+ * <p>A value that starts with {@code --} therefore cannot be given where this parser is used.</p>
  */
 public final class RegionOrFlagParser<C, T> implements ArgumentParser.FutureArgumentParser<C, Optional<T>> {
 

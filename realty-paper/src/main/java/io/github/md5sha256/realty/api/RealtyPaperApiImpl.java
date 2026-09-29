@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1388,9 +1389,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<List<LeaseholdModificationView>>
-            listModificationsAwaitingLandlord(@NotNull Party landlord) {
+            listModificationsAwaitingLandlord(@NotNull Set<Party> landlords) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.listModificationsAwaitingLandlord(landlord),
+                () -> realtyApi.listModificationsAwaitingLandlord(landlords),
                 executorState.dbExec());
     }
 
@@ -1428,25 +1429,25 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.ListResult> listRegions(
-            @NotNull UUID targetId, int limit, int offset) {
+            @NotNull Party target, int limit, int offset) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.listRegions(targetId, limit, offset),
+                () -> realtyApi.listRegions(target, limit, offset),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listOwnedRegions(
-            @NotNull UUID targetId, int limit, int offset) {
+            @NotNull Party target, int limit, int offset) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.listOwnedRegions(targetId, limit, offset),
+                () -> realtyApi.listOwnedRegions(target, limit, offset),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
-            @NotNull UUID targetId, int limit, int offset) {
+            @NotNull Party target, int limit, int offset) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.listRentedRegions(targetId, limit, offset),
+                () -> realtyApi.listRentedRegions(target, limit, offset),
                 executorState.dbExec());
     }
 

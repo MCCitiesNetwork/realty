@@ -19,6 +19,7 @@ import io.github.md5sha256.realty.api.RealtyBackend.RegionInfo;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
+import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
@@ -275,15 +276,15 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             logic.proposeModification(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 150.0, null, null);
 
             // Landlord (PLAYER_A) sees it in their inbox; tenant (PLAYER_B) sees it in their outbox.
-            Assertions.assertEquals(1, logic.listModificationsAwaitingLandlord(new Party.Personal(PLAYER_A)).size());
+            Assertions.assertEquals(1, logic.listModificationsAwaitingLandlord(Set.of(new Party.Personal(PLAYER_A))).size());
             Assertions.assertEquals(1, logic.listPendingModificationsByProposer(PLAYER_B).size());
             // The tenant has nothing awaiting them as a landlord; the landlord proposed nothing.
-            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(new Party.Personal(PLAYER_B)).isEmpty());
+            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(Set.of(new Party.Personal(PLAYER_B))).isEmpty());
             Assertions.assertTrue(logic.listPendingModificationsByProposer(PLAYER_A).isEmpty());
 
             // Once the landlord rejects it, both listings clear.
             logic.rejectModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false));
-            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(new Party.Personal(PLAYER_A)).isEmpty());
+            Assertions.assertTrue(logic.listModificationsAwaitingLandlord(Set.of(new Party.Personal(PLAYER_A))).isEmpty());
             Assertions.assertTrue(logic.listPendingModificationsByProposer(PLAYER_B).isEmpty());
         }
 
@@ -1659,6 +1660,59 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                     logic.cancelTermination(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false)));
             Assertions.assertNull(success.tenantId());
             Assertions.assertEquals(new Party.Personal(PLAYER_A), success.landlord());
+        }
+    }
+
+    // --- Inbox ---
+
+    @Nested
+    @DisplayName("the inbox of proposals awaiting a landlord")
+    class Inbox {
+
+        private static final Party BUSINESS = new Party.Account(77, AccountKind.BUSINESS);
+
+        private static String leaseWithATenantProposal(Party landlord) {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, landlord));
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_C);
+            Assertions.assertInstanceOf(RealtyBackend.ProposeModificationResult.Success.class,
+                    logic.proposeModification(regionId, WORLD_ID, ActorContext.player(PLAYER_C, false),
+                            150.0, null, null));
+            return regionId;
+        }
+
+        @Test
+        @DisplayName("a proposal to an account landlord reaches every manager of the account")
+        void inbox_reachesEveryManagerOfAnAccountLandlord() {
+            String regionId = leaseWithATenantProposal(GOV);
+
+            List<LeaseholdModificationView> forA = logic.listModificationsAwaitingLandlord(
+                    Set.of(new Party.Personal(PLAYER_A), GOV));
+            Assertions.assertEquals(1, forA.size());
+            Assertions.assertEquals(regionId, forA.getFirst().worldGuardRegionId());
+            Assertions.assertEquals(1, logic.listModificationsAwaitingLandlord(
+                    Set.of(new Party.Personal(PLAYER_B), GOV)).size());
+        }
+
+        @Test
+        @DisplayName("no parties, no proposals")
+        void inbox_ofNoParties_isEmpty() {
+            leaseWithATenantProposal(GOV);
+
+            Assertions.assertEquals(List.of(), logic.listModificationsAwaitingLandlord(Set.of()));
+        }
+
+        @Test
+        @DisplayName("proposals to a party the actor does not manage are left out")
+        void inbox_ignoresPartiesTheActorDoesNotManage() {
+            String govRegion = leaseWithATenantProposal(GOV);
+            leaseWithATenantProposal(BUSINESS);
+            leaseWithATenantProposal(new Party.Personal(PLAYER_B));
+
+            List<LeaseholdModificationView> inbox = logic.listModificationsAwaitingLandlord(
+                    Set.of(new Party.Personal(PLAYER_A), GOV));
+            Assertions.assertEquals(List.of(govRegion),
+                    inbox.stream().map(LeaseholdModificationView::worldGuardRegionId).toList());
         }
     }
 

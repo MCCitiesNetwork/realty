@@ -53,6 +53,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -1205,13 +1206,23 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull Party landlord) {
+    public @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull Set<Party> landlords) {
+        if (landlords.isEmpty()) {
+            return List.of();
+        }
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            Integer landlordPartyId = wrapper.partyMapper().findId(landlord);
-            if (landlordPartyId == null) {
+            // A party with no row is the landlord of nothing, so it is left out rather than inserted.
+            List<Integer> landlordPartyIds = new ArrayList<>();
+            for (Party landlord : landlords) {
+                Integer landlordPartyId = wrapper.partyMapper().findId(landlord);
+                if (landlordPartyId != null) {
+                    landlordPartyIds.add(landlordPartyId);
+                }
+            }
+            if (landlordPartyIds.isEmpty()) {
                 return List.of();
             }
-            return wrapper.leaseholdModificationMapper().selectAwaitingByLandlord(landlordPartyId);
+            return wrapper.leaseholdModificationMapper().selectAwaitingByLandlords(landlordPartyIds);
         }
     }
 
@@ -1585,18 +1596,23 @@ public class RealtyBackendImpl implements RealtyBackend {
 
 
     @Override
-    public @NotNull ListResult listRegions(@NotNull UUID targetId, int limit, int offset) {
+    public @NotNull ListResult listRegions(@NotNull Party target, int limit, int offset) {
+        // Only a player holds a title or rents in stage 1, so for any other party those two
+        // categories are empty and only the regions it is the authority of are listed.
+        UUID playerId = target instanceof Party.Personal personal ? personal.playerUuid() : null;
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
-            int ownedCount = regionMapper.countRegionsByTitleHolder(targetId);
-            Integer authorityPartyId = wrapper.partyMapper().findId(new Party.Personal(targetId));
+            int ownedCount = playerId == null ? 0 : regionMapper.countRegionsByTitleHolder(playerId);
+            Integer authorityPartyId = wrapper.partyMapper().findId(target);
             int landlordCount = authorityPartyId == null ? 0 : regionMapper.countRegionsByAuthority(authorityPartyId);
-            int rentedCount = regionMapper.countRegionsByTenant(targetId);
+            int rentedCount = playerId == null ? 0 : regionMapper.countRegionsByTenant(playerId);
 
             int remaining = limit;
             int catOffset = offset;
 
-            List<RealtyRegionEntity> owned = regionMapper.selectRegionsByTitleHolder(targetId, remaining, catOffset);
+            List<RealtyRegionEntity> owned = playerId != null
+                    ? regionMapper.selectRegionsByTitleHolder(playerId, remaining, catOffset)
+                    : List.of();
             remaining -= owned.size();
             catOffset = Math.max(0, catOffset - ownedCount);
 
@@ -1606,31 +1622,38 @@ public class RealtyBackendImpl implements RealtyBackend {
             remaining -= landlordRegions.size();
             catOffset = Math.max(0, catOffset - landlordCount);
 
-            List<RealtyRegionEntity> rented = remaining > 0
-                    ? regionMapper.selectRegionsByTenant(targetId, remaining, catOffset)
+            List<RealtyRegionEntity> rented = remaining > 0 && playerId != null
+                    ? regionMapper.selectRegionsByTenant(playerId, remaining, catOffset)
                     : List.of();
 
             return new ListResult(ownedCount, landlordCount, rentedCount, owned, landlordRegions, rented);
         }
     }
 
-
     @Override
-    public @NotNull SingleCategoryResult listOwnedRegions(@NotNull UUID targetId, int limit, int offset) {
+    public @NotNull SingleCategoryResult listOwnedRegions(@NotNull Party target, int limit, int offset) {
+        if (!(target instanceof Party.Personal personal)) {
+            // Only a player holds a title in stage 1.
+            return new SingleCategoryResult(0, List.of());
+        }
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
-            int count = mapper.countRegionsByTitleHolder(targetId);
-            List<RealtyRegionEntity> regions = mapper.selectRegionsByTitleHolder(targetId, limit, offset);
+            int count = mapper.countRegionsByTitleHolder(personal.playerUuid());
+            List<RealtyRegionEntity> regions = mapper.selectRegionsByTitleHolder(personal.playerUuid(), limit, offset);
             return new SingleCategoryResult(count, regions);
         }
     }
 
     @Override
-    public @NotNull SingleCategoryResult listRentedRegions(@NotNull UUID targetId, int limit, int offset) {
+    public @NotNull SingleCategoryResult listRentedRegions(@NotNull Party target, int limit, int offset) {
+        if (!(target instanceof Party.Personal personal)) {
+            // Only a player rents in stage 1.
+            return new SingleCategoryResult(0, List.of());
+        }
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
-            int count = mapper.countRegionsByTenant(targetId);
-            List<RealtyRegionEntity> regions = mapper.selectRegionsByTenant(targetId, limit, offset);
+            int count = mapper.countRegionsByTenant(personal.playerUuid());
+            List<RealtyRegionEntity> regions = mapper.selectRegionsByTenant(personal.playerUuid(), limit, offset);
             return new SingleCategoryResult(count, regions);
         }
     }

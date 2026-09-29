@@ -177,7 +177,7 @@ public final class PartyFlags {
             resolveThen(resolver, executorState, messages, sender, name, flag, onResolved);
         } else if (flag != null) {
             sender.sendMessage(messages.messageFor(MessageKeys.PARTY_TYPE_FLAG_WITHOUT_NAME,
-                    Placeholder.unparsed("role", role)));
+                    Placeholder.unparsed("usage", "--" + role + " <name>")));
         } else if (fallback == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
                     Placeholder.unparsed("role", role)));

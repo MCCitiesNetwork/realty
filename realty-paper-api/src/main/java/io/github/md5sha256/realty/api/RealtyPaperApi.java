@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
@@ -454,8 +455,9 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<RealtyBackend.CancelTerminationResult> cancelTermination(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
+    /** Tenant proposals awaiting any of the given landlords, such as every party a player manages. */
     @NotNull CompletableFuture<List<LeaseholdModificationView>> listModificationsAwaitingLandlord(
-            @NotNull Party landlord);
+            @NotNull Set<Party> landlords);
 
     @NotNull CompletableFuture<List<LeaseholdModificationView>> listPendingModificationsByProposer(
             @NotNull UUID proposerId);
@@ -471,14 +473,30 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<@Nullable LeaseholdContractEntity> getLeaseholdContract(
             @NotNull String regionId, @NotNull UUID worldId);
 
+    /** See {@link RealtyBackend#listRegions(Party, int, int)}. */
     @NotNull CompletableFuture<RealtyBackend.ListResult> listRegions(
-            @NotNull UUID targetId, int limit, int offset);
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.ListResult> listRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listRegions(new Party.Personal(targetId), limit, offset);
+    }
 
     @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listOwnedRegions(
-            @NotNull UUID targetId, int limit, int offset);
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listOwnedRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listOwnedRegions(new Party.Personal(targetId), limit, offset);
+    }
 
     @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
-            @NotNull UUID targetId, int limit, int offset);
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listRentedRegions(new Party.Personal(targetId), limit, offset);
+    }
 
     @NotNull CompletableFuture<RealtyBackend.HistoryResult> searchHistory(
             @NotNull String regionId, @NotNull UUID worldId,
