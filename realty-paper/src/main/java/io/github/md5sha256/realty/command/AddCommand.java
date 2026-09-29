@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.command;
 
+import com.sk89q.worldguard.LocalPlayer;
+import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -62,8 +64,8 @@ public record AddCommand(@NotNull MessageContainer messages) implements CustomCo
         String regionId = region.region().getId();
 
         if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.add.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
+                && !mayEditMembers(region.region(), WorldGuardPlugin.inst().wrapPlayer(player),
+                        sender.hasPermission("realty.command.add.others"))) {
             sender.sendMessage(messages.messageFor(MessageKeys.ADD_NO_PERMISSION));
             return;
         }
@@ -77,6 +79,16 @@ public record AddCommand(@NotNull MessageContainer messages) implements CustomCo
         sender.sendMessage(messages.messageFor(MessageKeys.ADD_SUCCESS,
                 Placeholder.unparsed("target", playerOrGroup),
                 Placeholder.unparsed("region", regionId)));
+    }
+
+    /**
+     * Whether {@code player} may edit {@code region}'s member list: either they hold the
+     * permission for acting on another player's region, or WorldGuard already considers them
+     * an owner, whether listed by UUID or through an owner group.
+     */
+    static boolean mayEditMembers(@NotNull ProtectedRegion region, @NotNull LocalPlayer player,
+                                   boolean hasOthersPermission) {
+        return hasOthersPermission || region.isOwner(player);
     }
 
 }
