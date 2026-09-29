@@ -67,7 +67,7 @@ public record RentCommand(
                                     DurationFormatter.format(Duration.ofSeconds(success.durationSeconds())))));
                     // Post-event; fireSync hops to the main thread. RegionNotificationListener notifies the landlord.
                     events.fireSync(new RegionRentedEvent(region, sender.getUniqueId(),
-                            success.landlordId(), success.price(), success.durationSeconds()));
+                            success.landlord(), success.price(), success.durationSeconds()));
                 }
                 case RealtyPaperApi.RentResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.RENT_NO_LEASEHOLD_CONTRACT,

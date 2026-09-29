@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
@@ -16,16 +17,16 @@ public class TenantSetEvent extends RealtyRegionEvent {
 
     private final UUID newTenantId;
     private final UUID previousTenantId;
-    private final UUID landlordId;
+    private final Party landlord;
 
     public TenantSetEvent(@NotNull WorldGuardRegion region,
                           @Nullable UUID newTenantId,
                           @Nullable UUID previousTenantId,
-                          @NotNull UUID landlordId) {
+                          @NotNull Party landlord) {
         super(region);
         this.newTenantId = newTenantId;
         this.previousTenantId = previousTenantId;
-        this.landlordId = landlordId;
+        this.landlord = landlord;
     }
 
     /**
@@ -45,8 +46,19 @@ public class TenantSetEvent extends RealtyRegionEvent {
     /**
      * The landlord of the region.
      */
-    public @NotNull UUID getLandlordId() {
-        return this.landlordId;
+    public @NotNull Party getLandlord() {
+        return this.landlord;
+    }
+
+    /**
+     * The landlord of the region.
+     *
+     * @deprecated use {@link #getLandlord()}; {@code null} when the landlord is not a player.
+     * Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    public @Nullable UUID getLandlordId() {
+        return Party.playerUuidOf(this.landlord).orElse(null);
     }
 
     @Override

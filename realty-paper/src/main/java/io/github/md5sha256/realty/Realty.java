@@ -523,7 +523,7 @@ public final class Realty extends JavaPlugin {
                                                     Map.of()));
                                     // Post-event; RegionNotificationListener notifies tenant + landlord.
                                     this.eventDispatch.fireSync(new LeaseExpiredEvent(
-                                            wgRegion, expired.tenantId(), Party.playerUuidOf(expired.landlord())));
+                                            wgRegion, expired.tenantId(), expired.landlord()));
                                 }
                             }
                         }
@@ -561,7 +561,7 @@ public final class Realty extends JavaPlugin {
                                             terminatedPlaceholders.getOrDefault(terminated.worldGuardRegionId(),
                                                     Map.of()));
                                     this.eventDispatch.fireSync(new LeaseTerminatedEvent(wgRegion,
-                                            terminated.tenantId(), Party.playerUuidOf(terminated.landlord()),
+                                            terminated.tenantId(), terminated.landlord(),
                                             terminated.refund(), terminated.terminatedByRole()));
                                 }
                             }

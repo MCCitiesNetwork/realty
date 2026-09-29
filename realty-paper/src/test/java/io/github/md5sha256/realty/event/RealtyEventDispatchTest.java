@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.event;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import io.github.md5sha256.realty.api.event.RegionRentEvent;
@@ -82,7 +83,7 @@ class RealtyEventDispatchTest {
     void fireSync_syncEvent_offMainThread_nonCancellable_routedToMainThread() {
         when(server.isPrimaryThread()).thenReturn(false);
         RegionRentedEvent event = new RegionRentedEvent(
-                region, UUID.randomUUID(), UUID.randomUUID(), 10.0, 60L);
+                region, UUID.randomUUID(), new Party.Personal(UUID.randomUUID()), 10.0, 60L);
 
         // Deferred — not fired inline, scheduled onto the main-thread executor; reports proceed.
         assertTrue(dispatch.fireSync(event));

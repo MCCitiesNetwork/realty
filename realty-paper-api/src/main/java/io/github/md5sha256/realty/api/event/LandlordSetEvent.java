@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
@@ -14,29 +15,51 @@ public class LandlordSetEvent extends RealtyRegionEvent {
 
     private static final HandlerList HANDLERS = new HandlerList();
 
-    private final UUID newLandlordId;
-    private final UUID previousLandlordId;
+    private final Party newLandlord;
+    private final Party previousLandlord;
 
     public LandlordSetEvent(@NotNull WorldGuardRegion region,
-                            @NotNull UUID newLandlordId,
-                            @Nullable UUID previousLandlordId) {
+                            @NotNull Party newLandlord,
+                            @NotNull Party previousLandlord) {
         super(region);
-        this.newLandlordId = newLandlordId;
-        this.previousLandlordId = previousLandlordId;
+        this.newLandlord = newLandlord;
+        this.previousLandlord = previousLandlord;
     }
 
     /**
      * The new landlord.
      */
-    public @NotNull UUID getNewLandlordId() {
-        return this.newLandlordId;
+    public @NotNull Party getNewLandlord() {
+        return this.newLandlord;
     }
 
     /**
-     * The previous landlord, or {@code null} if there was none.
+     * The previous landlord.
      */
+    public @NotNull Party getPreviousLandlord() {
+        return this.previousLandlord;
+    }
+
+    /**
+     * The new landlord.
+     *
+     * @deprecated use {@link #getNewLandlord()}; {@code null} when the landlord is not a player.
+     * Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    public @Nullable UUID getNewLandlordId() {
+        return Party.playerUuidOf(this.newLandlord).orElse(null);
+    }
+
+    /**
+     * The previous landlord.
+     *
+     * @deprecated use {@link #getPreviousLandlord()}; {@code null} when the landlord is not a player.
+     * Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @Nullable UUID getPreviousLandlordId() {
-        return this.previousLandlordId;
+        return Party.playerUuidOf(this.previousLandlord).orElse(null);
     }
 
     @Override

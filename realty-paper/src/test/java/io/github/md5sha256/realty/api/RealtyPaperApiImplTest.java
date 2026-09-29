@@ -862,7 +862,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.SetLandlordResult.Success(new Party.Personal(UUID.randomUUID())));
 
             RealtyPaperApi.SetLandlordResult result =
-                    api.setLandlord(wgRegion, LANDLORD_ID).join();
+                    api.setLandlord(wgRegion, new Party.Personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetLandlordResult.Success.class, result);
@@ -876,7 +876,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.SetLandlordResult.NoLeaseholdContract());
 
             RealtyPaperApi.SetLandlordResult result =
-                    api.setLandlord(wgRegion, LANDLORD_ID).join();
+                    api.setLandlord(wgRegion, new Party.Personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetLandlordResult.NoLeaseholdContract.class, result);
@@ -900,7 +900,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, AUTHORITY_ID, null).join();
+                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.Success.class, result);
@@ -917,7 +917,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, AUTHORITY_ID, TITLE_HOLDER_ID).join();
+                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), TITLE_HOLDER_ID).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.Success.class, result);
@@ -931,7 +931,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(false);
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, AUTHORITY_ID, null).join();
+                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.AlreadyRegistered.class, result);
@@ -955,7 +955,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateLeaseholdResult result =
-                    api.createLeasehold(wgRegion, 500.0, 3600, 3, LANDLORD_ID).join();
+                    api.createLeasehold(wgRegion, 500.0, 3600, 3, new Party.Personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateLeaseholdResult.Success.class, result);
@@ -969,7 +969,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(false);
 
             RealtyPaperApi.CreateLeaseholdResult result =
-                    api.createLeasehold(wgRegion, 500.0, 3600, 3, LANDLORD_ID).join();
+                    api.createLeasehold(wgRegion, 500.0, 3600, 3, new Party.Personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateLeaseholdResult.AlreadyRegistered.class, result);

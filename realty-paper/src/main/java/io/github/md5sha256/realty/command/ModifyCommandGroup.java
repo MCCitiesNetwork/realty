@@ -110,7 +110,7 @@ public record ModifyCommandGroup(
             ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
-        api.listModificationsAwaitingLandlord(sender.getUniqueId()).thenAccept(views -> {
+        api.listModificationsAwaitingLandlord(new Party.Personal(sender.getUniqueId())).thenAccept(views -> {
             if (views.isEmpty()) {
                 sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_INBOX_NONE));
                 return;
@@ -204,7 +204,7 @@ public record ModifyCommandGroup(
                             : MessageKeys.MODIFY_PROPOSE_SUCCESS_TENANT;
                     sender.sendMessage(messages.messageFor(key, Placeholder.unparsed("region", regionId)));
                     events.fireSync(new LeaseModificationProposedEvent(region, success.proposerRole(),
-                            sender.getUniqueId(), Party.playerUuidOf(success.landlord()), success.tenantId(), success.active()));
+                            sender.getUniqueId(), success.landlord(), success.tenantId(), success.active()));
                 }
                 case RealtyBackend.ProposeModificationResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NO_LEASEHOLD_CONTRACT,
@@ -255,7 +255,7 @@ public record ModifyCommandGroup(
                     sender.sendMessage(messages.messageFor(action.successKey,
                             Placeholder.unparsed("region", regionId)));
                     events.fireSync(new LeaseModificationResolvedEvent(region, action.resolution,
-                            success.proposerRole(), Party.playerUuidOf(success.landlord()), success.tenantId()));
+                            success.proposerRole(), success.landlord(), success.tenantId()));
                 }
                 case RealtyBackend.ResolveModificationResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NO_LEASEHOLD_CONTRACT,

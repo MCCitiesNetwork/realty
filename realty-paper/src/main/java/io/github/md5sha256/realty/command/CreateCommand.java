@@ -14,6 +14,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.event.RegionCreateEvent;
 import io.github.md5sha256.realty.api.event.RegionCreatedEvent;
@@ -153,7 +154,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         }
         regionManager.addRegion(wgRegion);
 
-        api.createLeasehold(region, price, period.toSeconds(), maxExtensions, landlord)
+        api.createLeasehold(region, price, period.toSeconds(), maxExtensions, new Party.Personal(landlord))
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateLeaseholdResult.Success ignored -> {
@@ -222,7 +223,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         }
         regionManager.addRegion(wgRegion);
 
-        api.createFreehold(region, price, authority, titleholder)
+        api.createFreehold(region, price, new Party.Personal(authority), titleholder)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {
