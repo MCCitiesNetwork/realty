@@ -21,14 +21,12 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.component.CommandComponent;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.key.CloudKey;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
-import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,7 +35,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 /**
  * Handles {@code /realty register leasehold <price> <period> <maxextensions> <region>}
@@ -74,14 +71,6 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
     private static final String LANDLORD_FLAG = "landlord";
     private static final String AUTHORITY_FLAG = "authority";
 
-    /** A {@code --<role> <name>} flag whose name is resolved to a party in the handler. */
-    private @NotNull CommandFlag<String> partyNameFlag(@NotNull String role) {
-        return CommandFlag.<Source>builder(role)
-                .withComponent(CommandComponent.<Source, String>builder(role, StringParser.stringParser())
-                        .suggestionProvider(partySuggestions))
-                .build();
-    }
-
     @Override
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
@@ -93,7 +82,7 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
                                 Double.MAX_VALUE))
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_EXTENSIONS, IntegerParser.integerParser(-1))
-                        .flag(partyNameFlag(LANDLORD_FLAG))
+                        .flag(PartyFlags.nameFlag(LANDLORD_FLAG, partySuggestions))
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver()))
                         .handler(this::executeLeasehold)
                         .build(),
@@ -101,7 +90,7 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
                         .permission("realty.command.register.freehold")
                         .flag(PRICE_FLAG)
                         .flag(TITLEHOLDER_FLAG)
-                        .flag(partyNameFlag(AUTHORITY_FLAG))
+                        .flag(PartyFlags.nameFlag(AUTHORITY_FLAG, partySuggestions))
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver()))
                         .handler(this::executeFreehold)
                         .build()
@@ -125,7 +114,8 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             return;
         }
         String landlordName = ctx.flags().getValue(LANDLORD_FLAG, null);
-        resolvePartyOrDefault(sender, LANDLORD_FLAG, landlordName, flag, defaults.get().leaseholdLandlord(),
+        PartyFlags.resolveOrDefault(partyResolver, executorState, messages, sender, LANDLORD_FLAG, landlordName, flag,
+                defaults.get().leaseholdLandlord(),
                 landlord -> registerLeasehold(sender, region, price, period, maxExtensions, landlord));
     }
 
@@ -177,7 +167,8 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             return;
         }
         String authorityName = ctx.flags().getValue(AUTHORITY_FLAG, null);
-        resolvePartyOrDefault(sender, AUTHORITY_FLAG, authorityName, flag, defaults.get().freeholdAuthority(),
+        PartyFlags.resolveOrDefault(partyResolver, executorState, messages, sender, AUTHORITY_FLAG, authorityName, flag,
+                defaults.get().freeholdAuthority(),
                 authority -> registerFreehold(sender, region, price, authority, titleholder));
     }
 
@@ -210,27 +201,6 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
                             Placeholder.unparsed("error", cause.getMessage())));
                     return null;
                 });
-    }
-
-    /**
-     * Passes {@code onResolved} the party named by {@code --<role>}, resolved with the type flag, or
-     * the default from settings.yml when the flag was not given. A type flag without a name, a
-     * default that could not be resolved, and a refused name each end the command with a message.
-     */
-    private void resolvePartyOrDefault(@NotNull CommandSender sender, @NotNull String role, @Nullable String name,
-                                       @Nullable PartyFlag flag, @Nullable Party fallback,
-                                       @NotNull Consumer<Party> onResolved) {
-        if (name != null) {
-            PartyFlags.resolveThen(partyResolver, executorState, messages, sender, name, flag, onResolved);
-        } else if (flag != null) {
-            sender.sendMessage(messages.messageFor(MessageKeys.PARTY_TYPE_FLAG_WITHOUT_NAME,
-                    Placeholder.unparsed("role", role)));
-        } else if (fallback == null) {
-            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
-                    Placeholder.unparsed("role", role)));
-        } else {
-            onResolved.accept(fallback);
-        }
     }
 
 }

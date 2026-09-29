@@ -14,9 +14,11 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
+import org.incendo.cloud.component.CommandComponent;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.flag.CommandFlag;
+import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
@@ -56,6 +58,18 @@ public final class PartyFlags {
             result = result.flag(CommandFlag.<C>builder(flagName(flag)).build());
         }
         return result;
+    }
+
+    /**
+     * A {@code --<role> <name>} flag, such as {@code --landlord}, whose name is resolved to a party
+     * in the handler once the type flag is known.
+     */
+    public static @NotNull CommandFlag<String> nameFlag(@NotNull String role,
+                                                        @NotNull SuggestionProvider<Source> suggestions) {
+        return CommandFlag.<Source>builder(role)
+                .withComponent(CommandComponent.<Source, String>builder(role, StringParser.stringParser())
+                        .suggestionProvider(suggestions))
+                .build();
     }
 
     public static @NotNull Read read(@NotNull CommandContext<?> ctx) {
@@ -111,6 +125,33 @@ public final class PartyFlags {
                 return all;
             }, lookupExecutor).exceptionally(_ -> players);
         };
+    }
+
+    /**
+     * Decides which party gets a role that a command names with {@code --<role> <name>}, and passes it
+     * to {@code onResolved}:
+     * <ul>
+     *   <li>a name is resolved with the type flag, as {@link #resolveThen} does;</li>
+     *   <li>a type flag without a name is refused, since it describes nothing;</li>
+     *   <li>with neither, {@code fallback} (the default from settings.yml) is used, or the command is
+     *       refused when that default could not be resolved.</li>
+     * </ul>
+     */
+    public static void resolveOrDefault(@NotNull PartyResolver resolver, @NotNull ExecutorState executorState,
+                                        @NotNull MessageContainer messages, @NotNull CommandSender sender,
+                                        @NotNull String role, @Nullable String name, @Nullable PartyFlag flag,
+                                        @Nullable Party fallback, @NotNull Consumer<Party> onResolved) {
+        if (name != null) {
+            resolveThen(resolver, executorState, messages, sender, name, flag, onResolved);
+        } else if (flag != null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.PARTY_TYPE_FLAG_WITHOUT_NAME,
+                    Placeholder.unparsed("role", role)));
+        } else if (fallback == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
+                    Placeholder.unparsed("role", role)));
+        } else {
+            onResolved.accept(fallback);
+        }
     }
 
     /**

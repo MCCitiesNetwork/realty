@@ -34,7 +34,6 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
-import org.incendo.cloud.component.CommandComponent;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.key.CloudKey;
 import org.incendo.cloud.paper.util.sender.Source;
@@ -51,7 +50,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
@@ -93,14 +91,6 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
     private static final String LANDLORD_FLAG = "landlord";
     private static final String AUTHORITY_FLAG = "authority";
 
-    /** A {@code --<role> <name>} flag whose name is resolved to a party in the handler. */
-    private @NotNull CommandFlag<String> partyNameFlag(@NotNull String role) {
-        return CommandFlag.<Source>builder(role)
-                .withComponent(CommandComponent.<Source, String>builder(role, StringParser.stringParser())
-                        .suggestionProvider(partySuggestions))
-                .build();
-    }
-
     @Override
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
@@ -113,7 +103,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
                                 Double.MAX_VALUE))
                         .required(PERIOD, DurationParser.duration())
                         .required(MAX_EXTENSIONS, IntegerParser.integerParser(-1))
-                        .flag(partyNameFlag(LANDLORD_FLAG)))
+                        .flag(PartyFlags.nameFlag(LANDLORD_FLAG, partySuggestions)))
                         .handler(this::executeLeasehold)
                         .build(),
                 PartyFlags.addTo(base.literal("freehold")
@@ -121,7 +111,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
                         .required(NAME, StringParser.stringParser())
                         .flag(PRICE_FLAG)
                         .flag(TITLEHOLDER_FLAG)
-                        .flag(partyNameFlag(AUTHORITY_FLAG)))
+                        .flag(PartyFlags.nameFlag(AUTHORITY_FLAG, partySuggestions)))
                         .handler(this::executeFreehold)
                         .build()
         );
@@ -146,7 +136,8 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
         String landlordName = ctx.flags().getValue(LANDLORD_FLAG, null);
-        resolvePartyOrDefault(player, LANDLORD_FLAG, landlordName, flag, defaults.get().leaseholdLandlord(),
+        PartyFlags.resolveOrDefault(partyResolver, executorState, messages, player, LANDLORD_FLAG, landlordName, flag,
+                defaults.get().leaseholdLandlord(),
                 landlord -> createLeasehold(player, name, price, period, maxExtensions, landlord));
     }
 
@@ -223,7 +214,8 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         UUID titleholder = ctx.flags()
                 .getValue(TITLEHOLDER_FLAG, defaults.get().freeholdTitleholder());
         String authorityName = ctx.flags().getValue(AUTHORITY_FLAG, null);
-        resolvePartyOrDefault(player, AUTHORITY_FLAG, authorityName, flag, defaults.get().freeholdAuthority(),
+        PartyFlags.resolveOrDefault(partyResolver, executorState, messages, player, AUTHORITY_FLAG, authorityName, flag,
+                defaults.get().freeholdAuthority(),
                 authority -> createFreehold(player, name, price, authority, titleholder));
     }
 
@@ -279,27 +271,6 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
                             Placeholder.unparsed("error", cause.getMessage())));
                     return null;
                 });
-    }
-
-    /**
-     * Passes {@code onResolved} the party named by {@code --<role>}, resolved with the type flag, or
-     * the default from settings.yml when the flag was not given. A type flag without a name, a
-     * default that could not be resolved, and a refused name each end the command with a message.
-     */
-    private void resolvePartyOrDefault(@NotNull Player player, @NotNull String role, @Nullable String name,
-                                       @Nullable PartyFlag flag, @Nullable Party fallback,
-                                       @NotNull Consumer<Party> onResolved) {
-        if (name != null) {
-            PartyFlags.resolveThen(partyResolver, executorState, messages, player, name, flag, onResolved);
-        } else if (flag != null) {
-            player.sendMessage(messages.messageFor(MessageKeys.PARTY_TYPE_FLAG_WITHOUT_NAME,
-                    Placeholder.unparsed("role", role)));
-        } else if (fallback == null) {
-            player.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
-                    Placeholder.unparsed("role", role)));
-        } else {
-            onResolved.accept(fallback);
-        }
     }
 
     private static RegionManager getRegionManager(@NotNull World world) {

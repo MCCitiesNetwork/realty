@@ -53,15 +53,17 @@ import java.util.function.Consumer;
  * <ul>
  *   <li>{@code /realty set price <price> <region>} — set freehold or leasehold price</li>
  *   <li>{@code /realty set duration <duration> <region>} — set leasehold duration</li>
- *   <li>{@code /realty set landlord <name> [type flag] <region>} — set leasehold landlord</li>
+ *   <li>{@code /realty set landlord <name> <region> [type flag]} — set leasehold landlord</li>
  *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
  *   <li>{@code /realty set tenant <player> <region>} — set leasehold tenant</li>
  *   <li>{@code /realty set maxextensions <count> <region>} — set leasehold max extensions (-1 for unlimited)</li>
- *   <li>{@code /realty set authority <name> [type flag] <region>} — set freehold authority</li>
+ *   <li>{@code /realty set authority <name> <region> [type flag]} — set freehold authority</li>
  * </ul>
  *
  * <p>A landlord or authority name is a player unless one of the type flags {@code --government},
- * {@code --business}, {@code --system} or {@code --group} is given; see {@link PartyFlags}.</p>
+ * {@code --business}, {@code --system} or {@code --group} is given; see {@link PartyFlags}. Cloud reads
+ * flags only after the last argument, so with a type flag the region must be named: without it, the
+ * flag would be read as the region.</p>
  */
 public record SetCommandGroup(
         @NotNull RealtyPaperApi api,
