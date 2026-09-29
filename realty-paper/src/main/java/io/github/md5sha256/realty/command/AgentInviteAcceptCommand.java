@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -58,7 +59,8 @@ public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         UUID inviteeId = player.getUniqueId();
-        api.acceptAgentInvite(regionId, worldId, inviteeId).thenAccept(result -> {
+        boolean bypassConflict = player.hasPermission("realty.bypass.conflict-of-interest");
+        api.acceptAgentInvite(regionId, worldId, ActorContext.player(inviteeId, false), bypassConflict).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.AcceptAgentInviteResult.Success(UUID inviterId) -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_SUCCESS,
@@ -75,6 +77,9 @@ public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.AcceptAgentInviteResult.AlreadyAgent() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_ALREADY_AGENT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.AcceptAgentInviteResult.IsAuthority() ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_IS_AUTHORITY,
                                 Placeholder.unparsed("region", regionId)));
             }
         }).exceptionally(ex -> {

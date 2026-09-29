@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
@@ -72,7 +73,12 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.inviteAgent(regionId, worldId, player.getUniqueId(), inviteeId).thenAccept(result -> {
+        // An offline invitee's permissions are unknown; accepting checks again (D9).
+        Player onlineInvitee = Bukkit.getPlayer(inviteeId);
+        boolean bypassConflict = onlineInvitee != null
+                && onlineInvitee.hasPermission("realty.bypass.conflict-of-interest");
+        api.inviteAgent(regionId, worldId, player.getUniqueId(), ActorContext.player(inviteeId, false),
+                bypassConflict).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.InviteAgentResult.Success() -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_SUCCESS,

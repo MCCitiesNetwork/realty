@@ -38,6 +38,8 @@ agent-invite-accept:
         agent for region <yellow><region>.</yellow>
     not-found: <prefix> You do not have a pending invite for region <yellow><region>.</yellow>
     already-agent: <prefix> You are already an agent for region <region>.
+    is-authority: <prefix> You act for the authority of region <yellow><region></yellow>
+        and cannot become its agent.
     error: '<prefix> Failed to accept agent invite: <error>'
 agent-invite-reject:
     success: <prefix> You have <red>rejected the invitation</red> to become an agent

@@ -55,8 +55,16 @@ public interface RealtyPaperApi {
         record Error(@NotNull String message) implements BuyResult {}
     }
 
+    /**
+     * Buys the region at its asking price. See {@link RealtyBackend#executeBuy} for the
+     * conflict-of-interest rule.
+     *
+     * @param buyer          the buying player and the parties they act for
+     * @param bypassConflict whether the buyer holds {@code realty.bypass.conflict-of-interest}
+     */
     @NotNull CompletableFuture<BuyResult> buy(@NotNull WorldGuardRegion region,
-                                               @NotNull UUID buyerId);
+                                               @NotNull ActorContext buyer,
+                                               boolean bypassConflict);
 
     // --- Rent ---
 
@@ -214,11 +222,24 @@ public interface RealtyPaperApi {
                        @NotNull String regionId) implements SetLandlordResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements SetLandlordResult {}
         record UpdateFailed(@NotNull String regionId) implements SetLandlordResult {}
+        /** The actor may not hand the current landlord's role to another party. */
+        record NotAllowedToReassign(@NotNull Party current) implements SetLandlordResult {}
+        /** The actor does not manage the party the role would go to. */
+        record NotAllowedToAssign(@NotNull Party requested) implements SetLandlordResult {}
         record Error(@NotNull String message) implements SetLandlordResult {}
     }
 
+    /**
+     * Sets the landlord as the console does: the assignment rules are bypassed.
+     */
     @NotNull CompletableFuture<SetLandlordResult> setLandlord(
             @NotNull WorldGuardRegion region, @NotNull Party landlord);
+
+    /**
+     * Sets the landlord on behalf of {@code ctx}. See {@link RealtyBackend#setLandlord} for the rules.
+     */
+    @NotNull CompletableFuture<SetLandlordResult> setLandlord(
+            @NotNull WorldGuardRegion region, @NotNull Party landlord, @NotNull ActorContext ctx);
 
     // --- Delete ---
 
@@ -323,10 +344,11 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.InviteAgentResult> inviteAgent(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID inviterId, @NotNull UUID inviteeId);
+            @NotNull UUID inviterId, @NotNull ActorContext invitee, boolean bypassConflict);
 
     @NotNull CompletableFuture<RealtyBackend.AcceptAgentInviteResult> acceptAgentInvite(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID inviteeId);
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull ActorContext invitee, boolean bypassConflict);
 
     @NotNull CompletableFuture<RealtyBackend.WithdrawAgentInviteResult> withdrawAgentInvite(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID inviteeId);
@@ -350,13 +372,13 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.BidResult> performBid(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID bidderId, double bidAmount);
+            @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict);
 
     // --- Offer ---
 
     @NotNull CompletableFuture<RealtyBackend.OfferResult> placeOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID offererId, double price);
+            @NotNull ActorContext offerer, double price, boolean bypassConflict);
 
     @NotNull CompletableFuture<RealtyBackend.AcceptOfferResult> acceptOffer(
             @NotNull String regionId, @NotNull UUID worldId,

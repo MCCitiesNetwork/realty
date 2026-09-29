@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -57,7 +58,8 @@ public record BuyCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.buy(region, sender.getUniqueId()).thenAccept(result -> {
+        boolean bypassConflict = sender.hasPermission("realty.bypass.conflict-of-interest");
+        api.buy(region, ActorContext.player(sender.getUniqueId(), false), bypassConflict).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.BuyResult.Success success -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.BUY_SUCCESS,

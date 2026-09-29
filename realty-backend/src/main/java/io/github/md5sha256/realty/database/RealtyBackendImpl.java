@@ -99,7 +99,9 @@ public class RealtyBackendImpl implements RealtyBackend {
     public @NotNull InviteAgentResult inviteAgent(@NotNull String worldGuardRegionId,
                                                    @NotNull UUID worldId,
                                                    @NotNull UUID inviterId,
-                                                   @NotNull UUID inviteeId) {
+                                                   @NotNull ActorContext invitee,
+                                                   boolean bypassConflict) {
+        UUID inviteeId = invitee.requirePlayer();
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
@@ -113,7 +115,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (inviteeId.equals(freehold.titleHolderId())) {
                 return new InviteAgentResult.IsTitleHolder();
             }
-            if (new Party.Personal(inviteeId).equals(freehold.authority())) {
+            if (conflictsWithAuthority(freehold.authority(), invitee, bypassConflict)) {
                 return new InviteAgentResult.IsAuthority();
             }
             if (wrapper.freeholdContractSanctionedAuctioneerMapper()
@@ -135,7 +137,9 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull AcceptAgentInviteResult acceptAgentInvite(@NotNull String worldGuardRegionId,
                                                                @NotNull UUID worldId,
-                                                               @NotNull UUID inviteeId) {
+                                                               @NotNull ActorContext invitee,
+                                                               boolean bypassConflict) {
+        UUID inviteeId = invitee.requirePlayer();
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             FreeholdContractAgentInviteEntity invite = wrapper.freeholdContractAgentInviteMapper()
@@ -149,6 +153,15 @@ public class RealtyBackendImpl implements RealtyBackend {
                         .deleteByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
                 session.commit();
                 return new AcceptAgentInviteResult.AlreadyAgent();
+            }
+            // D9: the invite may have been made while the invitee's groups were unknown.
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new AcceptAgentInviteResult.NotFound();
+            }
+            if (conflictsWithAuthority(freehold.authority(), invitee, bypassConflict)) {
+                return new AcceptAgentInviteResult.IsAuthority();
             }
             wrapper.freeholdContractAgentInviteMapper()
                     .deleteByRegionAndInvitee(worldGuardRegionId, worldId, inviteeId);
@@ -257,8 +270,10 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull BidResult performBid(@NotNull String worldGuardRegionId,
                                          @NotNull UUID worldId,
-                                         @NotNull UUID bidderId,
-                                         double bidAmount) {
+                                         @NotNull ActorContext bidder,
+                                         double bidAmount,
+                                         boolean bypassConflict) {
+        UUID bidderId = bidder.requirePlayer();
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractAuctionMapper auctionMapper = wrapper.freeholdContractAuctionMapper();
             FreeholdContractBidMapper bidMapper = wrapper.freeholdContractBidMapper();
@@ -277,7 +292,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new BidResult.NoAuction();
             }
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
-            if (freehold != null && (new Party.Personal(bidderId).equals(freehold.authority())
+            if (freehold != null && (conflictsWithAuthority(freehold.authority(), bidder, bypassConflict)
                     || bidderId.equals(freehold.titleHolderId())
                     || bidderId.equals(auction.auctioneerId()))) {
                 return new BidResult.IsOwner();
@@ -460,7 +475,8 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
                                                     @NotNull UUID worldId,
-                                                    @NotNull Party landlord) {
+                                                    @NotNull Party newLandlord,
+                                                    @NotNull ActorContext ctx) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
@@ -468,7 +484,13 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetLandlordResult.NoLeaseholdContract();
             }
             Party previousLandlord = lease.landlord();
-            int landlordPartyId = wrapper.partyMapper().findOrInsert(landlord);
+            if (!ctx.mayReassign(previousLandlord)) {
+                return new SetLandlordResult.NotAllowedToReassign(previousLandlord);
+            }
+            if (!ctx.mayManage(newLandlord)) {
+                return new SetLandlordResult.NotAllowedToAssign(newLandlord);
+            }
+            int landlordPartyId = wrapper.partyMapper().findOrInsert(newLandlord);
             int updated = leaseholdMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordPartyId);
             if (updated == 0) {
                 return new SetLandlordResult.UpdateFailed();
@@ -629,7 +651,9 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull BuyResult executeBuy(@NotNull String worldGuardRegionId,
                                           @NotNull UUID worldId,
-                                          @NotNull UUID buyerId) {
+                                          @NotNull ActorContext buyer,
+                                          boolean bypassConflict) {
+        UUID buyerId = buyer.requirePlayer();
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             // Lock the freehold row first (per-region serialization point), as every
@@ -642,7 +666,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (freehold.price() == null) {
                 return new BuyResult.NotForFreehold();
             }
-            if (new Party.Personal(buyerId).equals(freehold.authority())) {
+            if (conflictsWithAuthority(freehold.authority(), buyer, bypassConflict)) {
                 return new BuyResult.IsAuthority();
             }
             if (buyerId.equals(freehold.titleHolderId())) {
@@ -1647,8 +1671,10 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull OfferResult placeOffer(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
-                                           @NotNull UUID offererId,
-                                           double price) {
+                                           @NotNull ActorContext offerer,
+                                           double price,
+                                           boolean bypassConflict) {
+        UUID offererId = offerer.requirePlayer();
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractOfferMapper offerMapper = wrapper.freeholdContractOfferMapper();
@@ -1667,7 +1693,8 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (auctionMapper.existsByRegion(worldGuardRegionId, worldId)) {
                 return new OfferResult.AuctionExists();
             }
-            if (new Party.Personal(offererId).equals(freehold.authority()) || offererId.equals(freehold.titleHolderId())) {
+            if (conflictsWithAuthority(freehold.authority(), offerer, bypassConflict)
+                    || offererId.equals(freehold.titleHolderId())) {
                 return new OfferResult.IsOwner();
             }
             if (offerMapper.existsByOfferer(worldGuardRegionId, worldId, offererId)) {
@@ -1772,6 +1799,20 @@ public class RealtyBackendImpl implements RealtyBackend {
                 && (playerId.equals(freehold.titleHolderId())
                     || wrapper.freeholdContractSanctionedAuctioneerMapper()
                             .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, playerId));
+    }
+
+    /**
+     * Whether the actor may not buy, bid on, make an offer on or be agent for land whose authority is
+     * {@code authority}. A player who is the authority is always refused; a manager of the authority
+     * is refused unless {@code bypassConflict}. The actor's admin bypass plays no part.
+     */
+    private static boolean conflictsWithAuthority(@NotNull Party authority,
+                                                  @NotNull ActorContext actor,
+                                                  boolean bypassConflict) {
+        if (new Party.Personal(actor.requirePlayer()).equals(authority)) {
+            return true;
+        }
+        return !bypassConflict && actor.manages().contains(authority);
     }
 
     // --- Pay Offer ---

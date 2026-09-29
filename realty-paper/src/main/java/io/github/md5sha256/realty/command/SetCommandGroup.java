@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.Party;
@@ -251,8 +252,11 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
+        ActorContext actor = sender instanceof Player player
+                ? ActorContext.player(player.getUniqueId(), player.hasPermission("realty.command.set.landlord.others"))
+                : ActorContext.console();
         authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", null, () ->
-        api.setLandlord(region, new Party.Personal(landlordId)).thenAccept(result -> {
+        api.setLandlord(region, new Party.Personal(landlordId), actor).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetLandlordResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
@@ -266,6 +270,11 @@ public record SetCommandGroup(
                 case RealtyPaperApi.SetLandlordResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));
+                // These refusals have no messages of their own yet.
+                case RealtyPaperApi.SetLandlordResult.NotAllowedToReassign ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                case RealtyPaperApi.SetLandlordResult.NotAllowedToAssign ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
                 case RealtyPaperApi.SetLandlordResult.Error error ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_ERROR,
                                 Placeholder.unparsed("error", error.message())));

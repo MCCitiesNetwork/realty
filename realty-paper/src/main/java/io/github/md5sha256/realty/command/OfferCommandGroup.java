@@ -142,7 +142,9 @@ public record OfferCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.placeOffer(regionId, region.world().getUID(), sender.getUniqueId(), price)
+        boolean bypassConflict = sender.hasPermission("realty.bypass.conflict-of-interest");
+        api.placeOffer(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), false),
+                        price, bypassConflict)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.OfferResult.Success success -> {

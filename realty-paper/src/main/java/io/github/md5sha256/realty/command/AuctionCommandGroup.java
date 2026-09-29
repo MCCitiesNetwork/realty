@@ -265,7 +265,9 @@ public record AuctionCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.performBid(regionId, region.world().getUID(), sender.getUniqueId(), bidAmount)
+        boolean bypassConflict = sender.hasPermission("realty.bypass.conflict-of-interest");
+        api.performBid(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), false),
+                        bidAmount, bypassConflict)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.BidResult.Success success -> {

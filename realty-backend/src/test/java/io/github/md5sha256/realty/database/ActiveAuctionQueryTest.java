@@ -86,7 +86,7 @@ class ActiveAuctionQueryTest extends AbstractDatabaseTest {
 
     @Test
     void carriesTheStandingBidAndItsBidder() {
-        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, BIDDER, 150.0));
+        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, ActorContext.player(BIDDER, false), 150.0, false));
         ActiveAuctionRow row = rowFor(page(null, AuctionSort.ENDING_SOON, 50, 0), "plot_busy");
         Assertions.assertEquals(BIDDER, row.highestBidderId());
         Assertions.assertEquals(150.0, row.highestBidPrice());
@@ -95,7 +95,7 @@ class ActiveAuctionQueryTest extends AbstractDatabaseTest {
 
     @Test
     void movesTheDeadlineToTheLastBidPlusTheBiddingDuration() {
-        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, BIDDER, 150.0));
+        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, ActorContext.player(BIDDER, false), 150.0, false));
         ActiveAuctionRow row = rowFor(page(null, AuctionSort.ENDING_SOON, 50, 0), "plot_busy");
         Assertions.assertEquals(row.highestBidTime().plusSeconds(7200), row.endDate(),
                 "the deadline runs from the last bid, not from the auction start");
@@ -103,9 +103,9 @@ class ActiveAuctionQueryTest extends AbstractDatabaseTest {
 
     @Test
     void countsDistinctBiddersNotBids() {
-        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, BIDDER, 150.0));
-        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, OTHER_BIDDER, 200.0));
-        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, BIDDER, 250.0));
+        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, ActorContext.player(BIDDER, false), 150.0, false));
+        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, ActorContext.player(OTHER_BIDDER, false), 200.0, false));
+        Assertions.assertNotNull(logic.performBid("plot_busy", WORLD_ID, ActorContext.player(BIDDER, false), 250.0, false));
         ActiveAuctionRow row = rowFor(page(null, AuctionSort.ENDING_SOON, 50, 0), "plot_busy");
         Assertions.assertEquals(2, row.bidderCount());
         Assertions.assertEquals(250.0, row.highestBidPrice(), "the highest bid, not the latest");
@@ -113,7 +113,7 @@ class ActiveAuctionQueryTest extends AbstractDatabaseTest {
 
     @Test
     void ordersByTheStandingBidUnderHighestBid() {
-        Assertions.assertNotNull(logic.performBid("plot_quiet", WORLD_ID, BIDDER, 500.0));
+        Assertions.assertNotNull(logic.performBid("plot_quiet", WORLD_ID, ActorContext.player(BIDDER, false), 500.0, false));
         List<String> ordered = ids(page(WORLD_ID, AuctionSort.HIGHEST_BID, 50, 0));
         Assertions.assertEquals(List.of("plot_quiet", "plot_busy"), ordered,
                 "an auction with no bid ranks at its minimum bid, below one bid up to 500");
