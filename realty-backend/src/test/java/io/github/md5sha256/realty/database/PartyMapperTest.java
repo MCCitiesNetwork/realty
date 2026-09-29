@@ -58,6 +58,40 @@ class PartyMapperTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void findOrInsert_accountStoredUnderAnotherKind_throws() throws SQLException {
+        Party.Account original = new Party.Account(42, AccountKind.GOVERNMENT);
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            wrapper.partyMapper().findOrInsert(original);
+
+            Party.Account conflicting = new Party.Account(42, AccountKind.BUSINESS);
+            PartyMapper mapper = wrapper.partyMapper();
+            IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class,
+                    () -> mapper.findOrInsert(conflicting));
+            Assertions.assertEquals("account #42 is stored as GOVERNMENT, not BUSINESS", exception.getMessage());
+
+            try (Statement statement = wrapper.session().getConnection().createStatement();
+                 ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM Party")) {
+                resultSet.next();
+                Assertions.assertEquals(1, resultSet.getInt(1));
+            }
+        }
+    }
+
+    @Test
+    void findId_accountStoredUnderAnotherKind_throws() {
+        Party.Account original = new Party.Account(42, AccountKind.GOVERNMENT);
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            wrapper.partyMapper().findOrInsert(original);
+
+            Party.Account conflicting = new Party.Account(42, AccountKind.BUSINESS);
+            PartyMapper mapper = wrapper.partyMapper();
+            IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class,
+                    () -> mapper.findId(conflicting));
+            Assertions.assertEquals("account #42 is stored as GOVERNMENT, not BUSINESS", exception.getMessage());
+        }
+    }
+
+    @Test
     void findOrInsert_unmappedGroupThrows() {
         Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
