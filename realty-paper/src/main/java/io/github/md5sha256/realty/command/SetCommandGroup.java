@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
 import io.github.md5sha256.realty.command.util.PartyResolver;
+import io.github.md5sha256.realty.command.util.RegionOrFlagParser;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LandlordSetEvent;
 import io.github.md5sha256.realty.api.event.PriceChangedEvent;
@@ -42,10 +43,12 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Groups all set-related subcommands under {@code /realty set}.
@@ -53,17 +56,17 @@ import java.util.function.Consumer;
  * <ul>
  *   <li>{@code /realty set price <price> <region>} — set freehold or leasehold price</li>
  *   <li>{@code /realty set duration <duration> <region>} — set leasehold duration</li>
- *   <li>{@code /realty set landlord <name> <region> [type flag]} — set leasehold landlord</li>
+ *   <li>{@code /realty set landlord <name> [region] [type flag]} — set leasehold landlord</li>
  *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
  *   <li>{@code /realty set tenant <player> <region>} — set leasehold tenant</li>
  *   <li>{@code /realty set maxextensions <count> <region>} — set leasehold max extensions (-1 for unlimited)</li>
- *   <li>{@code /realty set authority <name> <region> [type flag]} — set freehold authority</li>
+ *   <li>{@code /realty set authority <name> [region] [type flag]} — set freehold authority</li>
  * </ul>
  *
  * <p>A landlord or authority name is a player unless one of the type flags {@code --government},
- * {@code --business}, {@code --system} or {@code --group} is given; see {@link PartyFlags}. Cloud reads
- * flags only after the last argument, so with a type flag the region must be named: without it, the
- * flag would be read as the region.</p>
+ * {@code --business}, {@code --system} or {@code --group} is given; see {@link PartyFlags}. The type
+ * flag comes last. When the region is left out, {@link RegionOrFlagParser} lets the flag through and
+ * the region the player stands in is used.</p>
  */
 public record SetCommandGroup(
         @NotNull RealtyPaperApi api,
@@ -212,7 +215,7 @@ public record SetCommandGroup(
                 PartyFlags.addTo(base.literal("landlord")
                         .permission("realty.command.set.landlord")
                         .required("landlord", StringParser.stringParser(), partySuggestions)
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver()))
+                        .optional("region", RegionOrFlagParser.regionOrFlag()))
                         .handler(this::executeSetLandlord)
                         .build(),
                 titleholderCommand,
@@ -231,7 +234,7 @@ public record SetCommandGroup(
                 PartyFlags.addTo(base.literal("authority")
                         .permission("realty.command.set.authority")
                         .required("authority", StringParser.stringParser(), partySuggestions)
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver()))
+                        .optional("region", RegionOrFlagParser.regionOrFlag()))
                         .handler(this::executeSetAuthority)
                         .build()
         );
@@ -320,7 +323,8 @@ public record SetCommandGroup(
             return;
         }
         String landlordName = ctx.get("landlord");
-        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+        WorldGuardRegion region = ctx.<Optional<WorldGuardRegion>>optional("region")
+                .flatMap(Function.identity())
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {
@@ -482,7 +486,8 @@ public record SetCommandGroup(
             return;
         }
         String authorityName = ctx.get("authority");
-        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+        WorldGuardRegion region = ctx.<Optional<WorldGuardRegion>>optional("region")
+                .flatMap(Function.identity())
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
         if (region == null) {

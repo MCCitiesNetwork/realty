@@ -318,19 +318,17 @@ help:
     - <dark_grey>►</dark_grey> <red>/realty delete <region> [includeworldguard]</red>
         <grey>- Delete a region</grey>
     - <dark_grey>►</dark_grey> <red>/realty reload</red> <grey>- Reload configuration</grey>
-    - <dark_grey>►</dark_grey> <red>/realty set authority <name> <region> [type flag]</red>
+    - <dark_grey>►</dark_grey> <red>/realty set authority <name> [region] [type flag]</red>
         <gray>- Set freehold authority</gray>
     - <dark_grey>►</dark_grey> <grey>A type flag, one of --government, --business, --system
-        or --group, makes the name an account or a group instead of a player. It goes last,
-        after the region, and the region must then be named.</grey>
+        or --group, makes the name an account or a group instead of a player. It goes last.</grey>
     management:
     - <prefix> Management Commands
     - <blue>/realty set price <price> <region></blue> <gray>- Set freehold or leasehold
         price</gray>
     - <blue>/realty unset price <region></blue> <gray>- Remove region freehold price</gray>
     - <blue>/realty set duration <duration> <region></blue> <gray>- Set lease duration</gray>
-    - <blue>/realty set landlord <name> <region> [type flag]</blue> <gray>- Set lease landlord
-        (with a type flag, name the region too)</gray>
+    - <blue>/realty set landlord <name> [region] [type flag]</blue> <gray>- Set lease landlord</gray>
     - <blue>/realty set titleholder <player> <region></blue> <gray>- Set freehold
         title holder</gray>
     - <blue>/realty unset titleholder <region></blue> <gray>- Clear freehold title

@@ -4,8 +4,6 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.internal.CommandRegistrationHandler;
-import org.incendo.cloud.parser.ArgumentParseResult;
-import org.incendo.cloud.parser.ParserDescriptor;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.IntegerParser;
 import org.incendo.cloud.parser.standard.StringParser;
@@ -16,31 +14,20 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Where a type flag may stand in commands shaped like {@code /realty set landlord <name> [region]}
- * and {@code /realty register leasehold <maxextensions> [--landlord <name>] [region]}. The manager
- * parses as the one {@code Realty} builds: no manager setting is changed.
- *
- * <p>Cloud places flags after the last argument, so a flag is read only after the region. The
- * setting {@link ManagerSetting#LIBERAL_FLAG_PARSING} would allow a flag anywhere, but it would
- * also read the {@code -1} that means "unlimited extensions" as an unknown flag.</p>
+ * Where a type flag may stand in {@code /realty set landlord <name> [region] [type flag]}. The
+ * manager parses as the one {@code Realty} builds: no manager setting is changed. The region
+ * argument is a {@link RegionOrFlagParser} around a stand-in that takes any word as a region.
  */
 class PartyFlagPositionTest {
 
     private record Parsed(String landlord, Optional<String> region, PartyFlags.Read flag) {}
-
-    /** Stands in for the WorldGuard region parser, which fails for a name that is not a region. */
-    private static final ParserDescriptor<Object, String> KNOWN_REGION = ParserDescriptor.of(
-            (ctx, input) -> {
-                String name = input.readString();
-                return name.equals("myregion")
-                        ? ArgumentParseResult.success(name)
-                        : ArgumentParseResult.failure(new IllegalArgumentException("Region not found: " + name));
-            }, String.class);
 
     private final AtomicReference<CommandContext<Object>> last = new AtomicReference<>();
     private CommandManager<Object> manager;
@@ -57,13 +44,14 @@ class PartyFlagPositionTest {
         manager.command(PartyFlags.addTo(manager.commandBuilder("set")
                         .literal("landlord")
                         .required("landlord", StringParser.stringParser())
-                        .optional("region", KNOWN_REGION))
+                        .optional("region", RegionOrFlagParser.of(StringParser.<Object>stringParser())))
                 .handler(last::set));
+        // Shaped like /realty register leasehold, whose max-extensions argument accepts -1.
         manager.command(PartyFlags.addTo(manager.commandBuilder("register")
                         .literal("leasehold")
                         .required("maxextensions", IntegerParser.integerParser(-1))
                         .flag(CommandFlag.builder("landlord").withComponent(StringParser.stringParser()))
-                        .optional("region", KNOWN_REGION))
+                        .optional("region", StringParser.stringParser()))
                 .handler(last::set));
         return manager;
     }
@@ -73,10 +61,21 @@ class PartyFlagPositionTest {
         manager = manager(false);
     }
 
-    private Parsed parse(String input) {
+    private CommandContext<Object> run(String input) {
         manager.commandExecutor().executeCommand(new Object(), input).join();
-        CommandContext<Object> ctx = last.get();
-        return new Parsed(ctx.get("landlord"), ctx.optional("region"), PartyFlags.read(ctx));
+        return last.get();
+    }
+
+    private Parsed parse(String input) {
+        CommandContext<Object> ctx = run(input);
+        Optional<String> region = ctx.<Optional<String>>optional("region").flatMap(Function.identity());
+        return new Parsed(ctx.get("landlord"), region, PartyFlags.read(ctx));
+    }
+
+    @Test
+    void flagWithoutARegion_parses() {
+        assertEquals(new Parsed("Gov", Optional.empty(), new PartyFlags.Read.One(PartyFlag.GOVERNMENT)),
+                parse("set landlord Gov --government"));
     }
 
     @Test
@@ -86,45 +85,43 @@ class PartyFlagPositionTest {
     }
 
     @Test
-    void flagBeforeTheRegion_isRefused() {
-        assertThrows(CompletionException.class, () -> parse("set landlord Gov --government myregion"));
+    void noFlagNoRegion_parses() {
+        assertEquals(new Parsed("Steve", Optional.empty(), new PartyFlags.Read.One(null)),
+                parse("set landlord Steve"));
     }
 
     @Test
-    void flagWithoutARegion_isRefused() {
-        // The flag is read as the region, and no region has that name.
-        assertThrows(CompletionException.class, () -> parse("set landlord Gov --government"));
-    }
-
-    @Test
-    void noFlag_parses() {
+    void noFlagWithRegion_parses() {
         assertEquals(new Parsed("Steve", Optional.of("myregion"), new PartyFlags.Read.One(null)),
                 parse("set landlord Steve myregion"));
     }
 
     @Test
+    void flagBeforeTheRegion_isRefused() {
+        // Flags are read after the last argument, so the region cannot follow one.
+        assertThrows(CompletionException.class, () -> parse("set landlord Gov --government myregion"));
+    }
+
+    @Test
+    void twoFlagsWithoutARegion_parse() {
+        Parsed parsed = parse("set landlord Gov --government --group");
+        assertEquals(Optional.empty(), parsed.region());
+        assertTrue(parsed.flag() instanceof PartyFlags.Read.TooMany, parsed.toString());
+    }
+
+    @Test
     void negativeMaxExtensions_parses() {
-        manager.commandExecutor().executeCommand(new Object(),
-                "register leasehold -1 myregion --landlord Acme --business").join();
-        CommandContext<Object> ctx = last.get();
+        CommandContext<Object> ctx = run("register leasehold -1 myregion --landlord Acme --business");
         assertEquals(-1, ctx.<Integer>get("maxextensions"));
         assertEquals("Acme", ctx.flags().getValue("landlord", null));
         assertEquals(new PartyFlags.Read.One(PartyFlag.BUSINESS), PartyFlags.read(ctx));
     }
 
     @Test
-    void liberalFlagParsing_wouldAllowAFlagBeforeOrWithoutTheRegion() {
-        manager = manager(true);
-        assertEquals(new Parsed("Gov", Optional.of("myregion"), new PartyFlags.Read.One(PartyFlag.GOVERNMENT)),
-                parse("set landlord Gov --government myregion"));
-        assertEquals(new Parsed("Gov", Optional.empty(), new PartyFlags.Read.One(PartyFlag.GOVERNMENT)),
-                parse("set landlord Gov --government"));
-    }
-
-    @Test
     void liberalFlagParsing_wouldTakeMinusOneForAFlag() {
+        // Why that setting stays off: it would read the -1 that means "unlimited" as a flag.
         manager = manager(true);
-        assertThrows(CompletionException.class, () -> manager.commandExecutor()
-                .executeCommand(new Object(), "register leasehold -1 myregion --landlord Acme --business").join());
+        assertThrows(CompletionException.class,
+                () -> run("register leasehold -1 myregion --landlord Acme --business"));
     }
 }
