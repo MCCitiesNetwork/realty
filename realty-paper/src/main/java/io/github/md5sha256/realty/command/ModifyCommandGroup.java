@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.ActorContext;
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -33,6 +34,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Groups the rental modification subcommands under {@code /realty modify}. Changes proposed here take
@@ -52,6 +54,8 @@ import java.util.UUID;
  */
 public record ModifyCommandGroup(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
@@ -196,8 +200,10 @@ public record ModifyCommandGroup(
         }
         boolean bypass = sender.hasPermission("realty.command.modify.others");
         String regionId = region.region().getId();
-        api.proposeModification(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), bypass),
-                price, durationSeconds, maxExtensions).thenAccept(result -> {
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.proposeModification(regionId, region.world().getUID(), actor,
+                        price, durationSeconds, maxExtensions), executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.ProposeModificationResult.Success success -> {
                     String key = success.active()
@@ -244,13 +250,13 @@ public record ModifyCommandGroup(
         boolean bypass = sender.hasPermission("realty.command.modify.others");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        ActorContext actor = ActorContext.player(sender.getUniqueId(), bypass);
-        var future = switch (action) {
-            case ACCEPT -> api.acceptModification(regionId, worldId, actor);
-            case REJECT -> api.rejectModification(regionId, worldId, actor);
-            case WITHDRAW -> api.withdrawModification(regionId, worldId, actor);
-        };
-        future.thenAccept(result -> {
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
+                .thenComposeAsync(actor -> switch (action) {
+                    case ACCEPT -> api.acceptModification(regionId, worldId, actor);
+                    case REJECT -> api.rejectModification(regionId, worldId, actor);
+                    case WITHDRAW -> api.withdrawModification(regionId, worldId, actor);
+                }, executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.ResolveModificationResult.Success success -> {
                     sender.sendMessage(messages.messageFor(action.successKey,

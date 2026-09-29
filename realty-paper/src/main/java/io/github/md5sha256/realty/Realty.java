@@ -10,6 +10,7 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.schematic.CaptureCooldown;
@@ -159,6 +160,9 @@ public final class Realty extends JavaPlugin {
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
     private EconomyProvider economyProvider;
+    /** Treasury's API when Treasury provides the economy, else {@code null}. */
+    private @Nullable net.democracycraft.treasury.api.TreasuryApi treasury;
+    private ActorContexts actorContexts;
     private SquirrelIdUsernameResolver nameResolver;
     private PlayerNameService playerNameService;
     private ExecutorState executorState;
@@ -308,6 +312,7 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        this.actorContexts = new ActorContexts(this.treasury, resolveVaultPermission(), this.settings, this.logic);
         SafeLocationFinder safeLocationFinder = new SafeLocationFinder();
         this.signTextApplicator = new SignTextApplicator(
                 this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
@@ -419,6 +424,7 @@ public final class Realty extends JavaPlugin {
             if (registration != null) {
                 getLogger().info("Detected Treasury, using Treasury as the economy provider (full ledger support)");
                 var treasury = registration.getProvider();
+                this.treasury = treasury;
                 return new TreasuryEconomyProvider(treasury, new PartyWallets(treasury));
             }
             getLogger().warning("Treasury plugin is loaded but TreasuryApi service is not registered; falling back to Vault");
@@ -429,6 +435,24 @@ public final class Realty extends JavaPlugin {
             return new VaultEconomyProvider(registration.getProvider());
         }
         return null;
+    }
+
+    /**
+     * Vault's permission service, which tells which players are in a group party. It may be absent,
+     * and then no group party is managed by anyone.
+     */
+    private @Nullable net.milkbowl.vault.permission.Permission resolveVaultPermission() {
+        if (!getServer().getPluginManager().isPluginEnabled("Vault")) {
+            getLogger().warning("Vault is not installed; no player can act for a group party");
+            return null;
+        }
+        var registration = getServer().getServicesManager()
+                .getRegistration(net.milkbowl.vault.permission.Permission.class);
+        if (registration == null) {
+            getLogger().warning("Vault has no permission service; no player can act for a group party");
+            return null;
+        }
+        return registration.getProvider();
     }
 
     private void scheduleTasks() {
@@ -847,16 +871,20 @@ public final class Realty extends JavaPlugin {
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
-                new AgentInviteCommand(paperApi, messageContainer, this.eventDispatch),
-                new AgentInviteAcceptCommand(paperApi, messageContainer, this.eventDispatch),
+                new AgentInviteCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch),
+                new AgentInviteAcceptCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch),
                 new AgentInviteRejectCommand(paperApi, messageContainer, this.eventDispatch),
                 new AgentInviteWithdrawCommand(paperApi, messageContainer, this.eventDispatch),
                 new AgentRemoveCommand(paperApi, messageContainer, this.eventDispatch),
                 new AuctionCommandGroup(paperApi,
+                        this.actorContexts,
+                        executorState,
                         this.settings,
                         messageContainer,
                         this.eventDispatch),
-                new BuyCommand(paperApi, messageContainer, this.eventDispatch),
+                new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
                 new CreateCommand(paperApi, this.settings, messageContainer, this.eventDispatch),
                 new RegisterCommand(paperApi, this.settings, messageContainer, this.eventDispatch),
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
@@ -868,11 +896,13 @@ public final class Realty extends JavaPlugin {
                         messageContainer),
                 new ListCommand(paperApi, messageContainer),
                 new OfferCommandGroup(paperApi,
+                        this.actorContexts,
+                        executorState,
                         messageContainer,
                         this.eventDispatch),
                 new ExtendCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentCommand(paperApi, messageContainer, this.eventDispatch),
-                new RentableCommand(paperApi, messageContainer),
+                new RentableCommand(paperApi, this.actorContexts, executorState, messageContainer),
                 new UnrentCommand(paperApi, messageContainer, this.eventDispatch),
                 new SchematicCommandGroup(this.logic,
                         this.executorState,
@@ -882,9 +912,12 @@ public final class Realty extends JavaPlugin {
                         this.settings,
                         messageContainer,
                         getLogger()),
-                new SetCommandGroup(paperApi, messageContainer, this.eventDispatch),
-                new ModifyCommandGroup(paperApi, messageContainer, this.eventDispatch),
-                new TerminateCommand(paperApi, messageContainer, this.eventDispatch),
+                new SetCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch),
+                new ModifyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch),
+                new TerminateCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch),
                 new TransferCommand(paperApi, messageContainer, this.eventDispatch),
                 new UnsetCommandGroup(paperApi, messageContainer),
                 new ModuleCommandGroup(this.moduleManager, executorState, messageContainer),
@@ -893,7 +926,7 @@ public final class Realty extends JavaPlugin {
                     return null;
                 }, messageContainer),
                 new RemoveCommand(messageContainer),
-                new SignCommand(paperApi, executorState, messageContainer),
+                new SignCommand(paperApi, this.actorContexts, executorState, messageContainer),
                 new TeleportCommand(getLogger(), paperApi, this.settings, messageContainer, safeLocationFinder),
                 new SubregionCommandGroup(subregionWand, subregionWandManager, subregionDialog,
                         messageContainer),

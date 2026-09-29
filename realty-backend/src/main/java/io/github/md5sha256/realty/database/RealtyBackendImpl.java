@@ -1323,6 +1323,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
+    public @NotNull List<Party> listNonPlayerParties() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.partyMapper().selectNonPersonal();
+        }
+    }
+
+    @Override
     public @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);

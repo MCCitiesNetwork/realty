@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.ActorContext;
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -15,6 +16,8 @@ import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.standard.BooleanParser;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Handles {@code /realty rentable <true|false> [region]}.
  *
@@ -25,6 +28,8 @@ import org.jetbrains.annotations.NotNull;
  */
 public record RentableCommand(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages
 ) implements CustomCommandBean.Single {
 
@@ -53,7 +58,9 @@ public record RentableCommand(
         }
         boolean bypass = sender.hasPermission("realty.command.rentable.others");
         String regionId = region.region().getId();
-        api.setRentable(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), bypass), accepting)
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.setRentable(regionId, region.world().getUID(), actor, accepting),
+                        executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.SetRentableResult.Success success ->

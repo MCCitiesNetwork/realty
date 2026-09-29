@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.ActorContext;
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
@@ -15,6 +16,7 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -23,6 +25,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles {@code /realty agent invite <player> <region>}.
@@ -33,6 +36,8 @@ import java.util.UUID;
  * <p>Permission: {@code realty.command.agent.invite}.</p>
  */
 public record AgentInviteCommand(@NotNull RealtyPaperApi api,
+                                  @NotNull ActorContexts actors,
+                                  @NotNull ExecutorState executorState,
                                   @NotNull MessageContainer messages,
                                   @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
 
@@ -73,12 +78,15 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        // An offline invitee's permissions are unknown; accepting checks again (D9).
+        // An offline invitee's permissions, and possibly their groups, are unknown; accepting checks again.
         Player onlineInvitee = Bukkit.getPlayer(inviteeId);
         boolean bypassConflict = onlineInvitee != null
                 && onlineInvitee.hasPermission("realty.bypass.conflict-of-interest");
-        api.inviteAgent(regionId, worldId, player.getUniqueId(), ActorContext.player(inviteeId, false),
-                bypassConflict).thenAccept(result -> {
+        OfflinePlayer invitee = onlineInvitee != null ? onlineInvitee : Bukkit.getOfflinePlayer(inviteeId);
+        CompletableFuture.supplyAsync(() -> actors.forRegion(invitee, false, region), executorState.dbExec())
+                .thenComposeAsync(inviteeContext -> api.inviteAgent(regionId, worldId, player.getUniqueId(),
+                        inviteeContext, bypassConflict), executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.InviteAgentResult.Success() -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_SUCCESS,

@@ -1,6 +1,8 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.ActorContext;
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.Party;
@@ -36,6 +38,8 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 /**
  * Groups all set-related subcommands under {@code /realty set}.
@@ -52,6 +56,8 @@ import java.util.UUID;
  */
 public record SetCommandGroup(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
@@ -63,12 +69,13 @@ public record SetCommandGroup(
     }
 
     /**
-     * Authorizes a leasehold {@code set} mutation, then runs {@code onAuthorized}. Non-players (console)
-     * and admins holding {@code bypassPerm} are trusted. For a leasehold the authority is the landlord,
-     * not WorldGuard ownership (the WorldGuard owner of an active lease is the tenant): a vacant lease may
-     * be set instantly by its landlord, an occupied lease must use {@code /realty modify} so rents cannot
-     * be changed mid-tenancy without notice. For a freehold/unregistered region this falls back to the
-     * WorldGuard-owner check so title-holder-owned regions keep working.
+     * Authorizes a leasehold {@code set} mutation, then runs {@code onAuthorized} with the actor's context.
+     * Non-players (console) and admins holding {@code bypassPerm} are trusted. For a leasehold the
+     * authority is the landlord, not WorldGuard ownership (the WorldGuard owner of an active lease is the
+     * tenant): a vacant lease may be set instantly by anyone who manages its landlord party, an occupied
+     * lease must use {@code /realty modify} so rents cannot be changed mid-tenancy without notice. For a
+     * freehold/unregistered region this falls back to the WorldGuard-owner check so title-holder-owned
+     * regions keep working. The context is built on the database executor and also tests {@code extra}.
      *
      * <p>A non-null {@code leaseholdPerm} additionally gates an instant leasehold term change behind that
      * node, so it is refused (pointing at {@code /realty modify}) unless the caller holds it. It is set for
@@ -77,17 +84,35 @@ public record SetCommandGroup(
      */
     private void authorizeLeaseholdSet(@NotNull CommandSender sender, @NotNull WorldGuardRegion region,
                                        @NotNull String bypassPerm, @Nullable String leaseholdPerm,
-                                       @NotNull Runnable onAuthorized) {
+                                       @NotNull Consumer<ActorContext> onAuthorized, @NotNull Party... extra) {
         if (!(sender instanceof Player player)) {
-            onAuthorized.run();
+            onAuthorized.accept(ActorContext.console());
             return;
         }
-        if (player.hasPermission(bypassPerm)) {
-            onAuthorized.run();
-            return;
-        }
+        boolean bypass = player.hasPermission(bypassPerm);
         String regionId = region.region().getId();
         boolean isWorldGuardOwner = region.region().getOwners().contains(player.getUniqueId());
+        CompletableFuture.supplyAsync(() -> actors.forRegion(player, bypass, region, extra), executorState.dbExec())
+                .thenAcceptAsync(actor -> {
+                    if (actor.bypass()) {
+                        onAuthorized.accept(actor);
+                    } else {
+                        authorizeAsLandlord(player, region, regionId, isWorldGuardOwner, leaseholdPerm, actor,
+                                onAuthorized);
+                    }
+                }, executorState.mainThreadExec())
+                .exceptionally(ex -> {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    player.sendMessage(messages.messageFor(MessageKeys.COMMON_ERROR,
+                            Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
+                    return null;
+                });
+    }
+
+    private void authorizeAsLandlord(@NotNull Player player, @NotNull WorldGuardRegion region,
+                                     @NotNull String regionId, boolean isWorldGuardOwner,
+                                     @Nullable String leaseholdPerm, @NotNull ActorContext actor,
+                                     @NotNull Consumer<ActorContext> onAuthorized) {
         api.getLeaseholdContract(regionId, region.world().getUID()).thenAccept(lease -> {
             if (lease != null) {
                 // Some instant term changes on a leasehold require an extra node; without it the
@@ -98,16 +123,16 @@ public record SetCommandGroup(
                 } else if (lease.tenantId() != null) {
                     player.sendMessage(messages.messageFor(MessageKeys.SET_OCCUPIED_USE_MODIFY,
                             Placeholder.unparsed("region", regionId)));
-                } else if (!new Party.Personal(player.getUniqueId()).equals(lease.landlord())) {
+                } else if (!actor.mayManage(lease.landlord())) {
                     player.sendMessage(messages.messageFor(MessageKeys.SET_NOT_LANDLORD,
                             Placeholder.unparsed("region", regionId)));
                 } else {
-                    onAuthorized.run();
+                    onAuthorized.accept(actor);
                 }
                 return;
             }
             if (isWorldGuardOwner) {
-                onAuthorized.run();
+                onAuthorized.accept(actor);
             } else {
                 player.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             }
@@ -184,7 +209,7 @@ public record SetCommandGroup(
             return;
         }
         authorizeLeaseholdSet(sender, region, "realty.command.set.price.others",
-                "realty.command.set.price.leasehold", () ->
+                "realty.command.set.price.leasehold", _ ->
         api.setPrice(regionId, worldId, price).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.SetPriceResult.Success ignored -> {
@@ -225,7 +250,7 @@ public record SetCommandGroup(
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         authorizeLeaseholdSet(sender, region, "realty.command.set.duration.others",
-                "realty.command.set.duration.leasehold", () ->
+                "realty.command.set.duration.leasehold", _ ->
         api.setDuration(regionId, worldId, duration.toSeconds()).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.SetDurationResult.Success ignored ->
@@ -252,17 +277,16 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        ActorContext actor = sender instanceof Player player
-                ? ActorContext.player(player.getUniqueId(), player.hasPermission("realty.command.set.landlord.others"))
-                : ActorContext.console();
-        authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", null, () ->
-        api.setLandlord(region, new Party.Personal(landlordId), actor).thenAccept(result -> {
+        Party newLandlord = new Party.Personal(landlordId);
+        // The new landlord is tested too: a non-admin may only hand the lease to a party they manage.
+        authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", null, actor ->
+        api.setLandlord(region, newLandlord, actor).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetLandlordResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
                                 Placeholder.unparsed("landlord", resolveName(landlordId)),
                                 Placeholder.unparsed("region", success.regionId())));
-                        events.fireSync(new LandlordSetEvent(region, new Party.Personal(landlordId), success.previousLandlord()));
+                        events.fireSync(new LandlordSetEvent(region, newLandlord, success.previousLandlord()));
                 }
                 case RealtyPaperApi.SetLandlordResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASEHOLD_CONTRACT,
@@ -279,7 +303,7 @@ public record SetCommandGroup(
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_ERROR,
                                 Placeholder.unparsed("error", error.message())));
             }
-        }));
+        }), newLandlord);
     }
 
     private void executeSetTitleHolder(@NotNull CommandContext<Source> ctx) {
@@ -334,7 +358,7 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        authorizeLeaseholdSet(sender, region, "realty.command.set.tenant.others", null, () ->
+        authorizeLeaseholdSet(sender, region, "realty.command.set.tenant.others", null, _ ->
         api.setTenant(region, tenantId).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTenantResult.Success success -> {
@@ -370,7 +394,7 @@ public record SetCommandGroup(
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         authorizeLeaseholdSet(sender, region, "realty.command.set.maxextensions.others",
-                "realty.command.set.maxextensions.leasehold", () ->
+                "realty.command.set.maxextensions.leasehold", _ ->
         api.setMaxRenewals(regionId, worldId, maxExtensions).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.SetMaxRenewalsResult.Success ignored ->

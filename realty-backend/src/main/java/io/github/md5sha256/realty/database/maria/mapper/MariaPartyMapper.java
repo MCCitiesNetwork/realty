@@ -9,12 +9,14 @@ import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.ResultMap;
 import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.TypeDiscriminator;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface MariaPartyMapper extends PartyMapper {
@@ -146,4 +148,21 @@ public interface MariaPartyMapper extends PartyMapper {
                     @Arg(column = "groupAccountKind", javaType = AccountKind.class)})
     })
     @Nullable Party selectById(@Param("partyId") int partyId);
+
+    @Override
+    @Select("""
+            SELECT COALESCE(pp.kind, ap.kind, gp.kind) AS kind, pp.playerUuid,
+                   ap.accountId, ap.accountKind, gp.groupName,
+                   ga.accountId AS groupAccountId, ga.accountKind AS groupAccountKind
+            FROM Party p
+            LEFT JOIN PersonalParty pp ON pp.partyId = p.partyId
+            LEFT JOIN AccountParty ap ON ap.partyId = p.partyId
+            LEFT JOIN GroupParty gp ON gp.partyId = p.partyId
+            LEFT JOIN AccountParty ga ON ga.partyId = gp.accountPartyId
+            WHERE p.kind <> 'PERSONAL'
+            AND COALESCE(pp.kind, ap.kind, gp.kind) IS NOT NULL
+            ORDER BY p.partyId
+            """)
+    @ResultMap("party")
+    @NotNull List<Party> selectNonPersonal();
 }

@@ -635,6 +635,9 @@ public interface RealtyBackend {
     @Nullable LeaseholdContractEntity getLeaseholdContract(@NotNull String worldGuardRegionId,
                                                            @NotNull UUID worldId);
 
+    /** Every party in the Party table that is not a player: each account and each group. */
+    @NotNull List<Party> listNonPlayerParties();
+
     @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     @Nullable RegionState getRegionState(@NotNull String worldGuardRegionId, @NotNull UUID worldId);

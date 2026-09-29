@@ -27,7 +27,8 @@ public record Settings(
         @Setting("teleportation-starting-height") int teleportStartHeight,
         @Setting("schematic-capture-cooldown-seconds") long schematicCaptureCooldownSeconds,
         @Setting("schematic-max-volume") long schematicMaxVolume,
-        @Setting("schematic-capture-blocks-per-tick") int schematicCaptureBlocksPerTick
+        @Setting("schematic-capture-blocks-per-tick") int schematicCaptureBlocksPerTick,
+        @Setting("account-managers") @NotNull AccountManagers accountManagers
 ) {
 
     public Settings {
@@ -61,6 +62,9 @@ public record Settings(
         // above this is corrected the way profileReapplyPerTick is.
         if (schematicCaptureBlocksPerTick <= 0) {
             schematicCaptureBlocksPerTick = 20_000;
+        }
+        if (accountManagers == null) {
+            accountManagers = AccountManagers.MEMBERS;
         }
     }
 }

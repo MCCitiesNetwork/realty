@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import java.util.UUID;
 
 class PartyMapperTest extends AbstractDatabaseTest {
@@ -159,6 +160,32 @@ class PartyMapperTest extends AbstractDatabaseTest {
                 orphanId = rs.getInt(1);
             }
             Assertions.assertNull(wrapper.partyMapper().selectById(orphanId));
+        }
+    }
+
+    @Test
+    void selectNonPersonal_returnsEveryAccountAndGroup() throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            PartyMapper mapper = wrapper.partyMapper();
+            mapper.findOrInsert(new Party.Personal(UUID.randomUUID()));
+            Party.Account government = new Party.Account(1, AccountKind.GOVERNMENT);
+            mapper.findOrInsert(government);
+            insertGroupRow(wrapper, "police", 1, AccountKind.GOVERNMENT);
+            Party.Account business = new Party.Account(2, AccountKind.BUSINESS);
+            mapper.findOrInsert(business);
+
+            Assertions.assertEquals(
+                    List.of(government, new Party.Group("police", 1, AccountKind.GOVERNMENT), business),
+                    mapper.selectNonPersonal());
+        }
+    }
+
+    @Test
+    void selectNonPersonal_emptyWhenOnlyPlayers() {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            wrapper.partyMapper().findOrInsert(new Party.Personal(UUID.randomUUID()));
+
+            Assertions.assertEquals(List.of(), wrapper.partyMapper().selectNonPersonal());
         }
     }
 

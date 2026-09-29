@@ -36,3 +36,7 @@ schematic-max-volume: 1000000
 # Blocks copied per tick while capturing. Higher finishes sooner and costs more per
 # tick; lower is gentler and takes longer. The capture never blocks a whole tick.
 schematic-capture-blocks-per-tick: 20000
+# Who may act for a Treasury account that is a landlord or an authority: "members" (members and
+# authorizers of the account) or "authorizers" (authorizers only). Handing the role to another party
+# always needs an authorizer.
+account-managers: members
