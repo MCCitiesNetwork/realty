@@ -191,15 +191,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         double price = reserved.price();
         // Region is already reserved in DB. Process payment, rollback DB on failure.
         if (price > 0) {
-            double balance = economyProvider.getBalance(buyerId);
+            double balance = economyProvider.getBalance(new Party.Personal(buyerId));
             if (balance < price) {
                 return rollbackBuyAsync(regionId, worldId, buyerId, reserved)
                         .thenApply(ignored -> new BuyResult.InsufficientFunds(price, balance));
             }
-            UUID recipientId = reserved.titleHolderId() != null
-                    ? reserved.titleHolderId() : Party.playerUuidOf(reserved.authority()).orElse(null);
-            PaymentResult result = economyProvider.transfer(
-                    buyerId, recipientId, price, "Plot Purchase: " + regionId);
+            PaymentResult result = economyProvider.transfer(new Party.Personal(buyerId),
+                    seller(reserved.titleHolderId(), reserved.authority()), price,
+                    "Plot Purchase: " + regionId, buyerId);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackBuyAsync(regionId, worldId, buyerId, reserved)
                         .thenApply(ignored -> new BuyResult.PaymentFailed(failure.errorMessage()));
@@ -215,6 +214,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         updateChildLandlords(regionId, region.world(), buyerId);
         return CompletableFuture.completedFuture(
                 new BuyResult.Success(price, regionId, reserved.titleHolderId()));
+    }
+
+    /**
+     * Who is paid for a freehold: its titleholder, or its authority when nobody holds the title.
+     */
+    private static @NotNull Party seller(@Nullable UUID titleHolderId, @NotNull Party authority) {
+        return titleHolderId != null ? new Party.Personal(titleHolderId) : authority;
     }
 
     private @NotNull CompletableFuture<Void> rollbackBuyAsync(@NotNull String regionId,
@@ -267,13 +273,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         double price = reserved.price();
         // Region is already reserved in DB. Process payment, rollback DB on failure.
         if (price > 0) {
-            double balance = economyProvider.getBalance(tenantId);
+            double balance = economyProvider.getBalance(new Party.Personal(tenantId));
             if (balance < price) {
                 return rollbackRentAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new RentResult.InsufficientFunds(price, balance));
             }
             PaymentResult result = economyProvider.transfer(
-                    tenantId, Party.playerUuidOf(reserved.landlord()).orElse(null), price, "Rental Payment: " + regionId);
+                    new Party.Personal(tenantId), reserved.landlord(), price, "Rental Payment: " + regionId, tenantId);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackRentAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new RentResult.PaymentFailed(failure.errorMessage()));
@@ -344,8 +350,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Tenant is already cleared in DB. Process refund, rollback DB on failure.
         if (refund > 0) {
             PaymentResult result = economyProvider.transfer(
-                    Party.playerUuidOf(success.landlord()).orElse(null), tenantId, refund,
-                    "Early Lease Termination Refund: " + regionId);
+                    success.landlord(), new Party.Personal(tenantId), refund,
+                    "Early Lease Termination Refund: " + regionId, tenantId);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackUnrentAsync(regionId, worldId, tenantId, success)
                         .thenApply(ignored -> new UnrentResult.RefundFailed(failure.errorMessage()));
@@ -411,13 +417,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         double price = reserved.price();
         // Lease is already extended in DB. Process payment, rollback DB on failure.
         if (price > 0) {
-            double balance = economyProvider.getBalance(tenantId);
+            double balance = economyProvider.getBalance(new Party.Personal(tenantId));
             if (balance < price) {
                 return rollbackExtendAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new ExtendResult.InsufficientFunds(price, balance));
             }
             PaymentResult result = economyProvider.transfer(
-                    tenantId, Party.playerUuidOf(reserved.landlord()).orElse(null), price, "Lease Extension Payment: " + regionId);
+                    new Party.Personal(tenantId), reserved.landlord(), price, "Lease Extension Payment: " + regionId, tenantId);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackExtendAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new ExtendResult.PaymentFailed(failure.errorMessage()));
@@ -471,13 +477,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             }
             // A tenant pays for any whole extensions needed to cover the notice; a landlord does not.
             if (plan.charge() > 0) {
-                double balance = economyProvider.getBalance(actorId);
+                double balance = economyProvider.getBalance(new Party.Personal(plan.tenantId()));
                 if (balance < plan.charge()) {
                     return CompletableFuture.completedFuture(
                             (TerminateResult) new TerminateResult.InsufficientFunds(plan.charge(), balance));
                 }
-                PaymentResult payment = economyProvider.transfer(plan.tenantId(), Party.playerUuidOf(plan.landlord()).orElse(null),
-                        plan.charge(), "Lease Termination Notice: " + regionId);
+                PaymentResult payment = economyProvider.transfer(new Party.Personal(plan.tenantId()), plan.landlord(),
+                        plan.charge(), "Lease Termination Notice: " + regionId, actorId);
                 if (payment instanceof PaymentResult.Failure failure) {
                     return CompletableFuture.completedFuture(
                             (TerminateResult) new TerminateResult.PaymentFailed(failure.errorMessage()));
@@ -494,8 +500,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 }
                 // Should not happen under the per-region lock; refund any charge defensively.
                 if (plan.charge() > 0) {
-                    economyProvider.transfer(Party.playerUuidOf(plan.landlord()).orElse(null), plan.tenantId(), plan.charge(),
-                            "Lease Termination Refund: " + regionId);
+                    economyProvider.transfer(plan.landlord(), new Party.Personal(plan.tenantId()), plan.charge(),
+                            "Lease Termination Refund: " + regionId, actorId);
                 }
                 return (TerminateResult) new TerminateResult.UpdateFailed(regionId);
             }, executorState.mainThreadExec());
@@ -583,16 +589,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID bidderId, double amount,
             @NotNull RealtyBackend.PayBidResult.Success success) {
-        double balance = economyProvider.getBalance(bidderId);
+        double balance = economyProvider.getBalance(new Party.Personal(bidderId));
         if (balance < amount) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
-        UUID recipientId = success.titleHolderId() != null
-                ? success.titleHolderId() : Party.playerUuidOf(success.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
-                bidderId, recipientId, amount,
-                "Auction Bid Payment (partial): " + regionId);
+                new Party.Personal(bidderId), seller(success.titleHolderId(), success.authority()), amount,
+                "Auction Bid Payment (partial): " + regionId, bidderId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.PaymentFailed(failure.errorMessage()));
@@ -605,16 +609,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID bidderId, double amount,
             @NotNull RealtyBackend.PayBidResult.FullyPaid fullyPaid) {
-        double balance = economyProvider.getBalance(bidderId);
+        double balance = economyProvider.getBalance(new Party.Personal(bidderId));
         if (balance < amount) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
-        UUID recipientId = fullyPaid.titleHolderId() != null
-                ? fullyPaid.titleHolderId() : Party.playerUuidOf(fullyPaid.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
-                bidderId, recipientId, amount,
-                "Auction Bid Payment (final): " + regionId);
+                new Party.Personal(bidderId), seller(fullyPaid.titleHolderId(), fullyPaid.authority()), amount,
+                "Auction Bid Payment (final): " + regionId, bidderId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.PaymentFailed(failure.errorMessage()));
@@ -676,16 +678,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID offererId, double amount,
             @NotNull RealtyBackend.PayOfferResult.Success success) {
-        double balance = economyProvider.getBalance(offererId);
+        double balance = economyProvider.getBalance(new Party.Personal(offererId));
         if (balance < amount) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
-        UUID recipientId = success.titleHolderId() != null
-                ? success.titleHolderId() : Party.playerUuidOf(success.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
-                offererId, recipientId, amount,
-                "Purchase Offer Payment (partial): " + regionId);
+                new Party.Personal(offererId), seller(success.titleHolderId(), success.authority()), amount,
+                "Purchase Offer Payment (partial): " + regionId, offererId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.PaymentFailed(failure.errorMessage()));
@@ -698,16 +698,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region, @NotNull String regionId,
             @NotNull UUID worldId, @NotNull UUID offererId, double amount,
             @NotNull RealtyBackend.PayOfferResult.FullyPaid fullyPaid) {
-        double balance = economyProvider.getBalance(offererId);
+        double balance = economyProvider.getBalance(new Party.Personal(offererId));
         if (balance < amount) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
-        UUID recipientId = fullyPaid.titleHolderId() != null
-                ? fullyPaid.titleHolderId() : Party.playerUuidOf(fullyPaid.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
-                offererId, recipientId, amount,
-                "Purchase Offer Payment (final): " + regionId);
+                new Party.Personal(offererId), seller(fullyPaid.titleHolderId(), fullyPaid.authority()), amount,
+                "Purchase Offer Payment (final): " + regionId, offererId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.PaymentFailed(failure.errorMessage()));
