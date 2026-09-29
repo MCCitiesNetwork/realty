@@ -22,12 +22,12 @@ import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -59,7 +59,8 @@ public record AuctionCommandGroup(
         @NotNull ExecutorState executorState,
         @NotNull AtomicReference<Settings> settings,
         @NotNull MessageContainer messages,
-        @NotNull RealtyEventDispatch events
+        @NotNull RealtyEventDispatch events,
+        @NotNull PartyNames partyNames
 ) implements CustomCommandBean {
 
     @Override
@@ -129,13 +130,13 @@ public record AuctionCommandGroup(
                         Placeholder.unparsed("region", regionId)));
                 FreeholdContractBid highestBid = regionInfo.highestBid();
                 String highestBidAmount = highestBid != null ? CurrencyFormatter.format(highestBid.bidAmount()) : "N/A";
-                String highestBidPlayer = highestBid != null ? resolveName(highestBid.bidderId()) : "N/A";
+                String highestBidPlayer = highestBid != null ? partyNames.display(highestBid.bidderId()) : "N/A";
                 LocalDateTime lastActivity = highestBid != null ? highestBid.bidTime() : auction.startDate();
                 LocalDateTime biddingEndDate = lastActivity.plusSeconds(auction.biddingDurationSeconds());
 
                 textBuilder.appendNewline()
                         .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
-                                Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
+                                Placeholder.unparsed("auctioneer", partyNames.display(auction.auctioneerId())),
                                 Placeholder.unparsed("start_date", DateFormatter.format(settings.get().dateFormat(), auction.startDate())),
                                 Placeholder.unparsed("duration",
                                         DurationFormatter.format(Duration.ofSeconds(auction.biddingDurationSeconds()))),
@@ -153,10 +154,6 @@ public record AuctionCommandGroup(
         });
     }
 
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        String name = Bukkit.getOfflinePlayer(uuid).getName();
-        return name != null ? name : uuid.toString();
-    }
 
     // ── /realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region> ──
 

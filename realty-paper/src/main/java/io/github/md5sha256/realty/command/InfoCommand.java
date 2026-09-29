@@ -3,7 +3,6 @@ package io.github.md5sha256.realty.command;
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
-import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -12,6 +11,7 @@ import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
 import io.github.md5sha256.realty.settings.RealtyTags;
@@ -19,7 +19,6 @@ import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -47,19 +46,20 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                           @NotNull AtomicReference<Settings> settings,
                           @NotNull Database database,
                           @NotNull AtomicReference<RealtyTags> realtyTags,
-                          @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+                          @NotNull MessageContainer messages,
+                          @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
 
-    private static @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
+    private @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
         Set<UUID> memberUuids = region.region().getMembers().getUniqueIds();
         Set<String> memberGroups = region.region().getMembers().getGroups();
         if (memberUuids.isEmpty() && memberGroups.isEmpty()) {
             return "None";
         }
         String members = memberUuids.stream()
-                .map(InfoCommand::resolveName)
+                .map(partyNames::display)
                 .collect(Collectors.joining(", "));
         String groups = memberGroups.stream()
-                .map(g -> "g:" + g)
+                .map(PartyNames::group)
                 .collect(Collectors.joining(", "));
         if (!members.isEmpty() && !groups.isEmpty()) {
             return members + ", " + groups;
@@ -70,15 +70,7 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
         }
     }
 
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        String name = Bukkit.getOfflinePlayer(uuid).getName();
-        return name != null ? name : uuid.toString();
-    }
 
-    /** Interim: a player by name, any other party by its record form. */
-    private static @NotNull String resolveName(@NotNull Party party) {
-        return Party.playerUuidOf(party).map(playerUuid -> resolveName(playerUuid)).orElse(party.toString());
-    }
 
 
     @Override
@@ -153,8 +145,8 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                                 @NotNull FreeholdContractEntity freehold,
                                 @Nullable Double lastSoldPrice,
                                 @NotNull String membersStr) {
-        String titleHolder = freehold.titleHolderId() != null ? resolveName(freehold.titleHolderId()) : "N/A";
-        String authority = resolveName(freehold.authority());
+        String titleHolder = freehold.titleHolderId() != null ? partyNames.display(freehold.titleHolderId()) : "N/A";
+        String authority = partyNames.display(freehold.authority());
 
         if (freehold.price() != null) {
             builder.appendNewline()
@@ -193,7 +185,7 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
     private void appendLeaseholdInfo(@NotNull TextComponent.Builder builder,
                                      @NotNull LeaseholdContractEntity leasehold,
                                      @NotNull String membersStr) {
-        String tenant = leasehold.tenantId() != null ? resolveName(leasehold.tenantId()) : "N/A";
+        String tenant = leasehold.tenantId() != null ? partyNames.display(leasehold.tenantId()) : "N/A";
         String extensions;
         if (leasehold.maxExtensions() != null) {
             extensions = (leasehold.currentMaxExtensions() == null ? 0 : leasehold.currentMaxExtensions())
@@ -204,7 +196,7 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
 
         builder.appendNewline()
                 .append(messages.messageFor(MessageKeys.INFO_LEASEHOLD,
-                        Placeholder.unparsed("landlord", resolveName(leasehold.landlord())),
+                        Placeholder.unparsed("landlord", partyNames.display(leasehold.landlord())),
                         Placeholder.unparsed("members", membersStr),
                         Placeholder.unparsed("tenant", tenant),
                         Placeholder.unparsed("price", CurrencyFormatter.format(leasehold.price())),

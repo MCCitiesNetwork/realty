@@ -25,13 +25,21 @@ public class MessageContainer
      */
     @Nonnull
     public Component deserializeRaw(@Nonnull String raw) {
+        return deserializeRaw(raw, TagResolver.empty());
+    }
+
+    /**
+     * As {@link #deserializeRaw(String)}, also resolving {@code resolvers}.
+     */
+    @Nonnull
+    public Component deserializeRaw(@Nonnull String raw, @Nonnull TagResolver resolvers) {
         // messageFor renders a missing key as the key itself, so an unset prefix would print
         // "prefix". Fall back to empty, matching how the base class resolves <prefix>.
         String rawPrefix = miniMessageFormattedFor("prefix");
         Component prefix = rawPrefix.equals("prefix")
                 ? Component.empty()
                 : MiniMessage.miniMessage().deserialize(rawPrefix);
-        return MiniMessage.miniMessage().deserialize(raw, Placeholder.component("prefix", prefix));
+        return MiniMessage.miniMessage().deserialize(raw, resolvers, Placeholder.component("prefix", prefix));
     }
 
 }

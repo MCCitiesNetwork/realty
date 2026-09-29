@@ -25,10 +25,9 @@ import io.github.md5sha256.realty.api.event.TitleTransferredEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -75,7 +74,8 @@ public record SetCommandGroup(
         @NotNull SuggestionProvider<Source> partySuggestions,
         @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
-        @NotNull RealtyEventDispatch events
+        @NotNull RealtyEventDispatch events,
+        @NotNull PartyNames partyNames
 ) implements CustomCommandBean {
 
     /**
@@ -101,17 +101,6 @@ public record SetCommandGroup(
     /** The gate {@code /realty set landlord} uses; every other subcommand uses {@link LandlordGate#MANAGES}. */
     static final LandlordGate SET_LANDLORD_GATE = LandlordGate.REASSIGNS;
 
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
-        String name = player.getName();
-        return name != null ? name : uuid.toString();
-    }
-
-    /** Interim: a player by name, any other party by its record form. */
-    private static @NotNull String resolveName(@NotNull Party party) {
-        UUID playerUuid = Party.playerUuidOf(party);
-        return playerUuid != null ? resolveName(playerUuid) : party.toString();
-    }
 
     /**
      * Authorizes a leasehold {@code set} mutation, then runs {@code onAuthorized} with the actor's context.
@@ -340,7 +329,7 @@ public record SetCommandGroup(
             switch (result) {
                 case RealtyPaperApi.SetLandlordResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
-                                Placeholder.unparsed("landlord", landlordName),
+                                Placeholder.unparsed("landlord", partyNames.display(newLandlord)),
                                 Placeholder.unparsed("region", success.regionId())));
                         events.fireSync(new LandlordSetEvent(region, newLandlord, success.previousLandlord()));
                 }
@@ -352,7 +341,7 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("region", updateFailed.regionId())));
                 case RealtyPaperApi.SetLandlordResult.NotAllowedToReassign notAllowed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PARTY_NOT_ALLOWED_TO_REASSIGN,
-                                Placeholder.unparsed("name", resolveName(notAllowed.current()))));
+                                Placeholder.unparsed("name", partyNames.display(notAllowed.current()))));
                 case RealtyPaperApi.SetLandlordResult.NotAllowedToAssign ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PARTY_NOT_ALLOWED_TO_ASSIGN,
                                 Placeholder.unparsed("name", landlordName)));
@@ -387,7 +376,7 @@ public record SetCommandGroup(
             switch (result) {
                 case RealtyPaperApi.SetTitleHolderResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SUCCESS,
-                                Placeholder.unparsed("titleholder", resolveName(titleHolderId)),
+                                Placeholder.unparsed("titleholder", partyNames.display(titleHolderId)),
                                 Placeholder.unparsed("region", success.regionId())));
                         events.fireSync(new TitleTransferredEvent(region, titleHolderId,
                                 success.previousTitleHolder()));
@@ -421,7 +410,7 @@ public record SetCommandGroup(
             switch (result) {
                 case RealtyPaperApi.SetTenantResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,
-                                Placeholder.unparsed("tenant", resolveName(tenantId)),
+                                Placeholder.unparsed("tenant", partyNames.display(tenantId)),
                                 Placeholder.unparsed("region", success.regionId())));
                         events.fireSync(new TenantSetEvent(region, tenantId, success.previousTenant(),
                                 success.landlord()));
@@ -501,7 +490,7 @@ public record SetCommandGroup(
             switch (result) {
                 case RealtyBackend.SetAuthorityResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_SUCCESS,
-                                Placeholder.unparsed("authority", authorityName),
+                                Placeholder.unparsed("authority", partyNames.display(authority)),
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.SetAuthorityResult.NoFreeholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_NO_FREEHOLD_CONTRACT,

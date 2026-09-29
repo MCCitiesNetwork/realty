@@ -99,6 +99,7 @@ import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
 import io.github.md5sha256.realty.util.SquirrelIdPlayerNameService;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
@@ -139,6 +140,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.HashMap;
 import java.time.Instant;
@@ -170,6 +172,7 @@ public final class Realty extends JavaPlugin {
     private @Nullable net.democracycraft.treasury.api.TreasuryApi treasury;
     private ActorContexts actorContexts;
     private PartyResolver partyResolver;
+    private PartyNames partyNames;
     private SquirrelIdUsernameResolver nameResolver;
     private PlayerNameService playerNameService;
     private ExecutorState executorState;
@@ -309,11 +312,12 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        // Interim: a player resolves to their username, any other party to its record form.
+        // A player resolves to their username, any other party through PartyNames, which is built
+        // once the economy is known.
         this.logic = new RealtyBackendImpl(mariaDatabase,
                 party -> party instanceof Party.Personal personal
                         ? this.nameResolver.getUsername(personal.playerUuid())
-                        : CompletableFuture.completedFuture(party.toString()),
+                        : CompletableFuture.completedFuture(this.partyNames.display(party)),
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
         EconomyProvider economyProvider = resolveEconomyProvider();
@@ -325,6 +329,7 @@ public final class Realty extends JavaPlugin {
         }
         this.actorContexts = new ActorContexts(this.treasury, resolveVaultPermission(), this.settings, this.logic);
         this.partyResolver = new PartyResolver(getServer(), this.treasury, this.logic);
+        this.partyNames = new PartyNames(getServer(), this.treasury, Clock.systemUTC());
         resolveDefaultParties();
         SafeLocationFinder safeLocationFinder = new SafeLocationFinder();
         this.signTextApplicator = new SignTextApplicator(
@@ -916,7 +921,7 @@ public final class Realty extends JavaPlugin {
                 new SubregionWandListener(this, subregionWand, subregionWandManager,
                         messageContainer), this);
         pluginManager.registerEvents(
-                new RegionNotificationListener(this.eventDispatch, messageContainer), this);
+                new RegionNotificationListener(this.eventDispatch, messageContainer, this.partyNames), this);
 
         SuggestionProvider<Source> partySuggestions =
                 PartyFlags.suggestions(this.treasury, this.logic, executorState.dbExec());
@@ -924,18 +929,19 @@ public final class Realty extends JavaPlugin {
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
                 new AgentInviteCommand(paperApi, this.actorContexts, executorState, messageContainer,
-                        this.eventDispatch),
+                        this.eventDispatch, this.partyNames),
                 new AgentInviteAcceptCommand(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch),
                 new AgentInviteRejectCommand(paperApi, messageContainer, this.eventDispatch),
-                new AgentInviteWithdrawCommand(paperApi, messageContainer, this.eventDispatch),
-                new AgentRemoveCommand(paperApi, messageContainer, this.eventDispatch),
+                new AgentInviteWithdrawCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
+                new AgentRemoveCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
                 new AuctionCommandGroup(paperApi,
                         this.actorContexts,
                         executorState,
                         this.settings,
                         messageContainer,
-                        this.eventDispatch),
+                        this.eventDispatch,
+                        this.partyNames),
                 new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
                 new CreateCommand(paperApi, this.defaultParties, this.partyResolver, partySuggestions,
                         executorState, messageContainer, this.eventDispatch),
@@ -946,12 +952,13 @@ public final class Realty extends JavaPlugin {
                         PartyFlags.groupSuggestions(this.logic, executorState.dbExec()),
                         PartyFlags.accountSuggestions(this.treasury, executorState.dbExec()),
                         executorState, messageContainer),
-                new HistoryCommand(paperApi, this.settings, messageContainer),
+                new HistoryCommand(paperApi, this.settings, messageContainer, this.partyNames),
                 new InfoCommand(paperApi,
                         this.settings,
                         this.database,
                         this.realtyTags,
-                        messageContainer),
+                        messageContainer,
+                        this.partyNames),
                 new ListCommand(paperApi, messageContainer),
                 new OfferCommandGroup(paperApi,
                         this.actorContexts,
@@ -972,12 +979,12 @@ public final class Realty extends JavaPlugin {
                         getLogger()),
                 new SetCommandGroup(paperApi, this.actorContexts, this.partyResolver, partySuggestions,
                         executorState, messageContainer,
-                        this.eventDispatch),
+                        this.eventDispatch, this.partyNames),
                 new ModifyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
-                        this.eventDispatch),
+                        this.eventDispatch, this.partyNames),
                 new TerminateCommand(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch),
-                new TransferCommand(paperApi, messageContainer, this.eventDispatch),
+                new TransferCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
                 new UnsetCommandGroup(paperApi, messageContainer),
                 new ModuleCommandGroup(this.moduleManager, executorState, messageContainer),
                 new ReloadCommand(executorState, () -> {

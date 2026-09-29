@@ -9,10 +9,10 @@ import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -31,7 +31,8 @@ import java.util.UUID;
  */
 public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                                           @NotNull MessageContainer messages,
-                                          @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
+                                          @NotNull RealtyEventDispatch events,
+                                          @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -61,7 +62,7 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        String inviteeName = resolveName(inviteeId);
+        String inviteeName = partyNames.display(inviteeId);
         if (!region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_WITHDRAW_NOT_FOUND,
                     Placeholder.unparsed("player", inviteeName),
@@ -77,7 +78,7 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
                     events.fireSync(new RealtyNotificationEvent(List.of(inviteeId),
                             MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
                             messages.messageFor(MessageKeys.NOTIFICATION_AGENT_INVITE_WITHDRAWN,
-                                    Placeholder.unparsed("player", resolveName(player.getUniqueId())),
+                                    Placeholder.unparsed("player", partyNames.display(player.getUniqueId())),
                                     Placeholder.unparsed("region", regionId)), region));
                     events.fireSync(new AgentInviteWithdrawnEvent(region, player.getUniqueId(), inviteeId));
                 }
@@ -93,8 +94,4 @@ public record AgentInviteWithdrawCommand(@NotNull RealtyPaperApi api,
         });
     }
 
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        String name = Bukkit.getOfflinePlayer(uuid).getName();
-        return name != null ? name : uuid.toString();
-    }
 }

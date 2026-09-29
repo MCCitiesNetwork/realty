@@ -4,7 +4,6 @@ import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
-import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
@@ -13,12 +12,13 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 /**
  * Handles {@code /realty history <region> [--event <type>] [--time <duration>] [--player <name>] [--page <n>]}.
@@ -44,7 +45,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public record HistoryCommand(@NotNull RealtyPaperApi api,
                               @NotNull AtomicReference<Settings> settings,
-                              @NotNull MessageContainer messages) implements CustomCommandBean.Single {
+                              @NotNull MessageContainer messages,
+                              @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
 
     private static final int PAGE_SIZE = 10;
 
@@ -156,11 +158,11 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                             case HistoryEntry.Freehold freehold -> {
                                 String messageKey = resolveEventMessageKey(freehold.eventType());
                                 builder.append(
-                                        messages.messageFor(messageKey,
+                                        render(messageKey, freehold.buyerId() == null,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), freehold.eventTime())),
                                                 Placeholder.unparsed("buyer",
-                                                        freehold.buyerId() != null ? resolveName(freehold.buyerId()) : "N/A"),
-                                                Placeholder.unparsed("authority", resolveName(freehold.authority())),
+                                                        freehold.buyerId() != null ? partyNames.display(freehold.buyerId()) : "N/A"),
+                                                Placeholder.unparsed("authority", partyNames.display(freehold.authority())),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
                             }
                             case HistoryEntry.Agent agent -> {
@@ -168,17 +170,17 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                 builder.append(
                                         messages.messageFor(messageKey,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), agent.eventTime())),
-                                                Placeholder.unparsed("agent", resolveName(agent.agentId())),
-                                                Placeholder.unparsed("actor", resolveName(agent.actorId()))));
+                                                Placeholder.unparsed("agent", partyNames.display(agent.agentId())),
+                                                Placeholder.unparsed("actor", partyNames.display(agent.actorId()))));
                             }
                             case HistoryEntry.Leasehold lease -> {
                                 String messageKey = resolveLeaseholdEventMessageKey(lease.eventType());
                                 builder.append(
-                                        messages.messageFor(messageKey,
+                                        render(messageKey, lease.tenantId() == null,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), lease.eventTime())),
                                                 Placeholder.unparsed("tenant",
-                                                        lease.tenantId() != null ? resolveName(lease.tenantId()) : "N/A"),
-                                                Placeholder.unparsed("landlord", resolveName(lease.landlord())),
+                                                        lease.tenantId() != null ? partyNames.display(lease.tenantId()) : "N/A"),
+                                                Placeholder.unparsed("landlord", partyNames.display(lease.landlord())),
                                                 Placeholder.unparsed("price",
                                                         lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A"),
                                                 // <changes> labels extensionsRemaining as "Max Extensions", which only
@@ -231,7 +233,7 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
             command.append(" --time ").append(DurationFormatter.formatCompact(timeDuration));
         }
         if (playerId != null) {
-            String name = resolveName(playerId);
+            String name = partyNames.display(playerId);
             command.append(" --player ").append(name);
         }
         command.append(" --page ").append(targetPage);
@@ -258,14 +260,19 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
         return LEASEHOLD_EVENT_MESSAGE_KEYS.getOrDefault(eventType, resolveEventMessageKey(eventType));
     }
 
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        String name = Bukkit.getOfflinePlayer(uuid).getName();
-        return name != null ? name : uuid.toString();
-    }
+    /** A message segment such as " | Tenant: <tenant>" that shows one person under a label. */
+    private static final Pattern PERSON_SEGMENT = Pattern.compile("\\s*\\|\\s*[^|<]*<#00aaff><(?:tenant|buyer)></#00aaff>");
 
-    /** Interim: a player by name, any other party by its record form. */
-    private static @NotNull String resolveName(@NotNull Party party) {
-        return Party.playerUuidOf(party).map(playerUuid -> resolveName(playerUuid)).orElse(party.toString());
+    /**
+     * Renders a history line. An entry with no tenant or buyer is shown without that person's
+     * segment; a template that leads with the person keeps its placeholder, which then reads "N/A".
+     */
+    private @NotNull Component render(@NotNull String messageKey, boolean withoutPerson,
+                                      @NotNull TagResolver... resolvers) {
+        if (!withoutPerson) {
+            return messages.messageFor(messageKey, resolvers);
+        }
+        String raw = PERSON_SEGMENT.matcher(messages.miniMessageFormattedFor(messageKey)).replaceAll("");
+        return messages.deserializeRaw(raw, TagResolver.resolver(resolvers));
     }
-
 }
