@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
 import io.github.md5sha256.realty.database.entity.AuctionSort;
@@ -32,9 +33,9 @@ class ActiveAuctionQueryTest extends AbstractDatabaseTest {
         Assertions.assertTrue(logic.createFreehold("plot_quiet", WORLD_ID, 1000.0, new Party.Personal(AUTHORITY), null));
         Assertions.assertTrue(logic.createFreehold("plot_busy", WORLD_ID, 1000.0, new Party.Personal(AUTHORITY), null));
         Assertions.assertTrue(logic.createFreehold("plot_elsewhere", OTHER_WORLD, 1000.0, new Party.Personal(AUTHORITY), null));
-        logic.createAuction("plot_quiet", WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
-        logic.createAuction("plot_busy", WORLD_ID, AUTHORITY, 7200, 3600, 100.0, 10.0);
-        logic.createAuction("plot_elsewhere", OTHER_WORLD, AUTHORITY, 3600, 3600, 100.0, 10.0);
+        logic.createAuction("plot_quiet", WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
+        logic.createAuction("plot_busy", WORLD_ID, ActorContext.player(AUTHORITY, false), 7200, 3600, 100.0, 10.0);
+        logic.createAuction("plot_elsewhere", OTHER_WORLD, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
     }
 
     private static List<ActiveAuctionRow> page(UUID worldId, AuctionSort sort, int limit, int offset) {

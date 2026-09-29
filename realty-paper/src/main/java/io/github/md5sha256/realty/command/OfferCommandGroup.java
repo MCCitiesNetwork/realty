@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -297,7 +298,8 @@ public record OfferCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.acceptOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
+        api.acceptOffer(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), false),
+                        target.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.AcceptOfferResult.Success ignored -> {
@@ -459,7 +461,8 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.rejectOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
+        api.rejectOffer(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), false),
+                        target.getUniqueId())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.RejectOfferResult.Success ignored -> {
@@ -505,7 +508,7 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.rejectAllOffers(regionId, region.world().getUID(), sender.getUniqueId())
+        api.rejectAllOffers(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), false))
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.RejectAllOffersResult.Success success -> {
@@ -555,7 +558,7 @@ public record OfferCommandGroup(
         }
         String regionId = region.region().getId();
         boolean bypass = sender.hasPermission("realty.command.offer.toggle.bypass");
-        api.toggleOffers(regionId, region.world().getUID(), sender.getUniqueId(), accepting, bypass)
+        api.toggleOffers(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), bypass), accepting)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.ToggleOffersResult.Success success ->

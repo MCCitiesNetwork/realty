@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -82,7 +83,7 @@ public record TerminateCommand(
         }
         boolean bypass = sender.hasPermission("realty.command.terminate.others");
         String regionId = region.region().getId();
-        api.terminate(region, sender.getUniqueId(), bypass, immediate).thenAccept(result -> {
+        api.terminate(region, ActorContext.player(sender.getUniqueId(), bypass), immediate).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.TerminateResult.Success success -> {
                     String date = success.effectiveDate().format(DateTimeFormatters.DATE_TIME);
@@ -142,7 +143,7 @@ public record TerminateCommand(
         }
         boolean bypass = sender.hasPermission("realty.command.terminate.others");
         String regionId = region.region().getId();
-        api.cancelTermination(regionId, region.world().getUID(), sender.getUniqueId(), bypass)
+        api.cancelTermination(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), bypass))
                 .thenAccept(result -> {
                     switch (result) {
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.Success success -> {

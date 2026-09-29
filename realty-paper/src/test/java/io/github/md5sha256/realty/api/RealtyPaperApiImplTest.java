@@ -32,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CompletableFuture;
@@ -717,7 +718,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(lease(LocalDateTime.now().plusDays(30), null));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, UUID.randomUUID(), false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(UUID.randomUUID(), false), false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.NotAuthorized.class, result);
             verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
@@ -730,7 +731,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(lease(LocalDateTime.now().plusDays(30), LocalDateTime.now().plusDays(7)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, LANDLORD_ID, false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(LANDLORD_ID, false), false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.AlreadyTerminating.class, result);
         }
@@ -744,13 +745,33 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, new Party.Personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, LANDLORD_ID, false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(LANDLORD_ID, false), false).join();
 
             RealtyPaperApi.TerminateResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
             Assertions.assertEquals(0.0, success.charged());
             Assertions.assertEquals("landlord", success.terminatedByRole());
             verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a manager of an account landlord terminates as the landlord; a stranger may not")
+        void managerOfAccountLandlordTerminatesAsLandlord() {
+            Party gov = new Party.Account(42, AccountKind.GOVERNMENT);
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(new LeaseholdContractEntity(1, gov, TENANT_ID, 200.0, 604800L,
+                            LocalDateTime.now().minusSeconds(1), LocalDateTime.now().plusDays(30),
+                            null, null, null, null, true));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, gov));
+
+            Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.NotAuthorized.class,
+                    api.terminate(wgRegion, ActorContext.player(LANDLORD_ID, false), false).join());
+            ActorContext manager = new ActorContext(LANDLORD_ID, Set.of(gov), Set.of(), false);
+            RealtyPaperApi.TerminateResult.Success success = Assertions.assertInstanceOf(
+                    RealtyPaperApi.TerminateResult.Success.class,
+                    api.terminate(wgRegion, manager, false).join());
+            Assertions.assertEquals("landlord", success.terminatedByRole());
         }
 
         @Test
@@ -766,7 +787,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, new Party.Personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, TENANT_ID, false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(TENANT_ID, false), false).join();
 
             RealtyPaperApi.TerminateResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
@@ -784,7 +805,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, new Party.Personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, TENANT_ID, false, true).join();
+                    api.terminate(wgRegion, ActorContext.player(TENANT_ID, false), true).join();
 
             RealtyPaperApi.TerminateResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
@@ -800,7 +821,7 @@ class RealtyPaperApiImplTest {
             when(economyProvider.getBalance(TENANT)).thenReturn(50.0);
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, TENANT_ID, false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(TENANT_ID, false), false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.InsufficientFunds.class, result);
             verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());

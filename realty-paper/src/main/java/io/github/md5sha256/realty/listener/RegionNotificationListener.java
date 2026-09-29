@@ -24,6 +24,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.UUID;
@@ -225,7 +226,7 @@ public final class RegionNotificationListener implements Listener {
      * a non-player party into its members; until then, a notification addressed to one is
      * simply not sent, rather than address an empty list or throw.
      */
-    private static @NotNull List<UUID> recipientsOf(@NotNull Party party) {
+    private static @NotNull List<UUID> recipientsOf(@Nullable Party party) {
         return Party.playerUuidOf(party).map(playerId -> List.of(playerId)).orElse(List.of());
     }
 

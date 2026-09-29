@@ -126,14 +126,13 @@ public interface RealtyPaperApi {
 
     /**
      * Schedules an early termination of {@code region}'s lease, honouring the configured minimum notice.
-     * The initiating role is derived from {@code actorId} (landlord, tenant, or admin via {@code bypassAuth}
-     * acting as landlord); a tenant pays for any whole extensions needed to cover the notice, a landlord
+     * The initiating role is derived from {@code ctx}: the tenant first, then a manager of the landlord
+     * (or an admin, who acts as the landlord); a tenant pays for any whole extensions needed to cover the notice, a landlord
      * does not. When {@code immediate} is true the notice is skipped (the lease ends at once and the tenant
      * is refunded all remaining prepaid time) — a staff power, gated by the caller.
      */
     @NotNull CompletableFuture<TerminateResult> terminate(@NotNull WorldGuardRegion region,
-                                                          @NotNull UUID actorId,
-                                                          boolean bypassAuth,
+                                                          @NotNull ActorContext ctx,
                                                           boolean immediate);
 
     // --- PayBid ---
@@ -343,7 +342,7 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.CreateAuctionResult> createAuction(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID auctioneerId, long biddingDurationSeconds,
+            @NotNull ActorContext ctx, long biddingDurationSeconds,
             long paymentDurationSeconds, double minBid, double minBidStep);
 
     @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
@@ -361,7 +360,7 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.AcceptOfferResult> acceptOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, @NotNull UUID offererId);
+            @NotNull ActorContext ctx, @NotNull UUID offererId);
 
     @NotNull CompletableFuture<RealtyBackend.WithdrawOfferResult> withdrawOffer(
             @NotNull String regionId, @NotNull UUID worldId,
@@ -369,15 +368,15 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.RejectOfferResult> rejectOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, @NotNull UUID offererId);
+            @NotNull ActorContext ctx, @NotNull UUID offererId);
 
     @NotNull CompletableFuture<RealtyBackend.RejectAllOffersResult> rejectAllOffers(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId);
+            @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<RealtyBackend.ToggleOffersResult> toggleOffers(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, boolean accepting, boolean bypassAuth);
+            @NotNull ActorContext ctx, boolean accepting);
 
     @NotNull CompletableFuture<List<OutboundOfferView>> listOutboundOffers(@NotNull UUID offererId);
 
@@ -402,26 +401,26 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID actorId, boolean bypassAuth, boolean accepting);
+            @NotNull ActorContext ctx, boolean accepting);
 
     // --- Leasehold Modifications ---
 
     @NotNull CompletableFuture<RealtyBackend.ProposeModificationResult> proposeModification(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID actorId, boolean bypassAuth,
+            @NotNull ActorContext ctx,
             @Nullable Double newPrice, @Nullable Long newDurationSeconds, @Nullable Integer newMaxExtensions);
 
     @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> acceptModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> rejectModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> withdrawModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<RealtyBackend.CancelTerminationResult> cancelTermination(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<List<LeaseholdModificationView>> listModificationsAwaitingLandlord(
             @NotNull Party landlord);

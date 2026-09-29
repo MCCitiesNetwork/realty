@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -52,7 +53,7 @@ public record RentableCommand(
         }
         boolean bypass = sender.hasPermission("realty.command.rentable.others");
         String regionId = region.region().getId();
-        api.setRentable(regionId, region.world().getUID(), sender.getUniqueId(), bypass, accepting)
+        api.setRentable(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), bypass), accepting)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.SetRentableResult.Success success ->

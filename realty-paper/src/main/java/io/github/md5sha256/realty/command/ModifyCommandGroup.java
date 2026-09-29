@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -195,7 +196,7 @@ public record ModifyCommandGroup(
         }
         boolean bypass = sender.hasPermission("realty.command.modify.others");
         String regionId = region.region().getId();
-        api.proposeModification(regionId, region.world().getUID(), sender.getUniqueId(), bypass,
+        api.proposeModification(regionId, region.world().getUID(), ActorContext.player(sender.getUniqueId(), bypass),
                 price, durationSeconds, maxExtensions).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.ProposeModificationResult.Success success -> {
@@ -243,11 +244,11 @@ public record ModifyCommandGroup(
         boolean bypass = sender.hasPermission("realty.command.modify.others");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        UUID actorId = sender.getUniqueId();
+        ActorContext actor = ActorContext.player(sender.getUniqueId(), bypass);
         var future = switch (action) {
-            case ACCEPT -> api.acceptModification(regionId, worldId, actorId, bypass);
-            case REJECT -> api.rejectModification(regionId, worldId, actorId, bypass);
-            case WITHDRAW -> api.withdrawModification(regionId, worldId, actorId, bypass);
+            case ACCEPT -> api.acceptModification(regionId, worldId, actor);
+            case REJECT -> api.rejectModification(regionId, worldId, actor);
+            case WITHDRAW -> api.withdrawModification(regionId, worldId, actor);
         };
         future.thenAccept(result -> {
             switch (result) {

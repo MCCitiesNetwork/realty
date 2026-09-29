@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -180,7 +181,7 @@ public record AuctionCommandGroup(
         api.createAuction(
                 regionId,
                 region.world().getUID(),
-                player.getUniqueId(),
+                ActorContext.player(player.getUniqueId(), false),
                 bidDuration.toSeconds(),
                 paymentDuration.toSeconds(),
                 minBid,

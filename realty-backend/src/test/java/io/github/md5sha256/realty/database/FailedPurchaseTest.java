@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptOfferResult;
@@ -160,7 +161,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         tryToBuyAndFailToPay(regionId, BUYER);
 
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
-                logic.acceptOffer(regionId, WORLD_ID, AUTHORITY, OFFERER));
+                logic.acceptOffer(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), OFFERER));
     }
 
     @Test
@@ -406,7 +407,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         String regionId = regionForSale();
         placeOffer(regionId, OFFERER, 500.0);
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
-                logic.acceptOffer(regionId, WORLD_ID, AUTHORITY, OFFERER));
+                logic.acceptOffer(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), OFFERER));
 
         Assertions.assertInstanceOf(BuyResult.NotForFreehold.class,
                 logic.executeBuy(regionId, WORLD_ID, BUYER));
@@ -419,7 +420,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
     @Test
     void aRegionWithAWinningBidBeingPaidForIsNotForSale() {
         String regionId = regionForSale();
-        logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+        logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
         logic.performBid(regionId, WORLD_ID, OFFERER, 200.0);
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {

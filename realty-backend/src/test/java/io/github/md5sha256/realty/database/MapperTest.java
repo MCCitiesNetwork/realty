@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
@@ -700,7 +701,7 @@ class MapperTest extends AbstractDatabaseTest {
         void existsTrue() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 Assertions.assertTrue(wrapper.freeholdContractAuctionMapper()
@@ -725,7 +726,7 @@ class MapperTest extends AbstractDatabaseTest {
         void deleteActive() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
@@ -744,7 +745,7 @@ class MapperTest extends AbstractDatabaseTest {
         void markEnded() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
@@ -766,7 +767,7 @@ class MapperTest extends AbstractDatabaseTest {
         void selectExpiredBidding() throws InterruptedException {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 1, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 1, 3600, 100.0, 10.0);
 
             Thread.sleep(1500);
 
@@ -783,7 +784,7 @@ class MapperTest extends AbstractDatabaseTest {
         void selectById() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 FreeholdContractAuctionEntity active = wrapper.freeholdContractAuctionMapper()
@@ -802,7 +803,7 @@ class MapperTest extends AbstractDatabaseTest {
         void deleteById() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
@@ -827,7 +828,7 @@ class MapperTest extends AbstractDatabaseTest {
         void performBid() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
@@ -846,7 +847,7 @@ class MapperTest extends AbstractDatabaseTest {
         void selectHighest() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
@@ -864,7 +865,7 @@ class MapperTest extends AbstractDatabaseTest {
         void selectHighestNull() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
 
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 FreeholdContractBid highest = wrapper.freeholdContractBidMapper()
@@ -878,7 +879,7 @@ class MapperTest extends AbstractDatabaseTest {
         void selectDistinctBidders() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
@@ -1225,7 +1226,7 @@ class MapperTest extends AbstractDatabaseTest {
         void insertAndSelect() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
@@ -1257,7 +1258,7 @@ class MapperTest extends AbstractDatabaseTest {
         void existsTrue() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
@@ -1288,7 +1289,7 @@ class MapperTest extends AbstractDatabaseTest {
         void updatePayment() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
@@ -1313,7 +1314,7 @@ class MapperTest extends AbstractDatabaseTest {
         void deleteByRegion() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
@@ -1334,7 +1335,7 @@ class MapperTest extends AbstractDatabaseTest {
         void deleteByBidId() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
@@ -1357,7 +1358,7 @@ class MapperTest extends AbstractDatabaseTest {
         void selectExpired() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
             try (SqlSessionWrapper wrapper = database.openSession();
@@ -1377,7 +1378,7 @@ class MapperTest extends AbstractDatabaseTest {
         void insertNextPayment() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, AUTHORITY, PLAYER_A);
-            logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
+            logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_C, 150.0);
             logic.performBid(regionId, WORLD_ID, PLAYER_B, 200.0);
 
