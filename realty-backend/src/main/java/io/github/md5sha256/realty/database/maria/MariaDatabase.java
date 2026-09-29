@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.DatabaseSettings;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaPartyMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdModificationMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
@@ -96,6 +97,7 @@ public class MariaDatabase implements Database {
         Configuration configuration = new Configuration(environment);
         configuration.getTypeHandlerRegistry().register(UUID.class, JdbcType.OTHER, UUIDAsBin16Handler.class);
         configuration.addMapper(MariaContractMapper.class);
+        configuration.addMapper(MariaPartyMapper.class);
         configuration.addMapper(MariaLeaseholdContractMapper.class);
         configuration.addMapper(MariaLeaseholdModificationMapper.class);
         configuration.addMapper(MariaRealtyRegionMapper.class);
