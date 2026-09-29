@@ -793,10 +793,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (updated == 0) {
                 return new RentResult.UpdateFailed();
             }
-            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENT.name(),
-                    tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
+            int historyId = wrapper.leaseholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
+                    HistoryEventType.RENT.name(), tenantId, lease.landlordId(),
+                    lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
-            return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId());
+            return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId(), historyId);
         }
     }
 
@@ -831,9 +832,20 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     @Override
     public void rollbackRent(@NotNull String worldGuardRegionId,
-                             @NotNull UUID worldId) {
+                             @NotNull UUID worldId,
+                             @NotNull UUID tenantId,
+                             @NotNull RentResult.Success reserved) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            wrapper.leaseholdContractMapper().updateTenantByRegion(worldGuardRegionId, worldId, null);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            // Only this tenant's reservation. If the region has been let to somebody else
+            // since, clearing the tenant would evict them.
+            if (lease != null && tenantId.equals(lease.tenantId())) {
+                leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, null);
+            }
+            // The record went in with the tenant, so it comes out here. Left behind, it
+            // said the region had been let.
+            wrapper.leaseholdHistoryMapper().deleteById(reserved.historyId());
             wrapper.session().commit();
         }
     }
@@ -871,10 +883,37 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (updated == 0) {
                 return new UnrentResult.UpdateFailed();
             }
-            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.UNRENT.name(),
-                    tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), null);
+            int historyId = wrapper.leaseholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
+                    HistoryEventType.UNRENT.name(), tenantId, lease.landlordId(),
+                    lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
-            return new UnrentResult.Success(refund, tenantId, lease.landlordId());
+            // The tenancy as it stood, so that it can be put back as it stood if the
+            // refund cannot be paid.
+            return new UnrentResult.Success(refund, tenantId, lease.landlordId(),
+                    new Tenancy(lease.startDate(), lease.endDate(), lease.currentMaxExtensions()), historyId);
+        }
+    }
+
+    @Override
+    public void rollbackUnrent(@NotNull String worldGuardRegionId,
+                               @NotNull UUID worldId,
+                               @NotNull UUID tenantId,
+                               @NotNull UnrentResult.Success ended) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            // Put back, not let again. Letting the region again started the tenancy from
+            // now: a tenant who had paid for three more periods was left with one, and
+            // one on their last day was given a whole period for nothing. It was also
+            // refused on a region no longer accepting tenants, and the tenant was left
+            // with no tenancy and no refund.
+            Tenancy previous = ended.previous();
+            int restored = wrapper.leaseholdContractMapper().restoreTenancy(worldGuardRegionId, worldId,
+                    tenantId, previous.startDate(), previous.endDate(), previous.extensionsUsed());
+            // Only if it was put back. If the region has a new tenant already, this
+            // tenancy did end, and the record of that is true.
+            if (restored > 0) {
+                wrapper.leaseholdHistoryMapper().deleteById(ended.historyId());
+            }
+            wrapper.session().commit();
         }
     }
 
@@ -901,6 +940,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                     .selectActiveByContract(lease.leaseholdContractId());
             boolean modificationApplied = activeMod != null
                     && LeaseholdModificationStatus.ACTIVE.equals(activeMod.status());
+            // The terms as they stand, before any change is applied to them. If the
+            // renewal is not paid for, rollbackRenewLeasehold puts these back.
+            LeaseholdContractEntity before = lease;
             if (modificationApplied) {
                 leaseholdMapper.applyModificationTerms(worldGuardRegionId, worldId,
                         activeMod.newPrice(), activeMod.newDurationSeconds(), activeMod.newMaxExtensions());
@@ -923,24 +965,63 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease.maxExtensions() != null) {
                 extensionsRemaining = lease.maxExtensions() - (extensionsUsed + 1);
             }
+            AppliedTerms appliedTerms = null;
             if (modificationApplied) {
-                wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
+                int appliedId = wrapper.leaseholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
                         HistoryEventType.MODIFY_APPLY.name(),
                         tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
+                appliedTerms = new AppliedTerms(activeMod.modificationId(), appliedId,
+                        before.price(), before.durationSeconds(),
+                        before.maxExtensions(), before.currentMaxExtensions());
             }
-            wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.RENEW.name(),
+            int historyId = wrapper.leaseholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
+                    HistoryEventType.RENEW.name(),
                     tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
             wrapper.session().commit();
-            return new RenewLeaseholdResult.Success(lease.price(), lease.landlordId());
+            return new RenewLeaseholdResult.Success(lease.price(), lease.landlordId(),
+                    new RenewUndo(historyId, appliedTerms));
         }
     }
 
     @Override
     public void rollbackRenewLeasehold(@NotNull String worldGuardRegionId,
                                         @NotNull UUID worldId,
-                                        @NotNull UUID tenantId) {
+                                        @NotNull UUID tenantId,
+                                        @NotNull RenewLeaseholdResult.Success reserved) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            wrapper.leaseholdContractMapper().rollbackRenewLeasehold(worldGuardRegionId, worldId, tenantId);
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            // Takes off the period the renewal added, which was a period on the new terms
+            // if terms were changed, so this comes before the terms are put back.
+            int undone = leaseholdMapper.rollbackRenewLeasehold(worldGuardRegionId, worldId, tenantId);
+            AppliedTerms applied = reserved.undo().appliedTerms();
+            if (undone > 0 && applied != null) {
+                // The change was applied so that the renewal could be charged on the new
+                // terms. There was no renewal. Left applied, a tenant who renewed without
+                // the money had the landlord's new price on a period paid for at the old
+                // one, and was refunded at the new price when they left.
+                leaseholdMapper.restoreTerms(worldGuardRegionId, worldId,
+                        applied.previousPrice(), applied.previousDurationSeconds(),
+                        applied.previousMaxExtensions(), applied.previousExtensionsUsed());
+                LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+                LeaseholdModificationEntity since = lease == null ? null
+                        : wrapper.leaseholdModificationMapper().selectActiveByContract(lease.leaseholdContractId());
+                if (since == null) {
+                    // Pending again, as it was.
+                    wrapper.leaseholdModificationMapper().reactivate(applied.modificationId());
+                } else {
+                    // Another has been proposed since, and there is only ever one pending.
+                    // Had this one still been pending when that was proposed, it would
+                    // have been carried forward into it and superseded, so that is done
+                    // now. Left marked as applied, a rent rise would be on record as
+                    // having taken effect and would never be charged.
+                    wrapper.leaseholdModificationMapper()
+                            .carryForward(applied.modificationId(), since.modificationId());
+                    wrapper.leaseholdModificationMapper().updateStatus(applied.modificationId(),
+                            LeaseholdModificationStatus.SUPERSEDED);
+                }
+                wrapper.leaseholdHistoryMapper().deleteById(applied.historyId());
+            }
+            wrapper.leaseholdHistoryMapper().deleteById(reserved.undo().historyId());
             wrapper.session().commit();
         }
     }

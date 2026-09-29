@@ -135,6 +135,50 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
                        @Param("tenantId") @NotNull UUID tenantId);
 
     @Override
+    // The count is held to the cap as it is now. A landlord may have lowered the cap
+    // since the tenancy was ended, and this statement is not checked against it.
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.tenantId = #{tenantId},
+                lc.startDate = #{startDate},
+                lc.endDate = #{endDate},
+                lc.currentMaxExtensions = CASE
+                    WHEN lc.maxExtensions IS NULL THEN NULL
+                    ELSE LEAST(COALESCE(#{extensionsUsed}, 0), lc.maxExtensions)
+                END
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND lc.tenantId IS NULL
+            """)
+    int restoreTenancy(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                       @Param("worldId") @NotNull UUID worldId,
+                       @Param("tenantId") @NotNull UUID tenantId,
+                       @Param("startDate") @Nullable LocalDateTime startDate,
+                       @Param("endDate") @Nullable LocalDateTime endDate,
+                       @Param("extensionsUsed") @Nullable Integer extensionsUsed);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.price = #{price},
+                lc.durationSeconds = #{durationSeconds},
+                lc.maxExtensions = #{maxExtensions},
+                lc.currentMaxExtensions = #{extensionsUsed}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    int restoreTerms(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                     @Param("worldId") @NotNull UUID worldId,
+                     @Param("price") double price,
+                     @Param("durationSeconds") long durationSeconds,
+                     @Param("maxExtensions") @Nullable Integer maxExtensions,
+                     @Param("extensionsUsed") @Nullable Integer extensionsUsed);
+
+    @Override
     @Update("""
             UPDATE LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
