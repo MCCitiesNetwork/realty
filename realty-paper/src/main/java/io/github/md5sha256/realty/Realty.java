@@ -70,6 +70,7 @@ import io.github.md5sha256.realty.command.TransferCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
+import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
@@ -87,6 +88,7 @@ import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
+import io.github.md5sha256.realty.settings.DefaultParties;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
 import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.RegionProfile;
@@ -154,6 +156,7 @@ public final class Realty extends JavaPlugin {
 
     private final MessageContainer messageContainer = new MessageContainer();
     private final AtomicReference<Settings> settings = new AtomicReference<>();
+    private final AtomicReference<DefaultParties> defaultParties = new AtomicReference<>(DefaultParties.unresolved());
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
     private final AtomicReference<TaxSettings> taxSettings = new AtomicReference<>();
@@ -163,6 +166,7 @@ public final class Realty extends JavaPlugin {
     /** Treasury's API when Treasury provides the economy, else {@code null}. */
     private @Nullable net.democracycraft.treasury.api.TreasuryApi treasury;
     private ActorContexts actorContexts;
+    private PartyResolver partyResolver;
     private SquirrelIdUsernameResolver nameResolver;
     private PlayerNameService playerNameService;
     private ExecutorState executorState;
@@ -199,6 +203,10 @@ public final class Realty extends JavaPlugin {
 
     public Settings settings() {
         return this.settings.get();
+    }
+
+    public DefaultParties defaultParties() {
+        return this.defaultParties.get();
     }
 
     public ExecutorState executorState() {
@@ -313,6 +321,8 @@ public final class Realty extends JavaPlugin {
             return;
         }
         this.actorContexts = new ActorContexts(this.treasury, resolveVaultPermission(), this.settings, this.logic);
+        this.partyResolver = new PartyResolver(getServer(), this.treasury, this.logic);
+        resolveDefaultParties();
         SafeLocationFinder safeLocationFinder = new SafeLocationFinder();
         this.signTextApplicator = new SignTextApplicator(
                 this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
@@ -644,7 +654,43 @@ public final class Realty extends JavaPlugin {
 
     private Settings loadSettings() throws IOException {
         ConfigurationNode settingsRoot = copyDefaultsYaml("settings");
+        warnRemovedUuidKeys(settingsRoot);
         return settingsRoot.get(Settings.class);
+    }
+
+    /**
+     * The {@code default-*-uuid} keys are no longer read; an upgraded file still holds them, and
+     * the operator would otherwise believe they still apply.
+     */
+    private void warnRemovedUuidKeys(@NotNull ConfigurationNode settingsRoot) {
+        for (Object key : settingsRoot.childrenMap().keySet()) {
+            String name = String.valueOf(key);
+            if (name.startsWith("default-") && name.endsWith("-uuid")) {
+                getLogger().warning("settings.yml still has '" + name + "', which is no longer read. "
+                        + "Use default-freehold-authority, default-leasehold-landlord and "
+                        + "default-freehold-titleholder instead, and delete '" + name + "'.");
+            }
+        }
+    }
+
+    /**
+     * Resolves the default parties in the background, because a name or an account is looked up
+     * in Treasury and the database. Until it finishes, the commands that need a default refuse.
+     */
+    private void resolveDefaultParties() {
+        Settings current = this.settings.get();
+        PartyResolver resolver = this.partyResolver;
+        this.executorState.dbExec().execute(() -> {
+            DefaultParties resolved;
+            try {
+                resolved = DefaultParties.resolve(current, resolver);
+            } catch (RuntimeException ex) {
+                getLogger().log(Level.SEVERE, "Failed to resolve the default parties", ex);
+                resolved = DefaultParties.unresolved();
+            }
+            this.defaultParties.set(resolved);
+            resolved.errors().forEach(error -> getLogger().severe(error));
+        });
     }
 
     private DatabaseSettings loadDatabaseSettings() throws IOException {
@@ -762,6 +808,7 @@ public final class Realty extends JavaPlugin {
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         this.taxSettings.set(loadTaxSettings());
+        resolveDefaultParties();
         reloadMessages();
         warnOrphanedTags();
         reloadModules();
@@ -885,8 +932,8 @@ public final class Realty extends JavaPlugin {
                         messageContainer,
                         this.eventDispatch),
                 new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
-                new CreateCommand(paperApi, this.settings, messageContainer, this.eventDispatch),
-                new RegisterCommand(paperApi, this.settings, messageContainer, this.eventDispatch),
+                new CreateCommand(paperApi, this.defaultParties, messageContainer, this.eventDispatch),
+                new RegisterCommand(paperApi, this.defaultParties, messageContainer, this.eventDispatch),
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
                 new HistoryCommand(paperApi, this.settings, messageContainer),
                 new InfoCommand(paperApi,

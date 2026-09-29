@@ -59,7 +59,7 @@ class ActorContextsTest {
     }
 
     private static AtomicReference<Settings> settingsWith(AccountManagers accountManagers) {
-        return new AtomicReference<>(new Settings(UUID.randomUUID(), null, UUID.randomUUID(),
+        return new AtomicReference<>(new Settings(null, null, null,
                 new java.text.SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null, 0, 0, 0, 0,
                 accountManagers));
     }

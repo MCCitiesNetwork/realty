@@ -6,6 +6,7 @@ public final class MessageKeys {
 
     // error
     public static final String ERROR_NO_REGION = "error.no-region";
+    public static final String ERROR_DEFAULT_PARTY_UNRESOLVED = "error.default-party-unresolved";
 
     // common
     public static final String COMMON_PLAYER_NOT_FOUND = "common.player-not-found";

@@ -1,6 +1,7 @@
 prefix: <newline><gradient:#00aaff:#008EFF><b>Realty</b> <dark_grey>»<reset>
 error:
     no-region: <prefix> <red>You are not standing in a WorldGuard region.
+    default-party-unresolved: <prefix> <red>The default <role> in settings.yml could not be found, so this command cannot run without <yellow>--<role></yellow>.
 common:
     player-not-found: Player <player> has never played on this server.
     players-only: Only players can use this command.

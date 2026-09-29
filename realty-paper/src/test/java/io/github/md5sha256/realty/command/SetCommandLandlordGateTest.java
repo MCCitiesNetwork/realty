@@ -46,8 +46,8 @@ class SetCommandLandlordGateTest {
     }
 
     private ActorContext contextFor(Party landlord) {
-        AtomicReference<Settings> settings = new AtomicReference<>(new Settings(UUID.randomUUID(), null,
-                UUID.randomUUID(), new java.text.SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
+        AtomicReference<Settings> settings = new AtomicReference<>(new Settings(null, null,
+                null, new java.text.SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                 0, 0, 0, 0, AccountManagers.AUTHORIZERS));
         ActorContexts contexts = new ActorContexts(treasury, vaultPermission, settings,
                 Mockito.mock(RealtyBackend.class));

@@ -12,7 +12,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.settings.Settings;
+import io.github.md5sha256.realty.settings.DefaultParties;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>Permissions: {@code realty.command.register.leasehold} / {@code realty.command.register.freehold}.</p>
  */
 public record RegisterCommand(@NotNull RealtyPaperApi api,
-                              @NotNull AtomicReference<Settings> settings,
+                              @NotNull AtomicReference<DefaultParties> defaults,
                               @NotNull MessageContainer messages,
                               @NotNull RealtyEventDispatch events) implements CustomCommandBean {
 
@@ -97,8 +97,13 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
-        UUID landlord = ctx.flags()
-                .getValue(LANDLORD_FLAG, settings.get().defaultLeaseholdAuthority());
+        UUID landlordFlag = ctx.flags().getValue(LANDLORD_FLAG, null);
+        Party landlord = landlordFlag != null ? new Party.Personal(landlordFlag) : defaults.get().leaseholdLandlord();
+        if (landlord == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
+                    Placeholder.unparsed("role", "landlord")));
+            return;
+        }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
@@ -111,7 +116,7 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.registerLeasehold(region, price, period.toSeconds(), maxExtensions, new Party.Personal(landlord))
+        api.registerLeasehold(region, price, period.toSeconds(), maxExtensions, landlord)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateLeaseholdResult.Success ignored -> {
@@ -138,10 +143,15 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
     private void executeFreehold(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
         Double price = ctx.flags().getValue(PRICE_FLAG, null);
-        UUID authority = ctx.flags()
-                .getValue(AUTHORITY_FLAG, settings.get().defaultFreeholdAuthority());
+        UUID authorityFlag = ctx.flags().getValue(AUTHORITY_FLAG, null);
+        Party authority = authorityFlag != null ? new Party.Personal(authorityFlag) : defaults.get().freeholdAuthority();
+        if (authority == null) {
+            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
+                    Placeholder.unparsed("role", "authority")));
+            return;
+        }
         UUID titleholder = ctx.flags()
-                .getValue(TITLEHOLDER_FLAG, settings.get().defaultFreeholdTitleholder());
+                .getValue(TITLEHOLDER_FLAG, defaults.get().freeholdTitleholder());
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
@@ -154,7 +164,7 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.registerFreehold(region, price, new Party.Personal(authority), titleholder)
+        api.registerFreehold(region, price, authority, titleholder)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {

@@ -25,7 +25,7 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import io.github.md5sha256.realty.settings.Settings;
+import io.github.md5sha256.realty.settings.DefaultParties;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -55,7 +55,7 @@ import java.util.regex.Pattern;
  * <p>Permissions: {@code realty.command.create.leasehold} / {@code realty.command.create.freehold}.</p>
  */
 public record CreateCommand(@NotNull RealtyPaperApi api,
-                             @NotNull AtomicReference<Settings> settings,
+                             @NotNull AtomicReference<DefaultParties> defaults,
                              @NotNull MessageContainer messages,
                              @NotNull RealtyEventDispatch events) implements CustomCommandBean {
 
@@ -125,8 +125,13 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
-        UUID landlord = ctx.flags()
-                .getValue(LANDLORD_FLAG, settings.get().defaultLeaseholdAuthority());
+        UUID landlordFlag = ctx.flags().getValue(LANDLORD_FLAG, null);
+        Party landlord = landlordFlag != null ? new Party.Personal(landlordFlag) : defaults.get().leaseholdLandlord();
+        if (landlord == null) {
+            player.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
+                    Placeholder.unparsed("role", "landlord")));
+            return;
+        }
 
         RegionManager regionManager = getRegionManager(player.getWorld());
         if (regionManager == null) {
@@ -154,7 +159,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         }
         regionManager.addRegion(wgRegion);
 
-        api.createLeasehold(region, price, period.toSeconds(), maxExtensions, new Party.Personal(landlord))
+        api.createLeasehold(region, price, period.toSeconds(), maxExtensions, landlord)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateLeaseholdResult.Success ignored -> {
@@ -192,10 +197,15 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
             return;
         }
         Double price = ctx.flags().getValue(PRICE_FLAG, null);
-        UUID authority = ctx.flags()
-                .getValue(AUTHORITY_FLAG, settings.get().defaultFreeholdAuthority());
+        UUID authorityFlag = ctx.flags().getValue(AUTHORITY_FLAG, null);
+        Party authority = authorityFlag != null ? new Party.Personal(authorityFlag) : defaults.get().freeholdAuthority();
+        if (authority == null) {
+            player.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
+                    Placeholder.unparsed("role", "authority")));
+            return;
+        }
         UUID titleholder = ctx.flags()
-                .getValue(TITLEHOLDER_FLAG, settings.get().defaultFreeholdTitleholder());
+                .getValue(TITLEHOLDER_FLAG, defaults.get().freeholdTitleholder());
 
         RegionManager regionManager = getRegionManager(player.getWorld());
         if (regionManager == null) {
@@ -223,7 +233,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         }
         regionManager.addRegion(wgRegion);
 
-        api.createFreehold(region, price, new Party.Personal(authority), titleholder)
+        api.createFreehold(region, price, authority, titleholder)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {
