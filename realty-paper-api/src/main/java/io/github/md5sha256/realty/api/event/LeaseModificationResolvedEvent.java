@@ -21,13 +21,13 @@ public class LeaseModificationResolvedEvent extends RealtyRegionEvent {
     private final String resolution;
     private final String proposerRole;
     private final Party landlord;
-    private final UUID tenantId;
+    private final @Nullable UUID tenantId;
 
     public LeaseModificationResolvedEvent(@NotNull WorldGuardRegion region,
                                           @NotNull String resolution,
                                           @NotNull String proposerRole,
                                           @NotNull Party landlord,
-                                          @NotNull UUID tenantId) {
+                                          @Nullable UUID tenantId) {
         super(region);
         this.resolution = resolution;
         this.proposerRole = proposerRole;
@@ -68,19 +68,20 @@ public class LeaseModificationResolvedEvent extends RealtyRegionEvent {
     }
 
     /**
-     * The tenant of the lease.
+     * The tenant of the lease, or {@code null} when the lease has no tenant, for instance when a
+     * landlord's proposal is withdrawn after the tenant left.
      */
-    public @NotNull Party getTenant() {
-        return new Party.Personal(this.tenantId);
+    public @Nullable Party getTenant() {
+        return this.tenantId == null ? null : new Party.Personal(this.tenantId);
     }
 
     /**
-     * The tenant of the lease.
+     * The tenant of the lease, or {@code null} when the lease has no tenant.
      *
      * @deprecated use {@link #getTenant()}. Removed in 3.0.0.
      */
     @Deprecated(forRemoval = true)
-    public @NotNull UUID getTenantId() {
+    public @Nullable UUID getTenantId() {
         return this.tenantId;
     }
 

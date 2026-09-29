@@ -1623,6 +1623,22 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("withdrawing a landlord proposal after the tenant left reports no tenant, not the landlord")
+        void withdrawOnAVacantLease_reportsNoTenant() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(PLAYER_A));
+            logic.rentRegion(regionId, WORLD_ID, TENANT);
+            logic.proposeModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), 300.0, null, null);
+            logic.unrentRegion(regionId, WORLD_ID, TENANT);
+
+            RealtyBackend.ResolveModificationResult.Success success = Assertions.assertInstanceOf(
+                    RealtyBackend.ResolveModificationResult.Success.class,
+                    logic.withdrawModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false)));
+
+            Assertions.assertNull(success.tenantId());
+        }
+
+        @Test
         @DisplayName("cancelling a termination on a lease with no tenant reports no tenant, not the landlord")
         void cancelTerminationWithNoTenant_reportsNoTenant() throws SQLException {
             String regionId = uniqueRegionId();

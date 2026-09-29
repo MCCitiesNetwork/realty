@@ -99,6 +99,7 @@ import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
 import io.github.md5sha256.realty.util.SquirrelIdPlayerNameService;
+import io.github.md5sha256.realty.notify.PartyRecipients;
 import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
 import io.papermc.paper.util.Tick;
@@ -921,7 +922,9 @@ public final class Realty extends JavaPlugin {
                 new SubregionWandListener(this, subregionWand, subregionWandManager,
                         messageContainer), this);
         pluginManager.registerEvents(
-                new RegionNotificationListener(this.eventDispatch, messageContainer, this.partyNames), this);
+                new RegionNotificationListener(this.eventDispatch, messageContainer, this.partyNames,
+                        new PartyRecipients(getServer(), this.treasury, resolveVaultPermission(), this.settings),
+                        executorState, getLogger()), this);
 
         SuggestionProvider<Source> partySuggestions =
                 PartyFlags.suggestions(this.treasury, this.logic, executorState.dbExec());

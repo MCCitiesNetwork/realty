@@ -537,7 +537,8 @@ public interface RealtyBackend {
                                                            @Nullable Integer newMaxExtensions);
 
     sealed interface ResolveModificationResult {
-        record Success(int modificationId, @NotNull UUID tenantId, @NotNull Party landlord,
+        /** {@code tenantId} is the lease's tenant, or {@code null} when the lease has none. */
+        record Success(int modificationId, @Nullable UUID tenantId, @NotNull Party landlord,
                        @NotNull String proposerRole) implements ResolveModificationResult {}
         record NoLeaseholdContract() implements ResolveModificationResult {}
         record NoPendingProposal() implements ResolveModificationResult {}

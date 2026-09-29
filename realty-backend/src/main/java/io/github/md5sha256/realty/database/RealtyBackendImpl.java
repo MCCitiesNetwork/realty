@@ -1199,8 +1199,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     wrapper.partyMapper().findOrInsert(lease.landlord()),
                     mod.newPrice(), mod.newDurationSeconds(), mod.newMaxExtensions());
             wrapper.session().commit();
-            UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
-            return new ResolveModificationResult.Success(mod.modificationId(), tenantId,
+            return new ResolveModificationResult.Success(mod.modificationId(), lease.tenantId(),
                     lease.landlord(), mod.proposerRole());
         }
     }
