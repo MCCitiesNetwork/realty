@@ -5,11 +5,10 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
-import io.github.md5sha256.realty.rest.json.PlayerRef;
+import io.github.md5sha256.realty.rest.json.PartyRef;
 import io.github.md5sha256.realty.rest.json.PlayerRegionsResponse;
 import io.github.md5sha256.realty.rest.json.WorldRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
-import io.github.md5sha256.realty.rest.module.PlayerNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 
@@ -48,7 +47,7 @@ final class PlayerRegionsHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        PlayerRef player = Objects.requireNonNull(
+        PartyRef player = Objects.requireNonNull(
                 PlayerNameResolution.fromRequest(ctx, this.moduleClient, true));
         UUID playerId = UUID.fromString(player.id());
 
@@ -72,7 +71,7 @@ final class PlayerRegionsHandler {
         ctx.json(response);
     }
 
-    private @NotNull PlayerRegionsResponse handleOwned(@NotNull PlayerRef player, @NotNull UUID playerId,
+    private @NotNull PlayerRegionsResponse handleOwned(@NotNull PartyRef player, @NotNull UUID playerId,
                                                          int page, int pageSize, int offset) {
         RealtyBackend.SingleCategoryResult result = this.backend.listOwnedRegions(playerId, pageSize, offset);
         Map<UUID, WorldRef> worlds = resolveWorlds(regionWorldIds(result.regions()));
@@ -85,7 +84,7 @@ final class PlayerRegionsHandler {
                 null, null, null, regions);
     }
 
-    private @NotNull PlayerRegionsResponse handleRented(@NotNull PlayerRef player, @NotNull UUID playerId,
+    private @NotNull PlayerRegionsResponse handleRented(@NotNull PartyRef player, @NotNull UUID playerId,
                                                           int page, int pageSize, int offset) {
         RealtyBackend.SingleCategoryResult result = this.backend.listRentedRegions(playerId, pageSize, offset);
         List<RentedRegionView> views = selectRentedWithEndDate(playerId, pageSize, offset);
@@ -99,7 +98,7 @@ final class PlayerRegionsHandler {
                 null, null, null, regions);
     }
 
-    private @NotNull PlayerRegionsResponse handleAll(@NotNull PlayerRef player, @NotNull UUID playerId,
+    private @NotNull PlayerRegionsResponse handleAll(@NotNull PartyRef player, @NotNull UUID playerId,
                                                        int page, int pageSize, int offset) {
         RealtyBackend.ListResult result = this.backend.listRegions(playerId, pageSize, offset);
 

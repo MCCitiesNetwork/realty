@@ -23,7 +23,7 @@ public record OwnersLeaderboardResponse(
      * @param rank the row's 1-based position across the whole leaderboard, not within
      *             the page, so page 2 at {@code pageSize=10} starts at 11
      */
-    public record Entry(int rank, @NotNull PlayerRef player, int plotCount) {
+    public record Entry(int rank, @NotNull PartyRef player, int plotCount) {
     }
 
 }

@@ -160,7 +160,7 @@ class PlayerRegionsEndpointTest {
                 Response response = client.get("/v1/players/regions?player=" + encoded);
                 Assertions.assertEquals(200, response.code(), encoded);
                 Assertions.assertTrue(response.body().string().contains(
-                        "\"player\":{\"id\":\"" + TestServers.PLAYER_ID + "\",\"name\":\".Cool Guy 123\"}"), encoded);
+                        "\"player\":{\"kind\":\"personal\",\"id\":\"" + TestServers.PLAYER_ID + "\",\"name\":\".Cool Guy 123\"}"), encoded);
             }
         });
     }

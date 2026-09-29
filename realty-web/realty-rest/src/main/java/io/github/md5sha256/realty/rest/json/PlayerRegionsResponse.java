@@ -16,7 +16,7 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PlayerRegionsResponse(
-        @NotNull PlayerRef player,
+        @NotNull PartyRef player,
         int page,
         int pageSize,
         int totalCount,

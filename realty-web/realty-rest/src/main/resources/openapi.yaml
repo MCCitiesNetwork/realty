@@ -1210,7 +1210,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PlayerRef"
+                $ref: "#/components/schemas/PartyRef"
         "400":
           description: "`MISSING_PARAMETER` -- `playerName` was absent or blank."
           content:
@@ -1290,23 +1290,33 @@ components:
           type: string
           nullable: true
       required: [ id ]
-    PlayerRef:
+    PartyRef:
       type: object
-      description: A player identity. `id` is always present.
+      description: >-
+        A party: a player, a Treasury account, or a permission group. `kind` and
+        `id` are always present.
       properties:
+        kind:
+          type: string
+          enum: [ personal, business, government, system, group ]
         id:
           type: string
-          format: uuid
+          description: >-
+            A UUID when kind is personal, the account id when kind is business,
+            government or system, and the group name when kind is group.
         name:
           type: string
           nullable: true
-          description: From the query-service module; null when it is disabled or unreachable.
-      required: [ id ]
+          description: >-
+            Text, returned as it is. For a player or an account it comes from the
+            query-service module and is null when the module is disabled or
+            unreachable, or cannot name it. For a group it is the group name.
+      required: [ kind, id ]
     PlayerSummaryResponse:
       type: object
       properties:
         player:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         titleHeld:
           type: integer
         landlordOf:
@@ -1355,17 +1365,17 @@ components:
           type: string
           format: date-time
         buyer:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         authority:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         tenant:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         landlord:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         agent:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         actor:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         price:
           type: number
         durationSeconds:
@@ -1411,17 +1421,17 @@ components:
         world:
           $ref: "#/components/schemas/WorldRef"
         buyer:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         authority:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         tenant:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         landlord:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         agent:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         actor:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         price:
           type: number
         durationSeconds:
@@ -1454,7 +1464,7 @@ components:
         world:
           $ref: "#/components/schemas/WorldRef"
         auctioneer:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         startDate:
           type: string
           format: date-time
@@ -1485,7 +1495,7 @@ components:
       type: object
       properties:
         bidder:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         amount:
           type: number
         bidTime:
@@ -1518,7 +1528,7 @@ components:
             The row's 1-based position across the whole leaderboard, not within the
             page, so page 2 at pageSize 10 starts at 11.
         player:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         plotCount:
           type: integer
       required: [ rank, player, plotCount ]
@@ -1685,9 +1695,9 @@ components:
         titleHolder:
           nullable: true
           allOf:
-            - $ref: "#/components/schemas/PlayerRef"
+            - $ref: "#/components/schemas/PartyRef"
         authority:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         price:
           type: number
           nullable: true
@@ -1703,11 +1713,11 @@ components:
       type: object
       properties:
         landlord:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         tenant:
           nullable: true
           allOf:
-            - $ref: "#/components/schemas/PlayerRef"
+            - $ref: "#/components/schemas/PartyRef"
         price:
           type: number
         durationSeconds:
@@ -1755,7 +1765,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/RegionResponse_Bid"
         auctioneer:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         startDate:
           type: string
           format: date-time
@@ -1779,7 +1789,7 @@ components:
       type: object
       properties:
         bidder:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         amount:
           type: number
       required: [ bidder, amount ]
@@ -1831,7 +1841,7 @@ components:
         for the shared-offset paging behaviour of category=all.
       properties:
         player:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         page:
           type: integer
         pageSize:
@@ -2012,12 +2022,12 @@ components:
           type: array
           description: UUID entries, with a name where the module could supply one.
           items:
-            $ref: "#/components/schemas/PlayerRef"
+            $ref: "#/components/schemas/PartyRef"
         playerNames:
           type: array
           description: >-
             Legacy name entries, which carry no UUID and so cannot be a
-            PlayerRef. WorldGuard lower-cases these on the way in and they are
+            PartyRef. WorldGuard lower-cases these on the way in and they are
             reported as it holds them.
           items:
             type: string

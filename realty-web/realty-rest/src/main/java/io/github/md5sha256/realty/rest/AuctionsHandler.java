@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
@@ -8,7 +9,7 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractAuctionMapper;
 import io.github.md5sha256.realty.rest.json.AuctionsResponse;
 import io.github.md5sha256.realty.rest.json.WorldRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
-import io.github.md5sha256.realty.rest.module.PlayerNames;
+import io.github.md5sha256.realty.rest.module.PartyNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -64,16 +65,16 @@ final class AuctionsHandler {
             rows = mapper.selectActivePage(worldId, sort, pageSize, offset);
         }
 
-        List<UUID> playerIds = new ArrayList<>();
+        List<Party> parties = new ArrayList<>();
         Set<UUID> worldIds = new HashSet<>();
         for (ActiveAuctionRow row : rows) {
-            playerIds.add(row.auctioneerId());
+            parties.add(new Party.Personal(row.auctioneerId()));
             if (row.highestBidderId() != null) {
-                playerIds.add(row.highestBidderId());
+                parties.add(new Party.Personal(row.highestBidderId()));
             }
             worldIds.add(row.worldId());
         }
-        Map<UUID, String> names = PlayerNames.resolve(this.moduleClient, playerIds);
+        PartyNames.Resolved names = PartyNames.resolve(this.moduleClient, parties);
         Map<UUID, WorldRef> worlds = this.worldLookup.refsFor(worldIds);
 
         List<AuctionsResponse.Entry> auctions = new ArrayList<>(rows.size());
@@ -100,11 +101,11 @@ final class AuctionsHandler {
 
     private static @NotNull AuctionsResponse.Entry toEntry(@NotNull ActiveAuctionRow row,
                                                            @NotNull Map<UUID, WorldRef> worlds,
-                                                           @NotNull Map<UUID, String> names) {
+                                                           @NotNull PartyNames.Resolved names) {
         return new AuctionsResponse.Entry(
                 row.worldGuardRegionId(),
                 worlds.get(row.worldId()),
-                Objects.requireNonNull(PlayerNames.ref(row.auctioneerId(), names)),
+                Objects.requireNonNull(names.ref(row.auctioneerId())),
                 IsoDates.format(row.startDate()),
                 IsoDates.format(row.endDate()),
                 row.minBid(),
@@ -121,13 +122,13 @@ final class AuctionsHandler {
      * built from a half-populated row.
      */
     private static @Nullable AuctionsResponse.Bid toBid(@NotNull ActiveAuctionRow row,
-                                                        @NotNull Map<UUID, String> names) {
+                                                        @NotNull PartyNames.Resolved names) {
         if (row.highestBidderId() == null || row.highestBidPrice() == null
                 || row.highestBidTime() == null) {
             return null;
         }
         return new AuctionsResponse.Bid(
-                Objects.requireNonNull(PlayerNames.ref(row.highestBidderId(), names)),
+                Objects.requireNonNull(names.ref(row.highestBidderId())),
                 row.highestBidPrice(),
                 IsoDates.format(row.highestBidTime()));
     }

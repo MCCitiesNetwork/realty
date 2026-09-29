@@ -26,6 +26,12 @@ public interface ModuleClient {
     /** Resolved names only; an id absent from the map could not be named. One HTTP call. */
     @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids);
 
+    /**
+     * Treasury account names by account id. Resolved names only; an id absent from the map
+     * could not be named. One HTTP call.
+     */
+    @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds);
+
     @NotNull NameLookup uuidOf(@NotNull String name);
 
     /**
@@ -65,6 +71,11 @@ public interface ModuleClient {
 
             @Override
             public @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids) {
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
                 return Map.of();
             }
 

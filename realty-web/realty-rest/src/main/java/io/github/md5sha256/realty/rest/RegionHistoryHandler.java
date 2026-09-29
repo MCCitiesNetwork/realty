@@ -5,9 +5,9 @@ import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.rest.json.HistoryResponse;
-import io.github.md5sha256.realty.rest.json.PlayerRef;
+import io.github.md5sha256.realty.rest.json.PartyRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
-import io.github.md5sha256.realty.rest.module.PlayerNames;
+import io.github.md5sha256.realty.rest.module.PartyNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -52,7 +51,7 @@ final class RegionHistoryHandler {
 
         String eventType = eventType(ctx);
         LocalDateTime since = since(ctx);
-        PlayerRef playerFilter = PlayerNameResolution.fromRequest(ctx, this.moduleClient, false);
+        PartyRef playerFilter = PlayerNameResolution.fromRequest(ctx, this.moduleClient, false);
         UUID playerId = playerFilter == null ? null : UUID.fromString(playerFilter.id());
 
         int page = QueryParams.page(ctx);
@@ -64,11 +63,11 @@ final class RegionHistoryHandler {
 
         // Every identity on the page resolves in one module call rather than one per
         // entry, so a full page costs the same hop as a single row.
-        List<UUID> ids = new ArrayList<>();
+        List<Party> parties = new ArrayList<>();
         for (HistoryEntry entry : result.entries()) {
-            collectIds(entry, ids);
+            collectParties(entry, parties);
         }
-        Map<UUID, String> names = PlayerNames.resolve(this.moduleClient, ids);
+        PartyNames.Resolved names = PartyNames.resolve(this.moduleClient, parties);
 
         List<HistoryResponse.Entry> entries = new ArrayList<>(result.entries().size());
         for (HistoryEntry entry : result.entries()) {
@@ -111,44 +110,46 @@ final class RegionHistoryHandler {
                 "Query parameter 'type' is not a known event type: '" + raw + "'");
     }
 
-    private static void collectIds(@NotNull HistoryEntry entry, @NotNull List<UUID> ids) {
+    /** A missing buyer or tenant is added as null, which {@link PartyNames#resolve} skips. */
+    private static void collectParties(@NotNull HistoryEntry entry, @NotNull List<Party> parties) {
         switch (entry) {
             case HistoryEntry.Freehold freehold -> {
-                ids.add(freehold.buyerId());
-                ids.add(Party.playerUuidOf(freehold.authority()).orElse(null));
+                parties.add(personal(freehold.buyerId()));
+                parties.add(freehold.authority());
             }
             case HistoryEntry.Leasehold leasehold -> {
-                ids.add(leasehold.tenantId());
-                ids.add(Party.playerUuidOf(leasehold.landlord()).orElse(null));
+                parties.add(personal(leasehold.tenantId()));
+                parties.add(leasehold.landlord());
             }
             case HistoryEntry.Agent agent -> {
-                ids.add(agent.agentId());
-                ids.add(agent.actorId());
+                parties.add(new Party.Personal(agent.agentId()));
+                parties.add(new Party.Personal(agent.actorId()));
             }
         }
     }
 
+    private static @Nullable Party personal(@Nullable UUID player) {
+        return player == null ? null : new Party.Personal(player);
+    }
+
     private static @NotNull HistoryResponse.Entry toEntry(@NotNull HistoryEntry entry,
-                                                          @NotNull Map<UUID, String> names) {
+                                                          @NotNull PartyNames.Resolved names) {
         String eventTime = IsoDates.format(entry.eventTime());
         return switch (entry) {
             case HistoryEntry.Freehold freehold -> HistoryResponse.Entry.freehold(
                     freehold.eventType(), eventTime,
-                    PlayerNames.ref(freehold.buyerId(), names), ref(Party.playerUuidOf(freehold.authority()).orElse(null), names),
+                    names.ref(freehold.buyerId()), Objects.requireNonNull(names.ref(freehold.authority())),
                     freehold.price());
             case HistoryEntry.Leasehold leasehold -> HistoryResponse.Entry.leasehold(
                     leasehold.eventType(), eventTime,
-                    PlayerNames.ref(leasehold.tenantId(), names),
-                    ref(Party.playerUuidOf(leasehold.landlord()).orElse(null), names),
+                    names.ref(leasehold.tenantId()),
+                    Objects.requireNonNull(names.ref(leasehold.landlord())),
                     leasehold.price(), leasehold.durationSeconds(), leasehold.extensionsRemaining());
             case HistoryEntry.Agent agent -> HistoryResponse.Entry.agent(
                     agent.eventType(), eventTime,
-                    ref(agent.agentId(), names), ref(agent.actorId(), names));
+                    Objects.requireNonNull(names.ref(agent.agentId())),
+                    Objects.requireNonNull(names.ref(agent.actorId())));
         };
-    }
-
-    private static @NotNull PlayerRef ref(@NotNull UUID id, @NotNull Map<UUID, String> names) {
-        return Objects.requireNonNull(PlayerNames.ref(id, names));
     }
 
     private static int totalPages(int totalCount, int pageSize) {

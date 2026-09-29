@@ -27,8 +27,8 @@ public record RegionResponse(
      *              how {@code InfoCommand} distinguishes its for-sale and sold renderings
      */
     public record Freehold(
-            @Nullable PlayerRef titleHolder,
-            @NotNull PlayerRef authority,
+            @Nullable PartyRef titleHolder,
+            @NotNull PartyRef authority,
             @Nullable Double price,
             @Nullable Double lastSoldPrice,
             boolean acceptingOffers
@@ -43,8 +43,8 @@ public record RegionResponse(
      *                                null {@code terminationEffectiveDate}
      */
     public record Leasehold(
-            @NotNull PlayerRef landlord,
-            @Nullable PlayerRef tenant,
+            @NotNull PartyRef landlord,
+            @Nullable PartyRef tenant,
             double price,
             long durationSeconds,
             @Nullable String startDate,
@@ -64,7 +64,7 @@ public record RegionResponse(
     public record Auction(
             @Nullable String endDate,
             @Nullable Bid highestBid,
-            @NotNull PlayerRef auctioneer,
+            @NotNull PartyRef auctioneer,
             @NotNull String startDate,
             double minBid,
             double minStep,
@@ -74,7 +74,7 @@ public record RegionResponse(
     }
 
     public record Bid(
-            @NotNull PlayerRef bidder,
+            @NotNull PartyRef bidder,
             double amount
     ) {
     }

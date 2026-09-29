@@ -470,6 +470,13 @@ final class TestServers {
     static @NotNull ModuleClient stubModule(@NotNull Map<UUID, String> names,
                                             @NotNull Map<String, RegionResponse.Dimensions> dimensionsByRegionId,
                                             @NotNull Map<String, UUID> uuidsByName) {
+        return stubModule(names, Map.of(), dimensionsByRegionId, uuidsByName);
+    }
+
+    static @NotNull ModuleClient stubModule(@NotNull Map<UUID, String> names,
+                                            @NotNull Map<Integer, String> accountNames,
+                                            @NotNull Map<String, RegionResponse.Dimensions> dimensionsByRegionId,
+                                            @NotNull Map<String, UUID> uuidsByName) {
         return new ModuleClient() {
             @Override
             public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
@@ -483,6 +490,17 @@ final class TestServers {
                 for (UUID id : ids) {
                     if (names.containsKey(id)) {
                         resolved.put(id, names.get(id));
+                    }
+                }
+                return resolved;
+            }
+
+            @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
+                Map<Integer, String> resolved = new LinkedHashMap<>();
+                for (Integer id : accountIds) {
+                    if (accountNames.containsKey(id)) {
+                        resolved.put(id, accountNames.get(id));
                     }
                 }
                 return resolved;
@@ -551,6 +569,12 @@ final class TestServers {
             }
 
             @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
+                stall();
+                return Map.of();
+            }
+
+            @Override
             public @NotNull NameLookup uuidOf(@NotNull String name) {
                 return new NameLookup.Unavailable();
             }
@@ -603,6 +627,11 @@ final class TestServers {
 
             @Override
             public @NotNull Map<UUID, String> names(@NotNull Collection<UUID> ids) {
+                return Map.of();
+            }
+
+            @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
                 return Map.of();
             }
 
@@ -989,6 +1018,11 @@ final class TestServers {
                     }
                 }
                 return resolved;
+            }
+
+            @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
+                return Map.of();
             }
 
             @Override

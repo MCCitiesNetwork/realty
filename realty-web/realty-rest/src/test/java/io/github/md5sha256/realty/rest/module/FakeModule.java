@@ -16,6 +16,7 @@ final class FakeModule {
     static final UUID WORLD = UUID.fromString("8f4d0000-0000-0000-0000-000000000001");
     static final UUID NOTCH = UUID.fromString("069a79f4-44e9-4726-a5be-fca90e38aaf5");
     static final UUID BEDROCK = UUID.fromString("00000000-0000-0000-0009-01f64f65c7e1");
+    static final int GOV_SECURITY = 42;
 
     final List<String> receivedBodies = new CopyOnWriteArrayList<>();
     private final long stallMillis;
@@ -64,6 +65,18 @@ final class FakeModule {
                 }
                 ctx.result("{\"players\":[" + players + "]}").contentType("application/json");
             });
+            config.routes.post("/accounts/names", ctx -> {
+                this.receivedBodies.add(ctx.body());
+                StringBuilder accounts = new StringBuilder();
+                for (String id : numbersIn(ctx.body())) {
+                    if (!accounts.isEmpty()) {
+                        accounts.append(',');
+                    }
+                    String name = id.equals(String.valueOf(GOV_SECURITY)) ? "\"GovSecurity\"" : "null";
+                    accounts.append("{\"id\":").append(id).append(",\"name\":").append(name).append('}');
+                }
+                ctx.result("{\"accounts\":[" + accounts + "]}").contentType("application/json");
+            });
             config.routes.post("/players/uuids", ctx -> {
                 this.receivedBodies.add(ctx.body());
                 String body = ctx.body();
@@ -89,6 +102,22 @@ final class FakeModule {
             String trimmed = part.trim();
             if (trimmed.length() >= 2) {
                 ids.add(trimmed.substring(1, trimmed.length() - 1));
+            }
+        }
+        return ids;
+    }
+
+    /** Pulls the numbers out of {@code {"ids":[42,77]}} without a JSON library. */
+    private static @NotNull List<String> numbersIn(@NotNull String body) {
+        List<String> ids = new ArrayList<>();
+        int from = body.indexOf('[');
+        int to = body.lastIndexOf(']');
+        if (from < 0 || to < from) {
+            return ids;
+        }
+        for (String part : body.substring(from + 1, to).split(",")) {
+            if (!part.isBlank()) {
+                ids.add(part.trim());
             }
         }
         return ids;
