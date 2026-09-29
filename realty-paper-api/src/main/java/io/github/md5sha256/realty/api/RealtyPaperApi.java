@@ -38,6 +38,12 @@ public interface RealtyPaperApi {
      */
     @NotNull PlayerNameService playerNameService();
 
+    /**
+     * Display names of Treasury accounts, for modules that cannot reach Treasury themselves.
+     * Every name is empty on a server without Treasury.
+     */
+    @NotNull AccountNameService accountNameService();
+
     // ═══════════════════════════════════════════════════
     // COMPLEX OPERATIONS (economy + WG + signs/flags)
     // ═══════════════════════════════════════════════════

@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.adapter.query;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.md5sha256.realty.adapter.query.json.ErrorResponse;
+import io.github.md5sha256.realty.api.AccountNameService;
 import io.github.md5sha256.realty.api.PlayerNameService;
 import io.javalin.Javalin;
 import io.javalin.config.RoutesConfig;
@@ -36,6 +37,7 @@ public final class QueryServiceServer {
             "/players/{uuid}/name",
             "/players/names",
             "/players/uuids",
+            "/accounts/names",
             "/resource-pack");
 
     /**
@@ -51,6 +53,7 @@ public final class QueryServiceServer {
     private final Duration requestTimeout;
     private final RegionSource regions;
     private final PlayerNameService names;
+    private final AccountNameService accountNames;
     private final ResourcePackSource resourcePack;
     private final Javalin javalin;
 
@@ -58,6 +61,7 @@ public final class QueryServiceServer {
                               @NotNull Duration requestTimeout,
                               @NotNull RegionSource regions,
                               @NotNull PlayerNameService names,
+                              @NotNull AccountNameService accountNames,
                               @NotNull ResourcePackSource resourcePack) {
         if (secret.isBlank()) {
             throw new IllegalArgumentException("secret must not be blank");
@@ -66,6 +70,7 @@ public final class QueryServiceServer {
         this.requestTimeout = Objects.requireNonNull(requestTimeout, "requestTimeout");
         this.regions = Objects.requireNonNull(regions, "regions");
         this.names = Objects.requireNonNull(names, "names");
+        this.accountNames = Objects.requireNonNull(accountNames, "accountNames");
         this.resourcePack = Objects.requireNonNull(resourcePack, "resourcePack");
         ObjectMapper objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -104,6 +109,9 @@ public final class QueryServiceServer {
         routes.get("/players/{uuid}/name", playerNames::single);
         routes.post("/players/names", playerNames::names);
         routes.post("/players/uuids", playerNames::uuids);
+
+        AccountNamesHandler accountNames = new AccountNamesHandler(this.accountNames, this.requestTimeout);
+        routes.post("/accounts/names", accountNames::names);
 
         // The URL only, never the pack itself: realty-rest and the browser learn where the
         // operator already hosts it, so Realty redistributes nothing.

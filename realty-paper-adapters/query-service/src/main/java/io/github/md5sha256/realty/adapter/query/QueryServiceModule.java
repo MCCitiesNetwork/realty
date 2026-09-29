@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Runs the private query endpoint {@code realty-rest} calls for live geometry and player names.
+ * Runs the private query endpoint {@code realty-rest} calls for live geometry and player and account names.
  *
  * <p>Registers no commands: modules start after commands are registered and Paper accepts no new
  * Brigadier commands at that point. Has no write path.</p>
@@ -69,6 +69,7 @@ public final class QueryServiceModule extends SimplePluginModule<Realty> {
                         plugin.getServer()::getWorld,
                         world -> regionContainer.get(BukkitAdapter.adapt(world))),
                 plugin.paperApi().playerNameService(),
+                plugin.paperApi().accountNameService(),
                 new ConfiguredResourcePackSource(config.resourcePacks()));
         server.start(config.bindHost(), config.port());
         return server::stop;
