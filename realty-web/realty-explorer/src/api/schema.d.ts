@@ -1009,6 +1009,7 @@ export interface operations {
                 since?: string;
                 /** @description Only events this player took part in, given as a UUID or a name. A UUID needs no module; a name is resolved through the query-service module, so it answers 404 for an unknown name and 502 when the module is unreachable. Omit to not filter by player. */
                 player?: string;
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 pageSize?: number;
             };
@@ -1059,7 +1060,7 @@ export interface operations {
     listRegions: {
         parameters: {
             query?: {
-                /** @description 1-based page number. Defaults to 1. */
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 /** @description Page size, clamped to the server's configured maximum, which is itself capped at 100. Defaults to 10 (or the configured maximum if it is lower). A larger value is clamped rather than rejected. */
                 pageSize?: number;
@@ -1120,7 +1121,7 @@ export interface operations {
                 occupancy?: "any" | "occupied" | "unoccupied";
                 /** @description Result order. Defaults to most expensive first. */
                 sort?: "price_desc" | "price_asc";
-                /** @description 1-based page number. Defaults to 1. */
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 /** @description Page size, clamped to the server's configured maximum, which is itself capped at 100. Defaults to 10 (or the configured maximum if it is lower). A larger value is clamped rather than rejected. */
                 pageSize?: number;
@@ -1178,6 +1179,7 @@ export interface operations {
                 world?: string;
                 /** @description Only events at or after this instant. Must carry an offset; a bare local date-time is rejected rather than assumed to be UTC. */
                 since?: string;
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 pageSize?: number;
             };
@@ -1232,6 +1234,7 @@ export interface operations {
                 world?: string;
                 /** @description `ending_soon` (default) orders by the bidding deadline, soonest first. `highest_bid` orders by the standing bid, largest first, with an auction nobody has bid on ranking at its minimum bid. */
                 sort?: "ending_soon" | "highest_bid";
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 pageSize?: number;
             };
@@ -1282,7 +1285,7 @@ export interface operations {
     getOwnersLeaderboard: {
         parameters: {
             query?: {
-                /** @description 1-based page number. Defaults to 1. */
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 /** @description Page size, clamped to the server's configured maximum, which is itself capped at 100. Defaults to 10. */
                 pageSize?: number;
@@ -1601,7 +1604,7 @@ export interface operations {
             query: {
                 /** @description The world, as a UUID or a name. */
                 world: string;
-                /** @description 1-based page number. Defaults to 1. */
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 /** @description Rows per page, defaulting to 10 and clamped to the operator's configured maximum. */
                 pageSize?: number;
@@ -1657,7 +1660,7 @@ export interface operations {
                 player: string;
                 /** @description One of `all` (default), `owned`, `authority`, `landlord` or `rented`. See `PlayerRegionsResponse` for what each category holds. */
                 category?: "all" | "owned" | "authority" | "landlord" | "rented";
-                /** @description 1-based page number. Defaults to 1. */
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 /** @description Page size, clamped to the server's configured maximum, which is itself capped at 100. Defaults to 10 (or the configured maximum if it is lower). A larger value is clamped rather than rejected. */
                 pageSize?: number;
@@ -1779,7 +1782,7 @@ export interface operations {
             query?: {
                 /** @description One of `all` (default), `owned`, `authority`, `landlord` or `rented`. See `PlayerRegionsResponse` for what each category holds. */
                 category?: "all" | "owned" | "authority" | "landlord" | "rented";
-                /** @description 1-based page number. Defaults to 1. */
+                /** @description 1-based page number, at most 21474836. Defaults to 1. A larger page is refused with `INVALID_PAGE`. */
                 page?: number;
                 /** @description Page size, clamped to the server's configured maximum, which is itself capped at 100. Defaults to 10 (or the configured maximum if it is lower). A larger value is clamped rather than rejected. */
                 pageSize?: number;

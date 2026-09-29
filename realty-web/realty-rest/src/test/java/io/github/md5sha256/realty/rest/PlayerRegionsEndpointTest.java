@@ -14,9 +14,10 @@ class PlayerRegionsEndpointTest {
     private static final String UUID_PARAM = "3a1c88f0-0000-0000-0000-000000000001";
 
     /**
-     * UUID-shaped (36 chars, hyphens at 8/13/18/23) but not a valid UUID -- per the
-     * task-8 ruling this is a malformed UUID (400 MALFORMED_UUID), distinct from a
-     * plain player name like "Notch" (502 NAME_LOOKUP_UNAVAILABLE) below.
+     * UUID-shaped (36 chars, hyphens at 8/13/18/23) but not a valid UUID. A caller who sends
+     * that shape meant a UUID, and no player name can take it, so it is a malformed UUID
+     * (400 MALFORMED_UUID) rather than a name to look up, unlike a plain player name such
+     * as "Notch" (502 NAME_LOOKUP_UNAVAILABLE) below.
      */
     private static final String UUID_SHAPED_BUT_INVALID = "3a1c88f0-0000-0000-0000-00000000zzzz";
 

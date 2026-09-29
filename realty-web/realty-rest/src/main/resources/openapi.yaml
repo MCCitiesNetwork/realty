@@ -174,9 +174,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -227,10 +231,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -372,10 +379,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -461,9 +471,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -529,9 +543,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -581,10 +599,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -984,10 +1005,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -1070,10 +1094,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -1236,10 +1263,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
