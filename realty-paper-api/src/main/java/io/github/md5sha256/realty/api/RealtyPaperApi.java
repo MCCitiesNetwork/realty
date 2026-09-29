@@ -76,7 +76,7 @@ public interface RealtyPaperApi {
 
     sealed interface BuyResult {
         record Success(double price, @NotNull String regionId,
-                       @Nullable UUID previousTitleHolderId) implements BuyResult {}
+                       @Nullable Party previousTitleHolder) implements BuyResult {}
         record NoFreeholdContract(@NotNull String regionId) implements BuyResult {}
         record NotForSale(@NotNull String regionId) implements BuyResult {}
         record IsAuthority() implements BuyResult {}
@@ -152,7 +152,7 @@ public interface RealtyPaperApi {
     sealed interface TerminateResult {
         /** {@code charged} is any forced-extension rent the tenant paid to cover the notice period. */
         record Success(@NotNull String regionId, @NotNull LocalDateTime effectiveDate, double charged,
-                       @NotNull Party landlord, @NotNull UUID tenantId,
+                       @NotNull Party landlord, @NotNull Party tenant,
                        @NotNull String terminatedByRole) implements TerminateResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements TerminateResult {}
         record NotOccupied(@NotNull String regionId) implements TerminateResult {}
@@ -181,7 +181,7 @@ public interface RealtyPaperApi {
         record Success(double amount, double newTotal, double remaining,
                        @NotNull String regionId) implements PayBidResult {}
         record FullyPaid(double amount, @NotNull String regionId,
-                         @Nullable UUID previousTitleHolderId) implements PayBidResult {}
+                         @Nullable Party previousTitleHolder) implements PayBidResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayBidResult {}
         record PaymentExpired(@NotNull String regionId) implements PayBidResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
@@ -202,7 +202,7 @@ public interface RealtyPaperApi {
         record Success(double amount, double newTotal, double remaining,
                        @NotNull String regionId) implements PayOfferResult {}
         record FullyPaid(double amount, @NotNull String regionId,
-                         @Nullable UUID previousTitleHolderId) implements PayOfferResult {}
+                         @Nullable Party previousTitleHolder) implements PayOfferResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayOfferResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
                                  @NotNull String regionId) implements PayOfferResult {}
@@ -219,33 +219,73 @@ public interface RealtyPaperApi {
     // --- SetTitleHolder ---
 
     sealed interface SetTitleHolderResult {
-        record Success(@Nullable UUID previousTitleHolder,
+        record Success(@Nullable Party previousTitleHolder,
                        @NotNull String regionId) implements SetTitleHolderResult {}
         record NoFreeholdContract(@NotNull String regionId) implements SetTitleHolderResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTitleHolderResult {}
         record Error(@NotNull String message) implements SetTitleHolderResult {}
     }
 
+    /**
+     * Sets the title holder, or clears it when {@code titleHolder} is {@code null}. Only a player
+     * can hold a title in this version: any other party fails the future with an
+     * {@link IllegalArgumentException}.
+     */
     @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
-            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId);
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder);
+
+    /**
+     * @deprecated use {@link #setTitleHolder(WorldGuardRegion, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
+            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
+        return setTitleHolder(region, titleHolderId == null ? null : new Party.Personal(titleHolderId));
+    }
 
     // --- TransferTitleHolder (sets title holder and clears price) ---
 
+    /**
+     * Sets the title holder and clears the asking price. Only a player can hold a title in this
+     * version: any other party fails the future with an {@link IllegalArgumentException}.
+     */
     @NotNull CompletableFuture<SetTitleHolderResult> transferTitleHolder(
-            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId);
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder);
+
+    /**
+     * @deprecated use {@link #transferTitleHolder(WorldGuardRegion, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<SetTitleHolderResult> transferTitleHolder(
+            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
+        return transferTitleHolder(region, titleHolderId == null ? null : new Party.Personal(titleHolderId));
+    }
 
     // --- SetTenant ---
 
     sealed interface SetTenantResult {
-        record Success(@Nullable UUID previousTenant, @NotNull Party landlord,
+        record Success(@Nullable Party previousTenant, @NotNull Party landlord,
                        @NotNull String regionId) implements SetTenantResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements SetTenantResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTenantResult {}
         record Error(@NotNull String message) implements SetTenantResult {}
     }
 
+    /**
+     * Sets the tenant, or clears it when {@code tenant} is {@code null}. Only a player can rent
+     * in this version: any other party fails the future with an {@link IllegalArgumentException}.
+     */
     @NotNull CompletableFuture<SetTenantResult> setTenant(
-            @NotNull WorldGuardRegion region, @Nullable UUID tenantId);
+            @NotNull WorldGuardRegion region, @Nullable Party tenant);
+
+    /**
+     * @deprecated use {@link #setTenant(WorldGuardRegion, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<SetTenantResult> setTenant(
+            @NotNull WorldGuardRegion region, @Nullable UUID tenantId) {
+        return setTenant(region, tenantId == null ? null : new Party.Personal(tenantId));
+    }
 
     // --- SetLandlord ---
 
@@ -293,17 +333,50 @@ public interface RealtyPaperApi {
         record Error(@NotNull String message) implements CreateFreeholdResult {}
     }
 
+    /**
+     * Creates a freehold, held by {@code titleHolder} or by nobody when it is {@code null}. Only
+     * a player can hold a title in this version: any other party fails the future with an
+     * {@link IllegalArgumentException}.
+     */
     @NotNull CompletableFuture<CreateFreeholdResult> createFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
             @NotNull Party authority,
-            @Nullable UUID titleHolder);
+            @Nullable Party titleHolder);
 
+    /**
+     * @deprecated use {@link #createFreehold(WorldGuardRegion, Double, Party, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<CreateFreeholdResult> createFreehold(
+            @NotNull WorldGuardRegion region,
+            @Nullable Double price,
+            @NotNull Party authority,
+            @Nullable UUID titleHolder) {
+        return createFreehold(region, price, authority, titleHolder == null ? null : new Party.Personal(titleHolder));
+    }
+
+    /**
+     * Registers an existing WorldGuard region as a freehold. See
+     * {@link #createFreehold(WorldGuardRegion, Double, Party, Party)} for the title holder.
+     */
     @NotNull CompletableFuture<CreateFreeholdResult> registerFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
             @NotNull Party authority,
-            @Nullable UUID titleHolder);
+            @Nullable Party titleHolder);
+
+    /**
+     * @deprecated use {@link #registerFreehold(WorldGuardRegion, Double, Party, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<CreateFreeholdResult> registerFreehold(
+            @NotNull WorldGuardRegion region,
+            @Nullable Double price,
+            @NotNull Party authority,
+            @Nullable UUID titleHolder) {
+        return registerFreehold(region, price, authority, titleHolder == null ? null : new Party.Personal(titleHolder));
+    }
 
     // --- Create/Register Leasehold ---
 

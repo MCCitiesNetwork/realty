@@ -371,6 +371,7 @@ class RealtyPaperApiImplTest {
             RealtyPaperApi.BuyResult.Success success = (RealtyPaperApi.BuyResult.Success) result;
             Assertions.assertEquals(1000.0, success.price());
             Assertions.assertEquals(REGION_ID, success.regionId());
+            Assertions.assertEquals(TITLE_HOLDER, success.previousTitleHolder());
 
             // Verify region ownership updated
             Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
@@ -926,9 +927,42 @@ class RealtyPaperApiImplTest {
     // setTitleHolder()
     // ═══════════════════════════════════════════════════
 
+    private static void assertOnlyPlayersRefusal(CompletableFuture<?> future) {
+        java.util.concurrent.CompletionException thrown =
+                Assertions.assertThrows(java.util.concurrent.CompletionException.class, future::join);
+        IllegalArgumentException cause = Assertions.assertInstanceOf(IllegalArgumentException.class, thrown.getCause());
+        Assertions.assertEquals("only a player can be tenant or titleholder in this version", cause.getMessage());
+    }
+
     @Nested
     @DisplayName("setTitleHolder")
     class SetTitleHolder {
+
+        @Test
+        @DisplayName("a title holder that is not a player fails the future and changes nothing")
+        void accountTitleHolder_isRefused() {
+            assertOnlyPlayersRefusal(api.setTitleHolder(wgRegion, GOVERNMENT));
+            assertOnlyPlayersRefusal(api.transferTitleHolder(wgRegion, GOVERNMENT));
+            assertOnlyPlayersRefusal(api.createFreehold(wgRegion, 1000.0, GOVERNMENT, GOVERNMENT));
+            assertOnlyPlayersRefusal(api.registerFreehold(wgRegion, 1000.0, GOVERNMENT, GOVERNMENT));
+            verify(realtyApi, never()).setTitleHolder(any(), any(), any());
+            verify(realtyApi, never()).transferTitleHolder(any(), any(), any());
+            verify(realtyApi, never()).createFreehold(any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("the previous title holder is given as a player party")
+        void previousTitleHolder_isAPlayerParty() {
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID))
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.Success(TITLE_HOLDER_ID));
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+
+            RealtyPaperApi.SetTitleHolderResult.Success success = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetTitleHolderResult.Success.class,
+                    api.setTitleHolder(wgRegion, BUYER).join());
+
+            Assertions.assertEquals(TITLE_HOLDER, success.previousTitleHolder());
+        }
 
         @Test
         @DisplayName("returns NoFreeholdContract when no contract exists")
@@ -937,7 +971,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.SetTitleHolderResult.NoFreeholdContract());
 
             RealtyPaperApi.SetTitleHolderResult result =
-                    api.setTitleHolder(wgRegion, BUYER_ID).join();
+                    api.setTitleHolder(wgRegion, BUYER).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract.class, result);
@@ -952,7 +986,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.SetTitleHolderResult result =
-                    api.setTitleHolder(wgRegion, BUYER_ID).join();
+                    api.setTitleHolder(wgRegion, BUYER).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTitleHolderResult.Success.class, result);
@@ -971,7 +1005,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.SetTitleHolderResult result =
-                    api.setTitleHolder(wgRegion, null).join();
+                    api.setTitleHolder(wgRegion, (Party) null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTitleHolderResult.Success.class, result);
@@ -997,7 +1031,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.SetTenantResult result =
-                    api.setTenant(wgRegion, TENANT_ID).join();
+                    api.setTenant(wgRegion, TENANT).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTenantResult.Success.class, result);
@@ -1016,12 +1050,22 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.SetTenantResult result =
-                    api.setTenant(wgRegion, null).join();
+                    api.setTenant(wgRegion, (Party) null).join();
 
-            Assertions.assertInstanceOf(
+            RealtyPaperApi.SetTenantResult.Success success = Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTenantResult.Success.class, result);
+            Assertions.assertEquals(TENANT, success.previousTenant());
             Assertions.assertEquals(0, protectedRegion.getOwners().size());
             verify(regionProfileService).applyFlags(eq(wgRegion), eq(RegionState.FOR_LEASE), any());
+        }
+
+        @Test
+        @DisplayName("a tenant that is not a player fails the future and changes nothing")
+        void accountTenant_isRefused() {
+            CompletableFuture<RealtyPaperApi.SetTenantResult> future = api.setTenant(wgRegion, GOVERNMENT);
+
+            assertOnlyPlayersRefusal(future);
+            verify(realtyApi, never()).setTenant(any(), any(), any());
         }
 
         @Test
@@ -1031,7 +1075,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.SetTenantResult.NoLeaseholdContract());
 
             RealtyPaperApi.SetTenantResult result =
-                    api.setTenant(wgRegion, TENANT_ID).join();
+                    api.setTenant(wgRegion, TENANT).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTenantResult.NoLeaseholdContract.class, result);
@@ -1093,7 +1137,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), null).join();
+                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), (Party) null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.Success.class, result);
@@ -1110,7 +1154,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), TITLE_HOLDER_ID).join();
+                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), TITLE_HOLDER).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.Success.class, result);
@@ -1124,7 +1168,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(false);
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), null).join();
+                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), (Party) null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.AlreadyRegistered.class, result);

@@ -95,6 +95,17 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.actorContexts = actorContexts;
     }
 
+    /** In this version a tenant and a title holder are always players. */
+    private static final String ONLY_PLAYERS = "only a player can be tenant or titleholder in this version";
+
+    private static boolean isPlayerOrNobody(@Nullable Party party) {
+        return party == null || party instanceof Party.Personal;
+    }
+
+    private static @Nullable Party playerParty(@Nullable UUID playerId) {
+        return playerId == null ? null : new Party.Personal(playerId);
+    }
+
     @Override
     public void setSafeBlockPredicate(@NotNull Predicate<Block> predicate) {
         this.safeLocationFinder.setSafetyPredicate(predicate);
@@ -243,7 +254,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), buyerId);
         return CompletableFuture.completedFuture(
-                new BuyResult.Success(price, regionId, reserved.titleHolderId()));
+                new BuyResult.Success(price, regionId, playerParty(reserved.titleHolderId())));
     }
 
     /**
@@ -525,7 +536,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             ).thenApplyAsync(backend -> {
                 if (backend instanceof RealtyBackend.TerminateLeaseholdResult.Success) {
                     return (TerminateResult) new TerminateResult.Success(regionId, plan.effectiveEnd(),
-                            plan.charge(), plan.landlord(), plan.tenantId(), plan.role());
+                            plan.charge(), plan.landlord(), new Party.Personal(plan.tenantId()), plan.role());
                 }
                 // Should not happen under the per-region lock; refund any charge defensively.
                 if (plan.charge() > 0) {
@@ -663,7 +674,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), bidderId);
         return CompletableFuture.completedFuture(
-                new PayBidResult.FullyPaid(amount, regionId, fullyPaid.titleHolderId()));
+                new PayBidResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
     }
 
     private @NotNull CompletableFuture<Void> rollbackPayBidAsync(@NotNull String regionId,
@@ -752,7 +763,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), offererId);
         return CompletableFuture.completedFuture(
-                new PayOfferResult.FullyPaid(amount, regionId, fullyPaid.titleHolderId()));
+                new PayOfferResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
     }
 
     private @NotNull CompletableFuture<Void> rollbackPayOfferAsync(@NotNull String regionId,
@@ -766,7 +777,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
-            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder) {
+        if (!isPlayerOrNobody(titleHolder)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException(ONLY_PLAYERS));
+        }
+        UUID titleHolderId = Party.playerUuidOf(titleHolder).orElse(null);
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> {
@@ -793,7 +808,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 signTextApplicator.updateLoadedSigns(region.world(), regionId,
                         state, entry.getValue());
                 yield (SetTitleHolderResult) new SetTitleHolderResult.Success(
-                        success.previousTitleHolder(), regionId);
+                        playerParty(success.previousTitleHolder()), regionId);
             }
             case RealtyBackend.SetTitleHolderResult.NoFreeholdContract ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NoFreeholdContract(regionId);
@@ -807,7 +822,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<SetTitleHolderResult> transferTitleHolder(
-            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder) {
+        if (!isPlayerOrNobody(titleHolder)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException(ONLY_PLAYERS));
+        }
+        UUID titleHolderId = Party.playerUuidOf(titleHolder).orElse(null);
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> {
@@ -834,7 +853,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 signTextApplicator.updateLoadedSigns(region.world(), regionId,
                         state, entry.getValue());
                 yield (SetTitleHolderResult) new SetTitleHolderResult.Success(
-                        success.previousTitleHolder(), regionId);
+                        playerParty(success.previousTitleHolder()), regionId);
             }
             case RealtyBackend.SetTitleHolderResult.NoFreeholdContract ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NoFreeholdContract(regionId);
@@ -848,7 +867,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<SetTenantResult> setTenant(
-            @NotNull WorldGuardRegion region, @Nullable UUID tenantId) {
+            @NotNull WorldGuardRegion region, @Nullable Party tenant) {
+        if (!isPlayerOrNobody(tenant)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException(ONLY_PLAYERS));
+        }
+        UUID tenantId = Party.playerUuidOf(tenant).orElse(null);
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> {
@@ -874,7 +897,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 signTextApplicator.updateLoadedSigns(region.world(), regionId,
                         state, entry.getValue());
                 yield (SetTenantResult) new SetTenantResult.Success(
-                        success.previousTenant(), success.landlord(), regionId);
+                        playerParty(success.previousTenant()), success.landlord(), regionId);
             }
             case RealtyBackend.SetTenantResult.NoLeaseholdContract ignored ->
                     (SetTenantResult) new SetTenantResult.NoLeaseholdContract(regionId);
@@ -964,11 +987,15 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
             @NotNull Party authority,
-            @Nullable UUID titleHolder) {
+            @Nullable Party titleHolder) {
+        if (!isPlayerOrNobody(titleHolder)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException(ONLY_PLAYERS));
+        }
+        UUID titleHolderId = Party.playerUuidOf(titleHolder).orElse(null);
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> {
-            boolean created = realtyApi.createFreehold(regionId, worldId, price, authority, titleHolder);
+            boolean created = realtyApi.createFreehold(regionId, worldId, price, authority, titleHolderId);
             Map<String, String> placeholders = created
                     ? realtyApi.getRegionPlaceholders(regionId, worldId)
                     : Map.<String, String>of();
@@ -995,7 +1022,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
             @NotNull Party authority,
-            @Nullable UUID titleHolder) {
+            @Nullable Party titleHolder) {
         return createFreehold(region, price, authority, titleHolder);
     }
 

@@ -371,14 +371,14 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.setTitleHolder(region, titleHolderId).thenAccept(result -> {
+        api.setTitleHolder(region, new Party.Personal(titleHolderId)).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTitleHolderResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SUCCESS,
                                 Placeholder.unparsed("titleholder", partyNames.display(titleHolderId)),
                                 Placeholder.unparsed("region", success.regionId())));
                         events.fireSync(new TitleTransferredEvent(region, titleHolderId,
-                                success.previousTitleHolder()));
+                                Party.playerUuidOf(success.previousTitleHolder()).orElse(null)));
                 }
                 case RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
@@ -405,13 +405,13 @@ public record SetCommandGroup(
         }
         authorizeLeaseholdSet(sender, region, "realty.command.set.tenant.others", null, LandlordGate.MANAGES,
                 _ ->
-        api.setTenant(region, tenantId).thenAccept(result -> {
+        api.setTenant(region, new Party.Personal(tenantId)).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTenantResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,
                                 Placeholder.unparsed("tenant", partyNames.display(tenantId)),
                                 Placeholder.unparsed("region", success.regionId())));
-                        events.fireSync(new TenantSetEvent(region, tenantId, success.previousTenant(),
+                        events.fireSync(new TenantSetEvent(region, tenantId, Party.playerUuidOf(success.previousTenant()).orElse(null),
                                 success.landlord()));
                 }
                 case RealtyPaperApi.SetTenantResult.NoLeaseholdContract noContract ->

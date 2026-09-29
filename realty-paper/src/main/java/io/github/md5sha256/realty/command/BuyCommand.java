@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
@@ -75,7 +76,7 @@ public record BuyCommand(
                             Placeholder.unparsed("region", success.regionId())));
                     // Post-event; fireSync hops to the main thread. RegionNotificationListener notifies the seller.
                     events.fireSync(new RegionBoughtEvent(region, sender.getUniqueId(),
-                            success.previousTitleHolderId(), success.price()));
+                            Party.playerUuidOf(success.previousTitleHolder()).orElse(null), success.price()));
                 }
                 case RealtyPaperApi.BuyResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_NO_FREEHOLD_CONTRACT,

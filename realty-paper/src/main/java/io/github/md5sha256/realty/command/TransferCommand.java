@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.TitleTransferEvent;
@@ -68,14 +69,14 @@ public record TransferCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.transferTitleHolder(region, titleHolderId).thenAccept(result -> {
+        api.transferTitleHolder(region, new Party.Personal(titleHolderId)).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTitleHolderResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_SUCCESS,
                                 Placeholder.unparsed("titleholder", partyNames.display(titleHolderId)),
                                 Placeholder.unparsed("region", success.regionId())));
                         events.fireSync(new TitleTransferredEvent(region, titleHolderId,
-                                success.previousTitleHolder()));
+                                Party.playerUuidOf(success.previousTitleHolder()).orElse(null)));
                 }
                 case RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_NO_FREEHOLD_CONTRACT,

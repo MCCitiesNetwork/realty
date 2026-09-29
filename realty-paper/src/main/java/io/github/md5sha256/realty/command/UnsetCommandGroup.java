@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -108,7 +109,7 @@ public record UnsetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
             return;
         }
-        api.setTitleHolder(region, null).thenAccept(result -> {
+        api.setTitleHolder(region, (Party) null).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTitleHolderResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_SUCCESS,
@@ -142,7 +143,7 @@ public record UnsetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
             return;
         }
-        api.setTenant(region, null).thenAccept(result -> {
+        api.setTenant(region, (Party) null).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTenantResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_SUCCESS,

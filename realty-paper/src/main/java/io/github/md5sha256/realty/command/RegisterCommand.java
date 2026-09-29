@@ -182,7 +182,8 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.registerFreehold(region, price, authority, titleholder)
+        api.registerFreehold(region, price, authority,
+                        titleholder == null ? null : new Party.Personal(titleholder))
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {
