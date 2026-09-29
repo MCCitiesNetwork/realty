@@ -17,7 +17,6 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
-import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -36,7 +35,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
 /**
  * Handles {@code /realty history <region> [--event <type>] [--time <duration>] [--player <name>] [--page <n>]}.
@@ -158,10 +156,10 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                             case HistoryEntry.Freehold freehold -> {
                                 String messageKey = resolveEventMessageKey(freehold.eventType());
                                 builder.append(
-                                        render(messageKey, freehold.buyerId() == null,
+                                        messages.messageFor(messageKey,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), freehold.eventTime())),
                                                 Placeholder.unparsed("buyer",
-                                                        freehold.buyerId() != null ? partyNames.display(freehold.buyerId()) : "N/A"),
+                                                        personName(freehold.buyerId(), partyNames)),
                                                 Placeholder.unparsed("authority", partyNames.display(freehold.authority())),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
                             }
@@ -176,10 +174,10 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                             case HistoryEntry.Leasehold lease -> {
                                 String messageKey = resolveLeaseholdEventMessageKey(lease.eventType());
                                 builder.append(
-                                        render(messageKey, lease.tenantId() == null,
+                                        messages.messageFor(messageKey,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), lease.eventTime())),
                                                 Placeholder.unparsed("tenant",
-                                                        lease.tenantId() != null ? partyNames.display(lease.tenantId()) : "N/A"),
+                                                        personName(lease.tenantId(), partyNames)),
                                                 Placeholder.unparsed("landlord", partyNames.display(lease.landlord())),
                                                 Placeholder.unparsed("price",
                                                         lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A"),
@@ -260,19 +258,8 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
         return LEASEHOLD_EVENT_MESSAGE_KEYS.getOrDefault(eventType, resolveEventMessageKey(eventType));
     }
 
-    /** A message segment such as " | Tenant: <tenant>" that shows one person under a label. */
-    private static final Pattern PERSON_SEGMENT = Pattern.compile("\\s*\\|\\s*[^|<]*<#00aaff><(?:tenant|buyer)></#00aaff>");
-
-    /**
-     * Renders a history line. An entry with no tenant or buyer is shown without that person's
-     * segment; a template that leads with the person keeps its placeholder, which then reads "N/A".
-     */
-    private @NotNull Component render(@NotNull String messageKey, boolean withoutPerson,
-                                      @NotNull TagResolver... resolvers) {
-        if (!withoutPerson) {
-            return messages.messageFor(messageKey, resolvers);
-        }
-        String raw = PERSON_SEGMENT.matcher(messages.miniMessageFormattedFor(messageKey)).replaceAll("");
-        return messages.deserializeRaw(raw, TagResolver.resolver(resolvers));
+    /** The name of a history entry's tenant or buyer, or "N/A" when the entry has none. */
+    static @NotNull String personName(@Nullable UUID person, @NotNull PartyNames partyNames) {
+        return person != null ? partyNames.display(person) : "N/A";
     }
 }

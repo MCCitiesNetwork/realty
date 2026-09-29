@@ -70,9 +70,6 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
         }
     }
 
-
-
-
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder

@@ -230,10 +230,4 @@ public final class RegionNotificationListener implements Listener {
     private static @NotNull List<UUID> recipientsOf(@Nullable Party party) {
         return Party.playerUuidOf(party).map(playerId -> List.of(playerId)).orElse(List.of());
     }
-
-    /**
-     * Resolves a player's display name for use in notification text, falling
-     * back to the online player and finally the raw UUID when no name is known.
-     */
-
 }

@@ -154,7 +154,6 @@ public record AuctionCommandGroup(
         });
     }
 
-
     // ── /realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region> ──
 
     private void executeCreate(@NotNull CommandContext<Source> ctx) {

@@ -101,7 +101,6 @@ public record SetCommandGroup(
     /** The gate {@code /realty set landlord} uses; every other subcommand uses {@link LandlordGate#MANAGES}. */
     static final LandlordGate SET_LANDLORD_GATE = LandlordGate.REASSIGNS;
 
-
     /**
      * Authorizes a leasehold {@code set} mutation, then runs {@code onAuthorized} with the actor's context.
      * Non-players (console) and admins holding {@code bypassPerm} are trusted. For a leasehold the

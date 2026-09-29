@@ -160,7 +160,6 @@ public record ModifyCommandGroup(
                 view.newPrice(), view.newDurationSeconds(), view.newMaxExtensions());
     }
 
-
     /** The three ways to resolve a pending proposal, each carrying its success message and resolution name. */
     private enum ResolveAction {
         ACCEPT(MessageKeys.MODIFY_ACCEPT_SUCCESS, "ACCEPTED"),

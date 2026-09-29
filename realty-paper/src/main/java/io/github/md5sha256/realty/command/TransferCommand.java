@@ -36,7 +36,6 @@ public record TransferCommand(
         @NotNull PartyNames partyNames
 ) implements CustomCommandBean.Single {
 
-
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
         return builder
