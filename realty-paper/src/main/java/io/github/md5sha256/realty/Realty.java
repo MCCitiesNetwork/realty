@@ -355,7 +355,8 @@ public final class Realty extends JavaPlugin {
                 this.regionProfileService, this.signTextApplicator, this.signCache,
                 () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
                 this.playerNameService,
-                new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()));
+                new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
+                this.actorContexts);
         this.eventDispatch = new RealtyEventDispatch(
                 getServer(),
                 this.executorState.mainThreadExec(),
@@ -596,8 +597,14 @@ public final class Realty extends JavaPlugin {
                                     new Party.Personal(terminated.tenantId()), terminated.refund(),
                                     "Lease Termination Refund: " + terminated.worldGuardRegionId(), null);
                             if (refund instanceof PaymentResult.Failure failure) {
+                                // Everything an admin needs to repay the tenant by hand. The
+                                // landlord is shown by its ids, not its name, which would need
+                                // a Treasury read on the main thread.
                                 getLogger().warning("Lease termination refund for region "
-                                        + terminated.worldGuardRegionId() + " failed: " + failure.errorMessage());
+                                        + terminated.worldGuardRegionId() + " failed: " + failure.errorMessage()
+                                        + ". Tenant " + terminated.tenantId()
+                                        + " was not paid " + CurrencyFormatter.format(terminated.refund())
+                                        + " by landlord " + terminated.landlord() + ".");
                             }
                         }
                         World world = getServer().getWorld(terminated.worldId());

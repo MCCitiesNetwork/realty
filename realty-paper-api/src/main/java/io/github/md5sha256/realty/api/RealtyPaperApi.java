@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.block.Block;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,6 +44,29 @@ public interface RealtyPaperApi {
      * Every name is empty on a server without Treasury.
      */
     @NotNull AccountNameService accountNameService();
+
+    /**
+     * Builds the context of a player acting on {@code region}: which parties the player may act
+     * for, and which of them the player may hand to another party. Every method of this API that
+     * takes an {@link ActorContext} should be given one built here. Use it rather than
+     * {@link ActorContext#player}, which knows no account and no group, so that a manager of an
+     * account or group landlord is refused as a stranger and the conflict-of-interest rule is
+     * not applied to an authority the player acts for.
+     *
+     * <p>The parties tested are the region's landlord and authority, plus {@code extra}: pass
+     * the party the player is about to assign, if any. Treasury and the permission plugin are
+     * asked on Realty's database thread, and the future completes there.</p>
+     *
+     * @param player the acting player
+     * @param bypass whether the player holds the admin permission of the action, which lets
+     *               them act for any party
+     * @param region the region the action concerns
+     * @param extra  further parties to test, such as a new landlord being assigned
+     */
+    @NotNull CompletableFuture<ActorContext> actorContext(@NotNull OfflinePlayer player,
+                                                          boolean bypass,
+                                                          @NotNull WorldGuardRegion region,
+                                                          @NotNull Party... extra);
 
     // ═══════════════════════════════════════════════════
     // COMPLEX OPERATIONS (economy + WG + signs/flags)

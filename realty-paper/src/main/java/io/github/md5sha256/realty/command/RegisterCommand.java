@@ -157,8 +157,11 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             return;
         }
         Double price = ctx.flags().getValue(PRICE_FLAG, null);
-        UUID titleholder = ctx.flags()
-                .getValue(TITLEHOLDER_FLAG, defaults.get().freeholdTitleholder());
+        UUID givenTitleholder = ctx.flags().getValue(TITLEHOLDER_FLAG, null);
+        if (givenTitleholder == null && PartyFlags.refuseUnresolvedTitleholder(messages, sender, defaults.get())) {
+            return;
+        }
+        UUID titleholder = givenTitleholder != null ? givenTitleholder : defaults.get().freeholdTitleholder();
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);

@@ -183,6 +183,11 @@ public class ImportJob {
                         return null;
                     }
                     UUID owner = region.getOwner();
+                    if (owner == null && defaults.freeholdTitleholderUnresolved()) {
+                        audience.sendMessage(Component.text("Skipping buy region " + region.getName()
+                                + ": it has no owner and the default freehold titleholder did not resolve"));
+                        return null;
+                    }
                     boolean forFreehold = region.getState() == GeneralRegion.RegionState.FORSALE;
                     Double price = forFreehold ? region.getPrice() : null;
                     Double lastSoldPrice = !forFreehold ? region.getPrice() : null;

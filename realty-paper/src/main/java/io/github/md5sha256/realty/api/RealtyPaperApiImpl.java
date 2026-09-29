@@ -11,6 +11,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
@@ -26,6 +27,7 @@ import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.jetbrains.annotations.NotNull;
@@ -57,6 +59,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final SafeLocationFinder safeLocationFinder;
     private final PlayerNameService playerNameService;
     private final AccountNameService accountNameService;
+    private final ActorContexts actorContexts;
 
     /**
      * Per-region serialisation chains. Each entry is the tail of a queue of
@@ -76,7 +79,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull java.util.function.LongSupplier terminationNoticeSeconds,
                               @NotNull SafeLocationFinder safeLocationFinder,
                               @NotNull PlayerNameService playerNameService,
-                              @NotNull AccountNameService accountNameService) {
+                              @NotNull AccountNameService accountNameService,
+                              @NotNull ActorContexts actorContexts) {
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
         this.executorState = executorState;
@@ -88,6 +92,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.safeLocationFinder = safeLocationFinder;
         this.playerNameService = playerNameService;
         this.accountNameService = accountNameService;
+        this.actorContexts = actorContexts;
     }
 
     @Override
@@ -103,6 +108,15 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull AccountNameService accountNameService() {
         return this.accountNameService;
+    }
+
+    @Override
+    public @NotNull CompletableFuture<ActorContext> actorContext(@NotNull OfflinePlayer player,
+                                                                 boolean bypass,
+                                                                 @NotNull WorldGuardRegion region,
+                                                                 @NotNull Party... extra) {
+        return CompletableFuture.supplyAsync(() -> this.actorContexts.forRegion(player, bypass, region, extra),
+                this.executorState.dbExec());
     }
 
     /**
@@ -164,7 +178,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<BuyResult> buy(@NotNull WorldGuardRegion region,
                                                       @NotNull ActorContext buyer,
                                                       boolean bypassConflict) {
-        UUID buyerId = buyer.requirePlayer();
+        UUID buyerId = buyer.player();
+        if (buyerId == null) {
+            // A caller that holds a future expects every failure there, not thrown at the call.
+            return CompletableFuture.failedFuture(new IllegalStateException("buying needs a player"));
+        }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // DB-first: atomically transfer ownership before processing payment.

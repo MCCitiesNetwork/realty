@@ -30,7 +30,10 @@ public record ActorContext(@Nullable UUID player,
     }
 
     /**
-     * A player who acts for no party beyond themself.
+     * A player who acts for no party beyond themself. It knows no account and no group: a player
+     * who manages an account or a group is treated as a stranger to it. A plugin should build the
+     * context with {@code RealtyPaperApi.actorContext} instead, which asks Treasury and the
+     * permission plugin.
      */
     public static @NotNull ActorContext player(@NotNull UUID player, boolean bypass) {
         return new ActorContext(player, Set.of(), Set.of(), bypass);
