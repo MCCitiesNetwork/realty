@@ -1182,6 +1182,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/parties/{kind}/{id}/regions:
+    get:
+      summary: List the regions of any party
+      operationId: listPartyRegions
+      description: >-
+        The same listing as `/v1/players/regions`, for any party: a player, a
+        Treasury account or a permission group, addressed by kind and id. The
+        query parameters and the response are the same, and so is the paging: with
+        `category=all` the three lists share one offset. For `personal` the
+        lists are the ones `/v1/players/regions?player=<uuid>` returns. For any
+        other party `owned` and `rented` are empty, because only a player holds a
+        title or rents; `landlord` lists the regions the party is the freehold
+        authority of. In the response the field is still called `player`, so the
+        shape of the player route does not change; here it holds the party's
+        `PartyRef`. An account that no contract names answers with empty lists
+        rather than 404, because this API cannot ask Treasury whether it exists.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          description: >-
+            The party's kind, in lower case. Any other value, including upper
+            case, is rejected.
+          schema:
+            type: string
+            enum: [ personal, business, government, system, group ]
+        - name: id
+          in: path
+          required: true
+          description: >-
+            A player UUID when `kind` is `personal`, an account id when it is
+            `business`, `government` or `system`, and a group name when it is
+            `group`. A group name is matched without regard to case.
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          description: One of `all` (default), `owned`, or `rented`.
+          schema:
+            type: string
+            enum: [ all, owned, rented ]
+            default: all
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10 (or the configured maximum if it is
+            lower). A larger value is clamped rather than rejected.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: The requested page of the party's regions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerRegionsResponse"
+        "400":
+          description: >-
+            `INVALID_PARTY_KIND` when `kind` is not one of the five values;
+            `MALFORMED_UUID` when `kind` is `personal` and `id` is not a UUID;
+            `INVALID_ACCOUNT_ID` when `kind` is an account kind and `id` is not a
+            positive integer; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a
+            non-integer or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when
+            `category` is present but not one of `all`, `owned`, `rented`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "`PARTY_NOT_FOUND` -- `kind` is `group` and no group is mapped under that name."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/players/lookup:
     get:
       summary: Resolve a player name to a UUID
@@ -1833,7 +1926,8 @@ components:
     PlayerRegionsResponse:
       type: object
       description: >-
-        The response for GET /v1/players/regions. When category=owned or
+        The response for GET /v1/players/regions and GET /v1/parties/{kind}/{id}/regions,
+        where `player` holds the party. When category=owned or
         category=rented was requested, `regions` carries that category's entries
         and `owned`/`landlord`/`rented` are omitted (not serialised as null).
         When category=all (the default), `owned`, `landlord` and `rented` are

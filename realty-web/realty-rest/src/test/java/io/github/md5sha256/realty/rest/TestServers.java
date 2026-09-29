@@ -800,6 +800,58 @@ final class TestServers {
                 defaultSettings());
     }
 
+    static final int ACCOUNT_ID = 42;
+
+    /**
+     * What {@code withPartyHoldings} lists for every party it is asked about, so a test
+     * can tell a party's own lists from the empty ones.
+     */
+    static final class PartyStub {
+
+        final Map<Party, RealtyBackend.ListResult> lists = new java.util.HashMap<>();
+        final Map<String, Party.Group> groups = new java.util.HashMap<>();
+        /** The parties the backend was asked to list, in order. */
+        final List<Party> asked = new java.util.ArrayList<>();
+    }
+
+    /**
+     * A server whose backend answers {@code listRegions} and its two siblings from
+     * {@code stub}, and {@code findGroupParty} by lower-cased name. A party the stub does
+     * not know lists nothing. The database offers one rented region to every player, in a
+     * world named {@code world}.
+     */
+    static @NotNull RealtyRestServer withPartyHoldings(@NotNull PartyStub stub, int maxPageSize) {
+        RealtyBackend.ListResult none = new RealtyBackend.ListResult(0, 0, 0, List.of(), List.of(), List.of());
+        InvocationHandler handler = (proxy, method, args) -> {
+            switch (method.getName()) {
+                case "findGroupParty" -> {
+                    return stub.groups.get(((String) args[0]).toLowerCase(java.util.Locale.ROOT));
+                }
+                case "listRegions", "listOwnedRegions", "listRentedRegions" -> {
+                    Party party = args[0] instanceof UUID id ? new Party.Personal(id) : (Party) args[0];
+                    stub.asked.add(party);
+                    RealtyBackend.ListResult result = stub.lists.getOrDefault(party, none);
+                    return switch (method.getName()) {
+                        case "listRegions" -> result;
+                        case "listOwnedRegions" ->
+                                new RealtyBackend.SingleCategoryResult(result.ownedCount(), result.owned());
+                        default -> new RealtyBackend.SingleCategoryResult(result.rentedCount(), result.rented());
+                    };
+                }
+                default -> throw new UnsupportedOperationException(
+                        "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+            }
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(), new Class<?>[]{RealtyBackend.class}, handler);
+        UUID worldId = UUID.randomUUID();
+        RentedRegionView rented = new RentedRegionView("rented_plot", worldId, LocalDateTime.now().plusDays(1));
+        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, 0, null);
+        return new RealtyRestServer(backend,
+                new StubDatabase(false, List.of(new RealtyWorldEntity(worldId, "world")), false, List.of(), List.of(rented)),
+                settings, ModuleClient.disabled());
+    }
+
     private static @NotNull RealtyBackend playerBackend(@NotNull RealtyBackend.ListResult listResult,
                                                           @NotNull RealtyBackend.SingleCategoryResult ownedResult,
                                                           @NotNull RealtyBackend.SingleCategoryResult rentedResult) {
