@@ -227,7 +227,11 @@ public interface RealtyBackend {
     // --- Buy (fixed-price) ---
 
     sealed interface BuyResult {
-        record Success(double price, @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements BuyResult {}
+        /**
+         * @param undo what {@link #rollbackBuy} needs to put the region back as it was
+         */
+        record Success(double price, @NotNull UUID authorityId, @Nullable UUID titleHolderId,
+                       @NotNull BuyUndo undo) implements BuyResult {}
         record NoFreeholdContract() implements BuyResult {}
         record NotForFreehold() implements BuyResult {}
         record IsAuthority() implements BuyResult {}
@@ -235,14 +239,50 @@ public interface RealtyBackend {
         record UpdateFailed() implements BuyResult {}
     }
 
+    /**
+     * What a reservation took away, kept so that it can be put back.
+     *
+     * @param historyId   the record of the sale
+     * @param offers      the offers that were on the region
+     * @param auctioneers everybody who was sanctioned to auction it
+     */
+    record BuyUndo(int historyId,
+                   @NotNull List<WithdrawnOffer> offers,
+                   @NotNull List<UUID> auctioneers) {}
+
+    /** An offer as it stood when a reservation withdrew it. */
+    record WithdrawnOffer(@NotNull UUID offererId, double offerPrice, @NotNull LocalDateTime offerTime) {}
+
+    /**
+     * Reserves the region for the buyer, ahead of payment. In one transaction: the title
+     * passes to them, the asking price is cleared so that nobody else can buy it in the
+     * meantime, the offers and sanctioned auctioneers the sale overtakes are withdrawn,
+     * and the sale is recorded.
+     *
+     * <p>If the payment then fails, {@link #rollbackBuy} undoes every part of that.</p>
+     *
+     * <p>A region with an accepted offer or a winning bid that is being paid for is not
+     * for sale, and this answers {@link BuyResult.NotForFreehold}. Selling it would take
+     * the region from under somebody who has already paid part of its price.</p>
+     */
     @NotNull BuyResult executeBuy(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,
                                   @NotNull UUID buyerId);
 
+    /**
+     * Undoes a reservation made by {@link #executeBuy} that was not paid for. The region
+     * is left as it was found: the title, the asking price, the offers and the
+     * sanctioned auctioneers are put back, and the record of the sale is removed.
+     *
+     * <p>The region is put back only if the buyer still holds the title. If somebody
+     * else has changed it since, the reservation is already gone, and putting the old
+     * holder back would undo their change and not the buyer's. The record of the sale
+     * is removed either way: the buyer did not buy the region.</p>
+     */
     void rollbackBuy(@NotNull String worldGuardRegionId,
                      @NotNull UUID worldId,
-                     @Nullable UUID previousTitleHolderId,
-                     double previousPrice);
+                     @NotNull UUID buyerId,
+                     @NotNull BuyResult.Success reserved);
 
     // --- Create Freehold ---
 

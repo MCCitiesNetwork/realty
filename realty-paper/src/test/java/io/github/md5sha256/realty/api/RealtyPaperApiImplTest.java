@@ -21,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -38,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -76,6 +78,13 @@ class RealtyPaperApiImplTest {
     private static final UUID TITLE_HOLDER_ID = UUID.randomUUID();
     private static final UUID LANDLORD_ID = UUID.randomUUID();
     private static final UUID TENANT_ID = UUID.randomUUID();
+    /** A reservation at 1000 that withdrew one offer, which a rollback has to put back. */
+    private static final RealtyBackend.BuyResult.Success RESERVED = new RealtyBackend.BuyResult.Success(
+            1000.0, AUTHORITY_ID, TITLE_HOLDER_ID,
+            new RealtyBackend.BuyUndo(42,
+                    List.of(new RealtyBackend.WithdrawnOffer(
+                            UUID.randomUUID(), 500.0, LocalDateTime.of(2026, 8, 1, 12, 0))),
+                    List.of(UUID.randomUUID())));
 
     @BeforeEach
     void setUp() {
@@ -222,7 +231,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("returns InsufficientFunds and rolls back DB when balance is too low")
         void insufficientFunds() {
             when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
-                    .thenReturn(new RealtyBackend.BuyResult.Success(1000.0, AUTHORITY_ID, TITLE_HOLDER_ID));
+                    .thenReturn(RESERVED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
             when(economyProvider.getBalance(BUYER_ID)).thenReturn(500.0);
@@ -234,14 +243,15 @@ class RealtyPaperApiImplTest {
                     (RealtyPaperApi.BuyResult.InsufficientFunds) result;
             Assertions.assertEquals(1000.0, insufficient.price());
             Assertions.assertEquals(500.0, insufficient.balance());
-            verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, TITLE_HOLDER_ID, 1000.0);
+            // Handed the reservation itself, so it can put back everything that was taken.
+            verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, RESERVED);
         }
 
         @Test
         @DisplayName("returns PaymentFailed and rolls back DB when economy withdraw fails")
         void paymentFailed() {
             when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
-                    .thenReturn(new RealtyBackend.BuyResult.Success(1000.0, AUTHORITY_ID, TITLE_HOLDER_ID));
+                    .thenReturn(RESERVED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
             when(economyProvider.getBalance(BUYER_ID)).thenReturn(2000.0);
@@ -251,14 +261,15 @@ class RealtyPaperApiImplTest {
             RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.PaymentFailed.class, result);
-            verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, TITLE_HOLDER_ID, 1000.0);
+            // Handed the reservation itself, so it can put back everything that was taken.
+            verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, RESERVED);
         }
 
         @Test
         @DisplayName("success transfers ownership and applies flags")
         void success() {
             when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
-                    .thenReturn(new RealtyBackend.BuyResult.Success(1000.0, AUTHORITY_ID, TITLE_HOLDER_ID));
+                    .thenReturn(RESERVED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of("price", "1000"));
             when(economyProvider.getBalance(BUYER_ID)).thenReturn(2000.0);
@@ -281,6 +292,42 @@ class RealtyPaperApiImplTest {
             verify(regionProfileService).applyFlags(eq(wgRegion), eq(RegionState.SOLD), any());
             verify(signTextApplicator).updateLoadedSigns(eq(world), eq(REGION_ID),
                     eq(RegionState.SOLD), any());
+            verify(realtyApi, never()).rollbackBuy(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a failed purchase leaves the region's owners and signs alone")
+        void failedPurchaseTouchesNothingInTheWorld() {
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(RESERVED);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.getBalance(BUYER_ID)).thenReturn(500.0);
+
+            api.buy(wgRegion, BUYER_ID).join();
+
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("once the buyer has paid, nothing more is asked of the database before they are made the owner")
+        void nothingBetweenPaymentAndOwnership() {
+            // A database call there is a call that can fail, and the buyer has been
+            // charged. They would hold the title and be unable to build.
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(RESERVED);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.getBalance(BUYER_ID)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER_ID), any(UUID.class), eq(1000.0), any()))
+                    .thenReturn(new PaymentResult.Success());
+
+            api.buy(wgRegion, BUYER_ID).join();
+
+            InOrder order = inOrder(realtyApi, economyProvider);
+            order.verify(realtyApi).executeBuy(REGION_ID, WORLD_ID, BUYER_ID);
+            order.verify(realtyApi).getRegionPlaceholders(REGION_ID, WORLD_ID);
+            order.verify(economyProvider).transfer(eq(BUYER_ID), any(UUID.class), eq(1000.0), any());
+            order.verifyNoMoreInteractions();
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
         }
 
         @Test
