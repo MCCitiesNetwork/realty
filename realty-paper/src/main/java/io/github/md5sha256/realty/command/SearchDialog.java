@@ -442,7 +442,7 @@ public final class SearchDialog {
             command.append(" --occupancy ").append(occupancy.name());
         }
         command.append(" --page ").append(targetPage);
-        return parseMiniMessage(key, "<command>", command.toString());
+        return messages.commandLink(key, command.toString());
     }
 
     private @NotNull Component parseMiniMessage(@NotNull String key,

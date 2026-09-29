@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -48,7 +49,8 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
 
         ListResult result = logic.listRegions(GOV, 10, 0);
         Assertions.assertEquals(2, result.landlordCount());
-        Assertions.assertEquals(List.of(first, second), ids(result.landlord()).stream().sorted().toList());
+        Assertions.assertEquals(Set.of(first, second), Set.copyOf(ids(result.landlord())));
+        Assertions.assertEquals(2, result.landlord().size());
     }
 
     @Test

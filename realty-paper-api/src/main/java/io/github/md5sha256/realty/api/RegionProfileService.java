@@ -194,9 +194,14 @@ public class RegionProfileService {
         }
 
         MiniMessage miniMessage = MiniMessage.miniMessage();
+        // The lines are MiniMessage, but a value is not: a landlord or authority may be an account
+        // whose display name its owner chooses. Escaped, a value shows as text and adds no tags.
+        // Commands and flags are not MiniMessage and take the values as they are.
+        Map<String, String> escaped = new HashMap<>(placeholders.size());
+        placeholders.forEach((key, value) -> escaped.put(key, miniMessage.escapeTags(value)));
         List<Component> resolvedLines = new ArrayList<>(effective.lines().size());
         for (String line : effective.lines()) {
-            resolvedLines.add(miniMessage.deserialize(replacePlaceholders(line, placeholders)));
+            resolvedLines.add(miniMessage.deserialize(replacePlaceholders(line, escaped)));
         }
 
         List<String> resolvedRightClick = resolveCommands(effective.rightClickCommands(), placeholders);

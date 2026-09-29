@@ -168,7 +168,7 @@ public record ListCommand(
             }
 
             TextComponent.Builder builder = Component.text();
-            builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", shownName));
+            builder.append(header(messages, shownName));
             appendCategory(builder, "Owned", result.owned());
             appendCategory(builder, "Landlord", result.landlord());
             appendRentedCategory(builder, "Rented", result.rented());
@@ -176,7 +176,7 @@ public record ListCommand(
             sender.sendMessage(builder.build());
         }, executorState.dbExec()).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.LIST_ERROR,
-                    Placeholder.unparsed("error", ex.getMessage())));
+                    Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
             return null;
         });
     }
@@ -205,7 +205,7 @@ public record ListCommand(
 
             String label = "owned".equals(category) ? "Owned" : "Rented";
             TextComponent.Builder builder = Component.text();
-            builder.append(parseMiniMessage(MessageKeys.LIST_HEADER, "<player>", shownName));
+            builder.append(header(messages, shownName));
             if ("owned".equals(category)) {
                 appendCategory(builder, label, result.regions());
             } else {
@@ -215,7 +215,7 @@ public record ListCommand(
             sender.sendMessage(builder.build());
         }, executorState.dbExec()).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.LIST_ERROR,
-                    Placeholder.unparsed("error", ex.getMessage())));
+                    Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
             return null;
         });
     }
@@ -276,22 +276,36 @@ public record ListCommand(
                         Placeholder.component("next", nextComponent)));
     }
 
-    /** A page link repeats the name and the type flag it was given; flags follow the name. */
     private @NotNull Component buildNavComponent(@NotNull String key, @NotNull Target target,
                                                  @Nullable String category, int targetPage) {
+        return pageLink(messages, key, category, target.name(), target.flag(), targetPage);
+    }
+
+    /**
+     * The header naming whose regions are listed. The name may be an account's display name, which
+     * its owner chooses, so it is shown as text and never parsed.
+     */
+    static @NotNull Component header(@NotNull MessageContainer messages, @NotNull String shownName) {
+        return messages.messageFor(MessageKeys.LIST_HEADER, Placeholder.unparsed("player", shownName));
+    }
+
+    /** A page link repeats the name and the type flag it was given; flags follow the name. */
+    static @NotNull Component pageLink(@NotNull MessageContainer messages, @NotNull String key,
+                                       @Nullable String category, @Nullable String name,
+                                       @Nullable PartyFlag flag, int targetPage) {
         StringBuilder command = new StringBuilder("/realty list");
         if (category != null) {
             command.append(' ').append(category);
         }
-        if (target.name() != null) {
-            command.append(' ').append(target.name());
+        if (name != null) {
+            command.append(' ').append(name);
         }
         command.append(" --page ").append(targetPage);
-        if (target.flag() != null) {
-            command.append(" --").append(target.flag().name().toLowerCase(Locale.ROOT));
+        if (flag != null) {
+            command.append(" --").append(flag.name().toLowerCase(Locale.ROOT));
         }
-        return parseMiniMessage(key,
-                "<command>", command.toString());
+        // The name is as the sender typed it, so it goes into the click event as plain text.
+        return messages.commandLink(key, command.toString());
     }
 
     private @NotNull Component parseMiniMessage(@NotNull String key,
