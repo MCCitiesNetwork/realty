@@ -22,6 +22,7 @@ party:
         <yellow>/realty group map</yellow> first.
     multiple-type-flags: <prefix> <red>Use only one of --government, --business, --system
         and --group.
+    type-flag-without-name: '<prefix> <red>A type flag needs the name it describes: add <yellow>--<role> <name></yellow>.'
     not-allowed-to-reassign: <prefix> <red>Only an authorizer of <yellow><name></yellow>
         can give this role to someone else.
     not-allowed-to-assign: <prefix> <red>You cannot give this role to <yellow><name></yellow>,
@@ -311,21 +312,23 @@ help:
     admin:
     - <prefix> Administrative Commands
     - <dark_grey>►</dark_grey> <red>/realty create freehold <name> [--price <price>]
-        [--titleholder <player>] [--authority <player>]</red> <grey>- Create a freehold</grey>
+        [--titleholder <player>] [--authority <name> [type flag]]</red> <grey>- Create a freehold</grey>
     - <dark_grey>►</dark_grey> <red>/realty create leasehold <price> <period> <maxextensions>
-        [--landlord <name>] <region></red> <grey>- Create a leasehold</grey>
+        [--landlord <name> [type flag]] <region></red> <grey>- Create a leasehold</grey>
     - <dark_grey>►</dark_grey> <red>/realty delete <region> [includeworldguard]</red>
         <grey>- Delete a region</grey>
     - <dark_grey>►</dark_grey> <red>/realty reload</red> <grey>- Reload configuration</grey>
-    - <dark_grey>►</dark_grey> <red>/realty set authority <player> <region></red>
+    - <dark_grey>►</dark_grey> <red>/realty set authority <name> [type flag] <region></red>
         <gray>- Set freehold authority</gray>
+    - <dark_grey>►</dark_grey> <grey>A type flag, one of --government, --business, --system
+        or --group, makes the name an account or a group instead of a player.</grey>
     management:
     - <prefix> Management Commands
     - <blue>/realty set price <price> <region></blue> <gray>- Set freehold or leasehold
         price</gray>
     - <blue>/realty unset price <region></blue> <gray>- Remove region freehold price</gray>
     - <blue>/realty set duration <duration> <region></blue> <gray>- Set lease duration</gray>
-    - <blue>/realty set landlord <player> <region></blue> <gray>- Set lease landlord</gray>
+    - <blue>/realty set landlord <name> [type flag] <region></blue> <gray>- Set lease landlord</gray>
     - <blue>/realty set titleholder <player> <region></blue> <gray>- Set freehold
         title holder</gray>
     - <blue>/realty unset titleholder <region></blue> <gray>- Clear freehold title

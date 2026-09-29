@@ -24,6 +24,7 @@ public final class MessageKeys {
     public static final String PARTY_REQUIRES_TREASURY = "party.requires-treasury";
     public static final String PARTY_GROUP_NOT_MAPPED = "party.group-not-mapped";
     public static final String PARTY_MULTIPLE_TYPE_FLAGS = "party.multiple-type-flags";
+    public static final String PARTY_TYPE_FLAG_WITHOUT_NAME = "party.type-flag-without-name";
     public static final String PARTY_NOT_ALLOWED_TO_REASSIGN = "party.not-allowed-to-reassign";
     public static final String PARTY_NOT_ALLOWED_TO_ASSIGN = "party.not-allowed-to-assign";
 

@@ -70,6 +70,7 @@ import io.github.md5sha256.realty.command.TransferCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
+import io.github.md5sha256.realty.command.util.PartyFlags;
 import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.database.Database;
@@ -119,6 +120,7 @@ import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
 import org.incendo.cloud.paper.util.sender.PaperSimpleSenderMapper;
 import org.incendo.cloud.paper.util.sender.Source;
+import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.configurate.ConfigurationNode;
@@ -915,6 +917,8 @@ public final class Realty extends JavaPlugin {
         pluginManager.registerEvents(
                 new RegionNotificationListener(this.eventDispatch, messageContainer), this);
 
+        SuggestionProvider<Source> partySuggestions =
+                PartyFlags.suggestions(this.treasury, this.logic, executorState.dbExec());
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
@@ -932,8 +936,10 @@ public final class Realty extends JavaPlugin {
                         messageContainer,
                         this.eventDispatch),
                 new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
-                new CreateCommand(paperApi, this.defaultParties, messageContainer, this.eventDispatch),
-                new RegisterCommand(paperApi, this.defaultParties, messageContainer, this.eventDispatch),
+                new CreateCommand(paperApi, this.defaultParties, this.partyResolver, partySuggestions,
+                        executorState, messageContainer, this.eventDispatch),
+                new RegisterCommand(paperApi, this.defaultParties, this.partyResolver, partySuggestions,
+                        executorState, messageContainer, this.eventDispatch),
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
                 new HistoryCommand(paperApi, this.settings, messageContainer),
                 new InfoCommand(paperApi,
@@ -959,7 +965,8 @@ public final class Realty extends JavaPlugin {
                         this.settings,
                         messageContainer,
                         getLogger()),
-                new SetCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
+                new SetCommandGroup(paperApi, this.actorContexts, this.partyResolver, partySuggestions,
+                        executorState, messageContainer,
                         this.eventDispatch),
                 new ModifyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch),

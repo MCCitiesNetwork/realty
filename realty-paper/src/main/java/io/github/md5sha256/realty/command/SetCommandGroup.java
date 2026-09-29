@@ -11,6 +11,9 @@ import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
+import io.github.md5sha256.realty.command.util.PartyFlag;
+import io.github.md5sha256.realty.command.util.PartyFlags;
+import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LandlordSetEvent;
 import io.github.md5sha256.realty.api.event.PriceChangedEvent;
@@ -32,6 +35,8 @@ import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
+import org.incendo.cloud.parser.standard.StringParser;
+import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -48,16 +53,21 @@ import java.util.function.Consumer;
  * <ul>
  *   <li>{@code /realty set price <price> <region>} — set freehold or leasehold price</li>
  *   <li>{@code /realty set duration <duration> <region>} — set leasehold duration</li>
- *   <li>{@code /realty set landlord <player> <region>} — set leasehold landlord</li>
+ *   <li>{@code /realty set landlord <name> [type flag] <region>} — set leasehold landlord</li>
  *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
  *   <li>{@code /realty set tenant <player> <region>} — set leasehold tenant</li>
  *   <li>{@code /realty set maxextensions <count> <region>} — set leasehold max extensions (-1 for unlimited)</li>
- *   <li>{@code /realty set authority <player> <region>} — set freehold authority</li>
+ *   <li>{@code /realty set authority <name> [type flag] <region>} — set freehold authority</li>
  * </ul>
+ *
+ * <p>A landlord or authority name is a player unless one of the type flags {@code --government},
+ * {@code --business}, {@code --system} or {@code --group} is given; see {@link PartyFlags}.</p>
  */
 public record SetCommandGroup(
         @NotNull RealtyPaperApi api,
         @NotNull ActorContexts actors,
+        @NotNull PartyResolver partyResolver,
+        @NotNull SuggestionProvider<Source> partySuggestions,
         @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
@@ -90,6 +100,12 @@ public record SetCommandGroup(
         OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
         String name = player.getName();
         return name != null ? name : uuid.toString();
+    }
+
+    /** Interim: a player by name, any other party by its record form. */
+    private static @NotNull String resolveName(@NotNull Party party) {
+        UUID playerUuid = Party.playerUuidOf(party);
+        return playerUuid != null ? resolveName(playerUuid) : party.toString();
     }
 
     /**
@@ -191,10 +207,10 @@ public record SetCommandGroup(
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetDuration)
                         .build(),
-                base.literal("landlord")
+                PartyFlags.addTo(base.literal("landlord")
                         .permission("realty.command.set.landlord")
-                        .required("landlord", AuthorityParser.authority())
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                        .required("landlord", StringParser.stringParser(), partySuggestions)
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver()))
                         .handler(this::executeSetLandlord)
                         .build(),
                 titleholderCommand,
@@ -210,10 +226,10 @@ public record SetCommandGroup(
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                         .handler(this::executeSetMaxExtensions)
                         .build(),
-                base.literal("authority")
+                PartyFlags.addTo(base.literal("authority")
                         .permission("realty.command.set.authority")
-                        .required("authority", AuthorityParser.authority())
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                        .required("authority", StringParser.stringParser(), partySuggestions)
+                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver()))
                         .handler(this::executeSetAuthority)
                         .build()
         );
@@ -297,7 +313,11 @@ public record SetCommandGroup(
 
     private void executeSetLandlord(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
-        UUID landlordId = ctx.get("landlord");
+        if (!(PartyFlags.read(ctx) instanceof PartyFlags.Read.One(PartyFlag flag))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.PARTY_MULTIPLE_TYPE_FLAGS));
+            return;
+        }
+        String landlordName = ctx.get("landlord");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
@@ -305,16 +325,16 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        Party newLandlord = new Party.Personal(landlordId);
-        // The current landlord must be one the player may reassign; the backend also requires a non-admin
-        // to manage the new landlord.
+        PartyFlags.resolveThen(partyResolver, executorState, messages, sender, landlordName, flag, newLandlord ->
+        // The current landlord must be one the player may reassign; the new landlord is tested too: a
+        // non-admin may only hand the lease to a party they manage.
         authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", null, SET_LANDLORD_GATE,
                 actor ->
         api.setLandlord(region, newLandlord, actor).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetLandlordResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
-                                Placeholder.unparsed("landlord", resolveName(landlordId)),
+                                Placeholder.unparsed("landlord", landlordName),
                                 Placeholder.unparsed("region", success.regionId())));
                         events.fireSync(new LandlordSetEvent(region, newLandlord, success.previousLandlord()));
                 }
@@ -324,16 +344,17 @@ public record SetCommandGroup(
                 case RealtyPaperApi.SetLandlordResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));
-                // These refusals have no messages of their own yet.
-                case RealtyPaperApi.SetLandlordResult.NotAllowedToReassign ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                case RealtyPaperApi.SetLandlordResult.NotAllowedToReassign notAllowed ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PARTY_NOT_ALLOWED_TO_REASSIGN,
+                                Placeholder.unparsed("name", resolveName(notAllowed.current()))));
                 case RealtyPaperApi.SetLandlordResult.NotAllowedToAssign ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                        sender.sendMessage(messages.messageFor(MessageKeys.PARTY_NOT_ALLOWED_TO_ASSIGN,
+                                Placeholder.unparsed("name", landlordName)));
                 case RealtyPaperApi.SetLandlordResult.Error error ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_ERROR,
                                 Placeholder.unparsed("error", error.message())));
             }
-        }), newLandlord);
+        }), newLandlord));
     }
 
     private void executeSetTitleHolder(@NotNull CommandContext<Source> ctx) {
@@ -447,9 +468,18 @@ public record SetCommandGroup(
         }));
     }
 
+    /**
+     * The permission {@code realty.command.set.authority} alone decides who may run this: whoever
+     * holds it may set the authority of any region to any party, so no ownership or assignment
+     * check is made here.
+     */
     private void executeSetAuthority(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
-        UUID authorityId = ctx.get("authority");
+        if (!(PartyFlags.read(ctx) instanceof PartyFlags.Read.One(PartyFlag flag))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.PARTY_MULTIPLE_TYPE_FLAGS));
+            return;
+        }
+        String authorityName = ctx.get("authority");
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
@@ -459,17 +489,12 @@ public record SetCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.set.authority.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            return;
-        }
-        api.setAuthority(regionId, worldId, new Party.Personal(authorityId)).thenAccept(result -> {
+        PartyFlags.resolveThen(partyResolver, executorState, messages, sender, authorityName, flag, authority ->
+        api.setAuthority(regionId, worldId, authority).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.SetAuthorityResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_SUCCESS,
-                                Placeholder.unparsed("authority", resolveName(authorityId)),
+                                Placeholder.unparsed("authority", authorityName),
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.SetAuthorityResult.NoFreeholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_NO_FREEHOLD_CONTRACT,
@@ -478,7 +503,7 @@ public record SetCommandGroup(
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
             }
-        });
+        }));
     }
 
 }
