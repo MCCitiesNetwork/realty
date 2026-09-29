@@ -343,7 +343,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 }
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.SET_PRICE.name(),
-                        Party.playerUuidOf(freehold.authority()),
+                        freehold.titleHolderId(),
                         wrapper.partyMapper().findOrInsert(freehold.authority()), price);
                 wrapper.session().commit();
                 return new SetPriceResult.Success();
@@ -391,7 +391,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             double previousPrice = freehold.price() != null ? freehold.price() : 0;
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.UNSET_PRICE.name(),
-                    Party.playerUuidOf(freehold.authority()),
+                    freehold.titleHolderId(),
                     wrapper.partyMapper().findOrInsert(freehold.authority()), previousPrice);
             wrapper.session().commit();
             return new UnsetPriceResult.Success();
@@ -530,11 +530,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                         HistoryEventType.SET_TITLEHOLDER.name(),
                         titleHolderId, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
             } else {
-                UUID historyBuyerId = previousTitleHolder != null
-                        ? previousTitleHolder : Party.playerUuidOf(freehold.authority());
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.UNSET_TITLEHOLDER.name(),
-                        historyBuyerId, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
+                        previousTitleHolder, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
             }
             wrapper.session().commit();
             return new SetTitleHolderResult.Success(previousTitleHolder);
@@ -565,11 +563,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                         HistoryEventType.SET_TITLEHOLDER.name(),
                         titleHolderId, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
             } else {
-                UUID historyBuyerId = previousTitleHolder != null
-                        ? previousTitleHolder : Party.playerUuidOf(freehold.authority());
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.UNSET_TITLEHOLDER.name(),
-                        historyBuyerId, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
+                        previousTitleHolder, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
             }
             wrapper.session().commit();
             return new SetTitleHolderResult.Success(previousTitleHolder);

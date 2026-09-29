@@ -28,7 +28,7 @@ public interface MariaFreeholdHistoryMapper extends FreeholdHistoryMapper {
     int insert(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                @Param("worldId") @NotNull UUID worldId,
                @Param("eventType") @NotNull String eventType,
-               @Param("buyerId") @NotNull UUID buyerId,
+               @Param("buyerId") @Nullable UUID buyerId,
                @Param("authorityPartyId") int authorityPartyId,
                @Param("price") double price);
 
@@ -46,7 +46,7 @@ public interface MariaFreeholdHistoryMapper extends FreeholdHistoryMapper {
     int insertReturningId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                           @Param("worldId") @NotNull UUID worldId,
                           @Param("eventType") @NotNull String eventType,
-                          @Param("buyerId") @NotNull UUID buyerId,
+                          @Param("buyerId") @Nullable UUID buyerId,
                           @Param("authorityPartyId") int authorityPartyId,
                           @Param("price") double price);
 

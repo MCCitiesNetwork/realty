@@ -158,7 +158,8 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                 builder.append(
                                         messages.messageFor(messageKey,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), freehold.eventTime())),
-                                                Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
+                                                Placeholder.unparsed("buyer",
+                                                        freehold.buyerId() != null ? resolveName(freehold.buyerId()) : "N/A"),
                                                 Placeholder.unparsed("authority", resolveName(freehold.authority())),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
                             }

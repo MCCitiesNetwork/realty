@@ -13,7 +13,7 @@ public interface FreeholdHistoryMapper {
     int insert(@NotNull String worldGuardRegionId,
                @NotNull UUID worldId,
                @NotNull String eventType,
-               @NotNull UUID buyerId,
+               @Nullable UUID buyerId,
                int authorityPartyId,
                double price);
 
@@ -24,7 +24,7 @@ public interface FreeholdHistoryMapper {
     int insertReturningId(@NotNull String worldGuardRegionId,
                           @NotNull UUID worldId,
                           @NotNull String eventType,
-                          @NotNull UUID buyerId,
+                          @Nullable UUID buyerId,
                           int authorityPartyId,
                           double price);
 

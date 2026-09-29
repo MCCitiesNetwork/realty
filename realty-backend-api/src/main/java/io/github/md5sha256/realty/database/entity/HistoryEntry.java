@@ -16,7 +16,7 @@ public sealed interface HistoryEntry permits HistoryEntry.Freehold, HistoryEntry
     record Freehold(
             @NotNull String eventType,
             @NotNull LocalDateTime eventTime,
-            @NotNull UUID buyerId,
+            @Nullable UUID buyerId,
             @NotNull Party authority,
             double price
     ) implements HistoryEntry {}
