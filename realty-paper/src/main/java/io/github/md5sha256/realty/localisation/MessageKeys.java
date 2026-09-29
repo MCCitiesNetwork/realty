@@ -14,6 +14,18 @@ public final class MessageKeys {
     public static final String COMMON_ERROR = "common.error";
     public static final String COMMON_ACTION_CANCELLED = "common.action-cancelled";
 
+    // party
+    public static final String PARTY_UNKNOWN_ACCOUNT = "party.unknown-account";
+    public static final String PARTY_ACCOUNT_AMBIGUOUS = "party.account-ambiguous";
+    public static final String PARTY_ARCHIVED_ACCOUNT = "party.archived-account";
+    public static final String PARTY_TYPE_MISMATCH = "party.type-mismatch";
+    public static final String PARTY_REQUIRES_AUTHORIZATION = "party.requires-authorization";
+    public static final String PARTY_REQUIRES_TREASURY = "party.requires-treasury";
+    public static final String PARTY_GROUP_NOT_MAPPED = "party.group-not-mapped";
+    public static final String PARTY_MULTIPLE_TYPE_FLAGS = "party.multiple-type-flags";
+    public static final String PARTY_NOT_ALLOWED_TO_REASSIGN = "party.not-allowed-to-reassign";
+    public static final String PARTY_NOT_ALLOWED_TO_ASSIGN = "party.not-allowed-to-assign";
+
     // accept-offer
     public static final String ACCEPT_OFFER_SUCCESS = "accept-offer.success";
     public static final String ACCEPT_OFFER_NO_OFFER = "accept-offer.no-offer";

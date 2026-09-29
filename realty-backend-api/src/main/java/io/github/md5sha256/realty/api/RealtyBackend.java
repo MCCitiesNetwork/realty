@@ -638,6 +638,12 @@ public interface RealtyBackend {
     /** Every party in the Party table that is not a player: each account and each group. */
     @NotNull List<Party> listNonPlayerParties();
 
+    /**
+     * The group's mapped party, or {@code null} if {@code /realty group map} has not created
+     * one for it yet. The lookup is case-insensitive.
+     */
+    @Nullable Party.Group findGroupParty(@NotNull String groupName);
+
     @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     @Nullable RegionState getRegionState(@NotNull String worldGuardRegionId, @NotNull UUID worldId);

@@ -1330,6 +1330,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
+    public @Nullable Party.Group findGroupParty(@NotNull String groupName) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.partyMapper().findGroupParty(groupName);
+        }
+    }
+
+    @Override
     public @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);

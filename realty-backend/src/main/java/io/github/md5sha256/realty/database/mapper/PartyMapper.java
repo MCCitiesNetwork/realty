@@ -18,4 +18,10 @@ public interface PartyMapper {
 
     /** Every party that is not PERSONAL, in the order the rows were created. */
     @NotNull List<Party> selectNonPersonal();
+
+    /**
+     * The group's mapped party, or {@code null} if the group has no account yet. Group names
+     * are stored in lower case; {@code groupName} is looked up case-insensitively.
+     */
+    @Nullable Party.Group findGroupParty(@NotNull String groupName);
 }

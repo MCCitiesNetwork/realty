@@ -189,6 +189,33 @@ class PartyMapperTest extends AbstractDatabaseTest {
         }
     }
 
+    @Test
+    void findGroupParty_returnsTheMappedParty() throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            insertGroupRow(wrapper, "police", 42, AccountKind.GOVERNMENT);
+
+            Assertions.assertEquals(new Party.Group("police", 42, AccountKind.GOVERNMENT),
+                    wrapper.partyMapper().findGroupParty("police"));
+        }
+    }
+
+    @Test
+    void findGroupParty_isCaseInsensitive() throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            insertGroupRow(wrapper, "police", 42, AccountKind.GOVERNMENT);
+
+            Assertions.assertEquals(new Party.Group("police", 42, AccountKind.GOVERNMENT),
+                    wrapper.partyMapper().findGroupParty("Police"));
+        }
+    }
+
+    @Test
+    void findGroupParty_unmappedIsNull() {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            Assertions.assertNull(wrapper.partyMapper().findGroupParty("mafia"));
+        }
+    }
+
     private static int insertGroupRow(SqlSessionWrapper wrapper, String groupName, int accountId,
                                       AccountKind accountKind) throws SQLException {
         return TestParties.insertGroup(wrapper.session().getConnection(), groupName, accountId, accountKind);

@@ -17,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 public interface MariaPartyMapper extends PartyMapper {
@@ -165,4 +166,14 @@ public interface MariaPartyMapper extends PartyMapper {
             """)
     @ResultMap("party")
     @NotNull List<Party> selectNonPersonal();
+
+    @Override
+    default @Nullable Party.Group findGroupParty(@NotNull String groupName) {
+        Integer partyId = selectGroupId(groupName.toLowerCase(Locale.ROOT));
+        if (partyId == null) {
+            return null;
+        }
+        Party party = selectById(partyId);
+        return party instanceof Party.Group group ? group : null;
+    }
 }

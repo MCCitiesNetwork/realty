@@ -7,6 +7,24 @@ common:
     no-permission: You do not have permission to run this command.
     error: 'An error occurred: <error>'
     action-cancelled: That action was blocked.
+party:
+    unknown-account: <prefix> <red>No <type> account named <yellow><name></yellow> was found.
+        For a business or system account that is not yours, write <yellow>#<id></yellow>.
+    account-ambiguous: <prefix> <red>You belong to more than one <type> account named
+        <yellow><name></yellow>. Write <yellow>#<id></yellow> instead.
+    archived-account: <prefix> <red>The account <yellow><name></yellow> is archived.
+    type-mismatch: <prefix> <red>The account <yellow><name></yellow> is not a <type> account.
+    requires-authorization: <prefix> <red>The account <yellow><name></yellow> requires
+        authorization for every transfer, so it cannot hold this role.
+    requires-treasury: <prefix> <red>Accounts and groups as parties require Treasury.
+    group-not-mapped: <prefix> <red>The group <yellow><name></yellow> has no account. Run
+        <yellow>/realty group map</yellow> first.
+    multiple-type-flags: <prefix> <red>Use only one of --government, --business, --system
+        and --group.
+    not-allowed-to-reassign: <prefix> <red>Only an authorizer of <yellow><name></yellow>
+        can give this role to someone else.
+    not-allowed-to-assign: <prefix> <red>You cannot give this role to <yellow><name></yellow>,
+        because you do not act for it.
 accept-offer:
     success: <prefix> You have <green>accepted <player>'s offer</green> for region
         <yellow><region>.</yellow>
@@ -29,7 +47,7 @@ agent-invite:
     not-titleholder: <prefix> You are not the title holder of region <yellow><region>.</yellow>
     is-titleholder: <prefix> <player> is the title holder of region <yellow><region></yellow>
         and cannot be invited as an agent.
-    is-authority: <prefix> <player> is the authority of region <yellow><region></yellow>
+    is-authority: <prefix> <player> acts for the authority of region <yellow><region></yellow>
         and cannot be invited as an agent.
     no-freehold: <prefix> Region <yellow><region></yellow> is not a freehold.
     error: '<prefix> Failed to invite agent: <error>'
