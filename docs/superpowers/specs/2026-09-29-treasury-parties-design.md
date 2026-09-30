@@ -135,7 +135,9 @@ CREATE TABLE GroupParty (
 - What the database cannot require is that every base row has a kind row.
   `PartyMapper` is the only writer in the code and inserts both rows in one
   transaction; the manual fix in the release notes does the same. A base row
-  with no kind row fails loudly when read.
+  with no kind row can only come from hand-written SQL. The direct reads
+  (`selectById`, `selectNonPersonal`) leave such a row out; a contract or
+  history entry that names one cannot be read.
 - A group points at its account's party row, so an account's kind is stored
   once. `accountPartyId` is not unique: several groups may share one account.
   Mapping a group creates the account's party row if it has none. Nothing
