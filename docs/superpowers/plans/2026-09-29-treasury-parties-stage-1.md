@@ -27,7 +27,7 @@
 - On a server without Treasury, only players can be parties. Every type flag is refused with "requires Treasury".
 - Inject the interfaces that already exist (`TreasuryApi`, Vault's `Permission`, Bukkit's `Server`). Do not add a wrapper type that only forwards calls.
 - Backend tests need Docker. Start Docker before you run `:realty-backend:test`.
-- Deliver the work as a stack of draft pull requests with `gh stack`. Each PR description is one plain paragraph: no headings, lists, emoji or footer. Never run `gh stack merge`.
+- Deliver the work as a stack of draft pull requests with `gh stack`. Each PR title starts with the plan part it delivers, such as `[Plan 3/6: Authorization]`. Each PR description is one plain paragraph, followed by labelled lines: **Plan** (the part and its tasks), **Spec** (links to the sections it implements, pinned to a commit), and, only where they apply, **Left for later** and **Differs from the plan**. No headings, emoji or footer. Never run `gh stack merge`.
 
 ## Verified before writing
 
