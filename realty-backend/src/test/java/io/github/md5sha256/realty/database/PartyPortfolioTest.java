@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -201,6 +202,68 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
         for (ListResult page : List.of(first, second, third)) {
             Assertions.assertEquals(8, page.totalCount());
         }
+    }
+
+    @Test
+    void paging_keepsEachPartInRegionOrder() {
+        // Created out of name order and across two worlds, so a page that is not ordered on the
+        // region shows it. Paged one region at a time, every part comes back complete, with
+        // nothing repeated, in the order of the region's name.
+        Party.Personal a = new Party.Personal(PLAYER_A);
+        UUID otherWorld = UUID.randomUUID();
+        List<String> names = List.of("order_e", "order_b", "order_d", "order_a", "order_c");
+        for (int i = 0; i < names.size(); i++) {
+            UUID world = i % 2 == 0 ? WORLD_ID : otherWorld;
+            String rented = names.get(i) + "_rented";
+            Assertions.assertTrue(logic.createFreehold(names.get(i) + "_owned", world, 1000.0, GOV, PLAYER_A));
+            Assertions.assertTrue(logic.createFreehold(names.get(i) + "_authority", world, 1000.0, a, PLAYER_B));
+            Assertions.assertTrue(logic.createLeasehold(names.get(i) + "_let", world, 200.0, 86400, 5, a));
+            Assertions.assertTrue(logic.createLeasehold(rented, world, 200.0, 86400, 5, GOV));
+            logic.rentRegion(rented, world, PLAYER_A);
+        }
+        List<String> sorted = names.stream().sorted().toList();
+
+        Assertions.assertEquals(suffixed(sorted, "_owned"),
+                pageThrough((limit, offset) -> logic.listOwnedRegions(a, limit, offset)));
+        Assertions.assertEquals(suffixed(sorted, "_authority"),
+                pageThrough((limit, offset) -> logic.listAuthorityRegions(a, limit, offset)));
+        Assertions.assertEquals(suffixed(sorted, "_let"),
+                pageThrough((limit, offset) -> logic.listLandlordRegions(a, limit, offset)));
+        Assertions.assertEquals(suffixed(sorted, "_rented"),
+                pageThrough((limit, offset) -> logic.listRentedRegions(a, limit, offset)));
+
+        List<String> expected = new ArrayList<>();
+        for (String suffix : List.of("_owned", "_authority", "_let", "_rented")) {
+            expected.addAll(suffixed(sorted, suffix));
+        }
+        List<String> listed = new ArrayList<>();
+        for (int offset = 0; offset < expected.size(); offset += 3) {
+            ListResult page = logic.listRegions(a, 3, offset);
+            listed.addAll(ids(page.owned()));
+            listed.addAll(ids(page.authority()));
+            listed.addAll(ids(page.landlord()));
+            listed.addAll(ids(page.rented()));
+        }
+        Assertions.assertEquals(expected, listed);
+    }
+
+    private interface Pager {
+        RealtyBackend.SingleCategoryResult page(int limit, int offset);
+    }
+
+    private static List<String> pageThrough(Pager pager) {
+        List<String> all = new ArrayList<>();
+        for (int offset = 0; ; offset++) {
+            RealtyBackend.SingleCategoryResult page = pager.page(1, offset);
+            if (page.regions().isEmpty()) {
+                return all;
+            }
+            all.addAll(ids(page.regions()));
+        }
+    }
+
+    private static List<String> suffixed(List<String> names, String suffix) {
+        return names.stream().map(name -> name + suffix).toList();
     }
 
     @Test

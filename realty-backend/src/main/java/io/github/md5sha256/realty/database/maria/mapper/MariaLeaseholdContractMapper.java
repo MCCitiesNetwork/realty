@@ -227,7 +227,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             WHERE lc.tenantId = #{tenantId}
-            ORDER BY rr.worldGuardRegionId
+            ORDER BY rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId
             LIMIT #{limit} OFFSET #{offset}
             """)
     @ConstructorArgs({

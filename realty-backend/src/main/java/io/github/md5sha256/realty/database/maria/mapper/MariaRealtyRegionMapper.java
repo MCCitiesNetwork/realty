@@ -108,6 +108,7 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
             INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
             WHERE fc.titleHolderId = #{playerId}
+            ORDER BY rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId
             LIMIT #{limit} OFFSET #{offset}
             """)
     @ConstructorArgs({
@@ -126,6 +127,7 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'freehold'
             INNER JOIN FreeholdContract fc ON fc.freeholdContractId = c.contractId
             WHERE fc.authorityPartyId = #{authorityPartyId}
+            ORDER BY rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId
             LIMIT #{limit} OFFSET #{offset}
             """)
     @ConstructorArgs({
@@ -144,6 +146,7 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
             INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
             WHERE lc.landlordPartyId = #{landlordPartyId}
+            ORDER BY rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId
             LIMIT #{limit} OFFSET #{offset}
             """)
     @ConstructorArgs({
@@ -162,6 +165,7 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
             INNER JOIN Contract c ON c.realtyRegionId = rr.realtyRegionId AND c.contractType = 'leasehold'
             INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
             WHERE lc.tenantId = #{playerId}
+            ORDER BY rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId
             LIMIT #{limit} OFFSET #{offset}
             """)
     @ConstructorArgs({
