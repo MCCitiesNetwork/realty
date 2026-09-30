@@ -1,7 +1,8 @@
 # Treasury Parties — Design
 
 Date: 2026-09-29
-Revised: 2026-09-30, to describe stage 1 as built. The decisions the stage 1 plan
+Revised: 2026-09-30, to describe stage 1 as built, and again the same day for
+per-kind party tables. The decisions the stage 1 plan
 took where this spec was silent are folded in, and so are the choices made while
 building and reviewing it.
 Status: Draft, pending review
@@ -87,34 +88,64 @@ Group names are stored in lower case and matched without regard to case, so
 
 ### Schema (migration V19)
 
+A party is one row in a base table that gives it an id and a kind, plus one row
+in the table of that kind holding its details. Contracts and history point at
+the base row.
+
 ```sql
 CREATE TABLE Party (
-    partyId          INT PRIMARY KEY AUTO_INCREMENT,
-    kind             ENUM ('PERSONAL','BUSINESS','GOVERNMENT','SYSTEM','GROUP') NOT NULL,
-    playerUuid       UUID         NULL UNIQUE,
-    accountId        INT          NULL UNIQUE,
-    groupName        VARCHAR(64)  NULL UNIQUE,
-    groupAccountId   INT          NULL,
-    groupAccountKind ENUM ('BUSINESS','GOVERNMENT','SYSTEM') NULL,
-    CONSTRAINT chk_party_shape CHECK (
-        (kind = 'PERSONAL'
-            AND playerUuid IS NOT NULL AND accountId IS NULL AND groupName IS NULL
-            AND groupAccountId IS NULL AND groupAccountKind IS NULL)
-        OR (kind IN ('BUSINESS','GOVERNMENT','SYSTEM')
-            AND playerUuid IS NULL AND accountId IS NOT NULL AND groupName IS NULL
-            AND groupAccountId IS NULL AND groupAccountKind IS NULL)
-        OR (kind = 'GROUP'
-            AND playerUuid IS NULL AND accountId IS NULL AND groupName IS NOT NULL
-            AND groupAccountId IS NOT NULL AND groupAccountKind IS NOT NULL)
-    )
+    partyId INT PRIMARY KEY AUTO_INCREMENT,
+    kind    ENUM ('PERSONAL','ACCOUNT','GROUP') NOT NULL,
+    UNIQUE (partyId, kind)
+);
+
+CREATE TABLE PersonalParty (
+    partyId    INT PRIMARY KEY,
+    kind       ENUM ('PERSONAL','ACCOUNT','GROUP') NOT NULL DEFAULT 'PERSONAL' CHECK (kind = 'PERSONAL'),
+    playerUuid UUID NOT NULL UNIQUE,
+    FOREIGN KEY (partyId, kind) REFERENCES Party (partyId, kind)
+);
+
+CREATE TABLE AccountParty (
+    partyId     INT PRIMARY KEY,
+    kind        ENUM ('PERSONAL','ACCOUNT','GROUP') NOT NULL DEFAULT 'ACCOUNT' CHECK (kind = 'ACCOUNT'),
+    accountId   INT NOT NULL UNIQUE,
+    accountKind ENUM ('BUSINESS','GOVERNMENT','SYSTEM') NOT NULL,
+    FOREIGN KEY (partyId, kind) REFERENCES Party (partyId, kind)
+);
+
+CREATE TABLE GroupParty (
+    partyId        INT PRIMARY KEY,
+    kind           ENUM ('PERSONAL','ACCOUNT','GROUP') NOT NULL DEFAULT 'GROUP' CHECK (kind = 'GROUP'),
+    groupName      VARCHAR(64) NOT NULL UNIQUE,
+    accountPartyId INT NOT NULL,
+    FOREIGN KEY (partyId, kind) REFERENCES Party (partyId, kind),
+    FOREIGN KEY (accountPartyId) REFERENCES AccountParty (partyId)
 );
 ```
 
-`groupAccountId` is not unique: several groups may share one account. An
-account's own kind is stored because Treasury does not allow it to change
-(`updateAccount` mutates only name, authorization, archive state, overdraft and
-credit limit) and because `realty-rest` cannot ask Treasury. Display names are
-**not** stored; accounts can be renamed, so names are looked up when shown.
+- `Party.kind` says which table holds the details; `accountKind` says what
+  kind of Treasury account. A new Treasury account type extends `accountKind`
+  only.
+- The composite `(partyId, kind)` foreign key means a kind row can only attach
+  to a base row of its own kind, so no column is nullable and no multi-branch
+  check is needed. Each child's `kind` column must be the same enum as
+  `Party.kind`, because InnoDB compares enum foreign keys by position; the
+  one-value `CHECK` pins it.
+- What the database cannot require is that every base row has a kind row.
+  `PartyMapper` is the only writer in the code and inserts both rows in one
+  transaction; the manual fix in the release notes does the same. A base row
+  with no kind row fails loudly when read.
+- A group points at its account's party row, so an account's kind is stored
+  once. `accountPartyId` is not unique: several groups may share one account.
+  Mapping a group creates the account's party row if it has none. Nothing
+  deletes an account party in stage 1; the foreign key would refuse it while a
+  group points at it.
+- An account's own kind is stored because Treasury does not allow it to change
+  (`updateAccount` mutates only name, authorization, archive state, overdraft
+  and credit limit) and because `realty-rest` cannot ask Treasury. Display
+  names are **not** stored; accounts can be renamed, so names are looked up
+  when shown.
 
 Stage 1 replaces two role columns with party foreign keys:
 
@@ -125,12 +156,14 @@ Stage 1 replaces two role columns with party foreign keys:
 | `FreeholdContract` | `authorityId UUID` | `authorityPartyId INT` |
 | `FreeholdHistory` | `authorityId UUID` | `authorityPartyId INT` |
 
-The migration, in SQL only:
+The migration, in SQL only, drops nothing before it has been copied forward:
 
-1. Create `Party`.
-2. `INSERT INTO Party (kind, playerUuid) SELECT DISTINCT 'PERSONAL', …` over the
-   union of the four old columns.
-3. Add each new column nullable, fill it with `UPDATE … JOIN Party ON
+1. Create the four tables.
+2. Collect the distinct UUIDs of the four old columns into a temporary table
+   with an auto-increment id; insert those ids into `Party` as `PERSONAL` and
+   the pairs into `PersonalParty`; drop the temporary table. `AUTO_INCREMENT`
+   continues after the highest id used.
+3. Add each new column nullable, fill it with `UPDATE … JOIN PersonalParty ON
    playerUuid = <old column>`, then make it `NOT NULL` with a foreign key to
    `Party(partyId)`.
 4. Drop `idx_leasehold_contract_landlord`, `idx_freehold_contract_authority`
@@ -150,11 +183,12 @@ are not changed.
 `FreeholdContractEntity.authorityId()` becomes `authority(): Party`. Tenant and
 titleholder keep their `UUID` components until their stages; the entities gain
 `tenant()` and `titleHolder()`, which return a `Party.Personal`. Every read
-joins `Party` on its primary key, and one shared MyBatis result mapping builds
-the `Party` value, so no mapper assembles it by hand. The one exception is the
-locking (`FOR UPDATE`) read of a freehold, which loads its authority with a
-second query so that the lock does not reach a `Party` row other contracts
-share.
+left-joins the three kind tables on the party id (and `AccountParty` a second
+time for a group's account), never the base table, and one shared MyBatis
+result mapping switches on the kind found to build the `Party` value, so no
+mapper assembles it by hand. The one exception is the locking (`FOR UPDATE`)
+read of a freehold, which loads its authority with a second query so that the
+lock does not reach party rows other contracts share.
 
 A `PartyMapper` offers find-or-insert by identity, used by every write that
 assigns a party:
@@ -162,11 +196,34 @@ assigns a party:
 - An account is identified by its `accountId` alone. A stored account whose
   kind differs from the one asked for is refused, never treated as the same
   party.
-- The row is created in its own short transaction before the caller's, so that
-  two commands naming the same new party at the same moment both succeed. Such
-  a row can outlive a write that is then rolled back; an unused party row is
-  harmless.
+- A party is created as its base row and its kind row in one short
+  transaction before the caller's, so that two commands naming the same new
+  party at the same moment both succeed (the loser of the race re-reads the
+  row the winner made). Such a party can outlive a write that is then rolled
+  back; an unused party is harmless.
+- A group is created by `/realty group map` only: the mapper finds or creates
+  the account's party row, then inserts the group's base and kind rows.
+  Changing the mapping repoints `accountPartyId`; unmapping deletes the group's
+  two rows and leaves the account party.
 - History writes only look up an existing row; they never create one.
+
+The insert for a player who becomes a party, the common case:
+
+```sql
+START TRANSACTION;
+SELECT partyId FROM PersonalParty WHERE playerUuid = ?;   -- found: use it, done
+INSERT INTO Party (kind) VALUES ('PERSONAL');             -- the id comes back as a generated key
+INSERT INTO PersonalParty (partyId, playerUuid) VALUES (?, ?);
+COMMIT;
+```
+
+An account is the same with `AccountParty (partyId, accountId, accountKind)`.
+Mapping a group inserts the account's two rows first if the account has none,
+then `Party ('GROUP')` and `GroupParty (partyId, groupName, accountPartyId)`.
+On each kind-row insert the database checks that `(partyId, kind)` exists in
+`Party` with that kind, that a group's `accountPartyId` is an `AccountParty`
+row, and that the natural key is unique. Contract and history inserts are
+unchanged: they store the party id.
 
 ## Payments
 
@@ -194,7 +251,7 @@ pays from and into:
 |---|---|---|
 | `Personal` | `resolveOrCreatePersonal(uuid)` | the player's balance |
 | `Account` | `getAccountById(accountId)` | refused: requires Treasury |
-| `Group` | `getAccountById(groupAccountId)` | refused: requires Treasury |
+| `Group` | `getAccountById(<the mapped account's id>)` | refused: requires Treasury |
 
 - The GOVERNMENT > PERSONAL > BUSINESS preference in `TreasuryEconomyProvider`
   is removed. A `Personal` party always uses the PERSONAL account.
@@ -527,8 +584,8 @@ outline:
 3. Only once V19 has run, replace and start `realty-rest`; it refuses any other
    schema, so it cannot be deployed alongside the plugin.
 4. For each legacy government UUID, run the manual fix: create the account's
-   `Party` row (`kind = 'GOVERNMENT'`, `accountId = <id>`) if there is none, then
-   repoint that UUID's party id in `LeaseholdContract`, `LeaseholdHistory`,
+   party (a `Party ('ACCOUNT')` row and an `AccountParty` row with
+   `accountKind = 'GOVERNMENT'`) if there is none, then repoint that UUID's party id in `LeaseholdContract`, `LeaseholdHistory`,
    `FreeholdContract` and `FreeholdHistory` to it. The script moves nothing if
    either value is missing, and the notes say how to undo a wrong account id and
    how to repair an account stored under the wrong kind.
@@ -557,10 +614,14 @@ the API major bump; and the two REST changes under *REST*.
 ## Testing
 
 - **Migration:** V19 against seeded data in the `MariaSchemaMigratorTest` setup:
-  every old UUID becomes one PERSONAL party, repointed rows match their originals,
-  and `chk_party_shape` rejects malformed rows.
+  every old UUID becomes one PERSONAL party with its base and kind rows,
+  repointed rows match their originals, a kind row cannot attach to a base row
+  of another kind, a group cannot point at a party that is not an account, and
+  a child's `kind` cannot be anything but its own.
 - **Mappers:** the shared result mapping builds each party kind; `PartyMapper`
-  find-or-insert is idempotent.
+  find-or-insert is idempotent and leaves exactly one base row and one kind
+  row; mapping a group creates the account party when missing and reuses it
+  when present.
 - **Backend authorization:** `manages` and `reassigns` membership, admin bypass,
   conflict of interest with and without `realty.bypass.conflict-of-interest`,
   and self-dealing still refused under the permission.
@@ -614,6 +675,12 @@ the tenant party.
 - **Every party is a Treasury account, players by PERSONAL account id.**
   Rejected: WorldGuard ownership and player checks need UUIDs, and Vault
   support would be lost.
+- **One `Party` table with nullable columns and a `CHECK` on its shape.** The
+  first draft of this spec, and what stage 1 was first built with. Rejected on
+  review: it stores the account type list twice, its shape is a three-branch
+  check the database can only partly express, and per-kind tables cost
+  nothing measurable (three primary-key probes into small cached tables in
+  place of one; tens of microseconds on a joined read at 100k contracts).
 - **Column pairs per role instead of a `Party` table.** Viable with two kinds;
   with three kinds each role needs four columns and a three-branch check,
   repeated across contracts and history for four roles.
