@@ -1660,6 +1660,17 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             return regionId;
         }
 
+        /** A group is mapped by a command, not by the backend, so its row is written directly. */
+        private static String groupLeasehold(Party.Group group) throws SQLException {
+            try (SqlSessionWrapper wrapper = database.openSession(true)) {
+                TestParties.insertGroup(wrapper.session().getConnection(), group.groupName(),
+                        group.accountId(), group.accountKind());
+            }
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, group));
+            return regionId;
+        }
+
         private static Party landlordOf(String regionId) {
             return logic.getLeaseholdContract(regionId, WORLD_ID).landlord();
         }
@@ -1685,6 +1696,32 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             Assertions.assertEquals(new RealtyBackend.SetLandlordResult.NotAllowedToReassign(GOV),
                     logic.setLandlord(regionId, WORLD_ID, new Party.Personal(PLAYER_A), MANAGER));
             Assertions.assertEquals(GOV, landlordOf(regionId));
+        }
+
+        @Test
+        @DisplayName("an authorizer of a group's account who is not in the group can reassign it")
+        void authorizerOfAGroupsAccount_notInTheGroup_canReassign() throws SQLException {
+            Party.Group police = new Party.Group("police", 43, AccountKind.GOVERNMENT);
+            String regionId = groupLeasehold(police);
+            ActorContext authorizer = new ActorContext(PLAYER_A, Set.of(BUSINESS), Set.of(police), false);
+
+            RealtyBackend.SetLandlordResult.Success success = Assertions.assertInstanceOf(
+                    RealtyBackend.SetLandlordResult.Success.class,
+                    logic.setLandlord(regionId, WORLD_ID, BUSINESS, authorizer));
+            Assertions.assertEquals(police, success.previousLandlord());
+            Assertions.assertEquals(BUSINESS, landlordOf(regionId));
+        }
+
+        @Test
+        @DisplayName("a member of a group who does not authorize its account cannot reassign it")
+        void memberOfAGroup_whoIsNotAuthorizer_cannotReassign() throws SQLException {
+            Party.Group rangers = new Party.Group("rangers", 44, AccountKind.GOVERNMENT);
+            String regionId = groupLeasehold(rangers);
+            ActorContext member = new ActorContext(PLAYER_A, Set.of(rangers), Set.of(), false);
+
+            Assertions.assertEquals(new RealtyBackend.SetLandlordResult.NotAllowedToReassign(rangers),
+                    logic.setLandlord(regionId, WORLD_ID, new Party.Personal(PLAYER_A), member));
+            Assertions.assertEquals(rangers, landlordOf(regionId));
         }
 
         @Test
