@@ -118,11 +118,87 @@ class SignProfileNamesTest {
     }
 
     @Test
-    void aKeyThatIsNotATagName_isLeftAsWrittenOnTheLine_andStillFillsCommands() {
+    void aKeyThatIsNotATagName_fillsTheLineAndCommands() {
         RegionProfileService.ResolvedSignProfile resolved = resolve("Cost: <Price> <landlord>", "/pay <Price>",
                 Map.of("Price", "100", "landlord", "Steve"));
 
-        assertEquals("Cost: <Price> Steve", plain(resolved.lines().getFirst()));
+        assertEquals("Cost: 100 Steve", plain(resolved.lines().getFirst()));
         assertEquals(List.of("/pay 100"), resolved.rightClickCommands());
+    }
+
+    @Test
+    void keysWithAnyCharacters_fillTheLine() {
+        Component line = resolve("<sale price> | <price:usd> | <a.b>", "x",
+                Map.of("sale price", "1", "price:usd", "2", "a.b", "3")).lines().getFirst();
+
+        assertEquals("1 | 2 | 3", plain(line));
+    }
+
+    @Test
+    void aKeyThatIsNotATagName_insertsItsValueAsText() {
+        Component line = resolve("<green>Cost: <Price>", "x", Map.of("Price", "<red>x")).lines().getFirst();
+
+        assertEquals("Cost: <red>x", plain(line));
+        assertFalse(tree(line).stream().anyMatch(c -> NamedTextColor.RED.equals(c.color())));
+        assertFalse(tree(line).stream().noneMatch(c -> NamedTextColor.GREEN.equals(c.color())));
+    }
+
+    @Test
+    void aKeyThatIsNotATagName_isNotReadAgainForAnotherPlaceholder() {
+        Component line = resolve("Owner: <Owner>", "x",
+                Map.of("Owner", "<region> <Price>", "region", "plot", "Price", "100")).lines().getFirst();
+
+        assertEquals("Owner: <region> <Price>", plain(line));
+    }
+
+    @Test
+    void keysMatchCaseExactly() {
+        Component line = resolve("<Landlord> <PRICE> <landlord> <Price>", "x",
+                Map.of("landlord", "Steve", "Price", "100")).lines().getFirst();
+
+        assertEquals("<Landlord> <PRICE> Steve 100", plain(line));
+    }
+
+    @Test
+    void anEscapedKey_isShownAsWritten() {
+        Component line = resolve("\\<Price> \\<landlord>", "x",
+                Map.of("Price", "100", "landlord", "Steve")).lines().getFirst();
+
+        assertEquals("<Price> <landlord>", plain(line));
+    }
+
+    @Test
+    void aKeyThatIsNotATagName_worksInsideTheTemplatesTags() {
+        Component line = resolve("<hover:show_text:'Cost <Price>'>Hover</hover>", "x",
+                Map.of("Price", "<b>100")).lines().getFirst();
+
+        assertEquals("Hover", plain(line));
+        Component hover = (Component) tree(line).stream().filter(c -> c.hoverEvent() != null)
+                .findFirst().orElseThrow().hoverEvent().value();
+        assertEquals("Cost <b>100", plain(hover));
+    }
+
+    private static String clickValue(Component line) {
+        return tree(line).stream().filter(c -> c.clickEvent() != null)
+                .findFirst().orElseThrow().clickEvent().value();
+    }
+
+    @Test
+    void aPlaceholderInAClickArgument_isLeftAsWritten() {
+        Map<String, String> values = Map.of("region", "plot; op me", "Price", "100");
+
+        assertEquals("/x <region>", clickValue(resolve("<click:run_command:'/x <region>'>Go</click>", "x",
+                values).lines().getFirst()));
+        assertEquals("/x <Price>", clickValue(resolve("<click:run_command:'/x <Price>'>Go</click>", "x",
+                values).lines().getFirst()));
+    }
+
+    @Test
+    void aPlaceholderAfterATagWithAQuotedArgument_isFilled() {
+        Component line = resolve("<click:run_command:'/x <region>'>Go <Price></click> <region>", "x",
+                Map.of("region", "plot", "Price", "100")).lines().getFirst();
+
+        assertEquals("Go 100 plot", plain(line));
+        assertEquals("/x <region>", clickValue(line));
     }
 }
