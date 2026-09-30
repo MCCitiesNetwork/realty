@@ -9,8 +9,7 @@ import io.github.md5sha256.realty.command.util.PartyFlags;
 import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import net.democracycraft.treasury.api.TreasuryApi;
-import net.democracycraft.treasury.model.economy.Account;
+import io.github.md5sha256.realty.util.PartyNames;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.incendo.cloud.Command;
@@ -42,12 +41,12 @@ import java.util.Locale;
  */
 public record GroupCommandGroup(
         @NotNull RealtyPaperApi api,
-        @Nullable TreasuryApi treasury,
         @NotNull PartyResolver partyResolver,
         @NotNull SuggestionProvider<Source> groupSuggestions,
         @NotNull SuggestionProvider<Source> accountSuggestions,
         @NotNull ExecutorState executorState,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull PartyNames partyNames
 ) implements CustomCommandBean {
 
     @Override
@@ -98,7 +97,7 @@ public record GroupCommandGroup(
                         };
                         return messages.messageFor(MessageKeys.GROUP_MAPPED,
                                 Placeholder.unparsed("group", mapped.groupName()),
-                                Placeholder.unparsed("account", accountName(mapped)));
+                                Placeholder.unparsed("account", accountName(mapped, partyNames)));
                     }, executorState.dbExec())
                     .thenAccept(sender::sendMessage)
                     .exceptionally(ex -> sendError(sender, ex));
@@ -132,7 +131,7 @@ public record GroupCommandGroup(
                 .thenApplyAsync(mappings -> mappings.stream()
                         .map(mapping -> messages.messageFor(MessageKeys.GROUP_LIST_ENTRY,
                                 Placeholder.unparsed("group", mapping.group().groupName()),
-                                Placeholder.unparsed("account", accountName(mapping.group())),
+                                Placeholder.unparsed("account", accountName(mapping.group(), partyNames)),
                                 Placeholder.unparsed("contracts", String.valueOf(mapping.contractCount()))))
                         .toList(), executorState.dbExec())
                 .thenAccept(lines -> {
@@ -146,15 +145,11 @@ public record GroupCommandGroup(
     }
 
     /**
-     * The group's account as it is shown, such as {@code GovSecurity (government)}. An account
-     * Treasury no longer knows, or one without a display name, is shown by its id. Asks Treasury,
-     * so call it off the main thread.
+     * The group's account as it is shown everywhere else, such as {@code GovSecurity (government)}.
+     * Asks Treasury, so call it off the main thread.
      */
-    private @NotNull String accountName(@NotNull Party.Group group) {
-        Account account = treasury != null ? treasury.getAccountById(group.accountId()) : null;
-        String name = account != null ? account.getDisplayName() : null;
-        String shown = name == null || name.isBlank() ? "#" + group.accountId() : name;
-        return shown + " (" + group.accountKind().name().toLowerCase(Locale.ROOT) + ")";
+    static @NotNull String accountName(@NotNull Party.Group group, @NotNull PartyNames partyNames) {
+        return partyNames.display(new Party.Account(group.accountId(), group.accountKind()));
     }
 
     private @Nullable Void sendError(@NotNull CommandSender sender, @NotNull Throwable ex) {

@@ -73,7 +73,9 @@ public final class PartyNames {
             cached = new CachedName(lookUp(accountId), now.plus(ACCOUNT_NAME_TTL));
             accountNames.put(accountId, cached);
         }
-        return cached.name() != null ? cached.name() : "#" + accountId;
+        // An account Treasury no longer knows, or one without a display name, is shown by its id.
+        String name = cached.name();
+        return name != null && !name.isBlank() ? name : "#" + accountId;
     }
 
     private @Nullable String lookUp(int accountId) {

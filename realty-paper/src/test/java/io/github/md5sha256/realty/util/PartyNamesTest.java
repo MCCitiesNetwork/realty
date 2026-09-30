@@ -120,6 +120,18 @@ class PartyNamesTest {
     }
 
     @Test
+    void blankAccountName_showsTheId() {
+        when(treasury.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, "  "));
+        assertEquals("#42 (government)", names.display(new Party.Account(42, AccountKind.GOVERNMENT)));
+    }
+
+    @Test
+    void nullAccountName_showsTheId() {
+        when(treasury.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, null));
+        assertEquals("#42 (government)", names.display(new Party.Account(42, AccountKind.GOVERNMENT)));
+    }
+
+    @Test
     void absentTreasury_showsTheId() {
         PartyNames withoutTreasury = new PartyNames(server, null, clock);
         assertEquals("#42 (government)", withoutTreasury.display(new Party.Account(42, AccountKind.GOVERNMENT)));
