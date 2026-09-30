@@ -51,6 +51,8 @@ Checked on 2026-09-29. Each line names where the fact comes from.
 
 ## Decisions beyond the spec
 
+The spec was revised on 2026-09-30 to include these decisions; the spec is now the reference for them, and this table is kept as the record of when each was taken.
+
 The spec is silent or ambiguous on these points. The plan picks one answer for each so that work is not blocked. The owner decided D2, D7, D8 and D10 on 2026-09-29; do not reopen them. The owner may overrule any other before execution starts.
 
 | # | Question | Choice in this plan |

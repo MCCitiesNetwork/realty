@@ -1,6 +1,9 @@
 # Treasury Parties — Design
 
 Date: 2026-09-29
+Revised: 2026-09-30, to describe stage 1 as built. The decisions the stage 1 plan
+took where this spec was silent are folded in, and so are the choices made while
+building and reviewing it.
 Status: Draft, pending review
 
 Companion specs: `2026-09-02-realty-rest-api-design.md` (the public API this
@@ -79,6 +82,9 @@ public enum AccountKind { BUSINESS, GOVERNMENT, SYSTEM }
 
 The backend stores and compares parties and never calls Treasury.
 
+Group names are stored in lower case and matched without regard to case, so
+`Police --group` finds the group mapped as `police`.
+
 ### Schema (migration V19)
 
 ```sql
@@ -127,19 +133,40 @@ The migration, in SQL only:
 3. Add each new column nullable, fill it with `UPDATE … JOIN Party ON
    playerUuid = <old column>`, then make it `NOT NULL` with a foreign key to
    `Party(partyId)`.
-4. Drop `idx_leasehold_contract_landlord` and the old columns; index the new
-   columns.
+4. Drop `idx_leasehold_contract_landlord`, `idx_freehold_contract_authority`
+   and the old columns (`IF EXISTS`, so a database missing an index still
+   migrates); index the new columns.
+5. Make `LeaseholdHistory.tenantId` and `FreeholdHistory.buyerId` nullable.
 
 Existing data becomes PERSONAL parties with no change in meaning.
+
+A history entry with no tenant or no buyer stores `NULL` there. Before V19 such
+an entry recorded the landlord as tenant, or the authority as buyer; old rows
+are not changed.
 
 ### Entities and mappers
 
 `LeaseholdContractEntity.landlordId()` becomes `landlord(): Party`;
-`FreeholdContractEntity.authorityId()` becomes `authority(): Party`; tenant and
-titleholder are exposed as `Party` (always `Personal` in stage 1). Every read
+`FreeholdContractEntity.authorityId()` becomes `authority(): Party`. Tenant and
+titleholder keep their `UUID` components until their stages; the entities gain
+`tenant()` and `titleHolder()`, which return a `Party.Personal`. Every read
 joins `Party` on its primary key, and one shared MyBatis result mapping builds
-the `Party` value, so no mapper assembles it by hand. A `PartyMapper` offers
-find-or-insert by identity, used by every write that assigns a party.
+the `Party` value, so no mapper assembles it by hand. The one exception is the
+locking (`FOR UPDATE`) read of a freehold, which loads its authority with a
+second query so that the lock does not reach a `Party` row other contracts
+share.
+
+A `PartyMapper` offers find-or-insert by identity, used by every write that
+assigns a party:
+
+- An account is identified by its `accountId` alone. A stored account whose
+  kind differs from the one asked for is refused, never treated as the same
+  party.
+- The row is created in its own short transaction before the caller's, so that
+  two commands naming the same new party at the same moment both succeed. Such
+  a row can outlive a write that is then rolled back; an unused party row is
+  harmless.
+- History writes only look up an existing row; they never create one.
 
 ## Payments
 
@@ -154,7 +181,11 @@ double getBalance(@NotNull Party party);
 `initiator` is the player whose action caused the payment (for example, the
 tenant whose unrent triggers a refund out of a government account), so
 Treasury's ledger shows who caused each transfer. It is `null` for scheduled
-events such as termination refunds taking effect.
+events such as termination refunds taking effect. Treasury cannot store an empty
+initiator, so `TreasuryEconomyProvider` sends the fixed id
+`UUID.nameUUIDFromBytes("realty:system")` in its place; no account is created
+for it. A scheduled termination refund that fails is logged with the tenant, the
+amount and the landlord, so that it can be corrected by hand.
 
 A new `PartyWallets` class in the paper plugin resolves the account a party
 pays from and into:
@@ -168,10 +199,12 @@ pays from and into:
 - The GOVERNMENT > PERSONAL > BUSINESS preference in `TreasuryEconomyProvider`
   is removed. A `Personal` party always uses the PERSONAL account.
 - A balance check reads the same account the transfer will use.
-- An account that Treasury has archived or deleted since assignment, or whose
-  type no longer matches the stored kind, makes the payment fail with a clear
-  message. This is the only unavoidable runtime failure, and it is outside
-  Realty's control.
+- An account that Treasury has archived or deleted since assignment, whose
+  type no longer matches the stored kind, or that has started to require
+  authorization, makes the payment fail with a clear message. These are the
+  only unavoidable runtime failures, and they are outside Realty's control.
+- On a Vault server, the balance of a non-player party reads as 0 and a
+  transfer to or from one is refused.
 - Every payment flow stays all-or-nothing, as established by the failed-purchase
   and failed-tenancy work: a payment that fails leaves nothing behind.
 - The 2-decimal normalisation stays.
@@ -179,12 +212,13 @@ pays from and into:
 ### Accounts requiring authorization
 
 Treasury accounts can have `requiresAuthorization`, and `TransferRequest` has an
-`authorizer` field that Realty currently always sends as `null`. Before stage 1
-ships, confirm how Treasury handles a transfer out of such an account with no
-authorizer. If Treasury rejects it, such accounts **cannot be assigned as a
-party** (landlord, authority, or a group's account), and assignment is refused
-with a dedicated message. Otherwise a tenant-triggered refund out of that account
-could fail, and the unrent would roll back.
+`authorizer` field that Realty always sends as `null`. Treasury rejects a
+transfer out of such an account with no authorizer, so such accounts **cannot be
+assigned as a party** (landlord, authority, or a group's account), and
+assignment is refused with a dedicated message. Otherwise a tenant-triggered
+refund out of that account could fail, and the unrent would roll back. Because
+the flag can be turned on after assignment, a payment that meets such an account
+also fails with a clear message (see above).
 
 ## Who acts for a party
 
@@ -192,11 +226,18 @@ The paper plugin builds one `ActorContext` per command, on the database
 executor because the lookups do I/O, before calling the backend:
 
 ```java
-record ActorContext(UUID player,
+record ActorContext(@Nullable UUID player,   // null for the console
                     Set<Party> manages,
                     Set<Party> reassigns,
                     boolean bypass)
 ```
+
+`mayManage(party)` and `mayReassign(party)` test membership or the bypass.
+Treasury cannot list the accounts a player authorizes, so the context is built
+from candidate parties rather than from everything the player belongs to: the
+parties on the region in question, plus any party being assigned. The inbox
+uses every non-player party in the `Party` table. Other plugins build a context
+through `RealtyPaperApi.actorContext(...)`.
 
 | Party | In `manages` when | In `reassigns` when |
 |---|---|---|
@@ -210,7 +251,7 @@ record ActorContext(UUID player,
   whoever controls the group's account.
 - `bypass` is the existing `*.others` admin permission for the command.
 - Group parties require Vault's permission service, including on Treasury
-  servers.
+  servers. Without Treasury, no group is managed.
 
 The backend's identity checks become set membership:
 `actorId.equals(lease.landlordId())` becomes `ctx.manages().contains(lease.landlord())`.
@@ -218,18 +259,32 @@ Sites changed in stage 1:
 
 - Landlord: `RealtyBackendImpl` (landlord checks around lines 818, 1058, 1119,
   1461), `SetCommandGroup` (line 99), `SignCommand` (line 104),
-  `RealtyPaperApiImpl.computeTerminationPlan` (line 525).
+  `RealtyPaperApiImpl.computeTerminationPlan` (line 525), and
+  `cancelTermination` and `withdrawModification`: any manager of the landlord
+  may withdraw a landlord proposal or cancel a landlord termination.
 - Authority (offers and auctions): `RealtyBackendImpl` around lines 222, 1575,
   1609, 1690, 1725.
 
 When deriving the role in termination, the tenant check stays first, as today.
 
+A landlord proposal stores a `proposerId` (`UUID NOT NULL`): the landlord's
+UUID when the landlord is a player, as today, otherwise the acting player's.
+
 ### Assigning a party
 
-`/realty set landlord` and `/realty set authority` require the **current** party
-to be in the actor's `reassigns`. For non-admins, they also require the **new**
-party to be in `manages`: nobody can hand a role to an account or group they do
-not belong to. Admins with the `*.others` permission bypass both.
+`/realty set landlord` requires the **current** landlord to be in the actor's
+`reassigns`. For non-admins, it also requires the **new** landlord to be in
+`manages`: nobody can hand a role to an account or group they do not belong to.
+Admins with the `*.others` permission bypass both. As for every `/realty set` on
+a leasehold, a non-admin can only change a vacant lease; an occupied one goes
+through `/realty modify`. Only the landlord change asks for `reassigns` rather
+than `manages` of the current landlord, so an authorizer of a group's account
+can move a lease away from the group without being in it.
+
+`/realty set authority` is decided by its permission `realty.command.set.authority`
+alone, which defaults to `op`: whoever holds it may set the authority of any plot
+to any party. The assignment rule above does not apply to it, and the
+WorldGuard owner check and `realty.command.set.authority.others` are removed.
 
 ### Conflict of interest
 
@@ -241,6 +296,8 @@ becomes: refused when the authority is in the actor's `manages`.
   rule.
 - A party dealing with *itself* (Steve buying from Steve, GovSecurity paying
   GovSecurity) stays refused even with the permission.
+- Vault cannot tell the groups of an offline player, so inviting an offline
+  agent checks what it can, and accepting the invite checks again.
 
 ### Existing check fixed
 
@@ -259,7 +316,10 @@ against the titleholder or tenant party (see *Later stages*).
 ### Writing a party
 
 A plain name is a player. One of `--government`, `--business`, `--system` or
-`--group` changes its meaning; the flags are mutually exclusive.
+`--group` changes its meaning; the flags are mutually exclusive. The flag is
+written last, after the region if one is given: the command framework (Cloud)
+reads flags only after the last argument, and a flag before the region is
+refused.
 
 ```
 /realty set landlord Steve                       → Steve (PERSONAL)
@@ -284,16 +344,16 @@ A plain name is a player. One of `--government`, `--business`, `--system` or
 
 | Command | Change |
 |---|---|
-| `/realty set landlord <name> [flags] [region]` | any party kind; assignment rules above |
-| `/realty set authority <name> [flags] [region]` | same |
+| `/realty set landlord <name> [region] [flag]` | any party kind; assignment rules above |
+| `/realty set authority <name> [region] [flag]` | any party kind; permission only |
 | `/realty create\|register leasehold --landlord <name>` | type flags apply to the landlord |
 | `/realty create\|register freehold --authority <name>` | type flags apply to the authority; `--titleholder` stays player-only |
 | `/realty set titleholder`, `set tenant`, `transfer` | unchanged until stages 2 and 3 |
 | `/realty add\|remove <name> [--group]` | `g:` prefix removed; `--group` adds/removes a WorldGuard member group, no mapping needed |
 | `/realty group map <group> <account> --government\|--business\|--system` | creates the group's party row or changes its account |
-| `/realty group unmap <group>` | refused while any contract uses the group |
+| `/realty group unmap <group>` | refused while any contract or history entry uses the group, because history references the party row |
 | `/realty group list` | each group, its account, and how many contracts use it |
-| `/realty list [<name> flags]` | shows an account's or group's portfolio |
+| `/realty list [owned\|authority\|landlord\|rented] [<name>] [--page <n>] [flag]` | shows a player's, account's or group's portfolio (see *Listings and statistics*); replaces the `--player` flag. `/realty me` stays |
 
 In stage 2, when `create freehold` accepts type flags on both `--authority` and
 `--titleholder`, a type flag is allowed only when exactly one of the two is
@@ -308,7 +368,18 @@ redirects future money without touching contracts.
 One `PartyNames` helper replaces the `resolveName(uuid)` calls across info,
 history, signs and placeholders: `Steve`, `GovSecurity (government)`,
 `Acme (business)`, `Mint (system)`, `police (group)`. `/realty info` shows
-member groups as `police (group)` instead of `g:police`.
+member groups as `police (group)` instead of `g:police`. An account that is
+missing or has no display name shows by its id, `#42 (government)`. The group
+commands use the same helper. A history entry with no tenant shows `N/A`.
+
+Account names are chosen by their owners, so a party's name is always inserted
+into a message or sign as plain text: it is never read as MiniMessage
+formatting, and never read a second time as a placeholder. Sign placeholders
+are filled as before, including keys that are not valid MiniMessage tag names
+such as `<Price>`, with one exception: a placeholder inside the quoted argument
+of a tag other than `hover`, such as the command of
+`<click:run_command:'/x <region>'>`, is left as written, so that a value can
+never become part of a command.
 
 ### Messages and permissions
 
@@ -316,7 +387,8 @@ New message keys: unknown account; archived account; account type does not
 match flag; type flags require Treasury; group not mapped; not allowed to
 assign or reassign this party; account requires authorization (if the Treasury
 check makes that rule necessary); more than one type flag; group still in use
-(unmap).
+(unmap); more than one of the sender's accounts matches the name; a type flag
+given without a name; `--group` given where an account flag is required.
 
 New permissions: `realty.command.group`, `realty.bypass.conflict-of-interest`.
 
@@ -325,7 +397,7 @@ New permissions: `realty.command.group`, `realty.bypass.conflict-of-interest`.
 - Subregion landlords still follow the parent titleholder, who is a player
   until stage 2; `/realty set landlord` can change a child's landlord afterwards.
 - The AreaShop importer assigns players; its fallbacks read the new config
-  defaults.
+  defaults, and it skips a region whose fallback default did not resolve.
 - Property tax: titleholders are still players.
 
 ## Configuration
@@ -338,11 +410,18 @@ account-managers: members        # members | authorizers
 default-freehold-authority: { name: GovSecurity, type: government }
 default-leasehold-landlord: { name: GovSecurity, type: government }
 # type omitted → name is a player; `uuid: <uuid>` may be given instead of `name` for a player
+# a business or system account is named as #<id>
+default-freehold-titleholder: { name: Steve }   # optional; players only in stage 1
 ```
 
-The `default-*-uuid` keys and the all-zeros default are removed. Every default
-must resolve at startup; if one does not, startup logs an error and the commands
-that depend on it refuse to run rather than fall back.
+The `default-*-uuid` keys and the all-zeros default are removed; startup warns
+about any left in the file. Every default must resolve at startup; if one does
+not, startup logs an error and the commands that depend on it refuse to run
+rather than fall back. This includes the titleholder default: a
+`create`/`register freehold` that would use an unresolved one refuses, and never
+creates a freehold with no titleholder. Defaults are resolved off the main
+thread, so for a moment after startup those commands refuse as if a default were
+missing.
 
 Group mappings live in the `Party` table, not in configuration.
 
@@ -365,6 +444,13 @@ into recipients:
   proposal on a GovSecurity lease reaches every manager's inbox.
 - `/realty list me` stays personal; portfolios of accounts and groups use
   `/realty list <name> --<type>`.
+- A listing of a party's land has four parts, paged by one offset in this order
+  and in a fixed order within each part: `owned` (the party holds the title),
+  `authority` (it is freehold authority), `landlord` (it lets the leasehold,
+  with or without a tenant) and `rented` (it is tenant). Only a player holds a
+  title or rents in stage 1, so for an account or group only `authority` and
+  `landlord` can be non-empty. Before 2.0.0 the part called `landlord` held the
+  authority freeholds.
 - `countByLandlord`, the owners leaderboard and statistics count per party and
   show the kind beside the name.
 - The Plan extension's metrics are per player by design and count `Personal`
@@ -379,51 +465,85 @@ Extended in place, within `/v1`:
   `kind` is `personal`, `business`, `government`, `system` or `group`; `id` is a
   UUID when `kind` is `personal`, the account id for account kinds, and the group
   name for `group`. Player data is unchanged apart from `"kind": "personal"`.
-- New endpoint `GET /v1/parties/{kind}/{id}/regions`, mirroring
-  `/v1/players/regions`.
+- New endpoint `GET /v1/parties/{kind}/{id}/regions`, with the response shape of
+  `/v1/players/regions` (its field is still called `player`, holding a
+  `PartyRef`).
+  - A group that is not mapped, or an account stored under a kind other than
+    the one asked for, is `404 PARTY_NOT_FOUND`.
+  - An account Realty does not store is listed empty under the kind asked for,
+    with a `null` name: the route does not ask the module to name an account no
+    contract names.
+  - A personal `id` must be a full 36-character UUID and an account `id` a
+    positive integer.
 - Account names are resolved through the query-service module, which runs in the
   game server and can call Treasury, exactly as it already resolves player
   names. Group names come from `Party`.
 - The OpenAPI document renames the type to `PartyRef` and states the `id` rule.
-- `realty-rest`'s expected schema version is bumped to V19; plugin and REST
-  deploy together.
+  A history entry leaves out `buyer` or `tenant` when it had none.
+- The explorer shows a non-player party as plain text with its kind (for example
+  `GovSecurity (government)`, or `#42 (government)` with no name); it has no
+  page for one.
+- `realty-rest`'s expected schema version is bumped to V19, and it refuses any
+  other; it is started only after the plugin has migrated (see *Upgrade*).
 
-The JSON shape does not change, so under the REST versioning policy this is not
-a breaking change. The meaning of `id` widens, which the release notes call out
-for API consumers; only data created after this ships can carry a non-UUID `id`.
+Two changes are breaking for API consumers, and the release notes call both out.
+They are taken in `/v1`, as `/v1/players/regions` took its `player=` change,
+rather than opening `/v2`:
+
+- The meaning of `id` widens; only data created after this ships can carry a
+  non-UUID `id`.
+- In a regions listing, `landlord` now holds the leaseholds the party lets
+  instead of the freeholds it is authority of, which move to a new `authority`
+  list; `category` gains `authority`.
+
+Otherwise the JSON shape only gains fields.
 
 ## Public API
 
 - Events and `RealtyPaperApi` expose `Party getLandlord()`, `getAuthority()`,
-  `getTenant()` and `getTitleholder()`, and the methods that assign a party take
-  `Party`.
-- The old `get…Id()` methods are deprecated: they return the UUID for a
-  `Personal` party and `null` otherwise. They are removed in a later major
-  version.
+  `getTenant()` and `getTitleHolder()`, and the methods that assign a party take
+  `Party`. Result records carry `Party` in place of the UUID. A method that
+  assigns a titleholder or tenant fails its future for a non-player party until
+  stages 2 and 3.
+- `getTenant()` is `null` when the lease has no tenant, for example on a
+  resolved proposal or a cancelled termination of a vacant lease; it no longer
+  stands in the landlord.
+- `RealtyPaperApi.actorContext(...)` builds an `ActorContext` for another
+  plugin (see *Who acts for a party*).
+- The old `get…Id()` methods and UUID forms are deprecated: they return the UUID
+  for a `Personal` party and `null` otherwise. They are removed in 3.0.0.
 - `realty-paper-api` and `realty-backend-api` take one major version bump in
   stage 1.
 
 ## Upgrade
 
-Release-note runbook:
+The runbook in `docs/release-notes/2.0.0.md` is the operator's reference; in
+outline:
 
-1. Stop the server; deploy the plugin and `realty-rest` together; start with the
+1. Stop `realty-rest`, then the game server, and back up the database with both
+   stopped.
+2. Replace the plugin and module jars, and start the game server with the
    whitelist on. V19 converts all existing parties to PERSONAL.
-2. For each legacy government UUID, run the manual fix: insert the account's
-   `Party` row (`kind = 'GOVERNMENT'`, `accountId = <id>`), then repoint that
-   UUID's party id in `LeaseholdContract`, `LeaseholdHistory`,
-   `FreeholdContract` and `FreeholdHistory` to the new row.
-3. `/realty group map` any groups that should become parties.
-4. Replace the `default-*-uuid` keys with the new party settings.
-5. Lift the whitelist.
+3. Only once V19 has run, replace and start `realty-rest`; it refuses any other
+   schema, so it cannot be deployed alongside the plugin.
+4. For each legacy government UUID, run the manual fix: create the account's
+   `Party` row (`kind = 'GOVERNMENT'`, `accountId = <id>`) if there is none, then
+   repoint that UUID's party id in `LeaseholdContract`, `LeaseholdHistory`,
+   `FreeholdContract` and `FreeholdHistory` to it. The script moves nothing if
+   either value is missing, and the notes say how to undo a wrong account id and
+   how to repair an account stored under the wrong kind.
+5. `/realty group map` any groups that should become parties.
+6. Replace the `default-*-uuid` keys with the new party settings.
+7. Lift the whitelist.
 
 The whitelist keeps player-triggered payments from reaching a legacy UUID's
-PERSONAL account between step 1 and step 2. A scheduled termination refund can
+PERSONAL account between steps 2 and 4. A scheduled termination refund can
 still fire in that window; it would be paid out of the legacy PERSONAL account
 and can be corrected with a manual Treasury transfer.
 
-The release notes also call out: the `g:` prefix is removed; the API major
-bump; the widened REST `id`.
+The release notes also list the breaking changes: the `g:` prefix and the
+`--player` flag are removed; `realty.command.set.authority.others` is removed;
+the API major bump; and the two REST changes under *REST*.
 
 ### Treasury facts this design relies on
 
@@ -431,8 +551,8 @@ bump; the widened REST `id`.
   UUID to exactly one account). Stated by the operator; not visible in the API.
 - An account's type cannot change after creation (`updateAccount` does not
   mutate it).
-- The behaviour of `requiresAuthorization` accounts without an authorizer — to
-  be verified before stage 1 ships (see *Payments*).
+- A transfer out of a `requiresAuthorization` account without an authorizer is
+  rejected (see *Payments*).
 
 ## Testing
 
@@ -505,4 +625,5 @@ the tenant party.
 - **Automatic startup migration of legacy government UUIDs.** Rejected in
   favour of a one-time manual SQL fix; no legacy migrator is kept in the code.
 - **REST `/v2`.** Rejected: adding `kind` keeps the JSON shape, and a `/v1`
-  frozen alongside would have to hide non-player parties.
+  frozen alongside would have to hide non-player parties. The same holds for
+  the new meaning of `landlord` in a listing.
