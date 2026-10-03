@@ -10,6 +10,8 @@ import com.sk89q.worldguard.protection.flags.registry.FlagRegistry;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,6 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Service that manages and applies WorldGuard flag profiles (including region priority)
@@ -30,6 +34,11 @@ import java.util.logging.Logger;
  * (applied to all regions) and grouped profiles (applied only to specific named regions).
  */
 public class RegionProfileService {
+
+    /** A {@code <key>} in a sign line, a command or a flag value. */
+    private static final Pattern PLACEHOLDER = Pattern.compile("<([^<>]+)>");
+    /** The prefix of the tag names a sign line's values are bound to. */
+    private static final String VALUE_TAG_PREFIX = "realty-value-";
 
     private final Logger logger;
     private final EnumMap<RegionState, FlagProfile> globalFlagProfiles;
@@ -196,7 +205,7 @@ public class RegionProfileService {
         MiniMessage miniMessage = MiniMessage.miniMessage();
         List<Component> resolvedLines = new ArrayList<>(effective.lines().size());
         for (String line : effective.lines()) {
-            resolvedLines.add(miniMessage.deserialize(replacePlaceholders(line, placeholders)));
+            resolvedLines.add(resolveLine(miniMessage, line, placeholders));
         }
 
         List<String> resolvedRightClick = resolveCommands(effective.rightClickCommands(), placeholders);
@@ -221,7 +230,7 @@ public class RegionProfileService {
      * Applies the global and grouped flag profiles for the given state to the
      * specified WorldGuard region. All existing flags on the region are cleared
      * before the new profile is applied. Placeholder tokens in flag values
-     * (e.g. {@code {region}}, {@code {price}}) are replaced with the
+     * (e.g. {@code <region>}, {@code <price>}) are replaced with the
      * corresponding values from the provided map before being parsed by WorldGuard.
      *
      * @param region       the WorldGuard region to apply flags to
@@ -322,16 +331,112 @@ public class RegionProfileService {
         }
     }
 
+    /**
+     * Parses a sign line with its placeholders filled.
+     *
+     * <p>A line is MiniMessage the operator wrote, but a value is not: a landlord or an authority
+     * may be an account whose display name its owner chooses. Each value is inserted by the parser
+     * as unparsed text, so it can carry no formatting or click of its own, and it is never read
+     * again for another placeholder.</p>
+     *
+     * <p>A key is matched as in commands: {@code <key>} exactly as written, case included. Any key
+     * can be used, including one that is not a valid MiniMessage tag name (such as {@code Price}):
+     * in one pass over the line, each {@code <key>} is rewritten to a generated tag name that its
+     * value is bound to. A {@code <key>} escaped with a backslash is left as written.</p>
+     *
+     * <p>A {@code <key>} inside the quoted argument of a tag is left as written, except under
+     * {@code hover}, whose text is itself parsed. The other arguments, such as the command of a
+     * {@code click}, are plain strings: a generated name would end up in them, and a value must
+     * never become part of a command.</p>
+     */
+    private static @NotNull Component resolveLine(@NotNull MiniMessage miniMessage,
+                                                  @NotNull String line,
+                                                  @NotNull Map<String, String> placeholders) {
+        if (placeholders.isEmpty() || line.indexOf('<') == -1) {
+            return miniMessage.deserialize(line);
+        }
+        // A generated name must not already appear in the line, or text the operator wrote would be filled.
+        String prefix = VALUE_TAG_PREFIX;
+        while (line.contains(prefix)) {
+            prefix = "x" + prefix;
+        }
+        Map<String, String> tagNames = new HashMap<>();
+        TagResolver.Builder resolver = TagResolver.builder();
+        boolean[] inPlainArgument = plainTagArguments(line);
+        Matcher matcher = PLACEHOLDER.matcher(line);
+        StringBuilder rewritten = new StringBuilder(line.length());
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            String value = placeholders.get(key);
+            boolean escaped = matcher.start() > 0 && line.charAt(matcher.start() - 1) == '\\';
+            if (value == null || escaped || inPlainArgument[matcher.start()]) {
+                matcher.appendReplacement(rewritten, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+            String tagName = tagNames.get(key);
+            if (tagName == null) {
+                tagName = prefix + tagNames.size();
+                tagNames.put(key, tagName);
+                resolver.resolver(Placeholder.unparsed(tagName, value));
+            }
+            matcher.appendReplacement(rewritten, Matcher.quoteReplacement("<" + tagName + ">"));
+        }
+        matcher.appendTail(rewritten);
+        return miniMessage.deserialize(rewritten.toString(), resolver.build());
+    }
+
+    /**
+     * Marks each position of {@code line} that lies inside a quoted argument of a tag other than
+     * {@code hover}. Such an argument is a plain string, not MiniMessage.
+     */
+    private static boolean[] plainTagArguments(@NotNull String line) {
+        boolean[] plain = new boolean[line.length()];
+        boolean inTag = false;
+        boolean hover = false;
+        char quote = 0;
+        int tagStart = 0;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (quote != 0) {
+                plain[i] = !hover;
+                if (c == quote && line.charAt(i - 1) != '\\') {
+                    quote = 0;
+                }
+            } else if (inTag) {
+                if (c == '\'' || c == '"') {
+                    quote = c;
+                    String name = line.substring(tagStart, i);
+                    hover = name.startsWith("hover:");
+                } else if (c == '>') {
+                    inTag = false;
+                }
+            } else if (c == '<' && (i == 0 || line.charAt(i - 1) != '\\')) {
+                inTag = true;
+                tagStart = i + 1;
+            }
+        }
+        return plain;
+    }
+
+    /**
+     * Replaces each {@code <key>} in a command or a flag value with its value, in one pass over
+     * {@code value}: text that was inserted is never scanned for another key, so a value that
+     * reads {@code <tenant>} stays as it is. Unknown keys are left as written.
+     */
     private @NotNull String replacePlaceholders(@NotNull String value,
                                                 @NotNull Map<String, String> placeholders) {
         if (placeholders.isEmpty() || value.indexOf('<') == -1) {
             return value;
         }
-        String result = value;
-        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            result = result.replace("<" + entry.getKey() + ">", entry.getValue());
+        Matcher matcher = PLACEHOLDER.matcher(value);
+        StringBuilder result = new StringBuilder(value.length());
+        while (matcher.find()) {
+            String replacement = placeholders.get(matcher.group(1));
+            matcher.appendReplacement(result,
+                    Matcher.quoteReplacement(replacement != null ? replacement : matcher.group()));
         }
-        return result;
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     /**

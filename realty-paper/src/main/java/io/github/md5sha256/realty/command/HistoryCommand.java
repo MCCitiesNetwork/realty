@@ -235,9 +235,7 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
             command.append(" --player ").append(name);
         }
         command.append(" --page ").append(targetPage);
-        String raw = messages.miniMessageFormattedFor(key);
-        raw = raw.replace("<command>", command.toString());
-        return messages.deserializeRaw(raw);
+        return messages.commandLink(key, command.toString());
     }
 
     private static @NotNull String resolveEventMessageKey(@NotNull String eventType) {

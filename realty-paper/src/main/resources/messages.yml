@@ -22,7 +22,7 @@ party:
         <yellow>/realty group map</yellow> first.
     multiple-type-flags: <prefix> <red>Use only one of --government, --business, --system
         and --group.
-    type-flag-without-name: '<prefix> <red>A type flag needs the name it describes: add <yellow>--<role> <name></yellow>.'
+    type-flag-without-name: '<prefix> <red>A type flag needs the name it describes: write <yellow><usage></yellow>.'
     not-allowed-to-reassign: <prefix> <red>Only an authorizer of <yellow><name></yellow>
         can give this role to someone else.
     not-allowed-to-assign: <prefix> <red>You cannot give this role to <yellow><name></yellow>,
@@ -273,8 +273,8 @@ help:
     - <dark_grey>►</dark_grey> <green>/realty help</green> <grey>- Show help categories</grey>
     - <dark_grey>►</dark_grey> <green>/realty info <region></green> <grey>- Display
         region info</grey>
-    - <dark_grey>►</dark_grey> <green>/realty list [--player <player>] [--page <page>]</green>
-        <grey>- List regions</grey>
+    - <dark_grey>►</dark_grey> <green>/realty list [owned|rented] [name] [--page <page>] [--government|--business|--system|--group]</green>
+        <grey>- List your regions, or those of a player, account or group</grey>
     - <dark_grey>►</dark_grey> <green>/realty buy <region></green> <grey>- Buy a region
         at the listed price</grey>
     - <dark_grey>►</dark_grey> <green>/realty rent <region></green> <grey>- Rent a

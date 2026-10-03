@@ -27,6 +27,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -1705,7 +1706,7 @@ class MapperTest extends AbstractDatabaseTest {
             Assertions.assertEquals(0, logic.countRegionsByLandlord(stranger));
             Assertions.assertEquals(0, logic.countOccupiedLeaseholdsByLandlord(stranger));
             Assertions.assertEquals(List.of(), logic.listRegionNamesByLandlord(stranger));
-            Assertions.assertEquals(List.of(), logic.listModificationsAwaitingLandlord(stranger));
+            Assertions.assertEquals(List.of(), logic.listModificationsAwaitingLandlord(Set.of(stranger)));
 
             Assertions.assertEquals(partiesBefore, queryInt("SELECT COUNT(*) FROM Party"));
         }

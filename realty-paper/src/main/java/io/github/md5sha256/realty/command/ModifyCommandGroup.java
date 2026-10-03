@@ -3,7 +3,6 @@ package io.github.md5sha256.realty.command;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
-import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -115,20 +114,28 @@ public record ModifyCommandGroup(
             ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
-        api.listModificationsAwaitingLandlord(new Party.Personal(sender.getUniqueId())).thenAccept(views -> {
-            if (views.isEmpty()) {
-                sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_INBOX_NONE));
-                return;
-            }
-            Component output = messages.messageFor(MessageKeys.MODIFY_INBOX_HEADER);
-            for (LeaseholdModificationView view : views) {
-                output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_INBOX_ENTRY,
-                        Placeholder.unparsed("region", view.worldGuardRegionId()),
-                        Placeholder.unparsed("player", partyNames.display(view.proposerId())),
-                        Placeholder.component("changes", describeChanges(view))));
-            }
-            sender.sendMessage(output);
-        });
+        // The inbox gathers the proposals of every landlord the player acts for: themself, and each
+        // account or group they manage. Finding those asks Treasury and Vault, so it runs off the main thread.
+        CompletableFuture.supplyAsync(() -> actors.forEveryParty(sender), executorState.dbExec())
+                .thenCompose(actor -> api.listModificationsAwaitingLandlord(actor.manages()))
+                .thenAccept(views -> {
+                    if (views.isEmpty()) {
+                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_INBOX_NONE));
+                        return;
+                    }
+                    Component output = messages.messageFor(MessageKeys.MODIFY_INBOX_HEADER);
+                    for (LeaseholdModificationView view : views) {
+                        output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_INBOX_ENTRY,
+                                Placeholder.unparsed("region", view.worldGuardRegionId()),
+                                Placeholder.unparsed("player", partyNames.display(view.proposerId())),
+                                Placeholder.component("changes", describeChanges(view))));
+                    }
+                    sender.sendMessage(output);
+                }).exceptionally(ex -> {
+                    sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_ERROR,
+                            Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
+                    return null;
+                });
     }
 
     private void executeOutbox(@NotNull CommandContext<Source> ctx) {

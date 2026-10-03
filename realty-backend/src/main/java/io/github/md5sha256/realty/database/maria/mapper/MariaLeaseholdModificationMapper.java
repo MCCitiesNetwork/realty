@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -123,6 +124,7 @@ public interface MariaLeaseholdModificationMapper extends LeaseholdModificationM
 
     @Override
     @Select("""
+            <script>
             SELECT rr.worldGuardRegionId, rr.worldId, m.proposerRole, m.proposerId,
                    m.newPrice, m.newDurationSeconds, m.newMaxExtensions, m.status, m.createdAt
             FROM LeaseholdModification m
@@ -130,8 +132,19 @@ public interface MariaLeaseholdModificationMapper extends LeaseholdModificationM
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = m.leaseholdContractId
             WHERE m.status = 'AWAITING_LANDLORD'
-            AND lc.landlordPartyId = #{landlordPartyId}
+              <choose>
+                  <when test="landlordPartyIds != null and !landlordPartyIds.isEmpty()">
+                      AND lc.landlordPartyId IN
+                      <foreach item="landlordPartyId" collection="landlordPartyIds" open="(" separator="," close=")">
+                          #{landlordPartyId}
+                      </foreach>
+                  </when>
+                  <!-- No landlords match nothing. Without this the foreach emits nothing at all,
+                       leaving a bare IN and a syntax error. -->
+                  <otherwise>AND 1 = 0</otherwise>
+              </choose>
             ORDER BY m.createdAt DESC
+            </script>
             """)
     @ConstructorArgs({
             @Arg(column = "worldGuardRegionId", javaType = String.class),
@@ -144,7 +157,8 @@ public interface MariaLeaseholdModificationMapper extends LeaseholdModificationM
             @Arg(column = "status", javaType = String.class),
             @Arg(column = "createdAt", javaType = LocalDateTime.class)
     })
-    @NotNull List<LeaseholdModificationView> selectAwaitingByLandlord(@Param("landlordPartyId") int landlordPartyId);
+    @NotNull List<LeaseholdModificationView> selectAwaitingByLandlords(
+            @Param("landlordPartyIds") @NotNull Collection<Integer> landlordPartyIds);
 
     @Override
     @Select("""

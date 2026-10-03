@@ -18,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public interface RealtyBackend {
@@ -537,7 +538,8 @@ public interface RealtyBackend {
                                                            @Nullable Integer newMaxExtensions);
 
     sealed interface ResolveModificationResult {
-        record Success(int modificationId, @NotNull UUID tenantId, @NotNull Party landlord,
+        /** {@code tenantId} is the lease's tenant, or {@code null} when the lease has none. */
+        record Success(int modificationId, @Nullable UUID tenantId, @NotNull Party landlord,
                        @NotNull String proposerRole) implements ResolveModificationResult {}
         record NoLeaseholdContract() implements ResolveModificationResult {}
         record NoPendingProposal() implements ResolveModificationResult {}
@@ -569,8 +571,12 @@ public interface RealtyBackend {
                                                             @NotNull UUID worldId,
                                                             @NotNull ActorContext ctx);
 
-    /** Tenant proposals awaiting the given landlord's decision (inbox). */
-    @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull Party landlord);
+    /**
+     * Tenant proposals awaiting a decision from any of the given landlords (inbox). A player's
+     * inbox passes every party the player manages, so that a proposal on a lease of an account
+     * reaches everyone who acts for the account.
+     */
+    @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull Set<Party> landlords);
 
     /** The given player's own non-terminal proposals (outbox). */
     @NotNull List<LeaseholdModificationView> listPendingModificationsByProposer(@NotNull UUID proposerId);
@@ -729,16 +735,35 @@ public interface RealtyBackend {
         }
     }
 
-    @NotNull ListResult listRegions(@NotNull UUID targetId, int limit, int offset);
+    /**
+     * The regions whose title {@code target} holds ({@code owned}), whose freehold authority it is
+     * ({@code landlord}) and which it rents ({@code rented}), paged across the three in that order.
+     * Only a player holds a title or rents, so for any other party those two are empty.
+     */
+    @NotNull ListResult listRegions(@NotNull Party target, int limit, int offset);
+
+    default @NotNull ListResult listRegions(@NotNull UUID targetId, int limit, int offset) {
+        return listRegions(new Party.Personal(targetId), limit, offset);
+    }
 
     record SingleCategoryResult(
             int totalCount,
             @NotNull List<RealtyRegionEntity> regions
     ) {}
 
-    @NotNull SingleCategoryResult listOwnedRegions(@NotNull UUID targetId, int limit, int offset);
+    /** The regions whose title {@code target} holds; none for a party that is not a player. */
+    @NotNull SingleCategoryResult listOwnedRegions(@NotNull Party target, int limit, int offset);
 
-    @NotNull SingleCategoryResult listRentedRegions(@NotNull UUID targetId, int limit, int offset);
+    default @NotNull SingleCategoryResult listOwnedRegions(@NotNull UUID targetId, int limit, int offset) {
+        return listOwnedRegions(new Party.Personal(targetId), limit, offset);
+    }
+
+    /** The regions {@code target} rents; none for a party that is not a player. */
+    @NotNull SingleCategoryResult listRentedRegions(@NotNull Party target, int limit, int offset);
+
+    default @NotNull SingleCategoryResult listRentedRegions(@NotNull UUID targetId, int limit, int offset) {
+        return listRentedRegions(new Party.Personal(targetId), limit, offset);
+    }
 
     // --- Offers ---
 
