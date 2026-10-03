@@ -4,12 +4,12 @@ import { formatDuration } from "./format";
 import { PlayerLink } from "./PlayerLink";
 import { Price } from "./Price";
 
-type PlayerRef = components["schemas"]["PlayerRef"];
+type PartyRef = components["schemas"]["PartyRef"];
 
 /** The fields a history entry and an activity event share; either type fits. */
 export type EventLike = components["schemas"]["HistoryResponse_Entry"];
 
-type Party = { role: string; player: PlayerRef };
+type Party = { role: string; player: PartyRef };
 
 const SALES = new Set(["BUY", "AUCTION_BUY", "OFFER_BUY"]);
 const LETTINGS = new Set(["RENT", "RENEW"]);
@@ -34,7 +34,7 @@ export function eventColor(eventType: string): string {
  */
 export function partiesOf(event: EventLike): Party[] {
   const parties: Party[] = [];
-  const add = (role: string, player?: PlayerRef) => {
+  const add = (role: string, player?: PartyRef) => {
     if (player) parties.push({ role, player });
   };
   add("Buyer", event.buyer);

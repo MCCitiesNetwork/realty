@@ -99,6 +99,7 @@ import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
 import io.github.md5sha256.realty.util.SquirrelIdPlayerNameService;
+import io.github.md5sha256.realty.util.TreasuryAccountNameService;
 import io.github.md5sha256.realty.notify.PartyRecipients;
 import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
@@ -353,7 +354,8 @@ public final class Realty extends JavaPlugin {
                 this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
                 () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
-                this.playerNameService);
+                this.playerNameService,
+                new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()));
         this.eventDispatch = new RealtyEventDispatch(
                 getServer(),
                 this.executorState.mainThreadExec(),

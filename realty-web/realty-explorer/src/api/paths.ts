@@ -1,7 +1,7 @@
 import type { components } from "./schema";
 
+type PartyRef = components["schemas"]["PartyRef"];
 type WorldRef = components["schemas"]["WorldRef"];
-type PlayerRef = components["schemas"]["PlayerRef"];
 
 /** A world's name where the API knows one; its id otherwise. Never anything invented. */
 export function worldLabel(world: WorldRef): string {
@@ -16,7 +16,7 @@ export function regionPath(world: WorldRef, regionId: string): string {
   return `/region/${encodeURIComponent(worldLabel(world))}/${encodeURIComponent(regionId)}`;
 }
 
-export function playerPath(player: PlayerRef | string): string {
+export function playerPath(player: PartyRef | string): string {
   const id = typeof player === "string" ? player : player.id;
   return `/players/${encodeURIComponent(id)}`;
 }

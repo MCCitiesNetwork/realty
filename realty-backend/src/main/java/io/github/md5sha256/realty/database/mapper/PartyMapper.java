@@ -16,6 +16,12 @@ public interface PartyMapper {
     /** A Group is found by groupName alone. */
     @Nullable Integer findId(@NotNull Party party);
 
+    /**
+     * The account party stored for {@code accountId}, whatever kind it was stored under, or
+     * {@code null} when no row names it. Never inserts and never throws for a kind mismatch.
+     */
+    @Nullable Party.Account findAccountParty(int accountId);
+
     @Nullable Party selectById(int partyId);
 
     /** Every party that is not PERSONAL, in the order the rows were created. */

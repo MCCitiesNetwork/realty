@@ -1,21 +1,20 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.rest.json.OwnersLeaderboardResponse;
-import io.github.md5sha256.realty.rest.json.PlayerRef;
+import io.github.md5sha256.realty.rest.json.PartyRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
-import io.github.md5sha256.realty.rest.module.PlayerNames;
+import io.github.md5sha256.realty.rest.module.PartyNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * {@code GET /v1/leaderboard/owners} -- title holders ranked by plot count.
@@ -51,23 +50,23 @@ final class OwnersLeaderboardHandler {
             rows = mapper.selectPlotCountsByTitleHolderPaged(pageSize, offset);
         }
 
-        List<UUID> ownerIds = new ArrayList<>(rows.size());
+        List<Party> owners = new ArrayList<>(rows.size());
         for (PlotOwnerCount row : rows) {
-            ownerIds.add(row.titleHolderId());
+            owners.add(new Party.Personal(row.titleHolderId()));
         }
         // One module call for the whole page, so a full page costs the same hop as a
         // single row; an unreachable module leaves every name null rather than failing.
-        Map<UUID, String> names = PlayerNames.resolve(this.moduleClient, ownerIds);
+        PartyNames.Resolved names = PartyNames.resolve(this.moduleClient, owners);
 
-        List<OwnersLeaderboardResponse.Entry> owners = new ArrayList<>(rows.size());
+        List<OwnersLeaderboardResponse.Entry> entries = new ArrayList<>(rows.size());
         int rank = offset + 1;
         for (PlotOwnerCount row : rows) {
-            PlayerRef player = Objects.requireNonNull(PlayerNames.ref(row.titleHolderId(), names));
-            owners.add(new OwnersLeaderboardResponse.Entry(rank++, player, row.plotCount()));
+            PartyRef player = Objects.requireNonNull(names.ref(row.titleHolderId()));
+            entries.add(new OwnersLeaderboardResponse.Entry(rank++, player, row.plotCount()));
         }
 
         ctx.json(new OwnersLeaderboardResponse(page, pageSize, totalCount,
-                totalPages(totalCount, pageSize), owners));
+                totalPages(totalCount, pageSize), entries));
     }
 
     private static int totalPages(int totalCount, int pageSize) {

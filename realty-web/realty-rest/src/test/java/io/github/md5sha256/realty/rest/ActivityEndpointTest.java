@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.ActivityRow;
 import io.javalin.testtools.JavalinTest;
@@ -54,6 +55,21 @@ class ActivityEndpointTest {
             Assertions.assertTrue(body.contains("\"durationSeconds\":604800"), body);
             Assertions.assertTrue(body.contains("\"kind\":\"agent\""), body);
             Assertions.assertTrue(body.contains("\"agent\""), body);
+        });
+    }
+
+    @Test
+    void anAccountLandlordIsServedWithItsKind() {
+        ActivityRow lease = new ActivityRow("leasehold", "plot_b", WORLD_ID, "RENT",
+                LocalDateTime.of(2026, 8, 12, 9, 40), ALICE, new Party.Account(42, AccountKind.GOVERNMENT),
+                800.0, 604800L, 3);
+        RealtyRestServer server = TestServers.withActivity(List.of(lease), 1, Map.of(ALICE, "Alice"));
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            String body = client.get("/v1/activity").body().string();
+            Assertions.assertTrue(body.contains(
+                    "\"landlord\":{\"kind\":\"government\",\"id\":\"42\",\"name\":null}"), body);
+            Assertions.assertTrue(body.contains(
+                    "\"tenant\":{\"kind\":\"personal\",\"id\":\"" + ALICE + "\",\"name\":\"Alice\"}"), body);
         });
     }
 

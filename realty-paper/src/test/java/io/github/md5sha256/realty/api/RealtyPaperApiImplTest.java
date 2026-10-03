@@ -113,7 +113,7 @@ class RealtyPaperApiImplTest {
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
-                new SafeLocationFinder(), stubPlayerNameService());
+                new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()));
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
 

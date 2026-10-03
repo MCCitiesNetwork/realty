@@ -2,7 +2,7 @@ package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
-import io.github.md5sha256.realty.rest.json.PlayerRef;
+import io.github.md5sha256.realty.rest.json.PartyRef;
 import io.github.md5sha256.realty.rest.json.PlayerSummaryResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.http.Context;
@@ -29,7 +29,7 @@ final class PlayerSummaryHandler {
     }
 
     void handle(@NotNull Context ctx) {
-        PlayerRef player = Objects.requireNonNull(
+        PartyRef player = Objects.requireNonNull(
                 PlayerNameResolution.fromRequest(ctx, this.moduleClient, true));
         UUID playerId = UUID.fromString(player.id());
 

@@ -1349,6 +1349,13 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+    @Override
+    public @Nullable Party.Account findAccountParty(int accountId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.partyMapper().findAccountParty(accountId);
+        }
+    }
+
     // --- Group mapping ---
 
     @Override

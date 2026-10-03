@@ -156,6 +156,43 @@ public final class HttpModuleClient implements ModuleClient {
     }
 
     @Override
+    public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
+        String path = "/accounts/names";
+        try {
+            List<Integer> distinct = new ArrayList<>(new LinkedHashSet<>(accountIds));
+            if (distinct.isEmpty()) {
+                return Map.of();
+            }
+            if (distinct.size() > MAX_BATCH) {
+                LOGGER.fine("truncating a batch of " + distinct.size() + " account ids to " + MAX_BATCH
+                        + "; the module rejects larger batches");
+                distinct = distinct.subList(0, MAX_BATCH);
+            }
+            JsonNode body = post(path, Map.of("ids", distinct));
+            Map<Integer, String> names = new LinkedHashMap<>();
+            if (body == null) {
+                return names;
+            }
+            for (JsonNode account : body.path("accounts")) {
+                JsonNode name = account.path("name");
+                if (name.isNull() || !name.isTextual()) {
+                    continue;
+                }
+                JsonNode id = account.path("id");
+                if (!id.canConvertToInt() || !id.isIntegralNumber()) {
+                    LOGGER.fine("module returned a malformed account id in " + path);
+                    continue;
+                }
+                names.put(id.intValue(), name.asText());
+            }
+            return names;
+        } catch (RuntimeException ex) {
+            failed(path, ex);
+            return Map.of();
+        }
+    }
+
+    @Override
     public @NotNull NameLookup uuidOf(@NotNull String name) {
         String path = "/players/uuids";
         try {

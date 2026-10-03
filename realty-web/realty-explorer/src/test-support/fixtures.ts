@@ -3,7 +3,7 @@
 export const world = { id: "8f4d1c2e-0000-0000-0000-000000000099", name: "world" };
 export const otherWorld = { id: "8f4d1c2e-0000-0000-0000-000000000100", name: "My World" };
 
-export const player = (id: string, name: string | null = null) => ({ id, name });
+export const player = (id: string, name: string | null = null) => ({ kind: "personal" as const, id, name });
 
 export const alice = player("a1a1a1a1-0000-0000-0000-000000000001", "Alice");
 export const bob = player("b2b2b2b2-0000-0000-0000-000000000002", "Bob");

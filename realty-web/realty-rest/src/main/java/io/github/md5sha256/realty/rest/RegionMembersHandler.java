@@ -1,19 +1,19 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
-import io.github.md5sha256.realty.rest.json.PlayerRef;
+import io.github.md5sha256.realty.rest.json.PartyRef;
 import io.github.md5sha256.realty.rest.json.RegionMembersResponse;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.github.md5sha256.realty.rest.module.ModuleResult;
-import io.github.md5sha256.realty.rest.module.PlayerNames;
+import io.github.md5sha256.realty.rest.module.PartyNames;
 import io.github.md5sha256.realty.rest.module.RegionMembers;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -56,9 +56,14 @@ final class RegionMembersHandler {
                     "Reading region members requires the query-service module, which is not reachable");
         };
 
-        List<UUID> ids = new ArrayList<>(members.owners().playerIds());
-        ids.addAll(members.members().playerIds());
-        Map<UUID, String> names = PlayerNames.resolve(this.moduleClient, ids);
+        List<Party> players = new ArrayList<>();
+        for (UUID id : members.owners().playerIds()) {
+            players.add(new Party.Personal(id));
+        }
+        for (UUID id : members.members().playerIds()) {
+            players.add(new Party.Personal(id));
+        }
+        PartyNames.Resolved names = PartyNames.resolve(this.moduleClient, players);
         ctx.json(new RegionMembersResponse(
                 party(members.owners(), names), party(members.members(), names)));
     }
@@ -73,10 +78,10 @@ final class RegionMembersHandler {
     }
 
     private static @NotNull RegionMembersResponse.Party party(@NotNull RegionMembers.Party party,
-                                                              @NotNull Map<UUID, String> names) {
-        List<PlayerRef> players = new ArrayList<>(party.playerIds().size());
+                                                              @NotNull PartyNames.Resolved names) {
+        List<PartyRef> players = new ArrayList<>(party.playerIds().size());
         for (UUID id : party.playerIds()) {
-            players.add(Objects.requireNonNull(PlayerNames.ref(id, names)));
+            players.add(Objects.requireNonNull(names.ref(id)));
         }
         return new RegionMembersResponse.Party(players, party.playerNames(), party.groups());
     }

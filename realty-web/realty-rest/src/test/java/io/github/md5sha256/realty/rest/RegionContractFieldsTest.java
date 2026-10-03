@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RegionState;
@@ -7,6 +8,7 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.testtools.JavalinTest;
 import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
@@ -132,6 +134,63 @@ class RegionContractFieldsTest {
             Assertions.assertTrue(body.contains("\"Auctioneer\""), "expected the auctioneer in: " + body);
             Assertions.assertTrue(body.contains("\"Bidder\""), "expected the bidder in: " + body);
         });
+    }
+
+    @Test
+    void accountLandlord_isAGovernmentRef() {
+        LeaseholdContractEntity leasehold = new LeaseholdContractEntity(
+                1, new Party.Account(42, AccountKind.GOVERNMENT), null, 800.0, 604800L,
+                null, null, 0, 3, null, null, true);
+        RealtyRestServer server = TestServers.withRegionInfo(
+                new RealtyBackend.RegionInfo(null, leasehold, null, null, null),
+                RegionState.FOR_LEASE,
+                TestServers.stubModule(Map.of(), Map.of(42, "GovSecurity"), Map.of(), Map.of()));
+        get(server, body -> Assertions.assertTrue(body.contains(
+                        "\"landlord\":{\"kind\":\"government\",\"id\":\"42\",\"name\":\"GovSecurity\"}"),
+                "expected the account landlord in: " + body));
+    }
+
+    @Test
+    void groupAuthority_isAGroupRef() {
+        FreeholdContractEntity freehold = new FreeholdContractEntity(
+                1, new Party.Group("police", 7, AccountKind.GOVERNMENT), null, 25000.0, true);
+        RealtyRestServer server = TestServers.withRegionInfo(
+                new RealtyBackend.RegionInfo(freehold, null, null, null, null),
+                RegionState.FOR_SALE,
+                TestServers.stubModule(Map.of(), Map.of(), Map.of()));
+        get(server, body -> Assertions.assertTrue(body.contains(
+                        "\"authority\":{\"kind\":\"group\",\"id\":\"police\",\"name\":\"police\"}"),
+                "expected the group authority in: " + body));
+    }
+
+    @Test
+    void accountLandlord_isServedWithANullNameWhenTheModuleIsDisabled() {
+        LeaseholdContractEntity leasehold = new LeaseholdContractEntity(
+                1, new Party.Account(42, AccountKind.GOVERNMENT), null, 800.0, 604800L,
+                null, null, 0, 3, null, null, true);
+        RealtyRestServer server = TestServers.withRegionInfo(
+                new RealtyBackend.RegionInfo(null, leasehold, null, null, null),
+                RegionState.FOR_LEASE,
+                ModuleClient.disabled());
+        get(server, body -> Assertions.assertTrue(body.contains(
+                        "\"landlord\":{\"kind\":\"government\",\"id\":\"42\",\"name\":null}"),
+                "expected the account landlord with no name in: " + body));
+    }
+
+    @Test
+    void playerTenant_isAPersonalRef() {
+        UUID tenant = UUID.fromString("44440000-0000-0000-0000-000000000004");
+        LeaseholdContractEntity leasehold = new LeaseholdContractEntity(
+                1, new Party.Account(42, AccountKind.GOVERNMENT), tenant, 800.0, 604800L,
+                LocalDateTime.of(2026, 8, 1, 0, 0), LocalDateTime.of(2026, 8, 8, 0, 0),
+                0, 3, null, null, true);
+        RealtyRestServer server = TestServers.withRegionInfo(
+                new RealtyBackend.RegionInfo(null, leasehold, null, null, null),
+                RegionState.LEASED,
+                TestServers.stubModule(Map.of(tenant, "Steve"), Map.of(42, "GovSecurity"), Map.of(), Map.of()));
+        get(server, body -> Assertions.assertTrue(body.contains(
+                        "\"tenant\":{\"kind\":\"personal\",\"id\":\"" + tenant + "\",\"name\":\"Steve\"}"),
+                "expected the player tenant in: " + body));
     }
 
     private static LeaseholdContractEntity leasehold(LocalDateTime terminationEffectiveDate,

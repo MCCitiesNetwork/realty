@@ -390,6 +390,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/parties/{kind}/{id}/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the regions of any party
+         * @description The same listing as `/v1/players/regions`, for any party: a player, a Treasury account or a permission group, addressed by kind and id. The query parameters and the response are the same, and so is the paging: with `category=all` the three lists share one offset. For `personal` the lists are the ones `/v1/players/regions?player=<uuid>` returns. For any other party `owned` and `rented` are empty, because only a player holds a title or rents; `landlord` lists the regions the party is the freehold authority of. In the response the field is still called `player`, so the shape of the player route does not change; here it holds the party's `PartyRef`. An account that no contract names answers with empty lists rather than 404, because this API cannot ask Treasury whether it exists; an account that is stored under another kind is 404.
+         */
+        get: operations["listPartyRegions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/players/lookup": {
         parameters: {
             query?: never;
@@ -480,15 +500,17 @@ export interface components {
             id: string;
             name?: string | null;
         };
-        /** @description A player identity. `id` is always present. */
-        PlayerRef: {
-            /** Format: uuid */
+        /** @description A party: a player, a Treasury account, or a permission group. `kind` and `id` are always present. */
+        PartyRef: {
+            /** @enum {string} */
+            kind: "personal" | "business" | "government" | "system" | "group";
+            /** @description A UUID when kind is personal, the account id when kind is business, government or system, and the group name when kind is group. */
             id: string;
-            /** @description From the query-service module; null when it is disabled or unreachable. */
+            /** @description Text, returned as it is. For a player or an account it comes from the query-service module and is null when the module is disabled or unreachable, or cannot name it. For a group it is the group name. */
             name?: string | null;
         };
         PlayerSummaryResponse: {
-            player: components["schemas"]["PlayerRef"];
+            player: components["schemas"]["PartyRef"];
             titleHeld: number;
             landlordOf: number;
             /** @description The subset of `landlordOf` that currently has a tenant, so a caller can show let versus vacant without a second call. */
@@ -510,12 +532,12 @@ export interface components {
             eventType: string;
             /** Format: date-time */
             eventTime: string;
-            buyer?: components["schemas"]["PlayerRef"];
-            authority?: components["schemas"]["PlayerRef"];
-            tenant?: components["schemas"]["PlayerRef"];
-            landlord?: components["schemas"]["PlayerRef"];
-            agent?: components["schemas"]["PlayerRef"];
-            actor?: components["schemas"]["PlayerRef"];
+            buyer?: components["schemas"]["PartyRef"];
+            authority?: components["schemas"]["PartyRef"];
+            tenant?: components["schemas"]["PartyRef"];
+            landlord?: components["schemas"]["PartyRef"];
+            agent?: components["schemas"]["PartyRef"];
+            actor?: components["schemas"]["PartyRef"];
             price?: number;
             /** Format: int64 */
             durationSeconds?: number;
@@ -537,12 +559,12 @@ export interface components {
             eventTime: string;
             worldGuardRegionId: string;
             world: components["schemas"]["WorldRef"];
-            buyer?: components["schemas"]["PlayerRef"];
-            authority?: components["schemas"]["PlayerRef"];
-            tenant?: components["schemas"]["PlayerRef"];
-            landlord?: components["schemas"]["PlayerRef"];
-            agent?: components["schemas"]["PlayerRef"];
-            actor?: components["schemas"]["PlayerRef"];
+            buyer?: components["schemas"]["PartyRef"];
+            authority?: components["schemas"]["PartyRef"];
+            tenant?: components["schemas"]["PartyRef"];
+            landlord?: components["schemas"]["PartyRef"];
+            agent?: components["schemas"]["PartyRef"];
+            actor?: components["schemas"]["PartyRef"];
             price?: number;
             /** Format: int64 */
             durationSeconds?: number;
@@ -558,7 +580,7 @@ export interface components {
         AuctionsResponse_Entry: {
             worldGuardRegionId: string;
             world: components["schemas"]["WorldRef"];
-            auctioneer: components["schemas"]["PlayerRef"];
+            auctioneer: components["schemas"]["PartyRef"];
             /** Format: date-time */
             startDate: string;
             /**
@@ -577,7 +599,7 @@ export interface components {
             bidderCount: number;
         };
         AuctionsResponse_Bid: {
-            bidder: components["schemas"]["PlayerRef"];
+            bidder: components["schemas"]["PartyRef"];
             amount: number;
             /** Format: date-time */
             bidTime: string;
@@ -593,7 +615,7 @@ export interface components {
         OwnersLeaderboardResponse_Entry: {
             /** @description The row's 1-based position across the whole leaderboard, not within the page, so page 2 at pageSize 10 starts at 11. */
             rank: number;
-            player: components["schemas"]["PlayerRef"];
+            player: components["schemas"]["PartyRef"];
             plotCount: number;
         };
         StatsResponse: {
@@ -673,8 +695,8 @@ export interface components {
             tags: string[];
         };
         RegionResponse_Freehold: {
-            titleHolder?: components["schemas"]["PlayerRef"] | null;
-            authority: components["schemas"]["PlayerRef"];
+            titleHolder?: components["schemas"]["PartyRef"] | null;
+            authority: components["schemas"]["PartyRef"];
             /** @description Null means the region is not currently for sale. */
             price?: number | null;
             lastSoldPrice?: number | null;
@@ -682,8 +704,8 @@ export interface components {
             acceptingOffers: boolean;
         };
         RegionResponse_Leasehold: {
-            landlord: components["schemas"]["PlayerRef"];
-            tenant?: components["schemas"]["PlayerRef"] | null;
+            landlord: components["schemas"]["PartyRef"];
+            tenant?: components["schemas"]["PartyRef"] | null;
             price: number;
             /** Format: int64 */
             durationSeconds: number;
@@ -708,7 +730,7 @@ export interface components {
             /** Format: date-time */
             endDate?: string | null;
             highestBid?: components["schemas"]["RegionResponse_Bid"] | null;
-            auctioneer: components["schemas"]["PlayerRef"];
+            auctioneer: components["schemas"]["PartyRef"];
             /** Format: date-time */
             startDate: string;
             minBid: number;
@@ -726,7 +748,7 @@ export interface components {
             paymentDurationSeconds: number;
         };
         RegionResponse_Bid: {
-            bidder: components["schemas"]["PlayerRef"];
+            bidder: components["schemas"]["PartyRef"];
             amount: number;
         };
         /** @description A region's WorldGuard geometry. Null when the query-service module is disabled or unreachable. */
@@ -743,9 +765,9 @@ export interface components {
             x: number;
             z: number;
         };
-        /** @description The response for GET /v1/players/regions. When category=owned or category=rented was requested, `regions` carries that category's entries and `owned`/`landlord`/`rented` are omitted (not serialised as null). When category=all (the default), `owned`, `landlord` and `rented` are populated instead and `regions` is omitted. See the endpoint description for the shared-offset paging behaviour of category=all. */
+        /** @description The response for GET /v1/players/regions and GET /v1/parties/{kind}/{id}/regions, where `player` holds the party. When category=owned or category=rented was requested, `regions` carries that category's entries and `owned`/`landlord`/`rented` are omitted (not serialised as null). When category=all (the default), `owned`, `landlord` and `rented` are populated instead and `regions` is omitted. See the endpoint description for the shared-offset paging behaviour of category=all. */
         PlayerRegionsResponse: {
-            player: components["schemas"]["PlayerRef"];
+            player: components["schemas"]["PartyRef"];
             page: number;
             pageSize: number;
             totalCount: number;
@@ -828,8 +850,8 @@ export interface components {
         /** @description One WorldGuard domain, with its three kinds of entry kept apart because WorldGuard stores three kinds and flattening them loses information. */
         RegionMembersResponse_Party: {
             /** @description UUID entries, with a name where the module could supply one. */
-            players: components["schemas"]["PlayerRef"][];
-            /** @description Legacy name entries, which carry no UUID and so cannot be a PlayerRef. WorldGuard lower-cases these on the way in and they are reported as it holds them. */
+            players: components["schemas"]["PartyRef"][];
+            /** @description Legacy name entries, which carry no UUID and so cannot be a PartyRef. WorldGuard lower-cases these on the way in and they are reported as it holds them. */
             playerNames: string[];
             /** @description Permission group names, which are not players. */
             groups: string[];
@@ -1743,6 +1765,65 @@ export interface operations {
             };
         };
     };
+    listPartyRegions: {
+        parameters: {
+            query?: {
+                /** @description One of `all` (default), `owned`, or `rented`. */
+                category?: "all" | "owned" | "rented";
+                /** @description 1-based page number. Defaults to 1. */
+                page?: number;
+                /** @description Page size, clamped to the server's configured maximum, which is itself capped at 100. Defaults to 10 (or the configured maximum if it is lower). A larger value is clamped rather than rejected. */
+                pageSize?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The party's kind, in lower case. Any other value, including upper case, is rejected. */
+                kind: "personal" | "business" | "government" | "system" | "group";
+                /** @description A player UUID when `kind` is `personal`, an account id when it is `business`, `government` or `system`, and a group name when it is `group`. A group name is matched without regard to case. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requested page of the party's regions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerRegionsResponse"];
+                };
+            };
+            /** @description `INVALID_PARTY_KIND` when `kind` is not one of the five values; `MALFORMED_UUID` when `kind` is `personal` and `id` is not a UUID; `INVALID_ACCOUNT_ID` when `kind` is an account kind and `id` is not a positive integer; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when `category` is present but not one of `all`, `owned`, `rented`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `PARTY_NOT_FOUND` -- `kind` is `group` and no group is mapped under that name, or `kind` is an account kind and that account id is stored under another kind. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `INTERNAL_ERROR` -- a generic message only, never the underlying exception. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     lookupPlayer: {
         parameters: {
             query: {
@@ -1761,7 +1842,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PlayerRef"];
+                    "application/json": components["schemas"]["PartyRef"];
                 };
             };
             /** @description `MISSING_PARAMETER` -- `playerName` was absent or blank. */

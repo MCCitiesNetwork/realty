@@ -76,6 +76,34 @@ class HttpModuleClientTest {
     }
 
     @Test
+    void accountNames_postsTheIds_andReadsTheNames() {
+        FakeModule module = new FakeModule(0);
+        JavalinTest.test(module.app(), (server, http) -> {
+            Map<Integer, String> names = client(server.port(), FakeModule.SECRET, Duration.ofSeconds(2))
+                    .accountNames(List.of(42, 77, 42));
+            Assertions.assertEquals(Map.of(42, "GovSecurity"), names, "an account with no name is left out");
+            Assertions.assertEquals(List.of("{\"ids\":[42,77]}"), module.receivedBodies,
+                    "one HTTP call, each id once, as JSON numbers");
+        });
+    }
+
+    @Test
+    void accountNames_moduleDown_isEmpty() {
+        HttpModuleClient client = client(1, FakeModule.SECRET, Duration.ofMillis(500));
+        Assertions.assertTrue(client.accountNames(List.of(42)).isEmpty());
+    }
+
+    @Test
+    void accountNames_anEmptyBatchMakesNoCall() {
+        FakeModule module = new FakeModule(0);
+        JavalinTest.test(module.app(), (server, http) -> {
+            Assertions.assertTrue(client(server.port(), FakeModule.SECRET, Duration.ofSeconds(2))
+                    .accountNames(List.of()).isEmpty());
+            Assertions.assertTrue(module.receivedBodies.isEmpty());
+        });
+    }
+
+    @Test
     void resolvesABedrockNameWithSpacesViaTheBody() {
         JavalinTest.test(new FakeModule(0).app(), (server, http) -> {
             NameLookup result = client(server.port(), FakeModule.SECRET, Duration.ofSeconds(2)).uuidOf(".Cool Guy 123");

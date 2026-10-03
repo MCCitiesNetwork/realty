@@ -7,7 +7,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * The response for {@code GET /v1/players/regions} -- the HTTP form of {@code /realty list}.
+ * The response for {@code GET /v1/players/regions} -- the HTTP form of {@code /realty list} --
+ * and for {@code GET /v1/parties/{kind}/{id}/regions}. The field keeps the name {@code player}
+ * so the shape of the player route does not change; on the party route it holds that party.
  *
  * <p>When a single category ({@code owned} or {@code rented}) was requested, {@code regions}
  * carries that category's entries and the three category-specific lists are omitted rather
@@ -16,7 +18,7 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PlayerRegionsResponse(
-        @NotNull PlayerRef player,
+        @NotNull PartyRef player,
         int page,
         int pageSize,
         int totalCount,

@@ -16,7 +16,7 @@ describe("regionPath", () => {
 
 describe("playerPath", () => {
   it("accepts a player or a bare id", () => {
-    expect(playerPath({ id: "abc", name: "Alice" })).toBe("/players/abc");
+    expect(playerPath({ kind: "personal", id: "abc", name: "Alice" })).toBe("/players/abc");
     expect(playerPath("abc")).toBe("/players/abc");
   });
 });

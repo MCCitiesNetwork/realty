@@ -91,6 +91,12 @@ class RegionQueryRoutesTest {
         }
 
         @Override
+        public @org.jetbrains.annotations.NotNull Map<Integer, String> accountNames(
+                @org.jetbrains.annotations.NotNull Collection<Integer> accountIds) {
+            return this.delegate.accountNames(accountIds);
+        }
+
+        @Override
         public @org.jetbrains.annotations.NotNull io.github.md5sha256.realty.rest.module.NameLookup uuidOf(
                 @org.jetbrains.annotations.NotNull String name) {
             return this.delegate.uuidOf(name);
@@ -235,9 +241,9 @@ class RegionQueryRoutesTest {
             Response response = client.get("/v1/region/members?world=world&region=plot_a");
             Assertions.assertEquals(200, response.code());
             Assertions.assertEquals(
-                    "{\"owners\":{\"players\":[{\"id\":\"" + ALICE + "\",\"name\":\"Alice\"}],"
+                    "{\"owners\":{\"players\":[{\"kind\":\"personal\",\"id\":\"" + ALICE + "\",\"name\":\"Alice\"}],"
                             + "\"playerNames\":[],\"groups\":[\"staff\"]},"
-                            + "\"members\":{\"players\":[{\"id\":\"" + BOB + "\",\"name\":\"Bob\"}],"
+                            + "\"members\":{\"players\":[{\"kind\":\"personal\",\"id\":\"" + BOB + "\",\"name\":\"Bob\"}],"
                             + "\"playerNames\":[\"legacyname\"],\"groups\":[]}}",
                     response.body().string());
         });
