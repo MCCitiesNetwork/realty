@@ -40,20 +40,40 @@ public interface RealtyBackend {
         record AlreadyInvited() implements InviteAgentResult {}
     }
 
+    /**
+     * Invites a player to act as the freehold's agent. The invitee must not deal with its authority:
+     * see {@link #executeBuy} for the conflict-of-interest rule, which answers
+     * {@link InviteAgentResult.IsAuthority}. The invitee's groups may be unknown here (D9), so
+     * {@link #acceptAgentInvite} applies the rule again.
+     *
+     * @param invitee        the invited player and the parties they act for
+     * @param bypassConflict whether the invitee holds {@code realty.bypass.conflict-of-interest}
+     */
     @NotNull InviteAgentResult inviteAgent(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
                                            @NotNull UUID inviterId,
-                                           @NotNull UUID inviteeId);
+                                           @NotNull ActorContext invitee,
+                                           boolean bypassConflict);
 
     sealed interface AcceptAgentInviteResult {
         record Success(@NotNull UUID inviterId) implements AcceptAgentInviteResult {}
         record NotFound() implements AcceptAgentInviteResult {}
         record AlreadyAgent() implements AcceptAgentInviteResult {}
+        /** The invitee may not deal with the freehold's authority; the invite stays pending. */
+        record IsAuthority() implements AcceptAgentInviteResult {}
     }
 
+    /**
+     * Accepts an invite, applying the conflict-of-interest rule of {@link #executeBuy} again with
+     * what is known of the invitee now.
+     *
+     * @param invitee        the invited player and the parties they act for
+     * @param bypassConflict whether the invitee holds {@code realty.bypass.conflict-of-interest}
+     */
     @NotNull AcceptAgentInviteResult acceptAgentInvite(@NotNull String worldGuardRegionId,
                                                        @NotNull UUID worldId,
-                                                       @NotNull UUID inviteeId);
+                                                       @NotNull ActorContext invitee,
+                                                       boolean bypassConflict);
 
     sealed interface WithdrawAgentInviteResult {
         record Success() implements WithdrawAgentInviteResult {}
@@ -83,9 +103,13 @@ public interface RealtyBackend {
         record OffersExist() implements CreateAuctionResult {}
     }
 
+    /**
+     * Starts an auction with the acting player as the auctioneer. The actor must manage the freehold's
+     * authority, hold its title, or be a sanctioned auctioneer; the admin bypass plays no part.
+     */
     @NotNull CreateAuctionResult createAuction(@NotNull String worldGuardRegionId,
                                                @NotNull UUID worldId,
-                                               @NotNull UUID auctioneerId,
+                                               @NotNull ActorContext ctx,
                                                long biddingDurationSeconds,
                                                long paymentDurationSeconds,
                                                double minBid,
@@ -106,10 +130,18 @@ public interface RealtyBackend {
         record AlreadyHighestBidder() implements BidResult {}
     }
 
+    /**
+     * Places a bid. A bidder who may not deal with the freehold's authority (see {@link #executeBuy}),
+     * its titleholder and its auctioneer are refused with {@link BidResult.IsOwner}.
+     *
+     * @param bidder         the bidding player and the parties they act for
+     * @param bypassConflict whether the bidder holds {@code realty.bypass.conflict-of-interest}
+     */
     @NotNull BidResult performBid(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,
-                                  @NotNull UUID bidderId,
-                                  double bidAmount);
+                                  @NotNull ActorContext bidder,
+                                  double bidAmount,
+                                  boolean bypassConflict);
 
     // --- Set Price ---
 
@@ -170,11 +202,21 @@ public interface RealtyBackend {
         record Success(@NotNull Party previousLandlord) implements SetLandlordResult {}
         record NoLeaseholdContract() implements SetLandlordResult {}
         record UpdateFailed() implements SetLandlordResult {}
+        /** The actor may not hand the current landlord's role to another party. */
+        record NotAllowedToReassign(@NotNull Party current) implements SetLandlordResult {}
+        /** The actor does not manage the party the role would go to. */
+        record NotAllowedToAssign(@NotNull Party requested) implements SetLandlordResult {}
     }
 
+    /**
+     * Hands the lease's landlord role to {@code newLandlord}. Unless {@code ctx} bypasses the rules,
+     * the current landlord must be in {@link ActorContext#reassigns()} and the new one in
+     * {@link ActorContext#manages()}, checked in that order.
+     */
     @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
-                                           @NotNull Party landlord);
+                                           @NotNull Party newLandlord,
+                                           @NotNull ActorContext ctx);
 
     // --- Set Authority ---
 
@@ -264,10 +306,19 @@ public interface RealtyBackend {
      * <p>A region with an accepted offer or a winning bid that is being paid for is not
      * for sale, and this answers {@link BuyResult.NotForFreehold}. Selling it would take
      * the region from under somebody who has already paid part of its price.</p>
+     *
+     * <p>Conflict of interest: a buyer who is the authority itself is refused with
+     * {@link BuyResult.IsAuthority}, whatever their permissions. A buyer who manages the
+     * authority is refused too, unless {@code bypassConflict} is set. Bids, offers and agent
+     * invites follow the same rule.</p>
+     *
+     * @param buyer          the buying player and the parties they act for; its admin bypass plays no part
+     * @param bypassConflict whether the buyer holds {@code realty.bypass.conflict-of-interest}
      */
     @NotNull BuyResult executeBuy(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,
-                                  @NotNull UUID buyerId);
+                                  @NotNull ActorContext buyer,
+                                  boolean bypassConflict);
 
     /**
      * Undoes a reservation made by {@link #executeBuy} that was not paid for. The region
@@ -333,11 +384,10 @@ public interface RealtyBackend {
         record UpdateFailed() implements SetRentableResult {}
     }
 
-    /** Sets whether a leasehold accepts new tenants. Only the landlord, or an admin via {@code bypassAuth}, may. */
+    /** Sets whether a leasehold accepts new tenants. Only a manager of the landlord, or an admin, may. */
     @NotNull SetRentableResult setRentable(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
-                                           @NotNull UUID actorId,
-                                           boolean bypassAuth,
+                                           @NotNull ActorContext ctx,
                                            boolean accepting);
 
     /**
@@ -473,14 +523,14 @@ public interface RealtyBackend {
 
     /**
      * Proposes a change to a leasehold's terms ({@code null} fields are left unchanged and merge with any
-     * existing same-role proposal). The proposer's role is derived from {@code actorId}: the landlord's
-     * proposal becomes {@code ACTIVE} (applies on the tenant's next renewal); the tenant's becomes
-     * {@code AWAITING_LANDLORD}. {@code bypassAuth} (admin) acts as the landlord.
+     * existing same-role proposal). The proposer's role is derived from {@code ctx}: the tenant first,
+     * then a manager of the landlord (or an admin), who acts as the landlord. The landlord's proposal
+     * becomes {@code ACTIVE} (applies on the tenant's next renewal); the tenant's becomes
+     * {@code AWAITING_LANDLORD}.
      */
     @NotNull ProposeModificationResult proposeModification(@NotNull String worldGuardRegionId,
                                                            @NotNull UUID worldId,
-                                                           @NotNull UUID actorId,
-                                                           boolean bypassAuth,
+                                                           @NotNull ActorContext ctx,
                                                            @Nullable Double newPrice,
                                                            @Nullable Long newDurationSeconds,
                                                            @Nullable Integer newMaxExtensions);
@@ -492,28 +542,31 @@ public interface RealtyBackend {
         record NoPendingProposal() implements ResolveModificationResult {}
         /** The pending modification is not a tenant proposal awaiting the landlord (accept/reject only). */
         record NotTenantProposal() implements ResolveModificationResult {}
-        /** The caller is not the landlord (accept/reject) or not the proposer (withdraw). */
+        /**
+         * The caller does not manage the landlord (accept/reject, and withdrawing a landlord proposal)
+         * or is not the proposer of a tenant proposal (withdraw).
+         */
         record NotAuthorized() implements ResolveModificationResult {}
         record UpdateFailed() implements ResolveModificationResult {}
     }
 
-    /** Landlord (or admin via {@code bypassAuth}) accepts a tenant's pending proposal, promoting it to {@code ACTIVE}. */
+    /** A manager of the landlord (or an admin) accepts a tenant's pending proposal, promoting it to {@code ACTIVE}. */
     @NotNull ResolveModificationResult acceptModification(@NotNull String worldGuardRegionId,
                                                           @NotNull UUID worldId,
-                                                          @NotNull UUID actorId,
-                                                          boolean bypassAuth);
+                                                          @NotNull ActorContext ctx);
 
-    /** Landlord (or admin via {@code bypassAuth}) rejects a tenant's pending proposal. */
+    /** A manager of the landlord (or an admin) rejects a tenant's pending proposal. */
     @NotNull ResolveModificationResult rejectModification(@NotNull String worldGuardRegionId,
                                                           @NotNull UUID worldId,
-                                                          @NotNull UUID actorId,
-                                                          boolean bypassAuth);
+                                                          @NotNull ActorContext ctx);
 
-    /** The proposer (or an admin via {@code bypassAuth}) withdraws their own pending proposal. */
+    /**
+     * Withdraws the pending proposal. Any manager of the landlord (or an admin) may withdraw a landlord
+     * proposal; only the proposer (or an admin) may withdraw a tenant proposal.
+     */
     @NotNull ResolveModificationResult withdrawModification(@NotNull String worldGuardRegionId,
                                                             @NotNull UUID worldId,
-                                                            @NotNull UUID actorId,
-                                                            boolean bypassAuth);
+                                                            @NotNull ActorContext ctx);
 
     /** Tenant proposals awaiting the given landlord's decision (inbox). */
     @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull Party landlord);
@@ -544,8 +597,9 @@ public interface RealtyBackend {
                                                      @NotNull String terminatedByRole);
 
     sealed interface CancelTerminationResult {
+        /** {@code tenantId} is the lease's tenant, or {@code null} for a lease that has none. */
         record Success(@NotNull String terminatedByRole, @NotNull Party landlord,
-                       @NotNull UUID tenantId) implements CancelTerminationResult {}
+                       @Nullable UUID tenantId) implements CancelTerminationResult {}
         record NoLeaseholdContract() implements CancelTerminationResult {}
         record NotTerminating() implements CancelTerminationResult {}
         /** The caller did not initiate the termination (and is not an admin). */
@@ -553,11 +607,13 @@ public interface RealtyBackend {
         record UpdateFailed() implements CancelTerminationResult {}
     }
 
-    /** Cancels a scheduled termination; only the initiating party, or an admin via {@code bypassAuth}, may. */
+    /**
+     * Cancels a scheduled termination. Only the side that started it may: any manager of the landlord,
+     * or the tenant. An admin may always.
+     */
     @NotNull CancelTerminationResult cancelTermination(@NotNull String worldGuardRegionId,
                                                        @NotNull UUID worldId,
-                                                       @NotNull UUID actorId,
-                                                       boolean bypassAuth);
+                                                       @NotNull ActorContext ctx);
 
     // --- Delete ---
 
@@ -578,6 +634,9 @@ public interface RealtyBackend {
 
     @Nullable LeaseholdContractEntity getLeaseholdContract(@NotNull String worldGuardRegionId,
                                                            @NotNull UUID worldId);
+
+    /** Every party in the Party table that is not a player: each account and each group. */
+    @NotNull List<Party> listNonPlayerParties();
 
     @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
@@ -609,9 +668,13 @@ public interface RealtyBackend {
 
     // --- Authority Check ---
 
+    /**
+     * Whether the actor holds the freehold's title, rents the leasehold, or manages its landlord.
+     * The freehold's authority does not count, and neither does the admin bypass.
+     */
     boolean checkRegionAuthority(@NotNull String worldGuardRegionId,
                                  @NotNull UUID worldId,
-                                 @NotNull UUID playerId);
+                                 @NotNull ActorContext ctx);
 
     // --- List ---
 
@@ -664,7 +727,7 @@ public interface RealtyBackend {
 
     @NotNull RejectOfferResult rejectOffer(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
-                                           @NotNull UUID callerId,
+                                           @NotNull ActorContext ctx,
                                            @NotNull UUID offererId);
 
     sealed interface RejectAllOffersResult {
@@ -676,7 +739,7 @@ public interface RealtyBackend {
 
     @NotNull RejectAllOffersResult rejectAllOffers(@NotNull String worldGuardRegionId,
                                                    @NotNull UUID worldId,
-                                                   @NotNull UUID callerId);
+                                                   @NotNull ActorContext ctx);
 
     sealed interface OfferResult {
         record Success(@Nullable UUID titleHolderId) implements OfferResult {}
@@ -688,10 +751,18 @@ public interface RealtyBackend {
         record InsertFailed() implements OfferResult {}
     }
 
+    /**
+     * Places an offer. An offerer who may not deal with the freehold's authority (see
+     * {@link #executeBuy}) and its titleholder are refused with {@link OfferResult.IsOwner}.
+     *
+     * @param offerer        the offering player and the parties they act for
+     * @param bypassConflict whether the offerer holds {@code realty.bypass.conflict-of-interest}
+     */
     @NotNull OfferResult placeOffer(@NotNull String worldGuardRegionId,
                                     @NotNull UUID worldId,
-                                    @NotNull UUID offererId,
-                                    double price);
+                                    @NotNull ActorContext offerer,
+                                    double price,
+                                    boolean bypassConflict);
 
     sealed interface ToggleOffersResult {
         record Success(boolean acceptingOffers) implements ToggleOffersResult {}
@@ -700,11 +771,11 @@ public interface RealtyBackend {
         record UpdateFailed() implements ToggleOffersResult {}
     }
 
+    /** Like the other offer actions, and an admin may too. */
     @NotNull ToggleOffersResult toggleOffers(@NotNull String worldGuardRegionId,
                                              @NotNull UUID worldId,
-                                             @NotNull UUID callerId,
-                                             boolean acceptingOffers,
-                                             boolean bypassAuth);
+                                             @NotNull ActorContext ctx,
+                                             boolean acceptingOffers);
 
     sealed interface AcceptOfferResult {
         record Success() implements AcceptOfferResult {}
@@ -715,9 +786,13 @@ public interface RealtyBackend {
         record InsertFailed() implements AcceptOfferResult {}
     }
 
+    /**
+     * The actor must manage the freehold's authority, hold its title, or be a sanctioned auctioneer;
+     * the admin bypass plays no part. The same holds for {@link #rejectOffer} and {@link #rejectAllOffers}.
+     */
     @NotNull AcceptOfferResult acceptOffer(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
-                                           @NotNull UUID callerId,
+                                           @NotNull ActorContext ctx,
                                            @NotNull UUID offererId);
 
     // --- Pay Offer ---

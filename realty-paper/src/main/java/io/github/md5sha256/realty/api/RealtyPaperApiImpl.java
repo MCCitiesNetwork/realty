@@ -152,13 +152,15 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<BuyResult> buy(@NotNull WorldGuardRegion region,
-                                                      @NotNull UUID buyerId) {
+                                                      @NotNull ActorContext buyer,
+                                                      boolean bypassConflict) {
+        UUID buyerId = buyer.requirePlayer();
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // DB-first: atomically transfer ownership before processing payment.
         // executeBuy uses WHERE price IS NOT NULL, preventing races.
         return CompletableFuture.supplyAsync(() -> {
-            RealtyBackend.BuyResult result = realtyApi.executeBuy(regionId, worldId, buyerId);
+            RealtyBackend.BuyResult result = realtyApi.executeBuy(regionId, worldId, buyer, bypassConflict);
             if (result instanceof RealtyBackend.BuyResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
                 return Map.entry(result, placeholders);
@@ -459,8 +461,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<TerminateResult> terminate(@NotNull WorldGuardRegion region,
-                                                                 @NotNull UUID actorId,
-                                                                 boolean bypassAuth,
+                                                                 @NotNull ActorContext ctx,
                                                                  boolean immediate) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
@@ -469,7 +470,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // extend/unrent/terminate on the same lease.
         return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
                 () -> computeTerminationPlan(regionId, realtyApi.getLeaseholdContract(regionId, worldId),
-                        actorId, bypassAuth, noticeSeconds),
+                        ctx, noticeSeconds),
                 executorState.dbExec()
         ).thenComposeAsync(plan -> {
             if (plan.failure() != null) {
@@ -483,7 +484,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                             (TerminateResult) new TerminateResult.InsufficientFunds(plan.charge(), balance));
                 }
                 PaymentResult payment = economyProvider.transfer(new Party.Personal(plan.tenantId()), plan.landlord(),
-                        plan.charge(), "Lease Termination Notice: " + regionId, actorId);
+                        plan.charge(), "Lease Termination Notice: " + regionId, ctx.player());
                 if (payment instanceof PaymentResult.Failure failure) {
                     return CompletableFuture.completedFuture(
                             (TerminateResult) new TerminateResult.PaymentFailed(failure.errorMessage()));
@@ -501,7 +502,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 // Should not happen under the per-region lock; refund any charge defensively.
                 if (plan.charge() > 0) {
                     economyProvider.transfer(plan.landlord(), new Party.Personal(plan.tenantId()), plan.charge(),
-                            "Lease Termination Refund: " + regionId, actorId);
+                            "Lease Termination Refund: " + regionId, ctx.player());
                 }
                 return (TerminateResult) new TerminateResult.UpdateFailed(regionId);
             }, executorState.mainThreadExec());
@@ -514,7 +515,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private @NotNull TerminationPlan computeTerminationPlan(
             @NotNull String regionId,
             @Nullable io.github.md5sha256.realty.database.entity.LeaseholdContractEntity lease,
-            @NotNull UUID actorId, boolean bypassAuth, long noticeSeconds) {
+            @NotNull ActorContext ctx, long noticeSeconds) {
         if (lease == null) {
             return TerminationPlan.fail(new TerminateResult.NoLeaseholdContract(regionId));
         }
@@ -524,11 +525,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         if (lease.terminationEffectiveDate() != null) {
             return TerminationPlan.fail(new TerminateResult.AlreadyTerminating(regionId));
         }
-        // Derive the initiating role; an admin (bypass) acts as the landlord (no charge).
+        // Derive the initiating role: the tenant first, then a manager of the landlord. An admin
+        // (bypass) acts as the landlord (no charge).
         String role;
-        if (actorId.equals(lease.tenantId())) {
+        if (lease.tenantId().equals(ctx.player())) {
             role = LeaseholdRoles.TENANT;
-        } else if (new Party.Personal(actorId).equals(lease.landlord()) || bypassAuth) {
+        } else if (ctx.mayManage(lease.landlord())) {
             role = LeaseholdRoles.LANDLORD;
         } else {
             return TerminationPlan.fail(new TerminateResult.NotAuthorized(regionId));
@@ -859,10 +861,16 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<SetLandlordResult> setLandlord(
             @NotNull WorldGuardRegion region, @NotNull Party landlord) {
+        return setLandlord(region, landlord, ActorContext.console());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<SetLandlordResult> setLandlord(
+            @NotNull WorldGuardRegion region, @NotNull Party landlord, @NotNull ActorContext ctx) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setLandlord(regionId, worldId, landlord),
+                () -> realtyApi.setLandlord(regionId, worldId, landlord, ctx),
                 executorState.dbExec()
         ).thenApplyAsync(result -> switch (result) {
             case RealtyBackend.SetLandlordResult.Success success -> {
@@ -874,6 +882,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetLandlordResult) new SetLandlordResult.NoLeaseholdContract(regionId);
             case RealtyBackend.SetLandlordResult.UpdateFailed ignored ->
                     (SetLandlordResult) new SetLandlordResult.UpdateFailed(regionId);
+            case RealtyBackend.SetLandlordResult.NotAllowedToReassign refused ->
+                    (SetLandlordResult) new SetLandlordResult.NotAllowedToReassign(refused.current());
+            case RealtyBackend.SetLandlordResult.NotAllowedToAssign refused ->
+                    (SetLandlordResult) new SetLandlordResult.NotAllowedToAssign(refused.requested());
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new SetLandlordResult.Error(String.valueOf(cause.getMessage()));
@@ -1123,17 +1135,18 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<RealtyBackend.InviteAgentResult> inviteAgent(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID inviterId, @NotNull UUID inviteeId) {
+            @NotNull UUID inviterId, @NotNull ActorContext invitee, boolean bypassConflict) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.inviteAgent(regionId, worldId, inviterId, inviteeId),
+                () -> realtyApi.inviteAgent(regionId, worldId, inviterId, invitee, bypassConflict),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.AcceptAgentInviteResult> acceptAgentInvite(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID inviteeId) {
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull ActorContext invitee, boolean bypassConflict) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.acceptAgentInvite(regionId, worldId, inviteeId),
+                () -> realtyApi.acceptAgentInvite(regionId, worldId, invitee, bypassConflict),
                 executorState.dbExec());
     }
 
@@ -1165,10 +1178,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<RealtyBackend.CreateAuctionResult> createAuction(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID auctioneerId, long biddingDurationSeconds,
+            @NotNull ActorContext ctx, long biddingDurationSeconds,
             long paymentDurationSeconds, double minBid, double minBidStep) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.createAuction(regionId, worldId, auctioneerId,
+                () -> realtyApi.createAuction(regionId, worldId, ctx,
                         biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep),
                 executorState.dbExec());
     }
@@ -1184,27 +1197,27 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<RealtyBackend.BidResult> performBid(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID bidderId, double bidAmount) {
+            @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.performBid(regionId, worldId, bidderId, bidAmount),
+                () -> realtyApi.performBid(regionId, worldId, bidder, bidAmount, bypassConflict),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.OfferResult> placeOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID offererId, double price) {
+            @NotNull ActorContext offerer, double price, boolean bypassConflict) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.placeOffer(regionId, worldId, offererId, price),
+                () -> realtyApi.placeOffer(regionId, worldId, offerer, price, bypassConflict),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.AcceptOfferResult> acceptOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, @NotNull UUID offererId) {
+            @NotNull ActorContext ctx, @NotNull UUID offererId) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.acceptOffer(regionId, worldId, callerId, offererId),
+                () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
                 executorState.dbExec());
     }
 
@@ -1220,27 +1233,27 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<RealtyBackend.RejectOfferResult> rejectOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, @NotNull UUID offererId) {
+            @NotNull ActorContext ctx, @NotNull UUID offererId) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.rejectOffer(regionId, worldId, callerId, offererId),
+                () -> realtyApi.rejectOffer(regionId, worldId, ctx, offererId),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.RejectAllOffersResult> rejectAllOffers(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId) {
+            @NotNull ActorContext ctx) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.rejectAllOffers(regionId, worldId, callerId),
+                () -> realtyApi.rejectAllOffers(regionId, worldId, ctx),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.ToggleOffersResult> toggleOffers(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, boolean accepting, boolean bypassAuth) {
+            @NotNull ActorContext ctx, boolean accepting) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.toggleOffers(regionId, worldId, callerId, accepting, bypassAuth),
+                () -> realtyApi.toggleOffers(regionId, worldId, ctx, accepting),
                 executorState.dbExec());
     }
 
@@ -1303,52 +1316,52 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID actorId, boolean bypassAuth, boolean accepting) {
+            @NotNull ActorContext ctx, boolean accepting) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setRentable(regionId, worldId, actorId, bypassAuth, accepting),
+                () -> realtyApi.setRentable(regionId, worldId, ctx, accepting),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.ProposeModificationResult> proposeModification(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID actorId, boolean bypassAuth,
+            @NotNull ActorContext ctx,
             @Nullable Double newPrice, @Nullable Long newDurationSeconds, @Nullable Integer newMaxExtensions) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.proposeModification(regionId, worldId, actorId, bypassAuth,
+                () -> realtyApi.proposeModification(regionId, worldId, ctx,
                         newPrice, newDurationSeconds, newMaxExtensions),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> acceptModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.acceptModification(regionId, worldId, actorId, bypassAuth),
+                () -> realtyApi.acceptModification(regionId, worldId, ctx),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> rejectModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.rejectModification(regionId, worldId, actorId, bypassAuth),
+                () -> realtyApi.rejectModification(regionId, worldId, ctx),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> withdrawModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.withdrawModification(regionId, worldId, actorId, bypassAuth),
+                () -> realtyApi.withdrawModification(regionId, worldId, ctx),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.CancelTerminationResult> cancelTermination(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth) {
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.cancelTermination(regionId, worldId, actorId, bypassAuth),
+                () -> realtyApi.cancelTermination(regionId, worldId, ctx),
                 executorState.dbExec());
     }
 

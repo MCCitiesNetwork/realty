@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyBackend.BuyResult;
@@ -42,9 +43,9 @@ class ConcurrencyTest extends AbstractDatabaseTest {
     }
 
     private static void placeAndAcceptOffer(String regionId, UUID worldId, UUID offererId, double price) {
-        OfferResult offerResult = logic.placeOffer(regionId, worldId, offererId, price);
+        OfferResult offerResult = logic.placeOffer(regionId, worldId, ActorContext.player(offererId, false), price, false);
         Assertions.assertInstanceOf(OfferResult.Success.class, offerResult);
-        AcceptOfferResult acceptResult = logic.acceptOffer(regionId, worldId, AUTHORITY, offererId);
+        AcceptOfferResult acceptResult = logic.acceptOffer(regionId, worldId, ActorContext.player(AUTHORITY, false), offererId);
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class, acceptResult);
     }
 
@@ -131,8 +132,8 @@ class ConcurrencyTest extends AbstractDatabaseTest {
             logic.setPrice(regionId, WORLD_ID, 1000.0);
 
             List<RaceOutcome<BuyResult>> outcomes = racePair(
-                    () -> logic.executeBuy(regionId, WORLD_ID, PLAYER_A),
-                    () -> logic.executeBuy(regionId, WORLD_ID, PLAYER_B)
+                    () -> logic.executeBuy(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false),
+                    () -> logic.executeBuy(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), false)
             );
 
             long successes = countValues(outcomes, r -> r instanceof BuyResult.Success);
@@ -378,9 +379,9 @@ class ConcurrencyTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             List<RaceOutcome<Boolean>> outcomes = racePair(
-                    () -> logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0)
+                    () -> logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false)
                             instanceof OfferResult.Success,
-                    () -> logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0)
+                    () -> logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0)
                             instanceof CreateAuctionResult.Success);
 
             long succeeded = countValues(outcomes, Boolean::booleanValue);
@@ -408,8 +409,8 @@ class ConcurrencyTest extends AbstractDatabaseTest {
      */
     private static void createAuctionAndBidPayment(String regionId, UUID worldId,
                                                     UUID bidderId, double bidAmount) {
-        logic.createAuction(regionId, worldId, AUTHORITY, 3600, 3600, 100.0, 10.0);
-        logic.performBid(regionId, worldId, bidderId, bidAmount);
+        logic.createAuction(regionId, worldId, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
+        logic.performBid(regionId, worldId, ActorContext.player(bidderId, false), bidAmount, false);
         // Replace the auction-generated payment deadline with a future one
         // since the auction bidding period may expire during test
         try (SqlSessionWrapper wrapper = database.openSession();

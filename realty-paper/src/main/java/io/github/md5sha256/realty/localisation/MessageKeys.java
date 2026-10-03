@@ -42,6 +42,7 @@ public final class MessageKeys {
     public static final String AGENT_INVITE_ACCEPT_SUCCESS = "agent-invite-accept.success";
     public static final String AGENT_INVITE_ACCEPT_NOT_FOUND = "agent-invite-accept.not-found";
     public static final String AGENT_INVITE_ACCEPT_ALREADY_AGENT = "agent-invite-accept.already-agent";
+    public static final String AGENT_INVITE_ACCEPT_IS_AUTHORITY = "agent-invite-accept.is-authority";
     public static final String AGENT_INVITE_ACCEPT_ERROR = "agent-invite-accept.error";
 
     // agent-invite-reject

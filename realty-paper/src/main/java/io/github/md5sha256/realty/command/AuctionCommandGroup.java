@@ -1,6 +1,8 @@
 package io.github.md5sha256.realty.command;
 
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -39,6 +41,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Groups all auction-related subcommands under {@code /realty auction}.
@@ -52,6 +55,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public record AuctionCommandGroup(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull AtomicReference<Settings> settings,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
@@ -177,15 +182,17 @@ public record AuctionCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.createAuction(
-                regionId,
-                region.world().getUID(),
-                player.getUniqueId(),
-                bidDuration.toSeconds(),
-                paymentDuration.toSeconds(),
-                minBid,
-                minBidStep
-        ).thenAccept(result -> {
+        CompletableFuture.supplyAsync(() -> actors.forRegion(player, false, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.createAuction(
+                        regionId,
+                        region.world().getUID(),
+                        actor,
+                        bidDuration.toSeconds(),
+                        paymentDuration.toSeconds(),
+                        minBid,
+                        minBidStep
+                ), executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.CreateAuctionResult.Success ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_SUCCESS,
@@ -264,7 +271,10 @@ public record AuctionCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.performBid(regionId, region.world().getUID(), sender.getUniqueId(), bidAmount)
+        boolean bypassConflict = sender.hasPermission("realty.bypass.conflict-of-interest");
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, false, region), executorState.dbExec())
+                .thenComposeAsync(bidder -> api.performBid(regionId, region.world().getUID(), bidder,
+                        bidAmount, bypassConflict), executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.BidResult.Success success -> {

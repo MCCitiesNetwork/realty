@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -17,6 +19,8 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Handles {@code /realty buy <region>}.
  *
@@ -27,6 +31,8 @@ import org.jetbrains.annotations.NotNull;
  */
 public record BuyCommand(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean.Single {
@@ -57,7 +63,11 @@ public record BuyCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.buy(region, sender.getUniqueId()).thenAccept(result -> {
+        boolean bypassConflict = sender.hasPermission("realty.bypass.conflict-of-interest");
+        // The context names the authority when the buyer acts for it: the authority may not buy its own land.
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, false, region), executorState.dbExec())
+                .thenComposeAsync(buyer -> api.buy(region, buyer, bypassConflict), executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.BuyResult.Success success -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.BUY_SUCCESS,
@@ -91,6 +101,11 @@ public record BuyCommand(
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_ERROR,
                                 Placeholder.unparsed("error", error.message())));
             }
+        }).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            sender.sendMessage(messages.messageFor(MessageKeys.BUY_ERROR,
+                    Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
+            return null;
         });
     }
 

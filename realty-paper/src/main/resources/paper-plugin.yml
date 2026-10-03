@@ -310,3 +310,6 @@ permissions:
   realty.command.rentable.others:
     description: Bypasses ownership/agent check for /realty rentable
     default: op
+  realty.bypass.conflict-of-interest:
+    description: Allows buying, bidding on, offering on and being agent for land whose authority you manage
+    default: op

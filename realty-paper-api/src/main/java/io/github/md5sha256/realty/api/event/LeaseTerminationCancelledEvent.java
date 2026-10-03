@@ -21,7 +21,7 @@ public class LeaseTerminationCancelledEvent extends RealtyRegionEvent {
 
     public LeaseTerminationCancelledEvent(@NotNull WorldGuardRegion region,
                                           @NotNull Party landlord,
-                                          @NotNull UUID tenantId,
+                                          @Nullable UUID tenantId,
                                           @NotNull String terminatedByRole) {
         super(region);
         this.landlord = landlord;
@@ -48,19 +48,19 @@ public class LeaseTerminationCancelledEvent extends RealtyRegionEvent {
     }
 
     /**
-     * The tenant of the lease.
+     * The tenant of the lease, or {@code null} for a lease that has none.
      */
-    public @NotNull Party getTenant() {
-        return new Party.Personal(this.tenantId);
+    public @Nullable Party getTenant() {
+        return this.tenantId == null ? null : new Party.Personal(this.tenantId);
     }
 
     /**
-     * The tenant of the lease.
+     * The tenant of the lease, or {@code null} for a lease that has none.
      *
      * @deprecated use {@link #getTenant()}. Removed in 3.0.0.
      */
     @Deprecated(forRemoval = true)
-    public @NotNull UUID getTenantId() {
+    public @Nullable UUID getTenantId() {
         return this.tenantId;
     }
 

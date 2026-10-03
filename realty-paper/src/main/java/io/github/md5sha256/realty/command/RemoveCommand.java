@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -62,8 +63,8 @@ public record RemoveCommand(@NotNull MessageContainer messages) implements Custo
         String regionId = region.region().getId();
 
         if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.remove.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
+                && !AddCommand.mayEditMembers(region.region(), WorldGuardPlugin.inst().wrapPlayer(player),
+                        sender.hasPermission("realty.command.remove.others"))) {
             sender.sendMessage(messages.messageFor(MessageKeys.REMOVE_NO_PERMISSION));
             return;
         }

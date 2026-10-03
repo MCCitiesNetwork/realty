@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -19,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles {@code /realty agent invite accept <region>}.
@@ -28,6 +31,8 @@ import java.util.UUID;
  * <p>Permission: {@code realty.command.agent.invite.accept}.</p>
  */
 public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
+                                        @NotNull ActorContexts actors,
+                                        @NotNull ExecutorState executorState,
                                         @NotNull MessageContainer messages,
                                         @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
 
@@ -58,7 +63,11 @@ public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         UUID inviteeId = player.getUniqueId();
-        api.acceptAgentInvite(regionId, worldId, inviteeId).thenAccept(result -> {
+        boolean bypassConflict = player.hasPermission("realty.bypass.conflict-of-interest");
+        CompletableFuture.supplyAsync(() -> actors.forRegion(player, false, region), executorState.dbExec())
+                .thenComposeAsync(invitee -> api.acceptAgentInvite(regionId, worldId, invitee, bypassConflict),
+                        executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.AcceptAgentInviteResult.Success(UUID inviterId) -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_SUCCESS,
@@ -75,6 +84,9 @@ public record AgentInviteAcceptCommand(@NotNull RealtyPaperApi api,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.AcceptAgentInviteResult.AlreadyAgent() ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_ALREADY_AGENT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.AcceptAgentInviteResult.IsAuthority() ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_ACCEPT_IS_AUTHORITY,
                                 Placeholder.unparsed("region", regionId)));
             }
         }).exceptionally(ex -> {
