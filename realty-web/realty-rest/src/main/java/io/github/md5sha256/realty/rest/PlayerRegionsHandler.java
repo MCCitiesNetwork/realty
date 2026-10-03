@@ -25,7 +25,7 @@ final class PlayerRegionsHandler {
     void handle(@NotNull Context ctx) {
         PartyRef player = Objects.requireNonNull(
                 PlayerNameResolution.fromRequest(ctx, this.moduleClient, true));
-        this.listing.respond(ctx, new Party.Personal(UUID.fromString(player.id())), player);
+        this.listing.respond(ctx, Party.personal(UUID.fromString(player.id())), player);
     }
 
 }

@@ -38,6 +38,8 @@ public interface RealtyRegionMapper {
 
     @NotNull List<RealtyRegionEntity> selectRegionsByAuthority(int authorityPartyId, int limit, int offset);
 
+    @NotNull List<RealtyRegionEntity> selectRegionsByLandlord(int landlordPartyId, int limit, int offset);
+
     @NotNull List<RealtyRegionEntity> selectRegionsByTenant(@NotNull UUID playerId, int limit, int offset);
 
     int countRegionsByTitleHolder(@NotNull UUID playerId);

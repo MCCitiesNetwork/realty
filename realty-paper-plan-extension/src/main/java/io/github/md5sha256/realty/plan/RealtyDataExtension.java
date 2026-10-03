@@ -164,7 +164,7 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
     )
     public long playerTotalOwnedRegions(UUID playerUUID) {
         return realtyApi.countRegionsByTitleHolder(playerUUID)
-                + realtyApi.countRegionsByLandlord(new Party.Personal(playerUUID));
+                + realtyApi.countRegionsByLandlord(Party.personal(playerUUID));
     }
 
     @NumberProvider(
@@ -186,7 +186,7 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
             iconColor = Color.AMBER
     )
     public long playerTotalLandlordRegions(UUID playerUUID) {
-        return realtyApi.countRegionsByLandlord(new Party.Personal(playerUUID));
+        return realtyApi.countRegionsByLandlord(Party.personal(playerUUID));
     }
 
     @NumberProvider(
@@ -208,11 +208,11 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
             iconColor = Color.GREEN
     )
     public double playerLeaseholdOccupancyRate(UUID playerUUID) {
-        int total = realtyApi.countRegionsByLandlord(new Party.Personal(playerUUID));
+        int total = realtyApi.countRegionsByLandlord(Party.personal(playerUUID));
         if (total == 0) {
             return 0;
         }
-        return (double) realtyApi.countOccupiedLeaseholdsByLandlord(new Party.Personal(playerUUID)) / total;
+        return (double) realtyApi.countOccupiedLeaseholdsByLandlord(Party.personal(playerUUID)) / total;
     }
 
     @StringProvider(
@@ -248,7 +248,7 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
             iconColor = Color.AMBER
     )
     public String playerLandlordRegions(UUID playerUUID) {
-        return String.join(", ", realtyApi.listRegionNamesByLandlord(new Party.Personal(playerUUID)));
+        return String.join(", ", realtyApi.listRegionNamesByLandlord(Party.personal(playerUUID)));
     }
 
     @TableProvider(tableColor = Color.CYAN)

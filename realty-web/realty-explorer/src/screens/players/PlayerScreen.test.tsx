@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { PlayerScreen } from "./PlayerScreen";
 import { alice, unnamed, world } from "../../test-support/fixtures";
@@ -7,13 +7,14 @@ import { failure, queriesTo, stubClient, type Query, type Routes } from "../../t
 import { VisibilityProvider, visibilityOf } from "../../visibility";
 
 const summary = (player: typeof alice) => ({
-  player, titleHeld: 93, landlordOf: 14, occupiedLandlordOf: 2, renting: 2, authorityOver: 0,
+  player, titleHeld: 93, landlordOf: 14, occupiedLandlordOf: 2, renting: 2, authorityOver: 5,
 });
 
 const holdings = (player: typeof alice) => ({
   player,
-  page: 1, pageSize: 20, totalCount: 3, totalPages: 1,
+  page: 1, pageSize: 20, totalCount: 4, totalPages: 1,
   owned: [{ worldGuardRegionId: "or-c059", world }],
+  authority: [{ worldGuardRegionId: "town-hall", world }],
   landlord: [{ worldGuardRegionId: "av-gas", world }],
   rented: [{ worldGuardRegionId: "flat_9", world, endDate: "2026-10-01T00:00:00Z", secondsRemaining: 86_400 }],
 });
@@ -37,6 +38,37 @@ describe("PlayerScreen", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: "or-c059" })).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "av-gas" })).toHaveAttribute("href", "/region/world/av-gas");
     expect(screen.getByText(/1 day left/)).toBeInTheDocument();
+  });
+
+  it("shows the land a player is authority of and the land they let as separate parts", async () => {
+    renderPlayer(alice.id, { "/v1/players/summary": summary(alice), "/v1/players/regions": holdings(alice) });
+    const authority = await screen.findByRole("region", { name: "Authority over" });
+    const landlord = screen.getByRole("region", { name: "Landlord of" });
+
+    expect(within(authority).getByRole("link", { name: "town-hall" })).toHaveAttribute("href", "/region/world/town-hall");
+    expect(within(authority).queryByRole("link", { name: "av-gas" })).toBeNull();
+    expect(within(landlord).getByRole("link", { name: "av-gas" })).toBeInTheDocument();
+    expect(within(landlord).queryByRole("link", { name: "town-hall" })).toBeNull();
+
+    const parts = screen.getAllByRole("region").map((part) => part.getAttribute("aria-label"));
+    expect(parts).toEqual(["Owned", "Authority over", "Landlord of", "Renting"]);
+  });
+
+  it("asks for the land a player lets when that part is chosen", async () => {
+    const get = renderPlayer(alice.id, {
+      "/v1/players/summary": summary(alice),
+      "/v1/players/regions": (query: Query) => query.category === "landlord"
+        ? { player: alice, page: 1, pageSize: 20, totalCount: 1, totalPages: 1, regions: [{ worldGuardRegionId: "av-gas", world }] }
+        : holdings(alice),
+    });
+    await screen.findByRole("link", { name: "town-hall" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Landlord of" }));
+
+    await waitFor(() => expect(queriesTo(get, "/v1/players/regions").at(-1)).toMatchObject({ category: "landlord" }));
+    await waitFor(() => expect(screen.queryByRole("link", { name: "town-hall" })).toBeNull());
+    expect(within(screen.getByRole("region", { name: "Landlord of" })).getByRole("link", { name: "av-gas" }))
+      .toBeInTheDocument();
   });
 
   it("falls back to the id when the module could not name the player", async () => {

@@ -728,26 +728,29 @@ public interface RealtyBackend {
 
     record ListResult(
             int ownedCount,
+            int authorityCount,
             int landlordCount,
             int rentedCount,
             @NotNull List<RealtyRegionEntity> owned,
+            @NotNull List<RealtyRegionEntity> authority,
             @NotNull List<RealtyRegionEntity> landlord,
             @NotNull List<RealtyRegionEntity> rented
     ) {
         public int totalCount() {
-            return ownedCount + landlordCount + rentedCount;
+            return ownedCount + authorityCount + landlordCount + rentedCount;
         }
     }
 
     /**
      * The regions whose title {@code target} holds ({@code owned}), whose freehold authority it is
-     * ({@code landlord}) and which it rents ({@code rented}), paged across the three in that order.
-     * Only a player holds a title or rents, so for any other party those two are empty.
+     * ({@code authority}), which it lets as the landlord of a lease ({@code landlord}) and which it
+     * rents ({@code rented}), paged across the four in that order. Only a player holds a title or
+     * rents, so for any other party those two are empty.
      */
     @NotNull ListResult listRegions(@NotNull Party target, int limit, int offset);
 
     default @NotNull ListResult listRegions(@NotNull UUID targetId, int limit, int offset) {
-        return listRegions(new Party.Personal(targetId), limit, offset);
+        return listRegions(Party.personal(targetId), limit, offset);
     }
 
     record SingleCategoryResult(
@@ -759,14 +762,28 @@ public interface RealtyBackend {
     @NotNull SingleCategoryResult listOwnedRegions(@NotNull Party target, int limit, int offset);
 
     default @NotNull SingleCategoryResult listOwnedRegions(@NotNull UUID targetId, int limit, int offset) {
-        return listOwnedRegions(new Party.Personal(targetId), limit, offset);
+        return listOwnedRegions(Party.personal(targetId), limit, offset);
+    }
+
+    /** The freeholds whose authority {@code target} is. */
+    @NotNull SingleCategoryResult listAuthorityRegions(@NotNull Party target, int limit, int offset);
+
+    default @NotNull SingleCategoryResult listAuthorityRegions(@NotNull UUID targetId, int limit, int offset) {
+        return listAuthorityRegions(Party.personal(targetId), limit, offset);
+    }
+
+    /** The leaseholds {@code target} lets as their landlord, whether a tenant rents them or not. */
+    @NotNull SingleCategoryResult listLandlordRegions(@NotNull Party target, int limit, int offset);
+
+    default @NotNull SingleCategoryResult listLandlordRegions(@NotNull UUID targetId, int limit, int offset) {
+        return listLandlordRegions(Party.personal(targetId), limit, offset);
     }
 
     /** The regions {@code target} rents; none for a party that is not a player. */
     @NotNull SingleCategoryResult listRentedRegions(@NotNull Party target, int limit, int offset);
 
     default @NotNull SingleCategoryResult listRentedRegions(@NotNull UUID targetId, int limit, int offset) {
-        return listRentedRegions(new Party.Personal(targetId), limit, offset);
+        return listRentedRegions(Party.personal(targetId), limit, offset);
     }
 
     // --- Offers ---

@@ -22,7 +22,7 @@ class RegionHistoryEndpointTest {
     @Test
     void discriminatesAFreeholdEntryByKind() {
         HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
-                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, new Party.Personal(AUTHORITY), 21500.0);
+                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, Party.personal(AUTHORITY), 21500.0);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of(BUYER, "Alice"));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get(URL);
@@ -39,7 +39,7 @@ class RegionHistoryEndpointTest {
     @Test
     void leavesOutTheBuyerOfAFreeholdEntryThatHasNone() {
         HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
-                "SET_PRICE", LocalDateTime.of(2026, 8, 30, 14, 2, 11), null, new Party.Personal(AUTHORITY), 900.0);
+                "SET_PRICE", LocalDateTime.of(2026, 8, 30, 14, 2, 11), null, Party.personal(AUTHORITY), 900.0);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get(URL);
@@ -54,7 +54,7 @@ class RegionHistoryEndpointTest {
     void anAccountAuthorityIsServedWithItsKind() {
         HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
                 "SET_PRICE", LocalDateTime.of(2026, 8, 30, 14, 2, 11), null,
-                new Party.Account(42, AccountKind.GOVERNMENT), 900.0);
+                Party.account(42, AccountKind.GOVERNMENT), 900.0);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get(URL);
@@ -70,7 +70,7 @@ class RegionHistoryEndpointTest {
     void aGroupLandlordIsServedWithItsKind_andAMissingTenantIsLeftOut() {
         HistoryEntry.Leasehold entry = new HistoryEntry.Leasehold(
                 "SET_PRICE", LocalDateTime.of(2026, 8, 12, 9, 40), null,
-                new Party.Group("police", 7, AccountKind.GOVERNMENT), 800.0, null, null);
+                Party.group("police", 7, AccountKind.GOVERNMENT), 800.0, null, null);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get(URL);
@@ -85,7 +85,7 @@ class RegionHistoryEndpointTest {
     @Test
     void aPlayerBuyerIsAPersonalRef() {
         HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
-                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, new Party.Personal(AUTHORITY), 21500.0);
+                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, Party.personal(AUTHORITY), 21500.0);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of(BUYER, "Alice"));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             String body = client.get(URL).body().string();
@@ -97,7 +97,7 @@ class RegionHistoryEndpointTest {
     @Test
     void discriminatesALeaseholdEntryByKind() {
         HistoryEntry.Leasehold entry = new HistoryEntry.Leasehold(
-                "RENT", LocalDateTime.of(2026, 8, 12, 9, 40), BUYER, new Party.Personal(AUTHORITY),
+                "RENT", LocalDateTime.of(2026, 8, 12, 9, 40), BUYER, Party.personal(AUTHORITY),
                 800.0, 604800L, 3);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {

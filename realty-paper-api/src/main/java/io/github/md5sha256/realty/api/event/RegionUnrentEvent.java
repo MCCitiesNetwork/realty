@@ -30,7 +30,7 @@ public class RegionUnrentEvent extends RealtyRegionEvent implements Cancellable 
      * The tenant attempting to end the lease early.
      */
     public @NotNull Party getTenant() {
-        return new Party.Personal(this.tenantId);
+        return Party.personal(this.tenantId);
     }
 
     /**

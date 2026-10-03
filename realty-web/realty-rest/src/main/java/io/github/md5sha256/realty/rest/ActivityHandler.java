@@ -81,7 +81,7 @@ final class ActivityHandler {
         Set<UUID> worldIds = new HashSet<>();
         for (ActivityRow row : rows) {
             if (row.firstPlayerId() != null) {
-                parties.add(new Party.Personal(row.firstPlayerId()));
+                parties.add(Party.personal(row.firstPlayerId()));
             }
             parties.add(row.secondParty());
             worldIds.add(row.worldId());

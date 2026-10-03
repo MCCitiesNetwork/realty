@@ -32,7 +32,7 @@ class ActivityMapperTest extends AbstractDatabaseTest {
     @BeforeEach
     void seed() {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            int bobPartyId = session.partyMapper().findOrInsert(new Party.Personal(BOB));
+            int bobPartyId = session.partyMapper().findOrInsert(Party.personal(BOB));
             session.freeholdHistoryMapper().insert("plot_a", WORLD_ID, "BUY", ALICE, bobPartyId, 21500.0);
             session.leaseholdHistoryMapper().insert("plot_b", WORLD_ID, "RENT", ALICE, bobPartyId,
                     800.0, 604800L, 3);
@@ -116,7 +116,7 @@ class ActivityMapperTest extends AbstractDatabaseTest {
         for (String regionId : List.of("plot_a", "plot_b", "plot_c")) {
             ActivityRow row = rowFor(rows, regionId);
             Assertions.assertEquals(ALICE, row.firstPlayerId(), regionId);
-            Assertions.assertEquals(new Party.Personal(BOB), row.secondParty(), regionId);
+            Assertions.assertEquals(Party.personal(BOB), row.secondParty(), regionId);
         }
     }
 
@@ -170,7 +170,7 @@ class ActivityMapperTest extends AbstractDatabaseTest {
     @Test
     void keepsTwoIdenticalEventsApart() {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            int landlordPartyId = session.partyMapper().findOrInsert(new Party.Personal(BOB));
+            int landlordPartyId = session.partyMapper().findOrInsert(Party.personal(BOB));
             for (int i = 0; i < 2; i++) {
                 session.leaseholdHistoryMapper().insert("plot_twice", WORLD_ID, "RENT", ALICE,
                         landlordPartyId, 800.0, 604800L, 3);
@@ -184,7 +184,7 @@ class ActivityMapperTest extends AbstractDatabaseTest {
     @Test
     void keepsTwoIdenticalFreeholdEventsApart() {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            int authorityPartyId = session.partyMapper().findOrInsert(new Party.Personal(BOB));
+            int authorityPartyId = session.partyMapper().findOrInsert(Party.personal(BOB));
             for (int i = 0; i < 2; i++) {
                 session.freeholdHistoryMapper().insert("plot_sold_twice", WORLD_ID, "BUY", ALICE,
                         authorityPartyId, 900.0);

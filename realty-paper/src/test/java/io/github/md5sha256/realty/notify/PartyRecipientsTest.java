@@ -22,8 +22,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class PartyRecipientsTest {
 
-    private static final Party.Account GOV = new Party.Account(42, AccountKind.GOVERNMENT);
-    private static final Party.Group POLICE = new Party.Group("police", 43, AccountKind.GOVERNMENT);
+    private static final Party.Account GOV = Party.account(42, AccountKind.GOVERNMENT);
+    private static final Party.Group POLICE = Party.group("police", 43, AccountKind.GOVERNMENT);
 
     private final UUID member = UUID.randomUUID();
     private final UUID authorizer = UUID.randomUUID();
@@ -63,7 +63,7 @@ class PartyRecipientsTest {
         UUID id = UUID.randomUUID();
 
         Assertions.assertEquals(List.of(id),
-                recipients(treasury, AccountManagers.MEMBERS).expand(new Party.Personal(id)));
+                recipients(treasury, AccountManagers.MEMBERS).expand(Party.personal(id)));
     }
 
     @Test

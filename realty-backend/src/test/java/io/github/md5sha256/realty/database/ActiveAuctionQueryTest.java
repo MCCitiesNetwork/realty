@@ -30,9 +30,9 @@ class ActiveAuctionQueryTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void seed() {
-        Assertions.assertTrue(logic.createFreehold("plot_quiet", WORLD_ID, 1000.0, new Party.Personal(AUTHORITY), null));
-        Assertions.assertTrue(logic.createFreehold("plot_busy", WORLD_ID, 1000.0, new Party.Personal(AUTHORITY), null));
-        Assertions.assertTrue(logic.createFreehold("plot_elsewhere", OTHER_WORLD, 1000.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("plot_quiet", WORLD_ID, 1000.0, Party.personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("plot_busy", WORLD_ID, 1000.0, Party.personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("plot_elsewhere", OTHER_WORLD, 1000.0, Party.personal(AUTHORITY), null));
         logic.createAuction("plot_quiet", WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
         logic.createAuction("plot_busy", WORLD_ID, ActorContext.player(AUTHORITY, false), 7200, 3600, 100.0, 10.0);
         logic.createAuction("plot_elsewhere", OTHER_WORLD, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);

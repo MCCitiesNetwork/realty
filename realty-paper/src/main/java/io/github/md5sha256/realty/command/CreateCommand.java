@@ -251,7 +251,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         regionManager.addRegion(wgRegion);
 
         api.createFreehold(region, price, authority,
-                        titleholder == null ? null : new Party.Personal(titleholder))
+                        titleholder == null ? null : Party.personal(titleholder))
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {

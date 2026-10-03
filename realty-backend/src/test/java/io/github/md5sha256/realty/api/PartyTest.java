@@ -11,23 +11,23 @@ class PartyTest {
     @Test
     void group_nameIsLowerCased() {
         Assertions.assertEquals(
-                new Party.Group("police", 42, AccountKind.GOVERNMENT),
-                new Party.Group("Police", 42, AccountKind.GOVERNMENT)
+                Party.group("police", 42, AccountKind.GOVERNMENT),
+                Party.group("Police", 42, AccountKind.GOVERNMENT)
         );
     }
 
     @Test
     void partyKind_matchesEachKind() {
-        Assertions.assertEquals(PartyKind.PERSONAL, new Party.Personal(UUID.randomUUID()).partyKind());
-        Assertions.assertEquals(PartyKind.SYSTEM, new Party.Account(7, AccountKind.SYSTEM).partyKind());
-        Assertions.assertEquals(PartyKind.GROUP, new Party.Group("police", 42, AccountKind.GOVERNMENT).partyKind());
+        Assertions.assertEquals(PartyKind.PERSONAL, Party.personal(UUID.randomUUID()).partyKind());
+        Assertions.assertEquals(PartyKind.SYSTEM, Party.account(7, AccountKind.SYSTEM).partyKind());
+        Assertions.assertEquals(PartyKind.GROUP, Party.group("police", 42, AccountKind.GOVERNMENT).partyKind());
     }
 
     @Test
     void playerUuidOf_isEmptyForNonPlayers() {
         UUID id = UUID.randomUUID();
-        Assertions.assertEquals(Optional.of(id), Party.playerUuidOf(new Party.Personal(id)));
-        Assertions.assertEquals(Optional.empty(), Party.playerUuidOf(new Party.Account(7, AccountKind.BUSINESS)));
+        Assertions.assertEquals(Optional.of(id), Party.playerUuidOf(Party.personal(id)));
+        Assertions.assertEquals(Optional.empty(), Party.playerUuidOf(Party.account(7, AccountKind.BUSINESS)));
         Assertions.assertEquals(Optional.empty(), Party.playerUuidOf(null));
     }
 
@@ -41,7 +41,7 @@ class PartyTest {
     @Test
     void partyKind_ofAnAccountUsesTheAccountKind() {
         for (AccountKind kind : AccountKind.values()) {
-            Assertions.assertEquals(PartyKind.of(kind), new Party.Account(7, kind).partyKind());
+            Assertions.assertEquals(PartyKind.of(kind), Party.account(7, kind).partyKind());
         }
     }
 }

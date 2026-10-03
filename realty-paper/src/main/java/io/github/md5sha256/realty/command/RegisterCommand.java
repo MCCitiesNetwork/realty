@@ -183,7 +183,7 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             return;
         }
         api.registerFreehold(region, price, authority,
-                        titleholder == null ? null : new Party.Personal(titleholder))
+                        titleholder == null ? null : Party.personal(titleholder))
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {

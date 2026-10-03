@@ -37,7 +37,7 @@ public class RegionRentedEvent extends RealtyRegionEvent {
      * The new tenant.
      */
     public @NotNull Party getTenant() {
-        return new Party.Personal(this.tenantId);
+        return Party.personal(this.tenantId);
     }
 
     /**

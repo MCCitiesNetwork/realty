@@ -44,6 +44,6 @@ public record LeaseholdContractEntity(
      * @return the tenant as a party, if the region is let
      */
     public @NotNull Optional<Party> tenant() {
-        return Optional.ofNullable(tenantId).map(Party.Personal::new);
+        return Optional.ofNullable(tenantId).map(Party::personal);
     }
 }

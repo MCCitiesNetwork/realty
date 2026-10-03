@@ -35,34 +35,34 @@ class PartyRefTest {
     void personal_serialises() throws Exception {
         ModuleClient module = TestServers.stubModule(Map.of(STEVE, "Steve"), Map.of(), Map.of(), Map.of());
         Assertions.assertEquals("{\"kind\":\"personal\",\"id\":\"" + STEVE + "\",\"name\":\"Steve\"}",
-                json(module, new Party.Personal(STEVE)));
+                json(module, Party.personal(STEVE)));
     }
 
     @Test
     void government_serialises() throws Exception {
         ModuleClient module = TestServers.stubModule(Map.of(), Map.of(42, "GovSecurity"), Map.of(), Map.of());
         Assertions.assertEquals("{\"kind\":\"government\",\"id\":\"42\",\"name\":\"GovSecurity\"}",
-                json(module, new Party.Account(42, AccountKind.GOVERNMENT)));
+                json(module, Party.account(42, AccountKind.GOVERNMENT)));
     }
 
     @Test
     void group_serialises() throws Exception {
         ModuleClient module = TestServers.stubModule(Map.of(), Map.of(), Map.of(), Map.of());
         Assertions.assertEquals("{\"kind\":\"group\",\"id\":\"police\",\"name\":\"police\"}",
-                json(module, new Party.Group("police", 7, AccountKind.GOVERNMENT)));
+                json(module, Party.group("police", 7, AccountKind.GOVERNMENT)));
     }
 
     @Test
     void accountWithoutAName_hasANullName() throws Exception {
         ModuleClient module = TestServers.stubModule(Map.of(), Map.of(), Map.of(), Map.of());
         Assertions.assertEquals("{\"kind\":\"business\",\"id\":\"77\",\"name\":null}",
-                json(module, new Party.Account(77, AccountKind.BUSINESS)));
+                json(module, Party.account(77, AccountKind.BUSINESS)));
     }
 
     @Test
     void accountNamesAreNullWhenTheModuleIsDisabled() throws Exception {
         Assertions.assertEquals("{\"kind\":\"system\",\"id\":\"5\",\"name\":null}",
-                json(ModuleClient.disabled(), new Party.Account(5, AccountKind.SYSTEM)));
+                json(ModuleClient.disabled(), Party.account(5, AccountKind.SYSTEM)));
     }
 
     @Test
@@ -75,7 +75,7 @@ class PartyRefTest {
     @Test
     void aPlayerUuidIsAPersonalRef() {
         ModuleClient module = TestServers.stubModule(Map.of(STEVE, "Steve"), Map.of(), Map.of(), Map.of());
-        PartyNames.Resolved resolved = PartyNames.resolve(module, List.of(new Party.Personal(STEVE)));
+        PartyNames.Resolved resolved = PartyNames.resolve(module, List.of(Party.personal(STEVE)));
         Assertions.assertEquals(PartyRef.personal(STEVE, "Steve"), resolved.ref(STEVE));
     }
 
@@ -83,7 +83,7 @@ class PartyRefTest {
     void aNameIsReturnedAsTextAndNeverInterpreted() throws Exception {
         String chosen = "<b>\"Gov\"</b> {x}";
         ModuleClient module = TestServers.stubModule(Map.of(), Map.of(9, chosen), Map.of(), Map.of());
-        String body = json(module, new Party.Account(9, AccountKind.GOVERNMENT));
+        String body = json(module, Party.account(9, AccountKind.GOVERNMENT));
         Assertions.assertEquals(chosen, MAPPER.readTree(body).path("name").asText());
     }
 }

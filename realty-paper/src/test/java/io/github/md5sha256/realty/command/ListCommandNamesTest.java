@@ -17,7 +17,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -97,5 +99,28 @@ class ListCommandNamesTest {
         assertEquals(List.of(ClickEvent.runCommand("/realty list owned " + name + " --page 3")),
                 clickEvents(link));
         assertFalse(tree(link).stream().anyMatch(c -> NamedTextColor.RED.equals(c.color())));
+    }
+
+    @Test
+    void categoryHeading_namesEachPartFromTheShippedMessages() {
+        Map<ListCommand.Category, String> headings = new EnumMap<>(ListCommand.Category.class);
+        for (ListCommand.Category category : ListCommand.Category.values()) {
+            headings.put(category, plain(ListCommand.categoryHeading(MESSAGES, category)));
+        }
+
+        assertEquals(Map.of(
+                ListCommand.Category.OWNED, "Owned:",
+                ListCommand.Category.AUTHORITY, "Freehold authority:",
+                ListCommand.Category.LANDLORD, "Landlord of leases:",
+                ListCommand.Category.RENTED, "Rented:"), headings);
+    }
+
+    @Test
+    void pageLink_repeatsTheLandlordCategory() {
+        Component link = ListCommand.pageLink(MESSAGES, MessageKeys.LIST_NEXT, "landlord", "GovSecurity",
+                PartyFlag.GOVERNMENT, 2);
+
+        assertEquals(List.of(ClickEvent.runCommand("/realty list landlord GovSecurity --page 2 --government")),
+                clickEvents(link));
     }
 }

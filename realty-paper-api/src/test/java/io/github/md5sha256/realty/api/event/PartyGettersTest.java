@@ -24,7 +24,7 @@ class PartyGettersTest {
     @Test
     void playerLandlord_bothGettersAgree() {
         UUID landlordId = UUID.randomUUID();
-        Party landlord = new Party.Personal(landlordId);
+        Party landlord = Party.personal(landlordId);
         RegionRentedEvent event = new RegionRentedEvent(REGION, UUID.randomUUID(), landlord, 10.0, 60L);
 
         Assertions.assertEquals(landlord, event.getLandlord());
@@ -33,7 +33,7 @@ class PartyGettersTest {
 
     @Test
     void accountLandlord_deprecatedGetterIsNull() {
-        Party landlord = new Party.Account(42, AccountKind.GOVERNMENT);
+        Party landlord = Party.account(42, AccountKind.GOVERNMENT);
         RegionRentedEvent event = new RegionRentedEvent(REGION, UUID.randomUUID(), landlord, 10.0, 60L);
 
         Assertions.assertEquals(landlord, event.getLandlord());
@@ -44,16 +44,16 @@ class PartyGettersTest {
     void tenantIsAlwaysAPlayerParty() {
         UUID tenantId = UUID.randomUUID();
         RegionRentedEvent event = new RegionRentedEvent(
-                REGION, tenantId, new Party.Personal(UUID.randomUUID()), 10.0, 60L);
+                REGION, tenantId, Party.personal(UUID.randomUUID()), 10.0, 60L);
 
-        Assertions.assertEquals(new Party.Personal(tenantId), event.getTenant());
+        Assertions.assertEquals(Party.personal(tenantId), event.getTenant());
         Assertions.assertEquals(tenantId, event.getTenantId());
     }
 
     @Test
     void tenantEvents_exposeTheTenantAsAPlayerParty() {
         UUID tenantId = UUID.randomUUID();
-        Party tenant = new Party.Personal(tenantId);
+        Party tenant = Party.personal(tenantId);
 
         LeaseExtendEvent extend = new LeaseExtendEvent(REGION, tenantId);
         LeaseExtendedEvent extended = new LeaseExtendedEvent(REGION, tenantId, 10.0);
@@ -74,15 +74,15 @@ class PartyGettersTest {
     void tenantSet_exposesNewAndPreviousTenant_andNoneAsNull() {
         UUID newTenantId = UUID.randomUUID();
         UUID previousTenantId = UUID.randomUUID();
-        Party landlord = new Party.Account(42, AccountKind.GOVERNMENT);
+        Party landlord = Party.account(42, AccountKind.GOVERNMENT);
 
         TenantSetEvent replaced = new TenantSetEvent(REGION, newTenantId, previousTenantId, landlord);
         TenantSetEvent cleared = new TenantSetEvent(REGION, null, previousTenantId, landlord);
         TenantSetEvent first = new TenantSetEvent(REGION, newTenantId, null, landlord);
 
-        Assertions.assertEquals(new Party.Personal(newTenantId), replaced.getNewTenant());
+        Assertions.assertEquals(Party.personal(newTenantId), replaced.getNewTenant());
         Assertions.assertEquals(newTenantId, replaced.getNewTenantId());
-        Assertions.assertEquals(new Party.Personal(previousTenantId), replaced.getPreviousTenant());
+        Assertions.assertEquals(Party.personal(previousTenantId), replaced.getPreviousTenant());
         Assertions.assertEquals(previousTenantId, replaced.getPreviousTenantId());
         Assertions.assertNull(cleared.getNewTenant());
         Assertions.assertNull(first.getPreviousTenant());
@@ -92,8 +92,8 @@ class PartyGettersTest {
     void purchaseEvents_exposeNewAndPreviousTitleHolder_andNoneAsNull() {
         UUID buyerId = UUID.randomUUID();
         UUID sellerId = UUID.randomUUID();
-        Party buyer = new Party.Personal(buyerId);
-        Party seller = new Party.Personal(sellerId);
+        Party buyer = Party.personal(buyerId);
+        Party seller = Party.personal(sellerId);
 
         RegionBoughtEvent bought = new RegionBoughtEvent(REGION, buyerId, sellerId, 10.0);
         AuctionWonPurchaseEvent won = new AuctionWonPurchaseEvent(REGION, buyerId, sellerId, 10.0);
@@ -121,7 +121,7 @@ class PartyGettersTest {
     void offerEvents_exposeTheTitleHolder_andNoneAsNull() {
         UUID offererId = UUID.randomUUID();
         UUID titleHolderId = UUID.randomUUID();
-        Party titleHolder = new Party.Personal(titleHolderId);
+        Party titleHolder = Party.personal(titleHolderId);
 
         OfferPlacedEvent placed = new OfferPlacedEvent(REGION, offererId, titleHolderId, 10.0);
         OfferWithdrawnEvent withdrawn = new OfferWithdrawnEvent(REGION, offererId, titleHolderId);

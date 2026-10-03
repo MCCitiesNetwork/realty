@@ -26,9 +26,9 @@ class SearchMapperTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void seed() {
-        Assertions.assertTrue(logic.createFreehold("plot_listed", WORLD_ID, 5000.0, new Party.Personal(AUTHORITY), null));
-        Assertions.assertTrue(logic.createFreehold("plot_sold", WORLD_ID, null, new Party.Personal(AUTHORITY), OWNER));
-        Assertions.assertTrue(logic.createLeasehold("plot_rental", WORLD_ID, 250.0, 604800L, -1, new Party.Personal(LANDLORD)));
+        Assertions.assertTrue(logic.createFreehold("plot_listed", WORLD_ID, 5000.0, Party.personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("plot_sold", WORLD_ID, null, Party.personal(AUTHORITY), OWNER));
+        Assertions.assertTrue(logic.createLeasehold("plot_rental", WORLD_ID, 250.0, 604800L, -1, Party.personal(LANDLORD)));
     }
 
     private static List<SearchResultEntity> search(boolean freehold, boolean leasehold, boolean unpriced,

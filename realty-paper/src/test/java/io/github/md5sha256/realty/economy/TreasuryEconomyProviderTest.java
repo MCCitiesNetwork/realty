@@ -35,7 +35,7 @@ class TreasuryEconomyProviderTest {
     private TreasuryEconomyProvider provider;
 
     private final UUID payer = UUID.randomUUID();
-    private final Party.Account government = new Party.Account(42, AccountKind.GOVERNMENT);
+    private final Party.Account government = Party.account(42, AccountKind.GOVERNMENT);
 
     @BeforeEach
     void setUp() {
@@ -56,7 +56,7 @@ class TreasuryEconomyProviderTest {
         when(treasuryApi.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, UUID.randomUUID()));
         when(treasuryApi.transfer(any())).thenReturn(99L);
 
-        PaymentResult result = provider.transfer(new Party.Personal(payer), government, amount,
+        PaymentResult result = provider.transfer(Party.personal(payer), government, amount,
                 "Rental Payment: REGION", initiator);
         assertInstanceOf(PaymentResult.Success.class, result);
 
@@ -103,7 +103,7 @@ class TreasuryEconomyProviderTest {
         when(treasuryApi.resolveOrCreatePersonal(payer)).thenReturn(account(1, AccountType.PERSONAL, payer));
         when(treasuryApi.getAccountById(42)).thenReturn(archived);
 
-        PaymentResult result = provider.transfer(new Party.Personal(payer), government, 50.0,
+        PaymentResult result = provider.transfer(Party.personal(payer), government, 50.0,
                 "Rental Payment: REGION", payer);
 
         assertEquals(new PaymentResult.Failure("Account #42 is archived"), result);
@@ -115,7 +115,7 @@ class TreasuryEconomyProviderTest {
         // A refund out of an account that Treasury has since deleted.
         when(treasuryApi.getAccountById(42)).thenReturn(null);
 
-        PaymentResult result = provider.transfer(government, new Party.Personal(payer), 50.0,
+        PaymentResult result = provider.transfer(government, Party.personal(payer), 50.0,
                 "Early Lease Termination Refund: REGION", payer);
 
         assertEquals(new PaymentResult.Failure("Account #42 no longer exists"), result);
@@ -141,14 +141,14 @@ class TreasuryEconomyProviderTest {
 
         assertEquals(250.0, provider.getBalance(government));
         // The player also owns account 42, but as a Personal party only the PERSONAL account counts.
-        assertEquals(10.50, provider.getBalance(new Party.Personal(payer)));
+        assertEquals(10.50, provider.getBalance(Party.personal(payer)));
     }
 
     @Test
     void balanceOfPlayerWithNoAccount_isZeroAndCreatesNothing() {
         when(treasuryApi.getAccountsByTypeAndOwner(AccountType.PERSONAL, payer)).thenReturn(List.of());
 
-        assertEquals(0.0, provider.getBalance(new Party.Personal(payer)));
+        assertEquals(0.0, provider.getBalance(Party.personal(payer)));
         verify(treasuryApi, never()).resolveOrCreatePersonal(any());
     }
 
@@ -165,6 +165,6 @@ class TreasuryEconomyProviderTest {
                 .thenReturn(List.of(account(13, AccountType.PERSONAL, payer)));
         when(treasuryApi.getBalanceByAccountId(13)).thenReturn(null);
 
-        assertEquals(0.0, provider.getBalance(new Party.Personal(payer)));
+        assertEquals(0.0, provider.getBalance(Party.personal(payer)));
     }
 }

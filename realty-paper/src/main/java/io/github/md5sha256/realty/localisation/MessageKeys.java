@@ -210,6 +210,10 @@ public final class MessageKeys {
     public static final String LIST_INVALID_PAGE = "list.invalid-page";
     public static final String LIST_HEADER = "list.header";
     public static final String LIST_CATEGORY = "list.category";
+    public static final String LIST_LABEL_OWNED = "list.label-owned";
+    public static final String LIST_LABEL_AUTHORITY = "list.label-authority";
+    public static final String LIST_LABEL_LANDLORD = "list.label-landlord";
+    public static final String LIST_LABEL_RENTED = "list.label-rented";
     public static final String LIST_ENTRY = "list.entry";
     public static final String LIST_RENTED_ENTRY = "list.rented-entry";
     public static final String LIST_FOOTER = "list.footer";

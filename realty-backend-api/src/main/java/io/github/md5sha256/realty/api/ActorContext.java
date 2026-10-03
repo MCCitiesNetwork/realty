@@ -76,7 +76,7 @@ public record ActorContext(@Nullable UUID player,
             return Set.copyOf(parties);
         }
         Set<Party> copy = new HashSet<>(parties);
-        copy.add(new Party.Personal(player));
+        copy.add(Party.personal(player));
         return Set.copyOf(copy);
     }
 }

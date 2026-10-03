@@ -34,7 +34,7 @@ public class OfferPurchaseCompletedEvent extends RealtyRegionEvent {
      * The player who made the offer and is now the new title holder.
      */
     public @NotNull Party getNewTitleHolder() {
-        return new Party.Personal(this.offererId);
+        return Party.personal(this.offererId);
     }
 
     /**
@@ -52,7 +52,7 @@ public class OfferPurchaseCompletedEvent extends RealtyRegionEvent {
      * region was previously held only by an authority.
      */
     public @Nullable Party getPreviousTitleHolder() {
-        return this.previousTitleHolderId == null ? null : new Party.Personal(this.previousTitleHolderId);
+        return this.previousTitleHolderId == null ? null : Party.personal(this.previousTitleHolderId);
     }
 
     /**

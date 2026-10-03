@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Where a type flag may stand in {@code /realty set landlord <name> [region] [type flag]} and
- * {@code /realty list [owned|rented] [name] [--page <n>] [type flag]}. The manager parses as the
+ * {@code /realty list [owned|authority|landlord|rented] [name] [--page <n>] [type flag]}. The manager parses as the
  * one {@code Realty} builds: no manager setting is changed. The region argument is a
  * {@link RegionOrFlagParser} around a stand-in that takes any word as a region.
  */
@@ -32,7 +32,7 @@ class PartyFlagPositionTest {
     private record Parsed(String landlord, Optional<String> region, PartyFlags.Read flag) {}
 
     private final AtomicReference<CommandContext<Object>> last = new AtomicReference<>();
-    /** Which list command ran: {@code ""}, {@code "owned"} or {@code "rented"}. */
+    /** Which list command ran: {@code ""} or the category, such as {@code "owned"}. */
     private final AtomicReference<String> listCategory = new AtomicReference<>();
     private CommandManager<Object> manager;
 
@@ -57,9 +57,9 @@ class PartyFlagPositionTest {
                         .flag(CommandFlag.builder("landlord").withComponent(StringParser.stringParser()))
                         .optional("region", StringParser.stringParser()))
                 .handler(last::set));
-        // Shaped like /realty list [owned|rented] [name] [--page <n>] [type flag].
+        // Shaped like /realty list [owned|authority|landlord|rented] [name] [--page <n>] [type flag].
         var list = manager.commandBuilder("list");
-        for (String category : List.of("", "owned", "rented")) {
+        for (String category : List.of("", "owned", "authority", "landlord", "rented")) {
             manager.command(PartyFlags.addTo((category.isEmpty() ? list : list.literal(category))
                             .optional("name", RegionOrFlagParser.of(StringParser.<Object>stringParser()))
                             .flag(CommandFlag.builder("page").withComponent(IntegerParser.integerParser(1))))
@@ -171,6 +171,28 @@ class PartyFlagPositionTest {
     void listWithAPlayerName() {
         assertEquals(new Listed("", Optional.of("Steve"), null, new PartyFlags.Read.One(null)),
                 list("list Steve"));
+    }
+
+    @Test
+    void listLandlordWithAName_andATypeFlag() {
+        assertEquals(new Listed("landlord", Optional.of("GovSecurity"), null,
+                        new PartyFlags.Read.One(PartyFlag.GOVERNMENT)),
+                list("list landlord GovSecurity --government"));
+    }
+
+    @Test
+    void listAuthorityWithAName_andFlags() {
+        assertEquals(new Listed("authority", Optional.of("police"), 3,
+                        new PartyFlags.Read.One(PartyFlag.GROUP)),
+                list("list authority police --page 3 --group"));
+    }
+
+    @Test
+    void listAuthorityAndLandlordAlone_areCategoriesNotNames() {
+        assertEquals(new Listed("authority", Optional.empty(), null, new PartyFlags.Read.One(null)),
+                list("list authority"));
+        assertEquals(new Listed("landlord", Optional.empty(), 2, new PartyFlags.Read.One(null)),
+                list("list landlord --page 2"));
     }
 
     @Test

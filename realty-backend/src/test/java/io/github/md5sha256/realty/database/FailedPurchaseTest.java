@@ -43,7 +43,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
     /** A region for sale at the asking price, held by the title holder. */
     private static String regionForSale() {
         String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
-        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, new Party.Personal(AUTHORITY), TITLE_HOLDER));
+        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, Party.personal(AUTHORITY), TITLE_HOLDER));
         return regionId;
     }
 
@@ -240,7 +240,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
     void aRegionHeldByNobodyGoesBackToNobody() {
         // Held by its authority, with no title holder of its own.
         String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
-        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, Party.personal(AUTHORITY), null));
 
         tryToBuyAndFailToPay(regionId, BUYER);
 
@@ -253,7 +253,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
     void unpaidPurchase_fromAnAccountAuthority_leavesNothingBehind() {
         // Held by an account authority, which the buyer pays. Treasury refused the
         // payment, for example because the account was archived since.
-        Party government = new Party.Account(42, AccountKind.GOVERNMENT);
+        Party government = Party.account(42, AccountKind.GOVERNMENT);
         String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
         Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, government, null));
         placeOffer(regionId, OFFERER, 500.0);
@@ -343,7 +343,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             wrapper.freeholdHistoryMapper().insertReturningId(
                     regionId, WORLD_ID, HistoryEventType.BUY.name(), BUYER,
-                    wrapper.partyMapper().findOrInsert(new Party.Personal(AUTHORITY)), ASKING_PRICE);
+                    wrapper.partyMapper().findOrInsert(Party.personal(AUTHORITY)), ASKING_PRICE);
             // No commit: whatever was to follow failed.
         }
 
@@ -364,7 +364,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         List<FreeholdHistoryEntity> sales = salesRecorded(regionId);
         Assertions.assertEquals(1, sales.size());
         Assertions.assertEquals(BUYER, sales.getFirst().buyerId());
-        Assertions.assertEquals(new Party.Personal(AUTHORITY), sales.getFirst().authority());
+        Assertions.assertEquals(Party.personal(AUTHORITY), sales.getFirst().authority());
         Assertions.assertEquals(ASKING_PRICE, sales.getFirst().price());
         Assertions.assertEquals(ASKING_PRICE, logic.getRegionInfo(regionId, WORLD_ID).lastSoldPrice());
     }

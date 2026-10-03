@@ -33,7 +33,7 @@ public class TenantSetEvent extends RealtyRegionEvent {
      * The new tenant, or {@code null} if the tenancy was cleared.
      */
     public @Nullable Party getNewTenant() {
-        return this.newTenantId == null ? null : new Party.Personal(this.newTenantId);
+        return this.newTenantId == null ? null : Party.personal(this.newTenantId);
     }
 
     /**
@@ -50,7 +50,7 @@ public class TenantSetEvent extends RealtyRegionEvent {
      * The previous tenant, or {@code null} if there was none.
      */
     public @Nullable Party getPreviousTenant() {
-        return this.previousTenantId == null ? null : new Party.Personal(this.previousTenantId);
+        return this.previousTenantId == null ? null : Party.personal(this.previousTenantId);
     }
 
     /**

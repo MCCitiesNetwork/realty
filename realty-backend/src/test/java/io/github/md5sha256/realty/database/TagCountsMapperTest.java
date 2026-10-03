@@ -25,8 +25,8 @@ class TagCountsMapperTest extends AbstractDatabaseTest {
 
     @Test
     void reportsEveryTagInUseWithItsCount() {
-        Assertions.assertTrue(logic.createFreehold("tags_a", WORLD_ID, 100.0, new Party.Personal(AUTHORITY), null));
-        Assertions.assertTrue(logic.createFreehold("tags_b", WORLD_ID, 100.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("tags_a", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("tags_b", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             wrapper.regionTagMapper().insert("commercial", "tags_a");
@@ -44,7 +44,7 @@ class TagCountsMapperTest extends AbstractDatabaseTest {
 
     @Test
     void agreesWithCountingEachTagSeparately() {
-        Assertions.assertTrue(logic.createFreehold("tags_c", WORLD_ID, 100.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("tags_c", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             wrapper.regionTagMapper().insert("island", "tags_c");

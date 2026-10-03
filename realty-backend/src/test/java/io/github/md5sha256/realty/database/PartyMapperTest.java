@@ -16,7 +16,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
 
     @Test
     void findOrInsert_isIdempotent() throws SQLException {
-        Party.Personal party = new Party.Personal(UUID.randomUUID());
+        Party.Personal party = Party.personal(UUID.randomUUID());
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             int firstId = wrapper.partyMapper().findOrInsert(party);
             int secondId = wrapper.partyMapper().findOrInsert(party);
@@ -35,7 +35,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
     @Test
     void findOrInsert_account_leavesOneBaseRowAndOneKindRow() throws SQLException {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
-            int id = wrapper.partyMapper().findOrInsert(new Party.Account(42, AccountKind.GOVERNMENT));
+            int id = wrapper.partyMapper().findOrInsert(Party.account(42, AccountKind.GOVERNMENT));
             try (Statement statement = wrapper.session().getConnection().createStatement();
                  ResultSet rs = statement.executeQuery("""
                          SELECT p.kind, a.accountId, a.accountKind FROM Party p
@@ -51,7 +51,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
 
     @Test
     void findOrInsert_account() {
-        Party.Account account = new Party.Account(42, AccountKind.GOVERNMENT);
+        Party.Account account = Party.account(42, AccountKind.GOVERNMENT);
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             int id = wrapper.partyMapper().findOrInsert(account);
             Assertions.assertEquals(account, wrapper.partyMapper().selectById(id));
@@ -60,11 +60,11 @@ class PartyMapperTest extends AbstractDatabaseTest {
 
     @Test
     void findOrInsert_accountStoredUnderAnotherKind_throws() throws SQLException {
-        Party.Account original = new Party.Account(42, AccountKind.GOVERNMENT);
+        Party.Account original = Party.account(42, AccountKind.GOVERNMENT);
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             wrapper.partyMapper().findOrInsert(original);
 
-            Party.Account conflicting = new Party.Account(42, AccountKind.BUSINESS);
+            Party.Account conflicting = Party.account(42, AccountKind.BUSINESS);
             PartyMapper mapper = wrapper.partyMapper();
             IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class,
                     () -> mapper.findOrInsert(conflicting));
@@ -80,11 +80,11 @@ class PartyMapperTest extends AbstractDatabaseTest {
 
     @Test
     void findId_accountStoredUnderAnotherKind_throws() {
-        Party.Account original = new Party.Account(42, AccountKind.GOVERNMENT);
+        Party.Account original = Party.account(42, AccountKind.GOVERNMENT);
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             wrapper.partyMapper().findOrInsert(original);
 
-            Party.Account conflicting = new Party.Account(42, AccountKind.BUSINESS);
+            Party.Account conflicting = Party.account(42, AccountKind.BUSINESS);
             PartyMapper mapper = wrapper.partyMapper();
             IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class,
                     () -> mapper.findId(conflicting));
@@ -95,8 +95,8 @@ class PartyMapperTest extends AbstractDatabaseTest {
     @Test
     void findAccountParty_returnsTheStoredKind() {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
-            wrapper.partyMapper().findOrInsert(new Party.Account(42, AccountKind.GOVERNMENT));
-            Assertions.assertEquals(new Party.Account(42, AccountKind.GOVERNMENT),
+            wrapper.partyMapper().findOrInsert(Party.account(42, AccountKind.GOVERNMENT));
+            Assertions.assertEquals(Party.account(42, AccountKind.GOVERNMENT),
                     wrapper.partyMapper().findAccountParty(42));
         }
     }
@@ -115,7 +115,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
 
     @Test
     void findOrInsert_unmappedGroupThrows() {
-        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             PartyMapper mapper = wrapper.partyMapper();
             Assertions.assertThrows(IllegalStateException.class, () -> mapper.findOrInsert(group));
@@ -129,7 +129,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
 
             // The party is looked up by groupName alone: a mismatched accountId/accountKind
             // on the passed-in Group is ignored.
-            Party.Group lookup = new Party.Group("police", 99, AccountKind.BUSINESS);
+            Party.Group lookup = Party.group("police", 99, AccountKind.BUSINESS);
             Integer foundId = wrapper.partyMapper().findId(lookup);
             Assertions.assertEquals(insertedId, foundId);
         }
@@ -140,25 +140,25 @@ class PartyMapperTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             PartyMapper mapper = wrapper.partyMapper();
 
-            Party.Personal personal = new Party.Personal(UUID.randomUUID());
+            Party.Personal personal = Party.personal(UUID.randomUUID());
             int personalId = mapper.findOrInsert(personal);
             Assertions.assertEquals(personal, mapper.selectById(personalId));
 
-            Party.Account business = new Party.Account(1, AccountKind.BUSINESS);
+            Party.Account business = Party.account(1, AccountKind.BUSINESS);
             int businessId = mapper.findOrInsert(business);
             Assertions.assertEquals(business, mapper.selectById(businessId));
 
-            Party.Account government = new Party.Account(2, AccountKind.GOVERNMENT);
+            Party.Account government = Party.account(2, AccountKind.GOVERNMENT);
             int governmentId = mapper.findOrInsert(government);
             Assertions.assertEquals(government, mapper.selectById(governmentId));
 
-            Party.Account system = new Party.Account(3, AccountKind.SYSTEM);
+            Party.Account system = Party.account(3, AccountKind.SYSTEM);
             int systemId = mapper.findOrInsert(system);
             Assertions.assertEquals(system, mapper.selectById(systemId));
 
             // A Group row is never inserted by the mapper, so it is seeded directly.
             int groupId = insertGroupRow(wrapper, "police", 4, AccountKind.GOVERNMENT);
-            Party.Group group = new Party.Group("police", 4, AccountKind.GOVERNMENT);
+            Party.Group group = Party.group("police", 4, AccountKind.GOVERNMENT);
             Assertions.assertEquals(group, mapper.selectById(groupId));
         }
     }
@@ -188,15 +188,15 @@ class PartyMapperTest extends AbstractDatabaseTest {
     void selectNonPersonal_returnsEveryAccountAndGroup() throws SQLException {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             PartyMapper mapper = wrapper.partyMapper();
-            mapper.findOrInsert(new Party.Personal(UUID.randomUUID()));
-            Party.Account government = new Party.Account(1, AccountKind.GOVERNMENT);
+            mapper.findOrInsert(Party.personal(UUID.randomUUID()));
+            Party.Account government = Party.account(1, AccountKind.GOVERNMENT);
             mapper.findOrInsert(government);
             insertGroupRow(wrapper, "police", 1, AccountKind.GOVERNMENT);
-            Party.Account business = new Party.Account(2, AccountKind.BUSINESS);
+            Party.Account business = Party.account(2, AccountKind.BUSINESS);
             mapper.findOrInsert(business);
 
             Assertions.assertEquals(
-                    List.of(government, new Party.Group("police", 1, AccountKind.GOVERNMENT), business),
+                    List.of(government, Party.group("police", 1, AccountKind.GOVERNMENT), business),
                     mapper.selectNonPersonal());
         }
     }
@@ -204,7 +204,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
     @Test
     void selectNonPersonal_emptyWhenOnlyPlayers() {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
-            wrapper.partyMapper().findOrInsert(new Party.Personal(UUID.randomUUID()));
+            wrapper.partyMapper().findOrInsert(Party.personal(UUID.randomUUID()));
 
             Assertions.assertEquals(List.of(), wrapper.partyMapper().selectNonPersonal());
         }
@@ -215,7 +215,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             insertGroupRow(wrapper, "police", 42, AccountKind.GOVERNMENT);
 
-            Assertions.assertEquals(new Party.Group("police", 42, AccountKind.GOVERNMENT),
+            Assertions.assertEquals(Party.group("police", 42, AccountKind.GOVERNMENT),
                     wrapper.partyMapper().findGroupParty("police"));
         }
     }
@@ -225,7 +225,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             insertGroupRow(wrapper, "police", 42, AccountKind.GOVERNMENT);
 
-            Assertions.assertEquals(new Party.Group("police", 42, AccountKind.GOVERNMENT),
+            Assertions.assertEquals(Party.group("police", 42, AccountKind.GOVERNMENT),
                     wrapper.partyMapper().findGroupParty("Police"));
         }
     }
@@ -241,11 +241,11 @@ class PartyMapperTest extends AbstractDatabaseTest {
     void insertGroup_createsTheAccountPartyWhenMissing() throws SQLException {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             int groupId = wrapper.partyMapper().insertGroup("police", 42, AccountKind.GOVERNMENT);
-            Assertions.assertEquals(new Party.Group("police", 42, AccountKind.GOVERNMENT),
+            Assertions.assertEquals(Party.group("police", 42, AccountKind.GOVERNMENT),
                     wrapper.partyMapper().selectById(groupId));
-            Integer accountPartyId = wrapper.partyMapper().findId(new Party.Account(42, AccountKind.GOVERNMENT));
+            Integer accountPartyId = wrapper.partyMapper().findId(Party.account(42, AccountKind.GOVERNMENT));
             Assertions.assertNotNull(accountPartyId);
-            Assertions.assertEquals(new Party.Account(42, AccountKind.GOVERNMENT),
+            Assertions.assertEquals(Party.account(42, AccountKind.GOVERNMENT),
                     wrapper.partyMapper().selectById(accountPartyId));
         }
     }
@@ -253,7 +253,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
     @Test
     void insertGroup_reusesTheAccountParty() throws SQLException {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
-            int accountPartyId = wrapper.partyMapper().findOrInsert(new Party.Account(42, AccountKind.GOVERNMENT));
+            int accountPartyId = wrapper.partyMapper().findOrInsert(Party.account(42, AccountKind.GOVERNMENT));
             wrapper.partyMapper().insertGroup("police", 42, AccountKind.GOVERNMENT);
             wrapper.partyMapper().insertGroup("rangers", 42, AccountKind.GOVERNMENT);
             try (Statement statement = wrapper.session().getConnection().createStatement();
@@ -272,7 +272,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
     void insertGroup_accountStoredUnderAnotherKind_throws() {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
             PartyMapper mapper = wrapper.partyMapper();
-            mapper.findOrInsert(new Party.Account(42, AccountKind.GOVERNMENT));
+            mapper.findOrInsert(Party.account(42, AccountKind.GOVERNMENT));
             IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class,
                     () -> mapper.insertGroup("police", 42, AccountKind.BUSINESS));
             Assertions.assertEquals("account #42 is stored as GOVERNMENT, not BUSINESS", exception.getMessage());
@@ -285,8 +285,8 @@ class PartyMapperTest extends AbstractDatabaseTest {
             PartyMapper mapper = wrapper.partyMapper();
             int groupId = mapper.insertGroup("police", 42, AccountKind.GOVERNMENT);
             mapper.updateGroupAccount(groupId, 7, AccountKind.BUSINESS);
-            Assertions.assertEquals(new Party.Group("police", 7, AccountKind.BUSINESS), mapper.selectById(groupId));
-            Assertions.assertNotNull(mapper.findId(new Party.Account(42, AccountKind.GOVERNMENT)),
+            Assertions.assertEquals(Party.group("police", 7, AccountKind.BUSINESS), mapper.selectById(groupId));
+            Assertions.assertNotNull(mapper.findId(Party.account(42, AccountKind.GOVERNMENT)),
                     "the old account keeps its party");
         }
     }
@@ -303,7 +303,7 @@ class PartyMapperTest extends AbstractDatabaseTest {
                 rs.next();
                 Assertions.assertEquals(0, rs.getInt(1), "the base row is gone too");
             }
-            Assertions.assertNotNull(mapper.findId(new Party.Account(42, AccountKind.GOVERNMENT)));
+            Assertions.assertNotNull(mapper.findId(Party.account(42, AccountKind.GOVERNMENT)));
         }
     }
 

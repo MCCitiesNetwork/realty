@@ -49,7 +49,7 @@ final class PartyRegionsHandler {
 
     private @NotNull Addressed party(@NotNull String kind, @NotNull String id) {
         return switch (kind) {
-            case "personal" -> new Addressed(new Party.Personal(playerId(id)), true);
+            case "personal" -> new Addressed(Party.personal(playerId(id)), true);
             case "business" -> account(accountId(id), AccountKind.BUSINESS);
             case "government" -> account(accountId(id), AccountKind.GOVERNMENT);
             case "system" -> account(accountId(id), AccountKind.SYSTEM);
@@ -74,7 +74,7 @@ final class PartyRegionsHandler {
     private @NotNull Addressed account(int accountId, @NotNull AccountKind kind) {
         Party.Account stored = this.backend.findAccountParty(accountId);
         if (stored == null) {
-            return new Addressed(new Party.Account(accountId, kind), false);
+            return new Addressed(Party.account(accountId, kind), false);
         }
         if (stored.kind() != kind) {
             throw ApiException.notFound("PARTY_NOT_FOUND", "No party of that kind has that id");

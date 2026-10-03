@@ -94,26 +94,26 @@ class RealtyPaperApiImplTest {
     private static final UUID TITLE_HOLDER_ID = UUID.randomUUID();
     private static final UUID LANDLORD_ID = UUID.randomUUID();
     private static final UUID TENANT_ID = UUID.randomUUID();
-    private static final Party.Personal BUYER = new Party.Personal(BUYER_ID);
-    private static final Party.Personal TITLE_HOLDER = new Party.Personal(TITLE_HOLDER_ID);
-    private static final Party.Personal LANDLORD = new Party.Personal(LANDLORD_ID);
-    private static final Party.Personal TENANT = new Party.Personal(TENANT_ID);
-    private static final Party.Account GOVERNMENT = new Party.Account(42, AccountKind.GOVERNMENT);
+    private static final Party.Personal BUYER = Party.personal(BUYER_ID);
+    private static final Party.Personal TITLE_HOLDER = Party.personal(TITLE_HOLDER_ID);
+    private static final Party.Personal LANDLORD = Party.personal(LANDLORD_ID);
+    private static final Party.Personal TENANT = Party.personal(TENANT_ID);
+    private static final Party.Account GOVERNMENT = Party.account(42, AccountKind.GOVERNMENT);
     private static final RealtyBackend.RentResult.Success LET =
-            new RealtyBackend.RentResult.Success(500.0, 3600, new Party.Personal(LANDLORD_ID), 7);
+            new RealtyBackend.RentResult.Success(500.0, 3600, Party.personal(LANDLORD_ID), 7);
     /** A renewal at 200 that applied a landlord's change of terms on the way. */
     private static final RealtyBackend.RenewLeaseholdResult.Success RENEWED =
-            new RealtyBackend.RenewLeaseholdResult.Success(200.0, new Party.Personal(LANDLORD_ID),
+            new RealtyBackend.RenewLeaseholdResult.Success(200.0, Party.personal(LANDLORD_ID),
                     new RealtyBackend.RenewUndo(8,
                             new RealtyBackend.AppliedTerms(3, 9, 150.0, 3600, 5, 1)));
     private static final RealtyBackend.UnrentResult.Success ENDED =
-            new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, new Party.Personal(LANDLORD_ID),
+            new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, Party.personal(LANDLORD_ID),
                     new RealtyBackend.Tenancy(
                             LocalDateTime.of(2026, 9, 1, 12, 0), LocalDateTime.of(2026, 10, 1, 12, 0), 3),
                     10);
     /** A reservation at 1000 that withdrew one offer, which a rollback has to put back. */
     private static final RealtyBackend.BuyResult.Success RESERVED = new RealtyBackend.BuyResult.Success(
-            1000.0, new Party.Personal(AUTHORITY_ID), TITLE_HOLDER_ID,
+            1000.0, Party.personal(AUTHORITY_ID), TITLE_HOLDER_ID,
             new RealtyBackend.BuyUndo(42,
                     List.of(new RealtyBackend.WithdrawnOffer(
                             UUID.randomUUID(), 500.0, LocalDateTime.of(2026, 8, 1, 12, 0))),
@@ -244,7 +244,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("an extra party is tested too")
         void extraParty_isTested() {
-            Party.Account business = new Party.Account(7, AccountKind.BUSINESS);
+            Party.Account business = Party.account(7, AccountKind.BUSINESS);
             when(treasury.getMembers(7))
                     .thenReturn(List.of(new AccountMember(0, BUYER_ID, TITLE_HOLDER_ID, Instant.EPOCH)));
             OfflinePlayer buyer = org.mockito.Mockito.mock(OfflinePlayer.class);
@@ -534,7 +534,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("skips payment when price is zero")
         void zeroPriceSkipsPayment() {
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(0.0, 3600, new Party.Personal(LANDLORD_ID), 7));
+                    .thenReturn(new RealtyBackend.RentResult.Success(0.0, 3600, Party.personal(LANDLORD_ID), 7));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
@@ -777,7 +777,7 @@ class RealtyPaperApiImplTest {
     class Terminate {
 
         private LeaseholdContractEntity lease(LocalDateTime endDate, LocalDateTime terminationDate) {
-            return new LeaseholdContractEntity(1, new Party.Personal(LANDLORD_ID), TENANT_ID, 200.0, 604800L,
+            return new LeaseholdContractEntity(1, Party.personal(LANDLORD_ID), TENANT_ID, 200.0, 604800L,
                     LocalDateTime.now().minusSeconds(1), endDate, null, null, terminationDate, null, true);
         }
 
@@ -812,7 +812,7 @@ class RealtyPaperApiImplTest {
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(lease(LocalDateTime.now().plusDays(30), null));
             when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
-                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, new Party.Personal(LANDLORD_ID)));
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
                     api.terminate(wgRegion, ActorContext.player(LANDLORD_ID, false), false).join();
@@ -827,7 +827,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("a manager of an account landlord terminates as the landlord; a stranger may not")
         void managerOfAccountLandlordTerminatesAsLandlord() {
-            Party gov = new Party.Account(42, AccountKind.GOVERNMENT);
+            Party gov = Party.account(42, AccountKind.GOVERNMENT);
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(new LeaseholdContractEntity(1, gov, TENANT_ID, 200.0, 604800L,
                             LocalDateTime.now().minusSeconds(1), LocalDateTime.now().plusDays(30),
@@ -847,7 +847,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("a tenant who also manages the landlord terminates as the tenant, and pays the notice")
         void tenantWhoManagesTheLandlord_terminatesAsTheTenant() {
-            Party gov = new Party.Account(42, AccountKind.GOVERNMENT);
+            Party gov = Party.account(42, AccountKind.GOVERNMENT);
             // endDate ~now, notice 7 days, duration 7 days: a tenant owes one extension.
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(new LeaseholdContractEntity(1, gov, TENANT_ID, 200.0, 604800L,
@@ -879,7 +879,7 @@ class RealtyPaperApiImplTest {
             when(economyProvider.transfer(eq(TENANT), eq(LANDLORD), eq(200.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Success());
             when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("tenant")))
-                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, new Party.Personal(LANDLORD_ID)));
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
                     api.terminate(wgRegion, ActorContext.player(TENANT_ID, false), false).join();
@@ -897,7 +897,7 @@ class RealtyPaperApiImplTest {
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(lease(LocalDateTime.now(), null));
             when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("tenant")))
-                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, new Party.Personal(LANDLORD_ID)));
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
                     api.terminate(wgRegion, ActorContext.player(TENANT_ID, false), true).join();
@@ -1026,7 +1026,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("success with tenant sets owner and applies LEASED")
         void successWithTenant() {
             when(realtyApi.setTenant(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.SetTenantResult.Success(null, new Party.Personal(LANDLORD_ID)));
+                    .thenReturn(new RealtyBackend.SetTenantResult.Success(null, Party.personal(LANDLORD_ID)));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
@@ -1045,7 +1045,7 @@ class RealtyPaperApiImplTest {
             protectedRegion.getOwners().addPlayer(TENANT_ID);
 
             when(realtyApi.setTenant(REGION_ID, WORLD_ID, null))
-                    .thenReturn(new RealtyBackend.SetTenantResult.Success(TENANT_ID, new Party.Personal(LANDLORD_ID)));
+                    .thenReturn(new RealtyBackend.SetTenantResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
@@ -1095,11 +1095,11 @@ class RealtyPaperApiImplTest {
         void success() {
             protectedRegion.getMembers().addPlayer(UUID.randomUUID());
 
-            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, new Party.Personal(LANDLORD_ID), ActorContext.console()))
-                    .thenReturn(new RealtyBackend.SetLandlordResult.Success(new Party.Personal(UUID.randomUUID())));
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console()))
+                    .thenReturn(new RealtyBackend.SetLandlordResult.Success(Party.personal(UUID.randomUUID())));
 
             RealtyPaperApi.SetLandlordResult result =
-                    api.setLandlord(wgRegion, new Party.Personal(LANDLORD_ID)).join();
+                    api.setLandlord(wgRegion, Party.personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetLandlordResult.Success.class, result);
@@ -1109,11 +1109,11 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns NoLeaseholdContract when no contract exists")
         void noLeaseholdContract() {
-            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, new Party.Personal(LANDLORD_ID), ActorContext.console()))
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console()))
                     .thenReturn(new RealtyBackend.SetLandlordResult.NoLeaseholdContract());
 
             RealtyPaperApi.SetLandlordResult result =
-                    api.setLandlord(wgRegion, new Party.Personal(LANDLORD_ID)).join();
+                    api.setLandlord(wgRegion, Party.personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetLandlordResult.NoLeaseholdContract.class, result);
@@ -1131,13 +1131,13 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success adds authority as member and applies flags")
         void success() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, new Party.Personal(AUTHORITY_ID), null))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, Party.personal(AUTHORITY_ID), null))
                     .thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), (Party) null).join();
+                    api.createFreehold(wgRegion, 1000.0, Party.personal(AUTHORITY_ID), (Party) null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.Success.class, result);
@@ -1148,13 +1148,13 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success with title holder applies SOLD state")
         void successWithTitleHolder() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, new Party.Personal(AUTHORITY_ID), TITLE_HOLDER_ID))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, Party.personal(AUTHORITY_ID), TITLE_HOLDER_ID))
                     .thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), TITLE_HOLDER).join();
+                    api.createFreehold(wgRegion, 1000.0, Party.personal(AUTHORITY_ID), TITLE_HOLDER).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.Success.class, result);
@@ -1164,11 +1164,11 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns AlreadyRegistered when region exists")
         void alreadyRegistered() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, new Party.Personal(AUTHORITY_ID), null))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, Party.personal(AUTHORITY_ID), null))
                     .thenReturn(false);
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, new Party.Personal(AUTHORITY_ID), (Party) null).join();
+                    api.createFreehold(wgRegion, 1000.0, Party.personal(AUTHORITY_ID), (Party) null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.AlreadyRegistered.class, result);
@@ -1186,13 +1186,13 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success applies FOR_LEASE flags")
         void success() {
-            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 500.0, 3600, 3, new Party.Personal(LANDLORD_ID)))
+            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 500.0, 3600, 3, Party.personal(LANDLORD_ID)))
                     .thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateLeaseholdResult result =
-                    api.createLeasehold(wgRegion, 500.0, 3600, 3, new Party.Personal(LANDLORD_ID)).join();
+                    api.createLeasehold(wgRegion, 500.0, 3600, 3, Party.personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateLeaseholdResult.Success.class, result);
@@ -1202,11 +1202,11 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns AlreadyRegistered when region exists")
         void alreadyRegistered() {
-            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 500.0, 3600, 3, new Party.Personal(LANDLORD_ID)))
+            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 500.0, 3600, 3, Party.personal(LANDLORD_ID)))
                     .thenReturn(false);
 
             RealtyPaperApi.CreateLeaseholdResult result =
-                    api.createLeasehold(wgRegion, 500.0, 3600, 3, new Party.Personal(LANDLORD_ID)).join();
+                    api.createLeasehold(wgRegion, 500.0, 3600, 3, Party.personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateLeaseholdResult.AlreadyRegistered.class, result);

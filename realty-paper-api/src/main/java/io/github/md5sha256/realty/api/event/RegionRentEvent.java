@@ -30,7 +30,7 @@ public class RegionRentEvent extends RealtyRegionEvent implements Cancellable {
      * The player attempting to rent the region.
      */
     public @NotNull Party getTenant() {
-        return new Party.Personal(this.tenantId);
+        return Party.personal(this.tenantId);
     }
 
     /**

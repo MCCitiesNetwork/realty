@@ -28,9 +28,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class ActorContextsTest {
 
-    private static final Party.Account GOV = new Party.Account(42, AccountKind.GOVERNMENT);
-    private static final Party.Account ACME = new Party.Account(7, AccountKind.BUSINESS);
-    private static final Party.Group POLICE = new Party.Group("police", 43, AccountKind.GOVERNMENT);
+    private static final Party.Account GOV = Party.account(42, AccountKind.GOVERNMENT);
+    private static final Party.Account ACME = Party.account(7, AccountKind.BUSINESS);
+    private static final Party.Group POLICE = Party.group("police", 43, AccountKind.GOVERNMENT);
 
     private final UUID playerId = UUID.randomUUID();
     private final UUID someoneElse = UUID.randomUUID();
@@ -128,8 +128,8 @@ class ActorContextsTest {
 
         ActorContext ctx = contexts.of(player, false, List.of(GOV, POLICE));
 
-        Assertions.assertEquals(Set.of(new Party.Personal(playerId)), ctx.manages());
-        Assertions.assertEquals(Set.of(new Party.Personal(playerId)), ctx.reassigns());
+        Assertions.assertEquals(Set.of(Party.personal(playerId)), ctx.manages());
+        Assertions.assertEquals(Set.of(Party.personal(playerId)), ctx.reassigns());
     }
 
     @Test
@@ -155,7 +155,7 @@ class ActorContextsTest {
 
     @Test
     void anotherPlayer_isNeverManaged() {
-        Party.Personal other = new Party.Personal(someoneElse);
+        Party.Personal other = Party.personal(someoneElse);
 
         ActorContext ctx = contexts(AccountManagers.MEMBERS).of(player, false, List.of(other));
 
@@ -182,7 +182,7 @@ class ActorContextsTest {
 
         ActorContext ctx = contexts(AccountManagers.MEMBERS).forRegion(player, true, region, POLICE);
 
-        Assertions.assertEquals(Set.of(new Party.Personal(playerId), GOV, ACME, POLICE), ctx.manages());
+        Assertions.assertEquals(Set.of(Party.personal(playerId), GOV, ACME, POLICE), ctx.manages());
         Assertions.assertTrue(ctx.bypass());
     }
 
@@ -193,7 +193,7 @@ class ActorContextsTest {
 
         ActorContext ctx = contexts(AccountManagers.MEMBERS).forEveryParty(player);
 
-        Assertions.assertEquals(Set.of(new Party.Personal(playerId), ACME), ctx.manages());
+        Assertions.assertEquals(Set.of(Party.personal(playerId), ACME), ctx.manages());
         Assertions.assertFalse(ctx.bypass());
     }
 }

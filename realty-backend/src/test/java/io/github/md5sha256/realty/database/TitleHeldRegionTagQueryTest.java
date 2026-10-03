@@ -28,8 +28,8 @@ class TitleHeldRegionTagQueryTest extends AbstractDatabaseTest {
         String regionA = uniqueRegion("a");
         String regionB = uniqueRegion("b");
 
-        Assertions.assertTrue(logic.createFreehold(regionA, world, 100.0, new Party.Personal(authority), owner));
-        Assertions.assertTrue(logic.createFreehold(regionB, world, 100.0, new Party.Personal(authority), owner));
+        Assertions.assertTrue(logic.createFreehold(regionA, world, 100.0, Party.personal(authority), owner));
+        Assertions.assertTrue(logic.createFreehold(regionB, world, 100.0, Party.personal(authority), owner));
 
         try (SqlSessionWrapper session = database.openSession(true)) {
             session.regionTagMapper().insert("commercial", regionA);
@@ -62,7 +62,7 @@ class TitleHeldRegionTagQueryTest extends AbstractDatabaseTest {
         String region = uniqueRegion("unowned");
 
         // Freehold with a null title holder (for sale, not owned) must not be taxed.
-        Assertions.assertTrue(logic.createFreehold(region, world, 100.0, new Party.Personal(authority), null));
+        Assertions.assertTrue(logic.createFreehold(region, world, 100.0, Party.personal(authority), null));
 
         try (SqlSessionWrapper session = database.openSession(true)) {
             boolean present = session.freeholdContractMapper().selectTitleHeldRegionTags().stream()

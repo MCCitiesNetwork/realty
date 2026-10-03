@@ -18,8 +18,8 @@ class PartyRegionsEndpointTest {
 
     private static final UUID WORLD_ID = UUID.randomUUID();
     private static final UUID PLAYER = TestServers.PLAYER_ID;
-    private static final Party.Account GOVERNMENT = new Party.Account(TestServers.ACCOUNT_ID, AccountKind.GOVERNMENT);
-    private static final Party.Group POLICE = new Party.Group("police", 7, AccountKind.GOVERNMENT);
+    private static final Party.Account GOVERNMENT = Party.account(TestServers.ACCOUNT_ID, AccountKind.GOVERNMENT);
+    private static final Party.Group POLICE = Party.group("police", 7, AccountKind.GOVERNMENT);
 
     private static RealtyRegionEntity region(String name) {
         return new RealtyRegionEntity(1, name, WORLD_ID);
@@ -27,7 +27,13 @@ class PartyRegionsEndpointTest {
 
     /** A party that is the authority of one region and nothing else. */
     private static RealtyBackend.ListResult authorityOf(String name) {
-        return new RealtyBackend.ListResult(0, 1, 0, List.of(), List.of(region(name)), List.of());
+        return new RealtyBackend.ListResult(0, 1, 0, 0, List.of(), List.of(region(name)), List.of(), List.of());
+    }
+
+    /** A party that is the authority of one region and lets another. */
+    private static RealtyBackend.ListResult authorityOfAndLets(String authority, String let) {
+        return new RealtyBackend.ListResult(0, 1, 1, 0,
+                List.of(), List.of(region(authority)), List.of(region(let)), List.of());
     }
 
     @Test
@@ -48,10 +54,12 @@ class PartyRegionsEndpointTest {
     @Test
     void personal_matchesThePlayersRoute() {
         TestServers.PartyStub stub = new TestServers.PartyStub();
-        stub.lists.put(new Party.Personal(PLAYER), new RealtyBackend.ListResult(
-                1, 1, 0, List.of(region("owned_plot")), List.of(region("landlord_plot")), List.of()));
+        stub.lists.put(Party.personal(PLAYER), new RealtyBackend.ListResult(1, 1, 1, 0,
+                List.of(region("owned_plot")), List.of(region("authority_plot")), List.of(region("let_plot")),
+                List.of()));
         JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
-            for (String query : List.of("", "?category=owned", "?category=rented", "?pageSize=1&page=2")) {
+            for (String query : List.of("", "?category=owned", "?category=authority", "?category=landlord",
+                    "?category=rented", "?pageSize=1&page=2", "?pageSize=1&page=3")) {
                 String viaPlayer = client.get("/v1/players/regions" + (query.isEmpty() ? "?" : query + "&")
                         + "player=" + PLAYER).body().string();
                 String viaParty = client.get("/v1/parties/personal/" + PLAYER + "/regions" + query).body().string();
@@ -60,8 +68,55 @@ class PartyRegionsEndpointTest {
             }
             String all = client.get("/v1/parties/personal/" + PLAYER + "/regions").body().string();
             Assertions.assertTrue(all.contains("\"owned_plot\""), all);
-            Assertions.assertTrue(all.contains("\"landlord_plot\""), all);
+            Assertions.assertTrue(all.contains("\"authority_plot\""), all);
+            Assertions.assertTrue(all.contains("\"let_plot\""), all);
             Assertions.assertTrue(all.contains("\"rented_plot\""), all);
+        });
+    }
+
+    @Test
+    void all_hasTheFourParts() {
+        TestServers.PartyStub stub = new TestServers.PartyStub();
+        stub.lists.put(GOVERNMENT, authorityOfAndLets("town_hall", "flat_1"));
+        JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
+            Response response = client.get("/v1/parties/government/" + TestServers.ACCOUNT_ID + "/regions");
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("\"owned\":[]"), body);
+            Assertions.assertTrue(body.contains("\"authority\":[{\"worldGuardRegionId\":\"town_hall\""), body);
+            Assertions.assertTrue(body.contains("\"landlord\":[{\"worldGuardRegionId\":\"flat_1\""), body);
+            Assertions.assertTrue(body.contains("\"rented\":[]"), body);
+            Assertions.assertTrue(body.contains("\"totalCount\":2"), body);
+        });
+    }
+
+    @Test
+    void categoryAuthority_listsAuthorityLand() {
+        TestServers.PartyStub stub = new TestServers.PartyStub();
+        stub.lists.put(GOVERNMENT, authorityOfAndLets("town_hall", "flat_1"));
+        JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
+            Response response = client.get("/v1/parties/government/" + TestServers.ACCOUNT_ID
+                    + "/regions?category=authority");
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("\"regions\":[{\"worldGuardRegionId\":\"town_hall\""), body);
+            Assertions.assertTrue(body.contains("\"totalCount\":1"), body);
+            Assertions.assertFalse(body.contains("flat_1"), body);
+        });
+    }
+
+    @Test
+    void categoryLandlord_listsLetLand() {
+        TestServers.PartyStub stub = new TestServers.PartyStub();
+        stub.lists.put(GOVERNMENT, authorityOfAndLets("town_hall", "flat_1"));
+        JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
+            Response response = client.get("/v1/parties/government/" + TestServers.ACCOUNT_ID
+                    + "/regions?category=landlord");
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("\"regions\":[{\"worldGuardRegionId\":\"flat_1\""), body);
+            Assertions.assertTrue(body.contains("\"totalCount\":1"), body);
+            Assertions.assertFalse(body.contains("town_hall"), body);
         });
     }
 
@@ -136,6 +191,7 @@ class PartyRegionsEndpointTest {
             Assertions.assertEquals(200, response.code());
             String body = response.body().string();
             Assertions.assertTrue(body.contains("\"totalCount\":0"), body);
+            Assertions.assertTrue(body.contains("\"authority\":[]"), body);
             Assertions.assertTrue(body.contains("\"landlord\":[]"), body);
         });
     }
@@ -186,13 +242,15 @@ class PartyRegionsEndpointTest {
     }
 
     @Test
-    void unknownCategory_is400AndIsNotEchoed() {
+    void unknownCategory_is400() {
         JavalinTest.test(TestServers.withPartyHoldings(new TestServers.PartyStub(), 100).javalin(), (server, client) -> {
-            Response response = client.get("/v1/parties/business/42/regions?category=owned2");
-            Assertions.assertEquals(400, response.code());
-            String body = response.body().string();
-            Assertions.assertTrue(body.contains("INVALID_CATEGORY"), body);
-            Assertions.assertFalse(body.contains("owned2"), body);
+            for (String category : List.of("owned2", "authorities", "Landlord", "tenant")) {
+                Response response = client.get("/v1/parties/business/42/regions?category=" + category);
+                Assertions.assertEquals(400, response.code(), category);
+                String body = response.body().string();
+                Assertions.assertTrue(body.contains("INVALID_CATEGORY"), body);
+                Assertions.assertFalse(body.contains(category), body);
+            }
         });
     }
 
@@ -218,7 +276,7 @@ class PartyRegionsEndpointTest {
         TestServers.PartyStub stub = new TestServers.PartyStub();
         JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
             client.get("/v1/parties/business/42/regions");
-            Assertions.assertEquals(List.of(new Party.Account(42, AccountKind.BUSINESS)), stub.asked);
+            Assertions.assertEquals(List.of(Party.account(42, AccountKind.BUSINESS)), stub.asked);
         });
     }
 }

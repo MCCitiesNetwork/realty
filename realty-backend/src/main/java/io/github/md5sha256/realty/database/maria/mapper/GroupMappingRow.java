@@ -19,6 +19,6 @@ public record GroupMappingRow(int partyId,
                               int contractCount) {
 
     @NotNull GroupMapping toGroupMapping() {
-        return new GroupMapping(new Party.Group(groupName, groupAccountId, groupAccountKind), contractCount);
+        return new GroupMapping(Party.group(groupName, groupAccountId, groupAccountKind), contractCount);
     }
 }

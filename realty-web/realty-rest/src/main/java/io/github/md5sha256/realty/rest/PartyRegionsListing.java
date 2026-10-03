@@ -62,18 +62,23 @@ final class PartyRegionsListing {
 
         PlayerRegionsResponse response = switch (category) {
             case "all" -> handleAll(ref, party, page, pageSize, offset);
-            case "owned" -> handleOwned(ref, party, page, pageSize, offset);
+            case "owned" -> handleRegions(ref, page, pageSize,
+                    this.backend.listOwnedRegions(party, pageSize, offset));
+            case "authority" -> handleRegions(ref, page, pageSize,
+                    this.backend.listAuthorityRegions(party, pageSize, offset));
+            case "landlord" -> handleRegions(ref, page, pageSize,
+                    this.backend.listLandlordRegions(party, pageSize, offset));
             case "rented" -> handleRented(ref, party, page, pageSize, offset);
             default -> throw ApiException.badRequest("INVALID_CATEGORY",
-                    "Query parameter 'category' must be one of [all, owned, rented]");
+                    "Query parameter 'category' must be one of [all, owned, authority, landlord, rented]");
         };
 
         ctx.json(response);
     }
 
-    private @NotNull PlayerRegionsResponse handleOwned(@NotNull PartyRef player, @NotNull Party party,
-                                                         int page, int pageSize, int offset) {
-        RealtyBackend.SingleCategoryResult result = this.backend.listOwnedRegions(party, pageSize, offset);
+    /** One category whose entries carry no end date: owned, authority or landlord. */
+    private @NotNull PlayerRegionsResponse handleRegions(@NotNull PartyRef player, int page, int pageSize,
+                                                         @NotNull RealtyBackend.SingleCategoryResult result) {
         Map<UUID, WorldRef> worlds = resolveWorlds(regionWorldIds(result.regions()));
         List<Object> regions = new ArrayList<>();
         for (RealtyRegionEntity entity : result.regions()) {
@@ -81,7 +86,7 @@ final class PartyRegionsListing {
         }
         return new PlayerRegionsResponse(
                 player, page, pageSize, result.totalCount(), totalPages(result.totalCount(), pageSize),
-                null, null, null, regions);
+                null, null, null, null, regions);
     }
 
     private @NotNull PlayerRegionsResponse handleRented(@NotNull PartyRef player, @NotNull Party party,
@@ -95,18 +100,21 @@ final class PartyRegionsListing {
         }
         return new PlayerRegionsResponse(
                 player, page, pageSize, result.totalCount(), totalPages(result.totalCount(), pageSize),
-                null, null, null, regions);
+                null, null, null, null, regions);
     }
 
     private @NotNull PlayerRegionsResponse handleAll(@NotNull PartyRef player, @NotNull Party party,
                                                        int page, int pageSize, int offset) {
         RealtyBackend.ListResult result = this.backend.listRegions(party, pageSize, offset);
 
-        // Mirror RealtyBackendImpl#listRegions' own pagination arithmetic so the
-        // rented slice requested here lines up with the rented slice ListResult
-        // already accounted for in its counts, without an N+1 lookup per region.
+        // Mirror RealtyBackendImpl#listRegions' own pagination arithmetic, which runs one
+        // offset over owned, authority, landlord and rented in that order, so the rented
+        // slice requested here lines up with the rented slice ListResult already accounted
+        // for in its counts, without an N+1 lookup per region.
         int remaining = pageSize - result.owned().size();
         int rentedOffset = Math.max(0, offset - result.ownedCount());
+        remaining -= result.authority().size();
+        rentedOffset = Math.max(0, rentedOffset - result.authorityCount());
         remaining -= result.landlord().size();
         rentedOffset = Math.max(0, rentedOffset - result.landlordCount());
 
@@ -116,18 +124,14 @@ final class PartyRegionsListing {
 
         Set<UUID> worldIds = new HashSet<>();
         worldIds.addAll(regionWorldIds(result.owned()));
+        worldIds.addAll(regionWorldIds(result.authority()));
         worldIds.addAll(regionWorldIds(result.landlord()));
         worldIds.addAll(rentedWorldIds(rentedViews));
         Map<UUID, WorldRef> worlds = resolveWorlds(worldIds);
 
-        List<PlayerRegionsResponse.RegionRef> owned = new ArrayList<>();
-        for (RealtyRegionEntity entity : result.owned()) {
-            owned.add(toRegionRef(entity, worlds));
-        }
-        List<PlayerRegionsResponse.RegionRef> landlord = new ArrayList<>();
-        for (RealtyRegionEntity entity : result.landlord()) {
-            landlord.add(toRegionRef(entity, worlds));
-        }
+        List<PlayerRegionsResponse.RegionRef> owned = toRegionRefs(result.owned(), worlds);
+        List<PlayerRegionsResponse.RegionRef> authority = toRegionRefs(result.authority(), worlds);
+        List<PlayerRegionsResponse.RegionRef> landlord = toRegionRefs(result.landlord(), worlds);
         List<PlayerRegionsResponse.RentedRef> rented = new ArrayList<>();
         for (RentedRegionView view : rentedViews) {
             rented.add(toRentedRef(view, worlds));
@@ -135,7 +139,7 @@ final class PartyRegionsListing {
 
         return new PlayerRegionsResponse(
                 player, page, pageSize, result.totalCount(), totalPages(result.totalCount(), pageSize),
-                owned, landlord, rented, null);
+                owned, authority, landlord, rented, null);
     }
 
     /** Only a player rents, so any other party has no rented regions to read. */
@@ -172,6 +176,15 @@ final class PartyRegionsListing {
             ids.add(view.worldId());
         }
         return ids;
+    }
+
+    private static @NotNull List<PlayerRegionsResponse.RegionRef> toRegionRefs(
+            @NotNull List<RealtyRegionEntity> entities, @NotNull Map<UUID, WorldRef> worlds) {
+        List<PlayerRegionsResponse.RegionRef> refs = new ArrayList<>();
+        for (RealtyRegionEntity entity : entities) {
+            refs.add(toRegionRef(entity, worlds));
+        }
+        return refs;
     }
 
     private static @NotNull PlayerRegionsResponse.RegionRef toRegionRef(@NotNull RealtyRegionEntity entity,

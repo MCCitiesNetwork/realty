@@ -39,8 +39,8 @@ import static org.mockito.Mockito.when;
 
 class PartyFlagsTest {
 
-    private static final Party GOV_SECURITY = new Party.Account(42, AccountKind.GOVERNMENT);
-    private static final Party DEFAULT_LANDLORD = new Party.Account(7, AccountKind.GOVERNMENT);
+    private static final Party GOV_SECURITY = Party.account(42, AccountKind.GOVERNMENT);
+    private static final Party DEFAULT_LANDLORD = Party.account(7, AccountKind.GOVERNMENT);
 
     /** Runs every task on the calling thread, so the tests see the result at once. */
     private static final class DirectExecutor extends AbstractExecutorService {

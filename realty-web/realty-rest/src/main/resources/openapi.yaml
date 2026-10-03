@@ -174,9 +174,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -227,10 +231,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -372,10 +379,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -461,9 +471,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -529,9 +543,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -581,10 +599,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -984,10 +1005,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -1027,18 +1051,21 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /v1/players/regions:
     get:
-      summary: List a player's owned, landlorded and rented regions
+      summary: List the regions a player holds, is authority of, lets and rents
       operationId: listPlayerRegions
       description: >-
         The HTTP form of the in-game `/realty list` command. When `category` is
-        `all` (the default), the three category lists -- owned, landlord and
-        rented -- are paged against **one shared offset**, exactly as `/realty
-        list` does in-game: the page boundary can fall inside a category rather
-        than starting each category's own list at 1, so `owned`, `landlord` and
-        `rented` on a given page are the slice of the combined, concatenated
-        sequence that lands on that page, not independently-paged lists of their
-        own length. When `category` is `owned` or `rented`, that single category
-        is paged normally and returned under `regions` instead.
+        `all` (the default), the four category lists -- owned, authority,
+        landlord and rented, in that order -- are paged against **one shared
+        offset**, exactly as `/realty list` does in-game: the page boundary can
+        fall inside a category rather than starting each category's own list at
+        1, so `owned`, `authority`, `landlord` and `rented` on a given page are
+        the slice of the combined, concatenated sequence that lands on that page,
+        not independently-paged lists of their own length. When `category` is
+        `owned`, `authority`, `landlord` or `rented`, that single category is
+        paged normally and returned under `regions` instead. Before 2.0.0,
+        `landlord` held the freeholds the player is authority of; those are now
+        in `authority`, and `landlord` holds the leaseholds the player lets.
       parameters:
         - name: player
           in: query
@@ -1057,18 +1084,23 @@ paths:
         - name: category
           in: query
           required: false
-          description: One of `all` (default), `owned`, or `rented`.
+          description: >-
+            One of `all` (default), `owned`, `authority`, `landlord` or `rented`.
+            See `PlayerRegionsResponse` for what each category holds.
           schema:
             type: string
-            enum: [ all, owned, rented ]
+            enum: [ all, owned, authority, landlord, rented ]
             default: all
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -1094,7 +1126,7 @@ paths:
             a UUID-shaped `player` does not parse; `INVALID_PAGE` or
             `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`;
             `INVALID_CATEGORY` when `category` is present but not one of `all`,
-            `owned`, `rented`.
+            `owned`, `authority`, `landlord`, `rented`.
           content:
             application/json:
               schema:
@@ -1190,11 +1222,11 @@ paths:
         The same listing as `/v1/players/regions`, for any party: a player, a
         Treasury account or a permission group, addressed by kind and id. The
         query parameters and the response are the same, and so is the paging: with
-        `category=all` the three lists share one offset. For `personal` the
+        `category=all` the four lists share one offset. For `personal` the
         lists are the ones `/v1/players/regions?player=<uuid>` returns. For any
         other party `owned` and `rented` are empty, because only a player holds a
-        title or rents; `landlord` lists the regions the party is the freehold
-        authority of. In the response the field is still called `player`, so the
+        title or rents; `authority` lists the freeholds the party is the
+        authority of, and `landlord` lists the leaseholds it lets. In the response the field is still called `player`, so the
         shape of the player route does not change; here it holds the party's
         `PartyRef`. An account that no contract names answers with empty lists
         rather than 404, because this API cannot ask Treasury whether it exists;
@@ -1221,18 +1253,23 @@ paths:
         - name: category
           in: query
           required: false
-          description: One of `all` (default), `owned`, or `rented`.
+          description: >-
+            One of `all` (default), `owned`, `authority`, `landlord` or `rented`.
+            See `PlayerRegionsResponse` for what each category holds.
           schema:
             type: string
-            enum: [ all, owned, rented ]
+            enum: [ all, owned, authority, landlord, rented ]
             default: all
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -1259,7 +1296,8 @@ paths:
             `INVALID_ACCOUNT_ID` when `kind` is an account kind and `id` is not a
             positive integer; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a
             non-integer or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when
-            `category` is present but not one of `all`, `owned`, `rented`.
+            `category` is present but not one of `all`, `owned`, `authority`,
+            `landlord`, `rented`.
           content:
             application/json:
               schema:
@@ -1416,8 +1454,10 @@ components:
           $ref: "#/components/schemas/PartyRef"
         titleHeld:
           type: integer
+          description: How many freeholds the player holds the title of, as titleholder.
         landlordOf:
           type: integer
+          description: How many leaseholds the player lets as their landlord.
         occupiedLandlordOf:
           type: integer
           description: >-
@@ -1425,8 +1465,10 @@ components:
             show let versus vacant without a second call.
         renting:
           type: integer
+          description: How many leaseholds the player rents, as tenant.
         authorityOver:
           type: integer
+          description: How many freeholds the player is the freehold authority of.
       required: [ player, titleHeld, landlordOf, occupiedLandlordOf, renting, authorityOver ]
     HistoryResponse:
       type: object
@@ -1933,11 +1975,12 @@ components:
       type: object
       description: >-
         The response for GET /v1/players/regions and GET /v1/parties/{kind}/{id}/regions,
-        where `player` holds the party. When category=owned or
-        category=rented was requested, `regions` carries that category's entries
-        and `owned`/`landlord`/`rented` are omitted (not serialised as null).
-        When category=all (the default), `owned`, `landlord` and `rented` are
-        populated instead and `regions` is omitted. See the endpoint description
+        where `player` holds the party. When a single category (owned,
+        authority, landlord or rented) was requested, `regions` carries that
+        category's entries and `owned`/`authority`/`landlord`/`rented` are
+        omitted (not serialised as null). When category=all (the default),
+        `owned`, `authority`, `landlord` and `rented` are populated instead and
+        `regions` is omitted. See the endpoint description
         for the shared-offset paging behaviour of category=all.
       properties:
         player:
@@ -1952,22 +1995,32 @@ components:
           type: integer
         owned:
           type: array
+          description: The freeholds whose title the party holds, as titleholder.
+          items:
+            $ref: "#/components/schemas/PlayerRegionsResponse_RegionRef"
+        authority:
+          type: array
+          description: The freeholds whose freehold authority the party is.
           items:
             $ref: "#/components/schemas/PlayerRegionsResponse_RegionRef"
         landlord:
           type: array
+          description: >-
+            The leaseholds the party lets as their landlord, with or without a
+            tenant; before 2.0.0 this field held the freeholds now in `authority`.
           items:
             $ref: "#/components/schemas/PlayerRegionsResponse_RegionRef"
         rented:
           type: array
+          description: The leaseholds the party rents, as tenant.
           items:
             $ref: "#/components/schemas/PlayerRegionsResponse_RentedRef"
         regions:
           type: array
           description: >-
-            Present only for a single-category request (category=owned or
-            category=rented); its entries are RegionRef or RentedRef shaped
-            per that category.
+            Present only for a single-category request (category=owned,
+            authority, landlord or rented); its entries are RentedRef shaped
+            for category=rented and RegionRef shaped otherwise.
           items: {}
       required: [ player, page, pageSize, totalCount, totalPages ]
     PlayerRegionsResponse_RegionRef:

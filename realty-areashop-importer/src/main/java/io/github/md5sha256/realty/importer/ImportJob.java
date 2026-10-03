@@ -176,7 +176,7 @@ public class ImportJob {
                     }
                     UUID areaShopLandlord = region.getLandlord();
                     Party landlord = areaShopLandlord != null
-                            ? new Party.Personal(areaShopLandlord) : defaults.freeholdAuthority();
+                            ? Party.personal(areaShopLandlord) : defaults.freeholdAuthority();
                     if (landlord == null) {
                         audience.sendMessage(Component.text("Skipping buy region " + region.getName()
                                 + ": it has no landlord and the default freehold authority did not resolve"));
@@ -211,7 +211,7 @@ public class ImportJob {
 
                     UUID areaShopLandlord = region.getLandlord();
                     Party landlord = areaShopLandlord != null
-                            ? new Party.Personal(areaShopLandlord) : defaults.leaseholdLandlord();
+                            ? Party.personal(areaShopLandlord) : defaults.leaseholdLandlord();
                     if (landlord == null) {
                         audience.sendMessage(Component.text("Skipping rent region " + region.getName()
                                 + ": it has no landlord and the default leasehold landlord did not resolve"));

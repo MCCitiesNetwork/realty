@@ -29,13 +29,15 @@ import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Handles {@code /realty list [owned|rented] [name] [--page <n>] [type flag]} and {@code /realty me}.
+ * Handles {@code /realty list [owned|authority|landlord|rented] [name] [--page <n>] [type flag]} and
+ * {@code /realty me}.
  *
  * <p>Without a name the sender's own regions are listed. A name is a player, or with
  * {@code --government}, {@code --business}, {@code --system} or {@code --group} an account or a
@@ -53,6 +55,29 @@ public record ListCommand(
 ) implements CustomCommandBean {
 
     private static final int PAGE_SIZE = 10;
+
+    /**
+     * The parts of a listing, in the order one page offset runs over them. {@code literal} is the
+     * word that picks the part in the command; {@code labelKey} names the part in the listing.
+     */
+    enum Category {
+        /** The freeholds whose title the party holds. */
+        OWNED("owned", MessageKeys.LIST_LABEL_OWNED),
+        /** The freeholds whose authority the party is. */
+        AUTHORITY("authority", MessageKeys.LIST_LABEL_AUTHORITY),
+        /** The leaseholds the party lets as their landlord. */
+        LANDLORD("landlord", MessageKeys.LIST_LABEL_LANDLORD),
+        /** The leaseholds the party rents. */
+        RENTED("rented", MessageKeys.LIST_LABEL_RENTED);
+
+        final @NotNull String literal;
+        final @NotNull String labelKey;
+
+        Category(@NotNull String literal, @NotNull String labelKey) {
+            this.literal = literal;
+            this.labelKey = labelKey;
+        }
+    }
 
     private static final CommandFlag<Integer> PAGE_FLAG =
             CommandFlag.<Source>builder("page")
@@ -80,16 +105,17 @@ public record ListCommand(
                 .handler(ctx -> {
                     Player player = ctx.sender().source();
                     int page = ctx.flags().getValue(PAGE_FLAG, 1);
-                    listRegions(player, new Target(new Party.Personal(player.getUniqueId()), player.getName(),
+                    listRegions(player, new Target(Party.personal(player.getUniqueId()), player.getName(),
                             null, null), null, page);
                 })
                 .build();
-        return List.of(
-                meProxy,
-                withName(base).handler(ctx -> execute(ctx, null)).build(),
-                withName(base.literal("owned")).handler(ctx -> execute(ctx, "owned")).build(),
-                withName(base.literal("rented")).handler(ctx -> execute(ctx, "rented")).build()
-        );
+        List<Command<? extends Source>> commands = new ArrayList<>();
+        commands.add(meProxy);
+        commands.add(withName(base).handler(ctx -> execute(ctx, null)).build());
+        for (Category category : Category.values()) {
+            commands.add(withName(base.literal(category.literal)).handler(ctx -> execute(ctx, category)).build());
+        }
+        return commands;
     }
 
     /**
@@ -103,7 +129,7 @@ public record ListCommand(
                 .flag(PAGE_FLAG));
     }
 
-    private void execute(@NotNull CommandContext<Source> ctx, @Nullable String category) {
+    private void execute(@NotNull CommandContext<Source> ctx, @Nullable Category category) {
         CommandSender sender = ctx.sender().source();
         int page = ctx.flags().getValue(PAGE_FLAG, 1);
         if (!(PartyFlags.read(ctx) instanceof PartyFlags.Read.One(PartyFlag flag))) {
@@ -114,7 +140,7 @@ public record ListCommand(
         if (name == null) {
             if (flag != null) {
                 sender.sendMessage(messages.messageFor(MessageKeys.PARTY_TYPE_FLAG_WITHOUT_NAME,
-                        Placeholder.unparsed("usage", "/realty list" + (category != null ? " " + category : "")
+                        Placeholder.unparsed("usage", "/realty list" + (category != null ? " " + category.literal : "")
                                 + " <name> --" + flag.name().toLowerCase(Locale.ROOT))));
                 return;
             }
@@ -122,7 +148,7 @@ public record ListCommand(
                 sender.sendMessage(messages.messageFor(MessageKeys.LIST_PLAYERS_ONLY));
                 return;
             }
-            listRegions(sender, new Target(new Party.Personal(player.getUniqueId()), player.getName(),
+            listRegions(sender, new Target(Party.personal(player.getUniqueId()), player.getName(),
                     null, null), category, page);
             return;
         }
@@ -139,7 +165,7 @@ public record ListCommand(
     }
 
     private void listRegions(@NotNull CommandSender sender, @NotNull Target target,
-                             @Nullable String category, int page) {
+                             @Nullable Category category, int page) {
         if (category == null) {
             listAll(sender, target, page);
         } else {
@@ -169,9 +195,10 @@ public record ListCommand(
 
             TextComponent.Builder builder = Component.text();
             builder.append(header(messages, shownName));
-            appendCategory(builder, "Owned", result.owned());
-            appendCategory(builder, "Landlord", result.landlord());
-            appendRentedCategory(builder, "Rented", result.rented());
+            appendCategory(builder, Category.OWNED, result.owned());
+            appendCategory(builder, Category.AUTHORITY, result.authority());
+            appendCategory(builder, Category.LANDLORD, result.landlord());
+            appendRentedCategory(builder, result.rented());
             appendFooter(builder, target, null, page, totalPages);
             sender.sendMessage(builder.build());
         }, executorState.dbExec()).exceptionally(ex -> {
@@ -182,10 +209,14 @@ public record ListCommand(
     }
 
     private void listCategory(@NotNull CommandSender sender, @NotNull Target target,
-                              @NotNull String category, int page) {
-        var future = "owned".equals(category)
-                ? api.listOwnedRegions(target.party(), PAGE_SIZE, (page - 1) * PAGE_SIZE)
-                : api.listRentedRegions(target.party(), PAGE_SIZE, (page - 1) * PAGE_SIZE);
+                              @NotNull Category category, int page) {
+        int offset = (page - 1) * PAGE_SIZE;
+        var future = switch (category) {
+            case OWNED -> api.listOwnedRegions(target.party(), PAGE_SIZE, offset);
+            case AUTHORITY -> api.listAuthorityRegions(target.party(), PAGE_SIZE, offset);
+            case LANDLORD -> api.listLandlordRegions(target.party(), PAGE_SIZE, offset);
+            case RENTED -> api.listRentedRegions(target.party(), PAGE_SIZE, offset);
+        };
 
         future.thenAcceptAsync(result -> {
             String shownName = shownName(target);
@@ -203,15 +234,14 @@ public record ListCommand(
                 return;
             }
 
-            String label = "owned".equals(category) ? "Owned" : "Rented";
             TextComponent.Builder builder = Component.text();
             builder.append(header(messages, shownName));
-            if ("owned".equals(category)) {
-                appendCategory(builder, label, result.regions());
+            if (category == Category.RENTED) {
+                appendRentedCategory(builder, result.regions());
             } else {
-                appendRentedCategory(builder, label, result.regions());
+                appendCategory(builder, category, result.regions());
             }
-            appendFooter(builder, target, category, page, totalPages);
+            appendFooter(builder, target, category.literal, page, totalPages);
             sender.sendMessage(builder.build());
         }, executorState.dbExec()).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.LIST_ERROR,
@@ -220,13 +250,13 @@ public record ListCommand(
         });
     }
 
-    private void appendCategory(@NotNull TextComponent.Builder builder, @NotNull String label,
+    private void appendCategory(@NotNull TextComponent.Builder builder, @NotNull Category category,
                                 @NotNull List<RealtyRegionEntity> regions) {
         if (regions.isEmpty()) {
             return;
         }
         builder.appendNewline()
-                .append(parseMiniMessage(MessageKeys.LIST_CATEGORY, "<label>", label));
+                .append(categoryHeading(messages, category));
         for (RealtyRegionEntity region : regions) {
             builder.appendNewline()
                     .append(parseMiniMessage(MessageKeys.LIST_ENTRY,
@@ -240,13 +270,13 @@ public record ListCommand(
      * {@link RealtyPaperApi#getLeaseholdContract} via {@code .join()} for each region.
      * This is safe because the callback runs on the db executor thread.
      */
-    private void appendRentedCategory(@NotNull TextComponent.Builder builder, @NotNull String label,
+    private void appendRentedCategory(@NotNull TextComponent.Builder builder,
                                       @NotNull List<RealtyRegionEntity> regions) {
         if (regions.isEmpty()) {
             return;
         }
         builder.appendNewline()
-                .append(parseMiniMessage(MessageKeys.LIST_CATEGORY, "<label>", label));
+                .append(categoryHeading(messages, Category.RENTED));
         for (RealtyRegionEntity region : regions) {
             LeaseholdContractEntity leasehold = api.getLeaseholdContract(
                     region.worldGuardRegionId(), region.worldId()).join();
@@ -279,6 +309,12 @@ public record ListCommand(
     private @NotNull Component buildNavComponent(@NotNull String key, @NotNull Target target,
                                                  @Nullable String category, int targetPage) {
         return pageLink(messages, key, category, target.name(), target.flag(), targetPage);
+    }
+
+    /** The line above the regions of one part, such as {@code Freehold authority:}. */
+    static @NotNull Component categoryHeading(@NotNull MessageContainer messages, @NotNull Category category) {
+        return messages.messageFor(MessageKeys.LIST_CATEGORY,
+                Placeholder.component("label", messages.messageFor(category.labelKey)));
     }
 
     /**

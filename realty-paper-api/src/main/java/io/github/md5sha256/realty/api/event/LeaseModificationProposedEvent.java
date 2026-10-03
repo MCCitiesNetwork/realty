@@ -74,7 +74,7 @@ public class LeaseModificationProposedEvent extends RealtyRegionEvent {
      * The tenant of the lease.
      */
     public @NotNull Party getTenant() {
-        return new Party.Personal(this.tenantId);
+        return Party.personal(this.tenantId);
     }
 
     /**

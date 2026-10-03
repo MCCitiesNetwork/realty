@@ -74,7 +74,7 @@ public record DefaultParties(@Nullable Party freeholdAuthority,
                                                   @NotNull PartyResolver resolver, @NotNull List<String> errors) {
         PartyFlag type = setting.type();
         if (type == null && setting.uuid() != null) {
-            return new Party.Personal(setting.uuid());
+            return Party.personal(setting.uuid());
         }
         String name = setting.name();
         if (name == null || name.isBlank()) {

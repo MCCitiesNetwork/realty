@@ -52,7 +52,7 @@ final class OwnersLeaderboardHandler {
 
         List<Party> owners = new ArrayList<>(rows.size());
         for (PlotOwnerCount row : rows) {
-            owners.add(new Party.Personal(row.titleHolderId()));
+            owners.add(Party.personal(row.titleHolderId()));
         }
         // One module call for the whole page, so a full page costs the same hop as a
         // single row; an unreachable module leaves every name null rather than failing.

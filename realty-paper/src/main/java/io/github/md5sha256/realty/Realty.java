@@ -594,7 +594,7 @@ public final class Realty extends JavaPlugin {
                         if (terminated.refund() > 0 && this.economyProvider != null) {
                             // No player caused this payment, so it has no initiator.
                             PaymentResult refund = this.economyProvider.transfer(terminated.landlord(),
-                                    new Party.Personal(terminated.tenantId()), terminated.refund(),
+                                    Party.personal(terminated.tenantId()), terminated.refund(),
                                     "Lease Termination Refund: " + terminated.worldGuardRegionId(), null);
                             if (refund instanceof PaymentResult.Failure failure) {
                                 // Everything an admin needs to repay the tenant by hand. The

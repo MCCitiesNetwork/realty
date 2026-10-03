@@ -39,7 +39,7 @@ class RegionContractFieldsTest {
 
     @Test
     void reportsWhetherAFreeholdIsAcceptingOffers() {
-        FreeholdContractEntity freehold = new FreeholdContractEntity(1, new Party.Personal(LANDLORD), null, 25000.0, false);
+        FreeholdContractEntity freehold = new FreeholdContractEntity(1, Party.personal(LANDLORD), null, 25000.0, false);
         RealtyRestServer server = TestServers.withRegionInfo(
                 new RealtyBackend.RegionInfo(freehold, null, null, null, null),
                 RegionState.FOR_SALE,
@@ -139,7 +139,7 @@ class RegionContractFieldsTest {
     @Test
     void accountLandlord_isAGovernmentRef() {
         LeaseholdContractEntity leasehold = new LeaseholdContractEntity(
-                1, new Party.Account(42, AccountKind.GOVERNMENT), null, 800.0, 604800L,
+                1, Party.account(42, AccountKind.GOVERNMENT), null, 800.0, 604800L,
                 null, null, 0, 3, null, null, true);
         RealtyRestServer server = TestServers.withRegionInfo(
                 new RealtyBackend.RegionInfo(null, leasehold, null, null, null),
@@ -153,7 +153,7 @@ class RegionContractFieldsTest {
     @Test
     void groupAuthority_isAGroupRef() {
         FreeholdContractEntity freehold = new FreeholdContractEntity(
-                1, new Party.Group("police", 7, AccountKind.GOVERNMENT), null, 25000.0, true);
+                1, Party.group("police", 7, AccountKind.GOVERNMENT), null, 25000.0, true);
         RealtyRestServer server = TestServers.withRegionInfo(
                 new RealtyBackend.RegionInfo(freehold, null, null, null, null),
                 RegionState.FOR_SALE,
@@ -166,7 +166,7 @@ class RegionContractFieldsTest {
     @Test
     void accountLandlord_isServedWithANullNameWhenTheModuleIsDisabled() {
         LeaseholdContractEntity leasehold = new LeaseholdContractEntity(
-                1, new Party.Account(42, AccountKind.GOVERNMENT), null, 800.0, 604800L,
+                1, Party.account(42, AccountKind.GOVERNMENT), null, 800.0, 604800L,
                 null, null, 0, 3, null, null, true);
         RealtyRestServer server = TestServers.withRegionInfo(
                 new RealtyBackend.RegionInfo(null, leasehold, null, null, null),
@@ -181,7 +181,7 @@ class RegionContractFieldsTest {
     void playerTenant_isAPersonalRef() {
         UUID tenant = UUID.fromString("44440000-0000-0000-0000-000000000004");
         LeaseholdContractEntity leasehold = new LeaseholdContractEntity(
-                1, new Party.Account(42, AccountKind.GOVERNMENT), tenant, 800.0, 604800L,
+                1, Party.account(42, AccountKind.GOVERNMENT), tenant, 800.0, 604800L,
                 LocalDateTime.of(2026, 8, 1, 0, 0), LocalDateTime.of(2026, 8, 8, 0, 0),
                 0, 3, null, null, true);
         RealtyRestServer server = TestServers.withRegionInfo(
@@ -196,7 +196,7 @@ class RegionContractFieldsTest {
     private static LeaseholdContractEntity leasehold(LocalDateTime terminationEffectiveDate,
                                                      String terminatedByRole) {
         return new LeaseholdContractEntity(
-                1, new Party.Personal(LANDLORD), null, 800.0, 604800L,
+                1, Party.personal(LANDLORD), null, 800.0, 604800L,
                 LocalDateTime.of(2026, 8, 1, 0, 0),
                 LocalDateTime.of(2026, 8, 8, 0, 0),
                 0, 3,

@@ -149,7 +149,7 @@ public record GroupCommandGroup(
      * Asks Treasury, so call it off the main thread.
      */
     static @NotNull String accountName(@NotNull Party.Group group, @NotNull PartyNames partyNames) {
-        return partyNames.display(new Party.Account(group.accountId(), group.accountKind()));
+        return partyNames.display(Party.account(group.accountId(), group.accountKind()));
     }
 
     private @Nullable Void sendError(@NotNull CommandSender sender, @NotNull Throwable ex) {

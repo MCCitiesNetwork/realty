@@ -25,7 +25,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
     private static final UUID PLAYER_A = UUID.randomUUID();
     private static final UUID PLAYER_B = UUID.randomUUID();
 
-    private static final Party GOV = new Party.Account(42, AccountKind.GOVERNMENT);
+    private static final Party GOV = Party.account(42, AccountKind.GOVERNMENT);
 
     private static final AtomicInteger REGION_COUNTER = new AtomicInteger();
 
@@ -34,7 +34,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId) {
-        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, new Party.Personal(AUTHORITY), TITLE_HOLDER);
+        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, Party.personal(AUTHORITY), TITLE_HOLDER);
         Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 

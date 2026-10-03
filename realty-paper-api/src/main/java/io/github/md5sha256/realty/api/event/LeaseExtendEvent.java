@@ -30,7 +30,7 @@ public class LeaseExtendEvent extends RealtyRegionEvent implements Cancellable {
      * The tenant attempting to extend the lease.
      */
     public @NotNull Party getTenant() {
-        return new Party.Personal(this.tenantId);
+        return Party.personal(this.tenantId);
     }
 
     /**

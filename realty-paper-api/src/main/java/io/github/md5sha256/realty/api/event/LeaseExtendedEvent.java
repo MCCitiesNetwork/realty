@@ -30,7 +30,7 @@ public class LeaseExtendedEvent extends RealtyRegionEvent {
      * The tenant whose lease was extended.
      */
     public @NotNull Party getTenant() {
-        return new Party.Personal(this.tenantId);
+        return Party.personal(this.tenantId);
     }
 
     /**

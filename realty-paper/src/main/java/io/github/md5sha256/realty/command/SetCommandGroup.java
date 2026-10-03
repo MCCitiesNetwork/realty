@@ -371,7 +371,7 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.setTitleHolder(region, new Party.Personal(titleHolderId)).thenAccept(result -> {
+        api.setTitleHolder(region, Party.personal(titleHolderId)).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTitleHolderResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SUCCESS,
@@ -405,7 +405,7 @@ public record SetCommandGroup(
         }
         authorizeLeaseholdSet(sender, region, "realty.command.set.tenant.others", null, LandlordGate.MANAGES,
                 _ ->
-        api.setTenant(region, new Party.Personal(tenantId)).thenAccept(result -> {
+        api.setTenant(region, Party.personal(tenantId)).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTenantResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,

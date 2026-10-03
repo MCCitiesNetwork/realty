@@ -34,7 +34,7 @@ public class RegionBoughtEvent extends RealtyRegionEvent {
      * The new title holder.
      */
     public @NotNull Party getNewTitleHolder() {
-        return new Party.Personal(this.buyerId);
+        return Party.personal(this.buyerId);
     }
 
     /**
@@ -52,7 +52,7 @@ public class RegionBoughtEvent extends RealtyRegionEvent {
      * region was previously held only by an authority.
      */
     public @Nullable Party getPreviousTitleHolder() {
-        return this.previousTitleHolderId == null ? null : new Party.Personal(this.previousTitleHolderId);
+        return this.previousTitleHolderId == null ? null : Party.personal(this.previousTitleHolderId);
     }
 
     /**
