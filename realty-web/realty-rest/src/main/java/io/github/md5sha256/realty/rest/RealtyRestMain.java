@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
@@ -61,7 +62,10 @@ public final class RealtyRestMain {
         Database database = new MariaDatabase(config.database(), LOGGER);
         RealtyBackend backend = new RealtyBackendImpl(
                 database,
-                uuid -> CompletableFuture.completedFuture(uuid.toString()),
+                // Interim: a player resolves to their UUID, as before, and any other party to
+                // its record form.
+                party -> CompletableFuture.completedFuture(party instanceof Party.Personal personal
+                        ? personal.playerUuid().toString() : party.toString()),
                 IsoDates::format,
                 () -> 0L);
 

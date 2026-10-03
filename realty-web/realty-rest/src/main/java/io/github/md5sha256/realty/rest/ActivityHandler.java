@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.ActivityRow;
@@ -20,7 +21,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -81,7 +81,7 @@ final class ActivityHandler {
         Set<UUID> worldIds = new HashSet<>();
         for (ActivityRow row : rows) {
             playerIds.add(row.firstPlayerId());
-            playerIds.add(row.secondPlayerId());
+            playerIds.add(Party.playerUuidOf(row.secondParty()).orElse(null));
             worldIds.add(row.worldId());
         }
         Map<UUID, String> names = PlayerNames.resolve(this.moduleClient, playerIds);
@@ -143,8 +143,10 @@ final class ActivityHandler {
     private static @NotNull ActivityResponse.Event toEvent(@NotNull ActivityRow row,
                                                            @NotNull Map<UUID, WorldRef> worlds,
                                                            @NotNull Map<UUID, String> names) {
-        PlayerRef first = ref(row.firstPlayerId(), names);
-        PlayerRef second = ref(row.secondPlayerId(), names);
+        // Either may be absent: a leasehold event recorded while the region had no tenant has
+        // no first player, and a second party that is not a player has no player to show.
+        PlayerRef first = PlayerNames.ref(row.firstPlayerId(), names);
+        PlayerRef second = PlayerNames.ref(Party.playerUuidOf(row.secondParty()).orElse(null), names);
         WorldRef world = worlds.get(row.worldId());
         String eventTime = IsoDates.format(row.eventTime());
         return switch (row.kind()) {
@@ -161,10 +163,6 @@ final class ActivityHandler {
             default -> throw new IllegalStateException(
                     "Unknown activity row kind: " + row.kind());
         };
-    }
-
-    private static @NotNull PlayerRef ref(@NotNull UUID id, @NotNull Map<UUID, String> names) {
-        return Objects.requireNonNull(PlayerNames.ref(id, names));
     }
 
     private static int totalPages(int totalCount, int pageSize) {

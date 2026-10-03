@@ -167,26 +167,26 @@ public interface RealtyBackend {
     // --- Set Landlord ---
 
     sealed interface SetLandlordResult {
-        record Success(@NotNull UUID previousLandlord) implements SetLandlordResult {}
+        record Success(@NotNull Party previousLandlord) implements SetLandlordResult {}
         record NoLeaseholdContract() implements SetLandlordResult {}
         record UpdateFailed() implements SetLandlordResult {}
     }
 
     @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
-                                           @NotNull UUID landlordId);
+                                           @NotNull Party landlord);
 
     // --- Set Authority ---
 
     sealed interface SetAuthorityResult {
-        record Success(@NotNull UUID previousAuthority) implements SetAuthorityResult {}
+        record Success(@NotNull Party previousAuthority) implements SetAuthorityResult {}
         record NoFreeholdContract() implements SetAuthorityResult {}
         record UpdateFailed() implements SetAuthorityResult {}
     }
 
     @NotNull SetAuthorityResult setAuthority(@NotNull String worldGuardRegionId,
                                               @NotNull UUID worldId,
-                                              @NotNull UUID authorityId);
+                                              @NotNull Party authority);
 
     // --- Set Title Holder ---
 
@@ -210,12 +210,12 @@ public interface RealtyBackend {
 
     void updateSubregionLandlords(@NotNull List<String> childRegionIds,
                                   @NotNull UUID worldId,
-                                  @NotNull UUID newLandlord);
+                                  @NotNull Party newLandlord);
 
     // --- Set Tenant ---
 
     sealed interface SetTenantResult {
-        record Success(@Nullable UUID previousTenant, @NotNull UUID landlordId) implements SetTenantResult {}
+        record Success(@Nullable UUID previousTenant, @NotNull Party landlord) implements SetTenantResult {}
         record NoLeaseholdContract() implements SetTenantResult {}
         record UpdateFailed() implements SetTenantResult {}
     }
@@ -230,7 +230,7 @@ public interface RealtyBackend {
         /**
          * @param undo what {@link #rollbackBuy} needs to put the region back as it was
          */
-        record Success(double price, @NotNull UUID authorityId, @Nullable UUID titleHolderId,
+        record Success(double price, @NotNull Party authority, @Nullable UUID titleHolderId,
                        @NotNull BuyUndo undo) implements BuyResult {}
         record NoFreeholdContract() implements BuyResult {}
         record NotForFreehold() implements BuyResult {}
@@ -289,7 +289,7 @@ public interface RealtyBackend {
     boolean createFreehold(@NotNull String worldGuardRegionId,
                            @NotNull UUID worldId,
                            @Nullable Double price,
-                           @NotNull UUID authority,
+                           @NotNull Party authority,
                            @Nullable UUID titleHolder);
 
     // --- Create Leasehold ---
@@ -299,7 +299,7 @@ public interface RealtyBackend {
                             double price,
                             long durationSeconds,
                             int maxRenewals,
-                            @NotNull UUID landlordId);
+                            @NotNull Party landlord);
 
     // --- Rent ---
 
@@ -307,7 +307,7 @@ public interface RealtyBackend {
         /**
          * @param historyId the record of the letting, for {@link #rollbackRent} to remove
          */
-        record Success(double price, long durationSeconds, @NotNull UUID landlordId,
+        record Success(double price, long durationSeconds, @NotNull Party landlord,
                        int historyId) implements RentResult {}
         record NoLeaseholdContract() implements RentResult {}
         record AlreadyOccupied() implements RentResult {}
@@ -359,7 +359,7 @@ public interface RealtyBackend {
          * @param previous  the tenancy as it stood before it was ended
          * @param historyId the record of its ending
          */
-        record Success(double refund, @NotNull UUID tenantId, @NotNull UUID landlordId,
+        record Success(double refund, @NotNull UUID tenantId, @NotNull Party landlord,
                        @NotNull Tenancy previous, int historyId) implements UnrentResult {}
         record NoLeaseholdContract() implements UnrentResult {}
         /** The lease is scheduled for termination; it can only end via the sweep on the effective date. */
@@ -403,7 +403,7 @@ public interface RealtyBackend {
         /**
          * @param undo what {@link #rollbackRenewLeasehold} needs to put the lease back
          */
-        record Success(double price, @NotNull UUID landlordId,
+        record Success(double price, @NotNull Party landlord,
                        @NotNull RenewUndo undo) implements RenewLeaseholdResult {}
         record NoLeaseholdContract() implements RenewLeaseholdResult {}
         record NoExtensionsRemaining() implements RenewLeaseholdResult {}
@@ -463,7 +463,7 @@ public interface RealtyBackend {
     sealed interface ProposeModificationResult {
         /** {@code active} is {@code true} for a landlord proposal (applies on next renewal), false when awaiting the landlord. */
         record Success(int modificationId, @NotNull String proposerRole, boolean active,
-                       @NotNull UUID landlordId, @NotNull UUID tenantId) implements ProposeModificationResult {}
+                       @NotNull Party landlord, @NotNull UUID tenantId) implements ProposeModificationResult {}
         record NoLeaseholdContract() implements ProposeModificationResult {}
         record NotOccupied() implements ProposeModificationResult {}
         record Terminating() implements ProposeModificationResult {}
@@ -486,7 +486,7 @@ public interface RealtyBackend {
                                                            @Nullable Integer newMaxExtensions);
 
     sealed interface ResolveModificationResult {
-        record Success(int modificationId, @NotNull UUID tenantId, @NotNull UUID landlordId,
+        record Success(int modificationId, @NotNull UUID tenantId, @NotNull Party landlord,
                        @NotNull String proposerRole) implements ResolveModificationResult {}
         record NoLeaseholdContract() implements ResolveModificationResult {}
         record NoPendingProposal() implements ResolveModificationResult {}
@@ -516,7 +516,7 @@ public interface RealtyBackend {
                                                             boolean bypassAuth);
 
     /** Tenant proposals awaiting the given landlord's decision (inbox). */
-    @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull UUID landlordId);
+    @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull Party landlord);
 
     /** The given player's own non-terminal proposals (outbox). */
     @NotNull List<LeaseholdModificationView> listPendingModificationsByProposer(@NotNull UUID proposerId);
@@ -524,7 +524,7 @@ public interface RealtyBackend {
     // --- Terminate Leasehold (with notice) ---
 
     sealed interface TerminateLeaseholdResult {
-        record Success(@NotNull UUID tenantId, @NotNull UUID landlordId) implements TerminateLeaseholdResult {}
+        record Success(@NotNull UUID tenantId, @NotNull Party landlord) implements TerminateLeaseholdResult {}
         record NoLeaseholdContract() implements TerminateLeaseholdResult {}
         record NotOccupied() implements TerminateLeaseholdResult {}
         record AlreadyTerminating() implements TerminateLeaseholdResult {}
@@ -544,7 +544,7 @@ public interface RealtyBackend {
                                                      @NotNull String terminatedByRole);
 
     sealed interface CancelTerminationResult {
-        record Success(@NotNull String terminatedByRole, @NotNull UUID landlordId,
+        record Success(@NotNull String terminatedByRole, @NotNull Party landlord,
                        @NotNull UUID tenantId) implements CancelTerminationResult {}
         record NoLeaseholdContract() implements CancelTerminationResult {}
         record NotTerminating() implements CancelTerminationResult {}
@@ -724,8 +724,8 @@ public interface RealtyBackend {
 
     sealed interface PayOfferResult {
         record Success(double newTotal, double remaining,
-                       @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
-        record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayOfferResult {}
+                       @NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
+        record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record NoPaymentRecord() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
     }
@@ -753,8 +753,8 @@ public interface RealtyBackend {
 
     sealed interface PayBidResult {
         record Success(double newTotal, double remaining,
-                       @NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
-        record FullyPaid(@NotNull UUID authorityId, @Nullable UUID titleHolderId) implements PayBidResult {}
+                       @NotNull Party authority, @Nullable UUID titleHolderId) implements PayBidResult {}
+        record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId) implements PayBidResult {}
         record NoPaymentRecord() implements PayBidResult {}
         record PaymentExpired() implements PayBidResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
@@ -814,7 +814,7 @@ public interface RealtyBackend {
 
     record ExpiredLeasehold(
             @NotNull UUID tenantId,
-            @NotNull UUID landlordId,
+            @NotNull Party landlord,
             @NotNull String worldGuardRegionId,
             @NotNull UUID worldId
     ) {}
@@ -825,7 +825,7 @@ public interface RealtyBackend {
 
     record TerminatedLeasehold(
             @NotNull UUID tenantId,
-            @NotNull UUID landlordId,
+            @NotNull Party landlord,
             @NotNull String worldGuardRegionId,
             @NotNull UUID worldId,
             double refund,
@@ -861,21 +861,21 @@ public interface RealtyBackend {
 
     int countActiveAuctions();
 
-    int countRegionsByAuthority(@NotNull UUID playerId);
+    int countRegionsByAuthority(@NotNull Party authority);
 
     @NotNull List<String> listRegionNamesByTitleHolder(@NotNull UUID playerId);
 
     @NotNull List<String> listRegionNamesByTenant(@NotNull UUID playerId);
 
-    @NotNull List<String> listRegionNamesByLandlord(@NotNull UUID playerId);
+    @NotNull List<String> listRegionNamesByLandlord(@NotNull Party landlord);
 
     int countRegionsByTitleHolder(@NotNull UUID playerId);
 
-    int countRegionsByLandlord(@NotNull UUID playerId);
+    int countRegionsByLandlord(@NotNull Party landlord);
 
     int countRegionsByTenant(@NotNull UUID playerId);
 
-    int countOccupiedLeaseholdsByLandlord(@NotNull UUID landlordId);
+    int countOccupiedLeaseholdsByLandlord(@NotNull Party landlord);
 
     long averageLeaseholdDurationSeconds();
 

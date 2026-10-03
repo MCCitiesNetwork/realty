@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.entity;
 
+import io.github.md5sha256.realty.api.Party;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -12,7 +13,7 @@ import java.util.UUID;
  * time (the span between {@code terminationEffectiveDate} and {@code endDate}).
  *
  * @param leaseholdContractId      Leasehold contract primary key
- * @param landlordId               Landlord (refund payer)
+ * @param landlord                 Landlord (refund payer)
  * @param tenantId                 Tenant (refund recipient)
  * @param worldGuardRegionId       WorldGuard region id
  * @param worldId                  World UUID
@@ -24,7 +25,7 @@ import java.util.UUID;
  */
 public record TerminatedLeaseholdView(
         int leaseholdContractId,
-        @NotNull UUID landlordId,
+        @NotNull Party landlord,
         @NotNull UUID tenantId,
         @NotNull String worldGuardRegionId,
         @NotNull UUID worldId,

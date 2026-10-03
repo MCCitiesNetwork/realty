@@ -46,14 +46,14 @@ public record HistoryResponse(
     ) {
 
         public static @NotNull Entry freehold(@NotNull String eventType, @NotNull String eventTime,
-                                              @NotNull PlayerRef buyer, @NotNull PlayerRef authority,
+                                              @Nullable PlayerRef buyer, @NotNull PlayerRef authority,
                                               double price) {
             return new Entry("freehold", eventType, eventTime, buyer, authority,
                     null, null, null, null, price, null, null);
         }
 
         public static @NotNull Entry leasehold(@NotNull String eventType, @NotNull String eventTime,
-                                               @NotNull PlayerRef tenant, @NotNull PlayerRef landlord,
+                                               @Nullable PlayerRef tenant, @NotNull PlayerRef landlord,
                                                @Nullable Double price, @Nullable Long durationSeconds,
                                                @Nullable Integer extensionsRemaining) {
             return new Entry("leasehold", eventType, eventTime, null, null, tenant, landlord,

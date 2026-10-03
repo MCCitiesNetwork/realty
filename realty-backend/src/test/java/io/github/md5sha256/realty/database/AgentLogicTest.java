@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptAgentInviteResult;
 import io.github.md5sha256.realty.api.RealtyBackend.InviteAgentResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RejectAgentInviteResult;
@@ -28,7 +29,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId) {
-        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, AUTHORITY, TITLE_HOLDER);
+        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, new Party.Personal(AUTHORITY), TITLE_HOLDER);
         Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 

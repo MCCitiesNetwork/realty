@@ -4,6 +4,7 @@ import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
@@ -157,8 +158,9 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                 builder.append(
                                         messages.messageFor(messageKey,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), freehold.eventTime())),
-                                                Placeholder.unparsed("buyer", resolveName(freehold.buyerId())),
-                                                Placeholder.unparsed("authority", resolveName(freehold.authorityId())),
+                                                Placeholder.unparsed("buyer",
+                                                        freehold.buyerId() != null ? resolveName(freehold.buyerId()) : "N/A"),
+                                                Placeholder.unparsed("authority", resolveName(freehold.authority())),
                                                 Placeholder.unparsed("price", CurrencyFormatter.format(freehold.price()))));
                             }
                             case HistoryEntry.Agent agent -> {
@@ -174,8 +176,9 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                                 builder.append(
                                         messages.messageFor(messageKey,
                                                 Placeholder.unparsed("time", DateFormatter.format(settings.get().dateFormat(), lease.eventTime())),
-                                                Placeholder.unparsed("tenant", resolveName(lease.tenantId())),
-                                                Placeholder.unparsed("landlord", resolveName(lease.landlordId())),
+                                                Placeholder.unparsed("tenant",
+                                                        lease.tenantId() != null ? resolveName(lease.tenantId()) : "N/A"),
+                                                Placeholder.unparsed("landlord", resolveName(lease.landlord())),
                                                 Placeholder.unparsed("price",
                                                         lease.price() != null ? CurrencyFormatter.format(lease.price()) : "N/A"),
                                                 // <changes> labels extensionsRemaining as "Max Extensions", which only
@@ -258,6 +261,11 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
     private static @NotNull String resolveName(@NotNull UUID uuid) {
         String name = Bukkit.getOfflinePlayer(uuid).getName();
         return name != null ? name : uuid.toString();
+    }
+
+    /** Interim: a player by name, any other party by its record form. */
+    private static @NotNull String resolveName(@NotNull Party party) {
+        return Party.playerUuidOf(party).map(playerUuid -> resolveName(playerUuid)).orElse(party.toString());
     }
 
 }

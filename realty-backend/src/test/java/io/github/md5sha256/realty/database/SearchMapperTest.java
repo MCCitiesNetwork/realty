@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.OccupancyFilter;
 import io.github.md5sha256.realty.database.entity.SearchResultEntity;
 import io.github.md5sha256.realty.database.entity.SearchSort;
@@ -25,9 +26,9 @@ class SearchMapperTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void seed() {
-        Assertions.assertTrue(logic.createFreehold("plot_listed", WORLD_ID, 5000.0, AUTHORITY, null));
-        Assertions.assertTrue(logic.createFreehold("plot_sold", WORLD_ID, null, AUTHORITY, OWNER));
-        Assertions.assertTrue(logic.createLeasehold("plot_rental", WORLD_ID, 250.0, 604800L, -1, LANDLORD));
+        Assertions.assertTrue(logic.createFreehold("plot_listed", WORLD_ID, 5000.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("plot_sold", WORLD_ID, null, new Party.Personal(AUTHORITY), OWNER));
+        Assertions.assertTrue(logic.createLeasehold("plot_rental", WORLD_ID, 250.0, 604800L, -1, new Party.Personal(LANDLORD)));
     }
 
     private static List<SearchResultEntity> search(boolean freehold, boolean leasehold, boolean unpriced,

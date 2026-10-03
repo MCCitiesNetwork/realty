@@ -6,6 +6,7 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.flags.Flags;
 import com.sk89q.worldguard.protection.regions.RegionQuery;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -101,7 +102,7 @@ public record SignCommand(@NotNull RealtyPaperApi api,
         UUID worldId = region.world().getUID();
         api.getLeaseholdContract(regionId, worldId)
                 .thenAccept(lease -> {
-                    if (lease == null || !player.getUniqueId().equals(lease.landlordId())) {
+                    if (lease == null || !new Party.Personal(player.getUniqueId()).equals(lease.landlord())) {
                         player.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_LANDLORD,
                                 Placeholder.unparsed("region", regionId)));
                         return;

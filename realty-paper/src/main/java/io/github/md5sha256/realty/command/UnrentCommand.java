@@ -69,7 +69,7 @@ public record UnrentCommand(
                             Placeholder.unparsed("refund", CurrencyFormatter.format(success.refund()))));
                     // Post-event; fireSync hops to the main thread. RegionNotificationListener notifies the landlord.
                     events.fireSync(new RegionUnrentedEvent(region, sender.getUniqueId(),
-                            success.landlordId(), success.refund()));
+                            success.landlord(), success.refund()));
                 }
                 case RealtyPaperApi.UnrentResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNRENT_NO_LEASEHOLD_CONTRACT,

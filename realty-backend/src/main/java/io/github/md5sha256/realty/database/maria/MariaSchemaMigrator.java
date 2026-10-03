@@ -56,7 +56,8 @@ public final class MariaSchemaMigrator {
             new MigrationStep(15, "repair null extension counts", "V15__repair_null_extension_counts.sql"),
             new MigrationStep(16, "realty worlds", "V16__realty_worlds.sql"),
             new MigrationStep(17, "region schematics", "V17__realty_schematics.sql"),
-            new MigrationStep(18, "purge worldedit schematics", "V18__purge_worldedit_schematics.sql")
+            new MigrationStep(18, "purge worldedit schematics", "V18__purge_worldedit_schematics.sql"),
+            new MigrationStep(19, "parties", "V19__parties.sql")
     );
 
     private MariaSchemaMigrator() {

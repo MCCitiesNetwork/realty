@@ -36,13 +36,13 @@ public interface RealtyRegionMapper {
 
     @NotNull List<RealtyRegionEntity> selectRegionsByTitleHolder(@NotNull UUID playerId, int limit, int offset);
 
-    @NotNull List<RealtyRegionEntity> selectRegionsByAuthority(@NotNull UUID playerId, int limit, int offset);
+    @NotNull List<RealtyRegionEntity> selectRegionsByAuthority(int authorityPartyId, int limit, int offset);
 
     @NotNull List<RealtyRegionEntity> selectRegionsByTenant(@NotNull UUID playerId, int limit, int offset);
 
     int countRegionsByTitleHolder(@NotNull UUID playerId);
 
-    int countRegionsByAuthority(@NotNull UUID playerId);
+    int countRegionsByAuthority(int authorityPartyId);
 
     int countRegionsByTenant(@NotNull UUID playerId);
 
@@ -50,9 +50,9 @@ public interface RealtyRegionMapper {
 
     @NotNull List<String> selectRegionNamesByTenant(@NotNull UUID playerId);
 
-    @NotNull List<String> selectRegionNamesByLandlord(@NotNull UUID playerId);
+    @NotNull List<String> selectRegionNamesByLandlord(int landlordPartyId);
 
-    int countRegionsByLandlord(@NotNull UUID playerId);
+    int countRegionsByLandlord(int landlordPartyId);
 
     int countAll();
 

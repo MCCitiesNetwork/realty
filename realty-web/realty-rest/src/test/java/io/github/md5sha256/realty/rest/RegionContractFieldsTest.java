@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
@@ -36,7 +37,7 @@ class RegionContractFieldsTest {
 
     @Test
     void reportsWhetherAFreeholdIsAcceptingOffers() {
-        FreeholdContractEntity freehold = new FreeholdContractEntity(1, LANDLORD, null, 25000.0, false);
+        FreeholdContractEntity freehold = new FreeholdContractEntity(1, new Party.Personal(LANDLORD), null, 25000.0, false);
         RealtyRestServer server = TestServers.withRegionInfo(
                 new RealtyBackend.RegionInfo(freehold, null, null, null, null),
                 RegionState.FOR_SALE,
@@ -136,7 +137,7 @@ class RegionContractFieldsTest {
     private static LeaseholdContractEntity leasehold(LocalDateTime terminationEffectiveDate,
                                                      String terminatedByRole) {
         return new LeaseholdContractEntity(
-                1, LANDLORD, null, 800.0, 604800L,
+                1, new Party.Personal(LANDLORD), null, 800.0, 604800L,
                 LocalDateTime.of(2026, 8, 1, 0, 0),
                 LocalDateTime.of(2026, 8, 8, 0, 0),
                 0, 3,

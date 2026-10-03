@@ -130,7 +130,7 @@ public interface MariaLeaseholdModificationMapper extends LeaseholdModificationM
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = m.leaseholdContractId
             WHERE m.status = 'AWAITING_LANDLORD'
-            AND lc.landlordId = #{landlordId}
+            AND lc.landlordPartyId = #{landlordPartyId}
             ORDER BY m.createdAt DESC
             """)
     @ConstructorArgs({
@@ -144,7 +144,7 @@ public interface MariaLeaseholdModificationMapper extends LeaseholdModificationM
             @Arg(column = "status", javaType = String.class),
             @Arg(column = "createdAt", javaType = LocalDateTime.class)
     })
-    @NotNull List<LeaseholdModificationView> selectAwaitingByLandlord(@Param("landlordId") @NotNull UUID landlordId);
+    @NotNull List<LeaseholdModificationView> selectAwaitingByLandlord(@Param("landlordPartyId") int landlordPartyId);
 
     @Override
     @Select("""

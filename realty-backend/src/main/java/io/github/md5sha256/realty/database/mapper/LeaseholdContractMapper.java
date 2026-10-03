@@ -17,7 +17,7 @@ public interface LeaseholdContractMapper {
                         double price,
                         long durationSeconds,
                         int maxRenewals,
-                        @NotNull UUID landlordId,
+                        int landlordPartyId,
                         @Nullable UUID tenantId);
 
     boolean existsByRegionAndTenant(@NotNull String worldGuardRegionId,
@@ -105,7 +105,7 @@ public interface LeaseholdContractMapper {
 
     int updateLandlordByRegion(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
-                               @NotNull UUID landlordId);
+                               int landlordPartyId);
 
     int updateTenantByRegion(@NotNull String worldGuardRegionId,
                              @NotNull UUID worldId,
@@ -138,9 +138,9 @@ public interface LeaseholdContractMapper {
 
     int countOccupied();
 
-    int countByLandlord(@NotNull UUID landlordId);
+    int countByLandlord(int landlordPartyId);
 
-    int countOccupiedByLandlord(@NotNull UUID landlordId);
+    int countOccupiedByLandlord(int landlordPartyId);
 
     long averageLeaseholdDurationSeconds();
 

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyBackend.BuyResult;
 import io.github.md5sha256.realty.api.RealtyBackend.CreateAuctionResult;
@@ -36,7 +37,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId, UUID worldId, UUID authority, UUID titleHolder) {
-        boolean created = logic.createFreehold(regionId, worldId, 1000.0, authority, titleHolder);
+        boolean created = logic.createFreehold(regionId, worldId, 1000.0, new Party.Personal(authority), titleHolder);
         Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 
@@ -159,7 +160,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         @DisplayName("only one of two concurrent renters succeeds")
         void onlyOneSucceeds() throws Exception {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, AUTHORITY);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(AUTHORITY));
 
             List<RaceOutcome<RentResult>> outcomes = racePair(
                     () -> logic.rentRegion(regionId, WORLD_ID, PLAYER_A),
@@ -191,7 +192,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         void onlyOneSucceedsOnLastExtension() throws Exception {
             String regionId = uniqueRegionId();
             // maxRenewals=1 means only one extension possible
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 1, AUTHORITY);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 1, new Party.Personal(AUTHORITY));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             List<RaceOutcome<RenewLeaseholdResult>> outcomes = racePair(
@@ -223,7 +224,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         @DisplayName("only one of two concurrent unrent calls succeeds")
         void onlyOneSucceeds() throws Exception {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, AUTHORITY);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(AUTHORITY));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             List<RaceOutcome<RealtyBackend.UnrentResult>> outcomes = racePair(

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.event.RegionCreateEvent;
 import io.github.md5sha256.realty.api.event.RegionCreatedEvent;
@@ -110,7 +111,7 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.registerLeasehold(region, price, period.toSeconds(), maxExtensions, landlord)
+        api.registerLeasehold(region, price, period.toSeconds(), maxExtensions, new Party.Personal(landlord))
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateLeaseholdResult.Success ignored -> {
@@ -153,7 +154,7 @@ public record RegisterCommand(@NotNull RealtyPaperApi api,
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.registerFreehold(region, price, authority, titleholder)
+        api.registerFreehold(region, price, new Party.Personal(authority), titleholder)
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {

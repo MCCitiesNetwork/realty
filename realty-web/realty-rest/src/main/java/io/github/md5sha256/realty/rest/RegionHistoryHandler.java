@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.rest.json.HistoryResponse;
@@ -114,11 +115,11 @@ final class RegionHistoryHandler {
         switch (entry) {
             case HistoryEntry.Freehold freehold -> {
                 ids.add(freehold.buyerId());
-                ids.add(freehold.authorityId());
+                ids.add(Party.playerUuidOf(freehold.authority()).orElse(null));
             }
             case HistoryEntry.Leasehold leasehold -> {
                 ids.add(leasehold.tenantId());
-                ids.add(leasehold.landlordId());
+                ids.add(Party.playerUuidOf(leasehold.landlord()).orElse(null));
             }
             case HistoryEntry.Agent agent -> {
                 ids.add(agent.agentId());
@@ -133,11 +134,12 @@ final class RegionHistoryHandler {
         return switch (entry) {
             case HistoryEntry.Freehold freehold -> HistoryResponse.Entry.freehold(
                     freehold.eventType(), eventTime,
-                    ref(freehold.buyerId(), names), ref(freehold.authorityId(), names),
+                    PlayerNames.ref(freehold.buyerId(), names), ref(Party.playerUuidOf(freehold.authority()).orElse(null), names),
                     freehold.price());
             case HistoryEntry.Leasehold leasehold -> HistoryResponse.Entry.leasehold(
                     leasehold.eventType(), eventTime,
-                    ref(leasehold.tenantId(), names), ref(leasehold.landlordId(), names),
+                    PlayerNames.ref(leasehold.tenantId(), names),
+                    ref(Party.playerUuidOf(leasehold.landlord()).orElse(null), names),
                     leasehold.price(), leasehold.durationSeconds(), leasehold.extensionsRemaining());
             case HistoryEntry.Agent agent -> HistoryResponse.Entry.agent(
                     agent.eventType(), eventTime,

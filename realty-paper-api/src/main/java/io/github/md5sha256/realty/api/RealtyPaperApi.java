@@ -62,7 +62,7 @@ public interface RealtyPaperApi {
 
     sealed interface RentResult {
         record Success(double price, long durationSeconds, @NotNull String regionId,
-                       @NotNull UUID landlordId) implements RentResult {}
+                       @NotNull Party landlord) implements RentResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements RentResult {}
         record AlreadyOccupied(@NotNull String regionId) implements RentResult {}
         record NotAcceptingTenants(@NotNull String regionId) implements RentResult {}
@@ -79,7 +79,7 @@ public interface RealtyPaperApi {
 
     sealed interface UnrentResult {
         record Success(double refund, @NotNull String regionId,
-                       @NotNull UUID landlordId) implements UnrentResult {}
+                       @NotNull Party landlord) implements UnrentResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements UnrentResult {}
         /** The lease is scheduled for termination and can only end on the effective date. */
         record Terminating(@NotNull String regionId) implements UnrentResult {}
@@ -112,7 +112,7 @@ public interface RealtyPaperApi {
     sealed interface TerminateResult {
         /** {@code charged} is any forced-extension rent the tenant paid to cover the notice period. */
         record Success(@NotNull String regionId, @NotNull LocalDateTime effectiveDate, double charged,
-                       @NotNull UUID landlordId, @NotNull UUID tenantId,
+                       @NotNull Party landlord, @NotNull UUID tenantId,
                        @NotNull String terminatedByRole) implements TerminateResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements TerminateResult {}
         record NotOccupied(@NotNull String regionId) implements TerminateResult {}
@@ -198,7 +198,7 @@ public interface RealtyPaperApi {
     // --- SetTenant ---
 
     sealed interface SetTenantResult {
-        record Success(@Nullable UUID previousTenant, @NotNull UUID landlordId,
+        record Success(@Nullable UUID previousTenant, @NotNull Party landlord,
                        @NotNull String regionId) implements SetTenantResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements SetTenantResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTenantResult {}
@@ -211,7 +211,7 @@ public interface RealtyPaperApi {
     // --- SetLandlord ---
 
     sealed interface SetLandlordResult {
-        record Success(@NotNull UUID previousLandlord,
+        record Success(@NotNull Party previousLandlord,
                        @NotNull String regionId) implements SetLandlordResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements SetLandlordResult {}
         record UpdateFailed(@NotNull String regionId) implements SetLandlordResult {}
@@ -219,7 +219,7 @@ public interface RealtyPaperApi {
     }
 
     @NotNull CompletableFuture<SetLandlordResult> setLandlord(
-            @NotNull WorldGuardRegion region, @NotNull UUID landlordId);
+            @NotNull WorldGuardRegion region, @NotNull Party landlord);
 
     // --- Delete ---
 
@@ -244,13 +244,13 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<CreateFreeholdResult> createFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
-            @NotNull UUID authority,
+            @NotNull Party authority,
             @Nullable UUID titleHolder);
 
     @NotNull CompletableFuture<CreateFreeholdResult> registerFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
-            @NotNull UUID authority,
+            @NotNull Party authority,
             @Nullable UUID titleHolder);
 
     // --- Create/Register Leasehold ---
@@ -264,12 +264,12 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<CreateLeaseholdResult> createLeasehold(
             @NotNull WorldGuardRegion region,
             double price, long durationSeconds,
-            int maxRenewals, @NotNull UUID landlordId);
+            int maxRenewals, @NotNull Party landlord);
 
     @NotNull CompletableFuture<CreateLeaseholdResult> registerLeasehold(
             @NotNull WorldGuardRegion region,
             double price, long durationSeconds,
-            int maxRenewals, @NotNull UUID landlordId);
+            int maxRenewals, @NotNull Party landlord);
 
     // --- Subregion QuickCreate ---
 
@@ -386,7 +386,7 @@ public interface RealtyPaperApi {
     // --- Property Config ---
 
     @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID authorityId);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull Party authority);
 
     @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
             @NotNull String regionId, @NotNull UUID worldId, double price);
@@ -424,7 +424,7 @@ public interface RealtyPaperApi {
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
 
     @NotNull CompletableFuture<List<LeaseholdModificationView>> listModificationsAwaitingLandlord(
-            @NotNull UUID landlordId);
+            @NotNull Party landlord);
 
     @NotNull CompletableFuture<List<LeaseholdModificationView>> listPendingModificationsByProposer(
             @NotNull UUID proposerId);

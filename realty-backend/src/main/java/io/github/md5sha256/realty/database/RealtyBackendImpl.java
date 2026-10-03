@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
@@ -56,16 +57,16 @@ import java.util.function.LongSupplier;
 public class RealtyBackendImpl implements RealtyBackend {
 
     private final Database database;
-    private final Function<UUID, CompletableFuture<String>> nameResolver;
+    private final Function<Party, CompletableFuture<String>> partyNameResolver;
     private final Function<LocalDateTime, String> dateFormatter;
     private final LongSupplier offerPaymentDurationSeconds;
 
     public RealtyBackendImpl(@NotNull Database database,
-                             @NotNull Function<UUID, CompletableFuture<String>> nameResolver,
+                             @NotNull Function<Party, CompletableFuture<String>> partyNameResolver,
                              @NotNull Function<LocalDateTime, String> dateFormatter,
                              @NotNull LongSupplier offerPaymentDurationSeconds) {
         this.database = database;
-        this.nameResolver = nameResolver;
+        this.partyNameResolver = partyNameResolver;
         this.dateFormatter = dateFormatter;
         this.offerPaymentDurationSeconds = offerPaymentDurationSeconds;
     }
@@ -111,7 +112,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (inviteeId.equals(freehold.titleHolderId())) {
                 return new InviteAgentResult.IsTitleHolder();
             }
-            if (inviteeId.equals(freehold.authorityId())) {
+            if (new Party.Personal(inviteeId).equals(freehold.authority())) {
                 return new InviteAgentResult.IsAuthority();
             }
             if (wrapper.freeholdContractSanctionedAuctioneerMapper()
@@ -219,7 +220,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (wrapper.freeholdContractOfferMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new CreateAuctionResult.OffersExist();
             }
-            if (!auctioneerId.equals(freehold.authorityId())
+            if (!new Party.Personal(auctioneerId).equals(freehold.authority())
                     && !auctioneerId.equals(freehold.titleHolderId())
                     && !wrapper.freeholdContractSanctionedAuctioneerMapper()
                             .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, auctioneerId)) {
@@ -278,7 +279,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new BidResult.NoAuction();
             }
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
-            if (freehold != null && (bidderId.equals(freehold.authorityId())
+            if (freehold != null && (new Party.Personal(bidderId).equals(freehold.authority())
                     || bidderId.equals(freehold.titleHolderId())
                     || bidderId.equals(auction.auctioneerId()))) {
                 return new BidResult.IsOwner();
@@ -342,7 +343,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                 }
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.SET_PRICE.name(),
-                        freehold.authorityId(), freehold.authorityId(), price);
+                        freehold.titleHolderId(),
+                        wrapper.partyMapper().findOrInsert(freehold.authority()), price);
                 wrapper.session().commit();
                 return new SetPriceResult.Success();
             }
@@ -355,10 +357,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (updated == 0) {
                 return new SetPriceResult.UpdateFailed();
             }
-            UUID tenantForHistory = lease.tenantId() != null ? lease.tenantId() : lease.landlordId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.SET_PRICE.name(),
-                    tenantForHistory, lease.landlordId(),
+                    lease.tenantId(), wrapper.partyMapper().findOrInsert(lease.landlord()),
                     price, lease.durationSeconds(), null);
             wrapper.session().commit();
             return new SetPriceResult.Success();
@@ -390,7 +391,8 @@ public class RealtyBackendImpl implements RealtyBackend {
             double previousPrice = freehold.price() != null ? freehold.price() : 0;
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.UNSET_PRICE.name(),
-                    freehold.authorityId(), freehold.authorityId(), previousPrice);
+                    freehold.titleHolderId(),
+                    wrapper.partyMapper().findOrInsert(freehold.authority()), previousPrice);
             wrapper.session().commit();
             return new UnsetPriceResult.Success();
         }
@@ -413,10 +415,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (updated == 0) {
                 return new SetDurationResult.UpdateFailed();
             }
-            UUID tenantForHistory = lease.tenantId() != null ? lease.tenantId() : lease.landlordId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.SET_DURATION.name(),
-                    tenantForHistory, lease.landlordId(),
+                    lease.tenantId(), wrapper.partyMapper().findOrInsert(lease.landlord()),
                     lease.price(), durationSeconds, null);
             wrapper.session().commit();
             return new SetDurationResult.Success();
@@ -445,10 +446,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (updated == 0) {
                 return new SetMaxRenewalsResult.UpdateFailed();
             }
-            UUID tenantForHistory = lease.tenantId() != null ? lease.tenantId() : lease.landlordId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.SET_MAX_EXTENSIONS.name(),
-                    tenantForHistory, lease.landlordId(),
+                    lease.tenantId(), wrapper.partyMapper().findOrInsert(lease.landlord()),
                     lease.price(), lease.durationSeconds(),
                     maxRenewals < 0 ? null : maxRenewals);
             wrapper.session().commit();
@@ -462,22 +462,22 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
                                                     @NotNull UUID worldId,
-                                                    @NotNull UUID landlordId) {
+                                                    @NotNull Party landlord) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new SetLandlordResult.NoLeaseholdContract();
             }
-            UUID previousLandlord = lease.landlordId();
-            int updated = leaseholdMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordId);
+            Party previousLandlord = lease.landlord();
+            int landlordPartyId = wrapper.partyMapper().findOrInsert(landlord);
+            int updated = leaseholdMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordPartyId);
             if (updated == 0) {
                 return new SetLandlordResult.UpdateFailed();
             }
-            UUID tenantForHistory = lease.tenantId() != null ? lease.tenantId() : previousLandlord;
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.SET_LANDLORD.name(),
-                    tenantForHistory, landlordId,
+                    lease.tenantId(), landlordPartyId,
                     lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             return new SetLandlordResult.Success(previousLandlord);
@@ -489,15 +489,16 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull SetAuthorityResult setAuthority(@NotNull String worldGuardRegionId,
                                                      @NotNull UUID worldId,
-                                                     @NotNull UUID authorityId) {
+                                                     @NotNull Party authority) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new SetAuthorityResult.NoFreeholdContract();
             }
-            UUID previousAuthority = freehold.authorityId();
-            int updated = freeholdMapper.updateAuthorityByRegion(worldGuardRegionId, worldId, authorityId);
+            Party previousAuthority = freehold.authority();
+            int updated = freeholdMapper.updateAuthorityByRegion(worldGuardRegionId, worldId,
+                    wrapper.partyMapper().findOrInsert(authority));
             if (updated == 0) {
                 return new SetAuthorityResult.UpdateFailed();
             }
@@ -527,12 +528,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (titleHolderId != null) {
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.SET_TITLEHOLDER.name(),
-                        titleHolderId, freehold.authorityId(), historyPrice);
+                        titleHolderId, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
             } else {
-                UUID historyBuyerId = previousTitleHolder != null ? previousTitleHolder : freehold.authorityId();
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.UNSET_TITLEHOLDER.name(),
-                        historyBuyerId, freehold.authorityId(), historyPrice);
+                        previousTitleHolder, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
             }
             wrapper.session().commit();
             return new SetTitleHolderResult.Success(previousTitleHolder);
@@ -561,12 +561,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (titleHolderId != null) {
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.SET_TITLEHOLDER.name(),
-                        titleHolderId, freehold.authorityId(), historyPrice);
+                        titleHolderId, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
             } else {
-                UUID historyBuyerId = previousTitleHolder != null ? previousTitleHolder : freehold.authorityId();
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.UNSET_TITLEHOLDER.name(),
-                        historyBuyerId, freehold.authorityId(), historyPrice);
+                        previousTitleHolder, wrapper.partyMapper().findOrInsert(freehold.authority()), historyPrice);
             }
             wrapper.session().commit();
             return new SetTitleHolderResult.Success(previousTitleHolder);
@@ -578,14 +577,15 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public void updateSubregionLandlords(@NotNull List<String> childRegionIds,
                                           @NotNull UUID worldId,
-                                          @NotNull UUID newLandlord) {
+                                          @NotNull Party newLandlord) {
         if (childRegionIds.isEmpty()) {
             return;
         }
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            int landlordPartyId = wrapper.partyMapper().findOrInsert(newLandlord);
             for (String childRegionId : childRegionIds) {
-                leaseholdMapper.updateLandlordByRegion(childRegionId, worldId, newLandlord);
+                leaseholdMapper.updateLandlordByRegion(childRegionId, worldId, landlordPartyId);
             }
             wrapper.session().commit();
         }
@@ -612,17 +612,16 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (tenantId != null) {
                 wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.SET_TENANT.name(),
-                        tenantId, lease.landlordId(),
+                        tenantId, wrapper.partyMapper().findOrInsert(lease.landlord()),
                         lease.price(), lease.durationSeconds(), null);
             } else {
-                UUID historyTenantId = previousTenant != null ? previousTenant : lease.landlordId();
                 wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.UNSET_TENANT.name(),
-                        historyTenantId, lease.landlordId(),
+                        previousTenant, wrapper.partyMapper().findOrInsert(lease.landlord()),
                         lease.price(), lease.durationSeconds(), null);
             }
             wrapper.session().commit();
-            return new SetTenantResult.Success(previousTenant, lease.landlordId());
+            return new SetTenantResult.Success(previousTenant, lease.landlord());
         }
     }
 
@@ -645,7 +644,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (freehold.price() == null) {
                 return new BuyResult.NotForFreehold();
             }
-            if (freehold.authorityId().equals(buyerId)) {
+            if (new Party.Personal(buyerId).equals(freehold.authority())) {
                 return new BuyResult.IsAuthority();
             }
             if (buyerId.equals(freehold.titleHolderId())) {
@@ -658,7 +657,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     || wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new BuyResult.NotForFreehold();
             }
-            UUID authorityId = freehold.authorityId();
+            Party authority = freehold.authority();
             UUID titleHolderId = freehold.titleHolderId();
             // Atomic: WHERE price IS NOT NULL prevents concurrent buys
             int updated = freeholdMapper.atomicBuy(worldGuardRegionId, worldId, buyerId);
@@ -679,9 +678,10 @@ public class RealtyBackendImpl implements RealtyBackend {
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             int historyId = wrapper.freeholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
-                    HistoryEventType.BUY.name(), buyerId, authorityId, freehold.price());
+                    HistoryEventType.BUY.name(), buyerId,
+                    wrapper.partyMapper().findOrInsert(authority), freehold.price());
             wrapper.session().commit();
-            return new BuyResult.Success(freehold.price(), authorityId, titleHolderId,
+            return new BuyResult.Success(freehold.price(), authority, titleHolderId,
                     new BuyUndo(historyId, withdrawn, auctioneers));
         }
     }
@@ -723,7 +723,7 @@ public class RealtyBackendImpl implements RealtyBackend {
     public boolean createFreehold(@NotNull String worldGuardRegionId,
                               @NotNull UUID worldId,
                               @Nullable Double price,
-                              @NotNull UUID authority,
+                              @NotNull Party authority,
                               @Nullable UUID titleHolder) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
@@ -736,7 +736,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                 regionMapper.deleteByRealtyRegionId(existing.realtyRegionId());
             }
             int regionId = regionMapper.registerWorldGuardRegion(worldGuardRegionId, worldId);
-            int freeholdContractId = wrapper.freeholdContractMapper().insertFreehold(regionId, price, authority, titleHolder);
+            int freeholdContractId = wrapper.freeholdContractMapper().insertFreehold(regionId, price,
+                    wrapper.partyMapper().findOrInsert(authority), titleHolder);
             wrapper.contractMapper().insert(new ContractEntity(freeholdContractId, "freehold", regionId));
             session.commit();
             return true;
@@ -751,7 +752,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                 double price,
                                 long durationSeconds,
                                 int maxRenewals,
-                                @NotNull UUID landlordId) {
+                                @NotNull Party landlord) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
@@ -763,7 +764,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                 regionMapper.deleteByRealtyRegionId(existing.realtyRegionId());
             }
             int regionId = regionMapper.registerWorldGuardRegion(worldGuardRegionId, worldId);
-            int leaseholdContractId = wrapper.leaseholdContractMapper().insertLeasehold(regionId, price, durationSeconds, maxRenewals, landlordId, null);
+            int landlordPartyId = wrapper.partyMapper().findOrInsert(landlord);
+            int leaseholdContractId = wrapper.leaseholdContractMapper().insertLeasehold(regionId, price, durationSeconds, maxRenewals, landlordPartyId, null);
             wrapper.contractMapper().insert(new ContractEntity(leaseholdContractId, "leasehold", regionId));
             session.commit();
             return true;
@@ -794,10 +796,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new RentResult.UpdateFailed();
             }
             int historyId = wrapper.leaseholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
-                    HistoryEventType.RENT.name(), tenantId, lease.landlordId(),
+                    HistoryEventType.RENT.name(), tenantId, wrapper.partyMapper().findOrInsert(lease.landlord()),
                     lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
-            return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlordId(), historyId);
+            return new RentResult.Success(lease.price(), lease.durationSeconds(), lease.landlord(), historyId);
         }
     }
 
@@ -815,7 +817,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease == null) {
                 return new SetRentableResult.NoLeaseholdContract();
             }
-            if (!bypassAuth && !actorId.equals(lease.landlordId())) {
+            if (!bypassAuth && !new Party.Personal(actorId).equals(lease.landlord())) {
                 return new SetRentableResult.NotAuthorized();
             }
             if (lease.acceptingTenants() == accepting) {
@@ -884,12 +886,12 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new UnrentResult.UpdateFailed();
             }
             int historyId = wrapper.leaseholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
-                    HistoryEventType.UNRENT.name(), tenantId, lease.landlordId(),
+                    HistoryEventType.UNRENT.name(), tenantId, wrapper.partyMapper().findOrInsert(lease.landlord()),
                     lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
             // The tenancy as it stood, so that it can be put back as it stood if the
             // refund cannot be paid.
-            return new UnrentResult.Success(refund, tenantId, lease.landlordId(),
+            return new UnrentResult.Success(refund, tenantId, lease.landlord(),
                     new Tenancy(lease.startDate(), lease.endDate(), lease.currentMaxExtensions()), historyId);
         }
     }
@@ -965,20 +967,21 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease.maxExtensions() != null) {
                 extensionsRemaining = lease.maxExtensions() - (extensionsUsed + 1);
             }
+            int landlordPartyId = wrapper.partyMapper().findOrInsert(lease.landlord());
             AppliedTerms appliedTerms = null;
             if (modificationApplied) {
                 int appliedId = wrapper.leaseholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
                         HistoryEventType.MODIFY_APPLY.name(),
-                        tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
+                        tenantId, landlordPartyId, lease.price(), lease.durationSeconds(), extensionsRemaining);
                 appliedTerms = new AppliedTerms(activeMod.modificationId(), appliedId,
                         before.price(), before.durationSeconds(),
                         before.maxExtensions(), before.currentMaxExtensions());
             }
             int historyId = wrapper.leaseholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
                     HistoryEventType.RENEW.name(),
-                    tenantId, lease.landlordId(), lease.price(), lease.durationSeconds(), extensionsRemaining);
+                    tenantId, landlordPartyId, lease.price(), lease.durationSeconds(), extensionsRemaining);
             wrapper.session().commit();
-            return new RenewLeaseholdResult.Success(lease.price(), lease.landlordId(),
+            return new RenewLeaseholdResult.Success(lease.price(), lease.landlord(),
                     new RenewUndo(historyId, appliedTerms));
         }
     }
@@ -1055,9 +1058,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (actorId.equals(lease.tenantId())) {
                 proposerRole = LeaseholdRoles.TENANT;
                 proposerId = lease.tenantId();
-            } else if (actorId.equals(lease.landlordId()) || bypassAuth) {
+            } else if (new Party.Personal(actorId).equals(lease.landlord()) || bypassAuth) {
                 proposerRole = LeaseholdRoles.LANDLORD;
-                proposerId = lease.landlordId();
+                // The landlord's own UUID while the landlord is a player, as before; the acting
+                // player's otherwise, since the column holds a player.
+                proposerId = Party.playerUuidOf(lease.landlord()).orElse(actorId);
             } else {
                 return new ProposeModificationResult.NotAuthorized();
             }
@@ -1081,11 +1086,12 @@ public class RealtyBackendImpl implements RealtyBackend {
             int modificationId = wrapper.leaseholdModificationMapper().insert(lease.leaseholdContractId(),
                     proposerRole, proposerId, mergedPrice, mergedDuration, mergedMax, status);
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
-                    HistoryEventType.MODIFY_PROPOSE.name(), lease.tenantId(), lease.landlordId(),
+                    HistoryEventType.MODIFY_PROPOSE.name(), lease.tenantId(),
+                    wrapper.partyMapper().findOrInsert(lease.landlord()),
                     mergedPrice, mergedDuration, mergedMax);
             wrapper.session().commit();
             return new ProposeModificationResult.Success(modificationId, proposerRole,
-                    LeaseholdModificationStatus.ACTIVE.equals(status), lease.landlordId(), lease.tenantId());
+                    LeaseholdModificationStatus.ACTIVE.equals(status), lease.landlord(), lease.tenantId());
         }
     }
 
@@ -1116,7 +1122,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease == null) {
                 return new ResolveModificationResult.NoLeaseholdContract();
             }
-            if (!bypassAuth && !actorId.equals(lease.landlordId())) {
+            if (!bypassAuth && !new Party.Personal(actorId).equals(lease.landlord())) {
                 return new ResolveModificationResult.NotAuthorized();
             }
             LeaseholdModificationEntity mod = wrapper.leaseholdModificationMapper()
@@ -1132,11 +1138,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     (accept ? HistoryEventType.MODIFY_ACCEPT : HistoryEventType.MODIFY_REJECT).name(),
-                    tenantId, lease.landlordId(),
+                    tenantId, wrapper.partyMapper().findOrInsert(lease.landlord()),
                     mod.newPrice(), mod.newDurationSeconds(), mod.newMaxExtensions());
             wrapper.session().commit();
             return new ResolveModificationResult.Success(mod.modificationId(), tenantId,
-                    lease.landlordId(), mod.proposerRole());
+                    lease.landlord(), mod.proposerRole());
         }
     }
 
@@ -1163,18 +1169,23 @@ public class RealtyBackendImpl implements RealtyBackend {
                     LeaseholdModificationStatus.WITHDRAWN);
             UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
-                    HistoryEventType.MODIFY_WITHDRAW.name(), tenantId, lease.landlordId(),
+                    HistoryEventType.MODIFY_WITHDRAW.name(), tenantId,
+                    wrapper.partyMapper().findOrInsert(lease.landlord()),
                     mod.newPrice(), mod.newDurationSeconds(), mod.newMaxExtensions());
             wrapper.session().commit();
             return new ResolveModificationResult.Success(mod.modificationId(), tenantId,
-                    lease.landlordId(), mod.proposerRole());
+                    lease.landlord(), mod.proposerRole());
         }
     }
 
     @Override
-    public @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull UUID landlordId) {
+    public @NotNull List<LeaseholdModificationView> listModificationsAwaitingLandlord(@NotNull Party landlord) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.leaseholdModificationMapper().selectAwaitingByLandlord(landlordId);
+            Integer landlordPartyId = wrapper.partyMapper().findId(landlord);
+            if (landlordPartyId == null) {
+                return List.of();
+            }
+            return wrapper.leaseholdModificationMapper().selectAwaitingByLandlord(landlordPartyId);
         }
     }
 
@@ -1212,10 +1223,11 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new TerminateLeaseholdResult.UpdateFailed();
             }
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
-                    HistoryEventType.TERMINATE.name(), lease.tenantId(), lease.landlordId(),
+                    HistoryEventType.TERMINATE.name(), lease.tenantId(),
+                    wrapper.partyMapper().findOrInsert(lease.landlord()),
                     lease.price(), lease.durationSeconds(), null);
             wrapper.session().commit();
-            return new TerminateLeaseholdResult.Success(lease.tenantId(), lease.landlordId());
+            return new TerminateLeaseholdResult.Success(lease.tenantId(), lease.landlord());
         }
     }
 
@@ -1235,20 +1247,25 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             String role = lease.terminatedByRole() != null ? lease.terminatedByRole() : LeaseholdRoles.LANDLORD;
             // Only the party that initiated the termination (or an admin) may cancel it.
-            UUID initiator = LeaseholdRoles.TENANT.equals(role) ? lease.tenantId() : lease.landlordId();
-            if (!bypassAuth && !actorId.equals(initiator)) {
+            boolean isInitiator = LeaseholdRoles.TENANT.equals(role)
+                    ? actorId.equals(lease.tenantId())
+                    : new Party.Personal(actorId).equals(lease.landlord());
+            if (!bypassAuth && !isInitiator) {
                 return new CancelTerminationResult.NotAuthorized();
             }
             int updated = leaseholdMapper.clearTermination(worldGuardRegionId, worldId);
             if (updated == 0) {
                 return new CancelTerminationResult.UpdateFailed();
             }
-            UUID tenantId = lease.tenantId() != null ? lease.tenantId() : lease.landlordId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
-                    HistoryEventType.TERMINATION_CANCEL.name(), tenantId, lease.landlordId(),
+                    HistoryEventType.TERMINATION_CANCEL.name(), lease.tenantId(),
+                    wrapper.partyMapper().findOrInsert(lease.landlord()),
                     null, null, null);
             wrapper.session().commit();
-            return new CancelTerminationResult.Success(role, lease.landlordId(), tenantId);
+            // A terminating lease always has a tenant; the landlord stands in only for a row
+            // whose tenant was cleared by hand while it was terminating, as before.
+            UUID tenantId = lease.tenantId() != null ? lease.tenantId() : Party.playerUuidOf(lease.landlord()).orElse(null);
+            return new CancelTerminationResult.Success(role, lease.landlord(), tenantId);
         }
     }
 
@@ -1343,10 +1360,11 @@ public class RealtyBackendImpl implements RealtyBackend {
 
         FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
         if (freehold != null) {
-            String titleHolder = freehold.titleHolderId() != null ? nameResolver.apply(freehold.titleHolderId()).join() : "";
+            String titleHolder = freehold.titleHolderId() != null
+                    ? partyNameResolver.apply(new Party.Personal(freehold.titleHolderId())).join() : "";
             placeholders.put("title_holder", titleHolder);
             placeholders.put("titleholder", titleHolder);
-            placeholders.put("authority", nameResolver.apply(freehold.authorityId()).join());
+            placeholders.put("authority", partyNameResolver.apply(freehold.authority()).join());
             placeholders.put("price", freehold.price() != null ? CurrencyFormatter.format(freehold.price()) : "");
             Double lastSoldPrice = wrapper.freeholdHistoryMapper().selectLastFreeholdPrice(worldGuardRegionId, worldId);
             placeholders.put("last_sold_price", lastSoldPrice != null ? CurrencyFormatter.format(lastSoldPrice) : "");
@@ -1354,8 +1372,8 @@ public class RealtyBackendImpl implements RealtyBackend {
 
         LeaseholdContractEntity lease = wrapper.leaseholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
         if (lease != null) {
-            placeholders.put("landlord", nameResolver.apply(lease.landlordId()).join());
-            placeholders.put("tenant", lease.tenantId() != null ? nameResolver.apply(lease.tenantId()).join() : "");
+            placeholders.put("landlord", partyNameResolver.apply(lease.landlord()).join());
+            placeholders.put("tenant", lease.tenant().map(tenant -> partyNameResolver.apply(tenant).join()).orElse(""));
             placeholders.put("price", CurrencyFormatter.format(lease.price()));
             placeholders.put("duration", DurationFormatter.format(Duration.ofSeconds(lease.durationSeconds())));
             placeholders.put("start_date", lease.startDate() != null ? dateFormatter.apply(lease.startDate()) : "N/A");
@@ -1458,7 +1476,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return true;
             }
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
-            return lease != null && lease.landlordId().equals(playerId);
+            return lease != null && new Party.Personal(playerId).equals(lease.landlord());
         }
     }
 
@@ -1470,7 +1488,8 @@ public class RealtyBackendImpl implements RealtyBackend {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
             int ownedCount = regionMapper.countRegionsByTitleHolder(targetId);
-            int landlordCount = regionMapper.countRegionsByAuthority(targetId);
+            Integer authorityPartyId = wrapper.partyMapper().findId(new Party.Personal(targetId));
+            int landlordCount = authorityPartyId == null ? 0 : regionMapper.countRegionsByAuthority(authorityPartyId);
             int rentedCount = regionMapper.countRegionsByTenant(targetId);
 
             int remaining = limit;
@@ -1480,8 +1499,8 @@ public class RealtyBackendImpl implements RealtyBackend {
             remaining -= owned.size();
             catOffset = Math.max(0, catOffset - ownedCount);
 
-            List<RealtyRegionEntity> landlordRegions = remaining > 0
-                    ? regionMapper.selectRegionsByAuthority(targetId, remaining, catOffset)
+            List<RealtyRegionEntity> landlordRegions = remaining > 0 && authorityPartyId != null
+                    ? regionMapper.selectRegionsByAuthority(authorityPartyId, remaining, catOffset)
                     : List.of();
             remaining -= landlordRegions.size();
             catOffset = Math.max(0, catOffset - landlordCount);
@@ -1572,7 +1591,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (freehold == null) {
                 return new RejectOfferResult.NoOffer();
             }
-            if (!callerId.equals(freehold.authorityId())
+            if (!new Party.Personal(callerId).equals(freehold.authority())
                     && !callerId.equals(freehold.titleHolderId())
                     && !wrapper.freeholdContractSanctionedAuctioneerMapper()
                             .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
@@ -1606,7 +1625,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (freehold == null) {
                 return new RejectAllOffersResult.NoFreeholdContract();
             }
-            if (!callerId.equals(freehold.authorityId())
+            if (!new Party.Personal(callerId).equals(freehold.authority())
                     && !callerId.equals(freehold.titleHolderId())
                     && !wrapper.freeholdContractSanctionedAuctioneerMapper()
                             .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
@@ -1652,7 +1671,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (auctionMapper.existsByRegion(worldGuardRegionId, worldId)) {
                 return new OfferResult.AuctionExists();
             }
-            if (offererId.equals(freehold.authorityId()) || offererId.equals(freehold.titleHolderId())) {
+            if (new Party.Personal(offererId).equals(freehold.authority()) || offererId.equals(freehold.titleHolderId())) {
                 return new OfferResult.IsOwner();
             }
             if (offerMapper.existsByOfferer(worldGuardRegionId, worldId, offererId)) {
@@ -1687,7 +1706,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new ToggleOffersResult.NoFreeholdContract();
             }
             if (!bypassAuth
-                    && !callerId.equals(freehold.authorityId())
+                    && !new Party.Personal(callerId).equals(freehold.authority())
                     && !callerId.equals(freehold.titleHolderId())
                     && !wrapper.freeholdContractSanctionedAuctioneerMapper()
                             .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
@@ -1722,7 +1741,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (freehold == null) {
                 return new AcceptOfferResult.NoOffer();
             }
-            if (!callerId.equals(freehold.authorityId())
+            if (!new Party.Personal(callerId).equals(freehold.authority())
                     && !callerId.equals(freehold.titleHolderId())
                     && !wrapper.freeholdContractSanctionedAuctioneerMapper()
                             .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, callerId)) {
@@ -1781,7 +1800,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (updated == 0) {
                 return new PayOfferResult.NoPaymentRecord();
             }
-            UUID authorityId = freehold.authorityId();
+            Party authority = freehold.authority();
             UUID titleHolderId = freehold.titleHolderId();
             // Record the payment only. Ownership transfer is DEFERRED to
             // finalizeOfferPurchase, which the paper layer calls ONLY after the
@@ -1789,9 +1808,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             // money moved) handed the region over for free when payment failed.
             wrapper.session().commit();
             if (newTotal >= payment.offerPrice() - PAYMENT_EPSILON) {
-                return new PayOfferResult.FullyPaid(authorityId, titleHolderId);
+                return new PayOfferResult.FullyPaid(authority, titleHolderId);
             }
-            return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal, authorityId, titleHolderId);
+            return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal, authority, titleHolderId);
         }
     }
 
@@ -1818,7 +1837,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.OFFER_BUY.name(),
-                    offererId, freehold.authorityId(), payment.offerPrice());
+                    offererId, wrapper.partyMapper().findOrInsert(freehold.authority()), payment.offerPrice());
             wrapper.session().commit();
         }
     }
@@ -1872,7 +1891,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
-            UUID authorityId = freehold.authorityId();
+            Party authority = freehold.authority();
             UUID titleHolderId = freehold.titleHolderId();
             // Record the payment only. Ownership transfer is DEFERRED to
             // finalizeBidPurchase, called by the paper layer ONLY after the
@@ -1880,9 +1899,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             // never hand over the region (previously it did, for free).
             wrapper.session().commit();
             if (newTotal >= payment.bidPrice() - PAYMENT_EPSILON) {
-                return new PayBidResult.FullyPaid(authorityId, titleHolderId);
+                return new PayBidResult.FullyPaid(authority, titleHolderId);
             }
-            return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal, authorityId, titleHolderId);
+            return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal, authority, titleHolderId);
         }
     }
 
@@ -1906,7 +1925,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),
-                    bidderId, freehold.authorityId(), payment.bidPrice());
+                    bidderId, wrapper.partyMapper().findOrInsert(freehold.authority()), payment.bidPrice());
             wrapper.session().commit();
         }
     }
@@ -2065,10 +2084,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 wrapper.leaseholdContractMapper().clearTenant(lease.leaseholdContractId());
                 wrapper.leaseholdHistoryMapper().insert(lease.worldGuardRegionId(), lease.worldId(),
-                        HistoryEventType.LEASEHOLD_EXPIRY.name(), lease.tenantId(), lease.landlordId(),
+                        HistoryEventType.LEASEHOLD_EXPIRY.name(), lease.tenantId(),
+                        wrapper.partyMapper().findOrInsert(lease.landlord()),
                         null, null, null);
                 wrapper.session().commit();
-                results.add(new ExpiredLeasehold(lease.tenantId(), lease.landlordId(),
+                results.add(new ExpiredLeasehold(lease.tenantId(), lease.landlord(),
                         lease.worldGuardRegionId(), lease.worldId()));
             }
         }
@@ -2097,10 +2117,11 @@ public class RealtyBackendImpl implements RealtyBackend {
                         ? lease.price() * clampedSeconds / lease.durationSeconds() : 0;
                 wrapper.leaseholdContractMapper().clearTenant(lease.leaseholdContractId());
                 wrapper.leaseholdHistoryMapper().insert(lease.worldGuardRegionId(), lease.worldId(),
-                        HistoryEventType.LEASEHOLD_EXPIRY.name(), lease.tenantId(), lease.landlordId(),
+                        HistoryEventType.LEASEHOLD_EXPIRY.name(), lease.tenantId(),
+                        wrapper.partyMapper().findOrInsert(lease.landlord()),
                         null, null, null);
                 wrapper.session().commit();
-                results.add(new TerminatedLeasehold(lease.tenantId(), lease.landlordId(),
+                results.add(new TerminatedLeasehold(lease.tenantId(), lease.landlord(),
                         lease.worldGuardRegionId(), lease.worldId(), refund, lease.terminatedByRole()));
             }
         }
@@ -2159,9 +2180,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public int countRegionsByAuthority(@NotNull UUID playerId) {
+    public int countRegionsByAuthority(@NotNull Party authority) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.realtyRegionMapper().countRegionsByAuthority(playerId);
+            Integer authorityPartyId = wrapper.partyMapper().findId(authority);
+            if (authorityPartyId == null) {
+                return 0;
+            }
+            return wrapper.realtyRegionMapper().countRegionsByAuthority(authorityPartyId);
         }
     }
 
@@ -2180,9 +2205,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public @NotNull List<String> listRegionNamesByLandlord(@NotNull UUID playerId) {
+    public @NotNull List<String> listRegionNamesByLandlord(@NotNull Party landlord) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.realtyRegionMapper().selectRegionNamesByLandlord(playerId);
+            Integer landlordPartyId = wrapper.partyMapper().findId(landlord);
+            if (landlordPartyId == null) {
+                return List.of();
+            }
+            return wrapper.realtyRegionMapper().selectRegionNamesByLandlord(landlordPartyId);
         }
     }
 
@@ -2194,9 +2223,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public int countRegionsByLandlord(@NotNull UUID playerId) {
+    public int countRegionsByLandlord(@NotNull Party landlord) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.realtyRegionMapper().countRegionsByLandlord(playerId);
+            Integer landlordPartyId = wrapper.partyMapper().findId(landlord);
+            if (landlordPartyId == null) {
+                return 0;
+            }
+            return wrapper.realtyRegionMapper().countRegionsByLandlord(landlordPartyId);
         }
     }
 
@@ -2208,9 +2241,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public int countOccupiedLeaseholdsByLandlord(@NotNull UUID landlordId) {
+    public int countOccupiedLeaseholdsByLandlord(@NotNull Party landlord) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.leaseholdContractMapper().countOccupiedByLandlord(landlordId);
+            Integer landlordPartyId = wrapper.partyMapper().findId(landlord);
+            if (landlordPartyId == null) {
+                return 0;
+            }
+            return wrapper.leaseholdContractMapper().countOccupiedByLandlord(landlordPartyId);
         }
     }
 
@@ -2265,11 +2302,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             List<HistoryEntry> combined = new ArrayList<>(freeholdResults.size() + leaseholdResults.size() + agentResults.size());
             for (FreeholdHistoryEntity e : freeholdResults) {
                 combined.add(new HistoryEntry.Freehold(e.eventType(), e.eventTime(),
-                        e.buyerId(), e.authorityId(), e.price()));
+                        e.buyerId(), e.authority(), e.price()));
             }
             for (LeaseholdHistoryEntity e : leaseholdResults) {
                 combined.add(new HistoryEntry.Leasehold(e.eventType(), e.eventTime(),
-                        e.tenantId(), e.landlordId(), e.price(), e.durationSeconds(), e.extensionsRemaining()));
+                        e.tenantId(), e.landlord(), e.price(), e.durationSeconds(), e.extensionsRemaining()));
             }
             for (AgentHistoryEntity e : agentResults) {
                 combined.add(new HistoryEntry.Agent(e.eventType(), e.eventTime(),

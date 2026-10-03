@@ -197,7 +197,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         .thenApply(ignored -> new BuyResult.InsufficientFunds(price, balance));
             }
             UUID recipientId = reserved.titleHolderId() != null
-                    ? reserved.titleHolderId() : reserved.authorityId();
+                    ? reserved.titleHolderId() : Party.playerUuidOf(reserved.authority()).orElse(null);
             PaymentResult result = economyProvider.transfer(
                     buyerId, recipientId, price, "Plot Purchase: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
@@ -273,7 +273,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         .thenApply(ignored -> new RentResult.InsufficientFunds(price, balance));
             }
             PaymentResult result = economyProvider.transfer(
-                    tenantId, reserved.landlordId(), price, "Rental Payment: " + regionId);
+                    tenantId, Party.playerUuidOf(reserved.landlord()).orElse(null), price, "Rental Payment: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackRentAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new RentResult.PaymentFailed(failure.errorMessage()));
@@ -288,7 +288,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 RegionState.LEASED, placeholders);
         return CompletableFuture.completedFuture(
                 new RentResult.Success(price, reserved.durationSeconds(),
-                        regionId, reserved.landlordId()));
+                        regionId, reserved.landlord()));
     }
 
     private @NotNull CompletableFuture<Void> rollbackRentAsync(@NotNull String regionId,
@@ -344,7 +344,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Tenant is already cleared in DB. Process refund, rollback DB on failure.
         if (refund > 0) {
             PaymentResult result = economyProvider.transfer(
-                    success.landlordId(), tenantId, refund,
+                    Party.playerUuidOf(success.landlord()).orElse(null), tenantId, refund,
                     "Early Lease Termination Refund: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackUnrentAsync(regionId, worldId, tenantId, success)
@@ -358,7 +358,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.FOR_LEASE, placeholders);
         return CompletableFuture.completedFuture(
-                new UnrentResult.Success(refund, regionId, success.landlordId()));
+                new UnrentResult.Success(refund, regionId, success.landlord()));
     }
 
     private @NotNull CompletableFuture<Void> rollbackUnrentAsync(@NotNull String regionId,
@@ -417,7 +417,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         .thenApply(ignored -> new ExtendResult.InsufficientFunds(price, balance));
             }
             PaymentResult result = economyProvider.transfer(
-                    tenantId, reserved.landlordId(), price, "Lease Extension Payment: " + regionId);
+                    tenantId, Party.playerUuidOf(reserved.landlord()).orElse(null), price, "Lease Extension Payment: " + regionId);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackExtendAsync(regionId, worldId, tenantId, reserved)
                         .thenApply(ignored -> new ExtendResult.PaymentFailed(failure.errorMessage()));
@@ -442,7 +442,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     /** Computed plan for an early termination; {@code failure} is non-null when the operation should abort. */
     private record TerminationPlan(@Nullable TerminateResult failure,
                                    @Nullable String role,
-                                   @Nullable UUID landlordId, @Nullable UUID tenantId,
+                                   @Nullable Party landlord, @Nullable UUID tenantId,
                                    double charge,
                                    @Nullable java.time.LocalDateTime newEndDate,
                                    @Nullable java.time.LocalDateTime effectiveEnd) {
@@ -476,7 +476,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     return CompletableFuture.completedFuture(
                             (TerminateResult) new TerminateResult.InsufficientFunds(plan.charge(), balance));
                 }
-                PaymentResult payment = economyProvider.transfer(plan.tenantId(), plan.landlordId(),
+                PaymentResult payment = economyProvider.transfer(plan.tenantId(), Party.playerUuidOf(plan.landlord()).orElse(null),
                         plan.charge(), "Lease Termination Notice: " + regionId);
                 if (payment instanceof PaymentResult.Failure failure) {
                     return CompletableFuture.completedFuture(
@@ -490,11 +490,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             ).thenApplyAsync(backend -> {
                 if (backend instanceof RealtyBackend.TerminateLeaseholdResult.Success) {
                     return (TerminateResult) new TerminateResult.Success(regionId, plan.effectiveEnd(),
-                            plan.charge(), plan.landlordId(), plan.tenantId(), plan.role());
+                            plan.charge(), plan.landlord(), plan.tenantId(), plan.role());
                 }
                 // Should not happen under the per-region lock; refund any charge defensively.
                 if (plan.charge() > 0) {
-                    economyProvider.transfer(plan.landlordId(), plan.tenantId(), plan.charge(),
+                    economyProvider.transfer(Party.playerUuidOf(plan.landlord()).orElse(null), plan.tenantId(), plan.charge(),
                             "Lease Termination Refund: " + regionId);
                 }
                 return (TerminateResult) new TerminateResult.UpdateFailed(regionId);
@@ -522,7 +522,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         String role;
         if (actorId.equals(lease.tenantId())) {
             role = LeaseholdRoles.TENANT;
-        } else if (actorId.equals(lease.landlordId()) || bypassAuth) {
+        } else if (new Party.Personal(actorId).equals(lease.landlord()) || bypassAuth) {
             role = LeaseholdRoles.LANDLORD;
         } else {
             return TerminationPlan.fail(new TerminateResult.NotAuthorized(regionId));
@@ -544,7 +544,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             // notice date, never before the already-paid term.
             newEndDate = currentEnd.isAfter(effectiveEnd) ? currentEnd : effectiveEnd;
         }
-        return new TerminationPlan(null, role, lease.landlordId(), lease.tenantId(), charge, newEndDate, effectiveEnd);
+        return new TerminationPlan(null, role, lease.landlord(), lease.tenantId(), charge, newEndDate, effectiveEnd);
     }
 
     @Override
@@ -589,7 +589,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
         UUID recipientId = success.titleHolderId() != null
-                ? success.titleHolderId() : success.authorityId();
+                ? success.titleHolderId() : Party.playerUuidOf(success.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
                 bidderId, recipientId, amount,
                 "Auction Bid Payment (partial): " + regionId);
@@ -611,7 +611,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
         UUID recipientId = fullyPaid.titleHolderId() != null
-                ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
+                ? fullyPaid.titleHolderId() : Party.playerUuidOf(fullyPaid.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
                 bidderId, recipientId, amount,
                 "Auction Bid Payment (final): " + regionId);
@@ -682,7 +682,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
         UUID recipientId = success.titleHolderId() != null
-                ? success.titleHolderId() : success.authorityId();
+                ? success.titleHolderId() : Party.playerUuidOf(success.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
                 offererId, recipientId, amount,
                 "Purchase Offer Payment (partial): " + regionId);
@@ -704,7 +704,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
         UUID recipientId = fullyPaid.titleHolderId() != null
-                ? fullyPaid.titleHolderId() : fullyPaid.authorityId();
+                ? fullyPaid.titleHolderId() : Party.playerUuidOf(fullyPaid.authority()).orElse(null);
         PaymentResult result = economyProvider.transfer(
                 offererId, recipientId, amount,
                 "Purchase Offer Payment (final): " + regionId);
@@ -846,7 +846,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 signTextApplicator.updateLoadedSigns(region.world(), regionId,
                         state, entry.getValue());
                 yield (SetTenantResult) new SetTenantResult.Success(
-                        success.previousTenant(), success.landlordId(), regionId);
+                        success.previousTenant(), success.landlord(), regionId);
             }
             case RealtyBackend.SetTenantResult.NoLeaseholdContract ignored ->
                     (SetTenantResult) new SetTenantResult.NoLeaseholdContract(regionId);
@@ -860,11 +860,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<SetLandlordResult> setLandlord(
-            @NotNull WorldGuardRegion region, @NotNull UUID landlordId) {
+            @NotNull WorldGuardRegion region, @NotNull Party landlord) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setLandlord(regionId, worldId, landlordId),
+                () -> realtyApi.setLandlord(regionId, worldId, landlord),
                 executorState.dbExec()
         ).thenApplyAsync(result -> switch (result) {
             case RealtyBackend.SetLandlordResult.Success success -> {
@@ -925,7 +925,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<CreateFreeholdResult> createFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
-            @NotNull UUID authority,
+            @NotNull Party authority,
             @Nullable UUID titleHolder) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
@@ -937,7 +937,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return Map.entry(created, placeholders);
         }, executorState.dbExec()).thenApplyAsync(entry -> {
             if (entry.getKey()) {
-                region.region().getMembers().addPlayer(authority);
+                Party.playerUuidOf(authority).ifPresent(authorityPlayerId ->
+                        region.region().getMembers().addPlayer(authorityPlayerId));
                 regionProfileService.applyFlags(region,
                         titleHolder != null ? RegionState.SOLD : RegionState.FOR_SALE,
                         entry.getValue());
@@ -955,7 +956,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<CreateFreeholdResult> registerFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
-            @NotNull UUID authority,
+            @NotNull Party authority,
             @Nullable UUID titleHolder) {
         return createFreehold(region, price, authority, titleHolder);
     }
@@ -964,12 +965,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<CreateLeaseholdResult> createLeasehold(
             @NotNull WorldGuardRegion region,
             double price, long durationSeconds,
-            int maxRenewals, @NotNull UUID landlordId) {
+            int maxRenewals, @NotNull Party landlord) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> {
             boolean created = realtyApi.createLeasehold(regionId, worldId,
-                    price, durationSeconds, maxRenewals, landlordId);
+                    price, durationSeconds, maxRenewals, landlord);
             Map<String, String> placeholders = created
                     ? realtyApi.getRegionPlaceholders(regionId, worldId)
                     : Map.<String, String>of();
@@ -991,8 +992,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<CreateLeaseholdResult> registerLeasehold(
             @NotNull WorldGuardRegion region,
             double price, long durationSeconds,
-            int maxRenewals, @NotNull UUID landlordId) {
-        return createLeasehold(region, price, durationSeconds, maxRenewals, landlordId);
+            int maxRenewals, @NotNull Party landlord) {
+        return createLeasehold(region, price, durationSeconds, maxRenewals, landlord);
     }
 
     @Override
@@ -1010,7 +1011,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 return (QuickCreateSubregionResult) new QuickCreateSubregionResult.NoFreeholdContract(parentId);
             }
             boolean created = realtyApi.createLeasehold(
-                    childName, worldId, price, durationSeconds, maxRenewals, landlordId);
+                    childName, worldId, price, durationSeconds, maxRenewals, new Party.Personal(landlordId));
             if (!created) {
                 return (QuickCreateSubregionResult) new QuickCreateSubregionResult.RegionExists(childName);
             }
@@ -1263,9 +1264,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID authorityId) {
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull Party authority) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setAuthority(regionId, worldId, authorityId),
+                () -> realtyApi.setAuthority(regionId, worldId, authority),
                 executorState.dbExec());
     }
 
@@ -1355,9 +1356,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<List<LeaseholdModificationView>>
-            listModificationsAwaitingLandlord(@NotNull UUID landlordId) {
+            listModificationsAwaitingLandlord(@NotNull Party landlord) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.listModificationsAwaitingLandlord(landlordId),
+                () -> realtyApi.listModificationsAwaitingLandlord(landlord),
                 executorState.dbExec());
     }
 
@@ -1496,7 +1497,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }
         UUID worldId = world.getUID();
         CompletableFuture.runAsync(
-                () -> realtyApi.updateSubregionLandlords(childIds, worldId, newLandlord),
+                () -> realtyApi.updateSubregionLandlords(childIds, worldId, new Party.Personal(newLandlord)),
                 executorState.dbExec());
     }
 

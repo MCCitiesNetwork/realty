@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.rest.json.PlayerRef;
 import io.github.md5sha256.realty.rest.json.PlayerSummaryResponse;
@@ -35,9 +36,9 @@ final class PlayerSummaryHandler {
         ctx.json(new PlayerSummaryResponse(
                 player,
                 this.backend.countRegionsByTitleHolder(playerId),
-                this.backend.countRegionsByLandlord(playerId),
-                this.backend.countOccupiedLeaseholdsByLandlord(playerId),
+                this.backend.countRegionsByLandlord(new Party.Personal(playerId)),
+                this.backend.countOccupiedLeaseholdsByLandlord(new Party.Personal(playerId)),
                 this.backend.countRegionsByTenant(playerId),
-                this.backend.countRegionsByAuthority(playerId)));
+                this.backend.countRegionsByAuthority(new Party.Personal(playerId))));
     }
 }

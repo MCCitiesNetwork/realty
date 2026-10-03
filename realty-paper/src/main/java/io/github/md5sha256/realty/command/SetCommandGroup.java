@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
@@ -96,7 +97,7 @@ public record SetCommandGroup(
                 } else if (lease.tenantId() != null) {
                     player.sendMessage(messages.messageFor(MessageKeys.SET_OCCUPIED_USE_MODIFY,
                             Placeholder.unparsed("region", regionId)));
-                } else if (!player.getUniqueId().equals(lease.landlordId())) {
+                } else if (!new Party.Personal(player.getUniqueId()).equals(lease.landlord())) {
                     player.sendMessage(messages.messageFor(MessageKeys.SET_NOT_LANDLORD,
                             Placeholder.unparsed("region", regionId)));
                 } else {
@@ -251,13 +252,13 @@ public record SetCommandGroup(
             return;
         }
         authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", null, () ->
-        api.setLandlord(region, landlordId).thenAccept(result -> {
+        api.setLandlord(region, new Party.Personal(landlordId)).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetLandlordResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
                                 Placeholder.unparsed("landlord", resolveName(landlordId)),
                                 Placeholder.unparsed("region", success.regionId())));
-                        events.fireSync(new LandlordSetEvent(region, landlordId, success.previousLandlord()));
+                        events.fireSync(new LandlordSetEvent(region, new Party.Personal(landlordId), success.previousLandlord()));
                 }
                 case RealtyPaperApi.SetLandlordResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASEHOLD_CONTRACT,
@@ -332,7 +333,7 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("tenant", resolveName(tenantId)),
                                 Placeholder.unparsed("region", success.regionId())));
                         events.fireSync(new TenantSetEvent(region, tenantId, success.previousTenant(),
-                                success.landlordId()));
+                                success.landlord()));
                 }
                 case RealtyPaperApi.SetTenantResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASEHOLD_CONTRACT,
@@ -400,7 +401,7 @@ public record SetCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
             return;
         }
-        api.setAuthority(regionId, worldId, authorityId).thenAccept(result -> {
+        api.setAuthority(regionId, worldId, new Party.Personal(authorityId)).thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.SetAuthorityResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_AUTHORITY_SUCCESS,

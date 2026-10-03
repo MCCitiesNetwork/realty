@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
@@ -21,9 +22,9 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
 
     @Override
     @Select("""
-            INSERT INTO LeaseholdContract (landlordId, tenantId, price, durationSeconds, startDate, endDate, currentMaxExtensions, maxExtensions)
+            INSERT INTO LeaseholdContract (landlordPartyId, tenantId, price, durationSeconds, startDate, endDate, currentMaxExtensions, maxExtensions)
             VALUES (
-                #{landlordId},
+                #{landlordPartyId},
                 #{tenantId},
                 #{price},
                 #{durationSeconds},
@@ -38,7 +39,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
                         @Param("price") double price,
                         @Param("durationSeconds") long durationSeconds,
                         @Param("maxRenewals") int maxRenewals,
-                        @Param("landlordId") @NotNull UUID landlordId,
+                        @Param("landlordPartyId") int landlordPartyId,
                         @Param("tenantId") @Nullable UUID tenantId);
 
     @Override
@@ -59,18 +60,20 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
 
     @Override
     @Select("""
-            SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId, lc.price, lc.durationSeconds,
+            SELECT lc.leaseholdContractId, lc.tenantId, lc.price, lc.durationSeconds,
                    lc.startDate, lc.endDate, lc.currentMaxExtensions, lc.maxExtensions,
-                   lc.terminationEffectiveDate, lc.terminatedByRole, lc.acceptingTenants
+                   lc.terminationEffectiveDate, lc.terminatedByRole, lc.acceptingTenants,
+            """ + PartySql.LANDLORD_COLUMNS + """
             FROM LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            """ + PartySql.LANDLORD_JOINS_CONTRACT + """
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
     @ConstructorArgs({
             @Arg(column = "leaseholdContractId", javaType = int.class),
-            @Arg(column = "landlordId", javaType = UUID.class),
+            @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "landlord_", javaType = Party.class),
             @Arg(column = "tenantId", javaType = UUID.class),
             @Arg(column = "price", javaType = double.class),
             @Arg(column = "durationSeconds", javaType = long.class),
@@ -198,17 +201,19 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
 
     @Override
     @Select("""
-            SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId,
-                   rr.worldGuardRegionId, rr.worldId
+            SELECT lc.leaseholdContractId, lc.tenantId,
+                   rr.worldGuardRegionId, rr.worldId,
+            """ + PartySql.LANDLORD_COLUMNS + """
             FROM LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            """ + PartySql.LANDLORD_JOINS_CONTRACT + """
             WHERE lc.tenantId IS NOT NULL
             AND lc.endDate < NOW()
             """)
     @ConstructorArgs({
             @Arg(column = "leaseholdContractId", javaType = int.class),
-            @Arg(column = "landlordId", javaType = UUID.class),
+            @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "landlord_", javaType = Party.class),
             @Arg(column = "tenantId", javaType = UUID.class),
             @Arg(column = "worldGuardRegionId", javaType = String.class),
             @Arg(column = "worldId", javaType = UUID.class)
@@ -283,20 +288,22 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
 
     @Override
     @Select("""
-            SELECT lc.leaseholdContractId, lc.landlordId, lc.tenantId,
+            SELECT lc.leaseholdContractId, lc.tenantId,
                    rr.worldGuardRegionId, rr.worldId,
                    lc.price, lc.durationSeconds, lc.endDate,
-                   lc.terminationEffectiveDate, lc.terminatedByRole
+                   lc.terminationEffectiveDate, lc.terminatedByRole,
+            """ + PartySql.LANDLORD_COLUMNS + """
             FROM LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            """ + PartySql.LANDLORD_JOINS_CONTRACT + """
             WHERE lc.tenantId IS NOT NULL
             AND lc.terminationEffectiveDate IS NOT NULL
             AND lc.terminationEffectiveDate <= NOW()
             """)
     @ConstructorArgs({
             @Arg(column = "leaseholdContractId", javaType = int.class),
-            @Arg(column = "landlordId", javaType = UUID.class),
+            @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "landlord_", javaType = Party.class),
             @Arg(column = "tenantId", javaType = UUID.class),
             @Arg(column = "worldGuardRegionId", javaType = String.class),
             @Arg(column = "worldId", javaType = UUID.class),
@@ -359,13 +366,13 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             UPDATE LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
-            SET lc.landlordId = #{landlordId}
+            SET lc.landlordPartyId = #{landlordPartyId}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
     int updateLandlordByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                @Param("worldId") @NotNull UUID worldId,
-                               @Param("landlordId") @NotNull UUID landlordId);
+                               @Param("landlordPartyId") int landlordPartyId);
 
     @Override
     @Update("""
@@ -441,18 +448,18 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
     @Select("""
             SELECT COUNT(*)
             FROM LeaseholdContract
-            WHERE landlordId = #{landlordId}
+            WHERE landlordPartyId = #{landlordPartyId}
             """)
-    int countByLandlord(@Param("landlordId") @NotNull UUID landlordId);
+    int countByLandlord(@Param("landlordPartyId") int landlordPartyId);
 
     @Override
     @Select("""
             SELECT COUNT(*)
             FROM LeaseholdContract
-            WHERE landlordId = #{landlordId}
+            WHERE landlordPartyId = #{landlordPartyId}
             AND tenantId IS NOT NULL
             """)
-    int countOccupiedByLandlord(@Param("landlordId") @NotNull UUID landlordId);
+    int countOccupiedByLandlord(@Param("landlordPartyId") int landlordPartyId);
 
     @Override
     @Select("""

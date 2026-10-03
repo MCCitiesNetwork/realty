@@ -1,8 +1,10 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -14,18 +16,18 @@ public class LeaseTerminatedEvent extends RealtyRegionEvent {
     private static final HandlerList HANDLERS = new HandlerList();
 
     private final UUID tenantId;
-    private final UUID landlordId;
+    private final Party landlord;
     private final double refund;
     private final String terminatedByRole;
 
     public LeaseTerminatedEvent(@NotNull WorldGuardRegion region,
                                 @NotNull UUID tenantId,
-                                @NotNull UUID landlordId,
+                                @NotNull Party landlord,
                                 double refund,
                                 @NotNull String terminatedByRole) {
         super(region);
         this.tenantId = tenantId;
-        this.landlordId = landlordId;
+        this.landlord = landlord;
         this.refund = refund;
         this.terminatedByRole = terminatedByRole;
     }
@@ -33,6 +35,16 @@ public class LeaseTerminatedEvent extends RealtyRegionEvent {
     /**
      * The tenant of the lease.
      */
+    public @NotNull Party getTenant() {
+        return new Party.Personal(this.tenantId);
+    }
+
+    /**
+     * The tenant of the lease.
+     *
+     * @deprecated use {@link #getTenant()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @NotNull UUID getTenantId() {
         return this.tenantId;
     }
@@ -40,8 +52,19 @@ public class LeaseTerminatedEvent extends RealtyRegionEvent {
     /**
      * The landlord of the lease.
      */
-    public @NotNull UUID getLandlordId() {
-        return this.landlordId;
+    public @NotNull Party getLandlord() {
+        return this.landlord;
+    }
+
+    /**
+     * The landlord of the lease.
+     *
+     * @deprecated use {@link #getLandlord()}; {@code null} when the landlord is not a player.
+     * Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    public @Nullable UUID getLandlordId() {
+        return Party.playerUuidOf(this.landlord).orElse(null);
     }
 
     /**

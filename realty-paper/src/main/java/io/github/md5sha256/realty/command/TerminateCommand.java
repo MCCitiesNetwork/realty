@@ -96,7 +96,7 @@ public record TerminateCommand(
                                 Placeholder.unparsed("region", success.regionId()),
                                 Placeholder.unparsed("date", date)));
                     }
-                    events.fireSync(new LeaseTerminationScheduledEvent(region, success.landlordId(),
+                    events.fireSync(new LeaseTerminationScheduledEvent(region, success.landlord(),
                             success.tenantId(), success.terminatedByRole(), success.effectiveDate(),
                             success.charged()));
                 }
@@ -148,7 +148,7 @@ public record TerminateCommand(
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_CANCEL_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
-                            events.fireSync(new LeaseTerminationCancelledEvent(region, success.landlordId(),
+                            events.fireSync(new LeaseTerminationCancelledEvent(region, success.landlord(),
                                     success.tenantId(), success.terminatedByRole()));
                         }
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.NoLeaseholdContract ignored ->
