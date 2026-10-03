@@ -22,6 +22,8 @@ public record ActorContext(@Nullable UUID player,
                            @NotNull Set<Party> reassigns,
                            boolean bypass) {
 
+    private static final ActorContext CONSOLE = new ActorContext(null, Set.of(), Set.of(), true);
+
     public ActorContext {
         manages = withPlayer(manages, player);
         reassigns = withPlayer(reassigns, player);
@@ -38,7 +40,7 @@ public record ActorContext(@Nullable UUID player,
      * The console: no player, and every check is bypassed.
      */
     public static @NotNull ActorContext console() {
-        return new ActorContext(null, Set.of(), Set.of(), true);
+        return CONSOLE;
     }
 
     /**
