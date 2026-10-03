@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 class SetCommandLandlordGateTest {
 
-    private static final Party.Group POLICE = new Party.Group("police", 43, AccountKind.GOVERNMENT);
+    private static final Party.Group POLICE = Party.group("police", 43, AccountKind.GOVERNMENT);
 
     private final UUID playerId = UUID.randomUUID();
     private TreasuryApi treasury;

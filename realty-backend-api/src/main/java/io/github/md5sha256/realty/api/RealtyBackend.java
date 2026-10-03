@@ -750,7 +750,7 @@ public interface RealtyBackend {
     @NotNull ListResult listRegions(@NotNull Party target, int limit, int offset);
 
     default @NotNull ListResult listRegions(@NotNull UUID targetId, int limit, int offset) {
-        return listRegions(new Party.Personal(targetId), limit, offset);
+        return listRegions(Party.personal(targetId), limit, offset);
     }
 
     record SingleCategoryResult(
@@ -762,28 +762,28 @@ public interface RealtyBackend {
     @NotNull SingleCategoryResult listOwnedRegions(@NotNull Party target, int limit, int offset);
 
     default @NotNull SingleCategoryResult listOwnedRegions(@NotNull UUID targetId, int limit, int offset) {
-        return listOwnedRegions(new Party.Personal(targetId), limit, offset);
+        return listOwnedRegions(Party.personal(targetId), limit, offset);
     }
 
     /** The freeholds whose authority {@code target} is. */
     @NotNull SingleCategoryResult listAuthorityRegions(@NotNull Party target, int limit, int offset);
 
     default @NotNull SingleCategoryResult listAuthorityRegions(@NotNull UUID targetId, int limit, int offset) {
-        return listAuthorityRegions(new Party.Personal(targetId), limit, offset);
+        return listAuthorityRegions(Party.personal(targetId), limit, offset);
     }
 
     /** The leaseholds {@code target} lets as their landlord, whether a tenant rents them or not. */
     @NotNull SingleCategoryResult listLandlordRegions(@NotNull Party target, int limit, int offset);
 
     default @NotNull SingleCategoryResult listLandlordRegions(@NotNull UUID targetId, int limit, int offset) {
-        return listLandlordRegions(new Party.Personal(targetId), limit, offset);
+        return listLandlordRegions(Party.personal(targetId), limit, offset);
     }
 
     /** The regions {@code target} rents; none for a party that is not a player. */
     @NotNull SingleCategoryResult listRentedRegions(@NotNull Party target, int limit, int offset);
 
     default @NotNull SingleCategoryResult listRentedRegions(@NotNull UUID targetId, int limit, int offset) {
-        return listRentedRegions(new Party.Personal(targetId), limit, offset);
+        return listRentedRegions(Party.personal(targetId), limit, offset);
     }
 
     // --- Offers ---

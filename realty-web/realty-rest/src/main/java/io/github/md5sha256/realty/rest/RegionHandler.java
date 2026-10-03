@@ -91,10 +91,10 @@ final class RegionHandler {
             info.leasehold().tenant().ifPresent(parties::add);
         }
         if (info.auction() != null) {
-            parties.add(new Party.Personal(info.auction().auctioneerId()));
+            parties.add(Party.personal(info.auction().auctioneerId()));
         }
         if (info.highestBid() != null) {
-            parties.add(new Party.Personal(info.highestBid().bidderId()));
+            parties.add(Party.personal(info.highestBid().bidderId()));
         }
         // The module calls are independent, and each carries the same timeout budget.
         // Run them concurrently so a wedged module costs one timeout, not two.

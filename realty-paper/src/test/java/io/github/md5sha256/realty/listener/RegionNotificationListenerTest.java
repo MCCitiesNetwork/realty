@@ -106,7 +106,7 @@ class RegionNotificationListenerTest {
     @Test
     void rentedFromAPlayerLandlord_notifiesTheLandlord() {
         RegionRentedEvent event = new RegionRentedEvent(
-                region, TENANT, new Party.Personal(LANDLORD), 10.0, 60L);
+                region, TENANT, Party.personal(LANDLORD), 10.0, 60L);
 
         listener.onRegionRented(event);
 
@@ -130,7 +130,7 @@ class RegionNotificationListenerTest {
         when(treasury.getAuthorizers(42)).thenReturn(List.of(row(authorizer)));
         when(treasury.getMembers(42)).thenReturn(List.of(row(member)));
 
-        listener.onRegionRented(rentedFrom(new Party.Account(42, AccountKind.GOVERNMENT)));
+        listener.onRegionRented(rentedFrom(Party.account(42, AccountKind.GOVERNMENT)));
 
         ArgumentCaptor<RealtyNotificationEvent> captor = ArgumentCaptor.forClass(RealtyNotificationEvent.class);
         verify(events, times(1)).fireSync(captor.capture());
@@ -142,7 +142,7 @@ class RegionNotificationListenerTest {
         when(server.getOnlinePlayers()).thenReturn(List.of());
 
         Assertions.assertDoesNotThrow(() -> listener.onRegionRented(
-                rentedFrom(new Party.Group("police", 43, AccountKind.GOVERNMENT))));
+                rentedFrom(Party.group("police", 43, AccountKind.GOVERNMENT))));
 
         verify(events, never()).fireSync(any(RealtyNotificationEvent.class));
     }
@@ -152,7 +152,7 @@ class RegionNotificationListenerTest {
         when(treasury.getAuthorizers(42)).thenThrow(new IllegalStateException("treasury is down"));
 
         Assertions.assertDoesNotThrow(() -> listener.onRegionRented(
-                rentedFrom(new Party.Account(42, AccountKind.GOVERNMENT))));
+                rentedFrom(Party.account(42, AccountKind.GOVERNMENT))));
 
         verify(events, never()).fireSync(any(RealtyNotificationEvent.class));
     }
@@ -160,7 +160,7 @@ class RegionNotificationListenerTest {
     @Test
     void modificationWithdrawnOnAVacantLease_notifiesNoTenant() {
         LeaseModificationResolvedEvent event = new LeaseModificationResolvedEvent(
-                region, "WITHDRAWN", LeaseholdRoles.LANDLORD, new Party.Personal(LANDLORD), null);
+                region, "WITHDRAWN", LeaseholdRoles.LANDLORD, Party.personal(LANDLORD), null);
 
         Assertions.assertDoesNotThrow(() -> listener.onModificationResolved(event));
 
@@ -170,7 +170,7 @@ class RegionNotificationListenerTest {
     @Test
     void leaseExpiredWithAnAccountLandlord_stillNotifiesTheTenant() {
         LeaseExpiredEvent event = new LeaseExpiredEvent(
-                region, TENANT, new Party.Account(42, AccountKind.GOVERNMENT));
+                region, TENANT, Party.account(42, AccountKind.GOVERNMENT));
 
         Assertions.assertDoesNotThrow(() -> listener.onLeaseExpired(event));
 

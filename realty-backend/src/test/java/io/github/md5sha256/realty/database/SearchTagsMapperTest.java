@@ -26,9 +26,9 @@ class SearchTagsMapperTest extends AbstractDatabaseTest {
     @BeforeEach
     void seed() {
         // shop_water: commercial + waterfront; shop_only: commercial; house: residential.
-        Assertions.assertTrue(logic.createFreehold("shop_water", WORLD_ID, 300.0, new Party.Personal(AUTHORITY), null));
-        Assertions.assertTrue(logic.createFreehold("shop_only", WORLD_ID, 200.0, new Party.Personal(AUTHORITY), null));
-        Assertions.assertTrue(logic.createFreehold("house", WORLD_ID, 100.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("shop_water", WORLD_ID, 300.0, Party.personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("shop_only", WORLD_ID, 200.0, Party.personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("house", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             wrapper.regionTagMapper().insert("commercial", "shop_water");

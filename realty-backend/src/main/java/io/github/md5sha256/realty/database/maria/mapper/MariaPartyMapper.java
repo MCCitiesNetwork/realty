@@ -76,7 +76,7 @@ public interface MariaPartyMapper extends PartyMapper {
     @Override
     default @Nullable Party.Account findAccountParty(int accountId) {
         PartyAccountRow row = selectAccountRow(accountId);
-        return row == null ? null : new Party.Account(accountId, row.kind());
+        return row == null ? null : Party.account(accountId, row.kind());
     }
 
     /**
@@ -207,7 +207,7 @@ public interface MariaPartyMapper extends PartyMapper {
     @Override
     default int insertGroup(@NotNull String groupName, int accountId, @NotNull AccountKind accountKind) {
         // The account's party first, so that the group's row can point at it.
-        int accountPartyId = findOrInsert(new Party.Account(accountId, accountKind));
+        int accountPartyId = findOrInsert(Party.account(accountId, accountKind));
         int partyId = insertBase("GROUP");
         insertGroupRow(partyId, groupName, accountPartyId);
         return partyId;
@@ -215,7 +215,7 @@ public interface MariaPartyMapper extends PartyMapper {
 
     @Override
     default int updateGroupAccount(int partyId, int accountId, @NotNull AccountKind accountKind) {
-        int accountPartyId = findOrInsert(new Party.Account(accountId, accountKind));
+        int accountPartyId = findOrInsert(Party.account(accountId, accountKind));
         return repointGroup(partyId, accountPartyId);
     }
 

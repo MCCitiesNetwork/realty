@@ -18,8 +18,8 @@ class PartyRegionsEndpointTest {
 
     private static final UUID WORLD_ID = UUID.randomUUID();
     private static final UUID PLAYER = TestServers.PLAYER_ID;
-    private static final Party.Account GOVERNMENT = new Party.Account(TestServers.ACCOUNT_ID, AccountKind.GOVERNMENT);
-    private static final Party.Group POLICE = new Party.Group("police", 7, AccountKind.GOVERNMENT);
+    private static final Party.Account GOVERNMENT = Party.account(TestServers.ACCOUNT_ID, AccountKind.GOVERNMENT);
+    private static final Party.Group POLICE = Party.group("police", 7, AccountKind.GOVERNMENT);
 
     private static RealtyRegionEntity region(String name) {
         return new RealtyRegionEntity(1, name, WORLD_ID);
@@ -54,7 +54,7 @@ class PartyRegionsEndpointTest {
     @Test
     void personal_matchesThePlayersRoute() {
         TestServers.PartyStub stub = new TestServers.PartyStub();
-        stub.lists.put(new Party.Personal(PLAYER), new RealtyBackend.ListResult(1, 1, 1, 0,
+        stub.lists.put(Party.personal(PLAYER), new RealtyBackend.ListResult(1, 1, 1, 0,
                 List.of(region("owned_plot")), List.of(region("authority_plot")), List.of(region("let_plot")),
                 List.of()));
         JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
@@ -276,7 +276,7 @@ class PartyRegionsEndpointTest {
         TestServers.PartyStub stub = new TestServers.PartyStub();
         JavalinTest.test(TestServers.withPartyHoldings(stub, 100).javalin(), (server, client) -> {
             client.get("/v1/parties/business/42/regions");
-            Assertions.assertEquals(List.of(new Party.Account(42, AccountKind.BUSINESS)), stub.asked);
+            Assertions.assertEquals(List.of(Party.account(42, AccountKind.BUSINESS)), stub.asked);
         });
     }
 }

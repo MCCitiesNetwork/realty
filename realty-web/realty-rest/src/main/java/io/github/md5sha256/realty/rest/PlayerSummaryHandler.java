@@ -36,9 +36,9 @@ final class PlayerSummaryHandler {
         ctx.json(new PlayerSummaryResponse(
                 player,
                 this.backend.countRegionsByTitleHolder(playerId),
-                this.backend.countRegionsByLandlord(new Party.Personal(playerId)),
-                this.backend.countOccupiedLeaseholdsByLandlord(new Party.Personal(playerId)),
+                this.backend.countRegionsByLandlord(Party.personal(playerId)),
+                this.backend.countOccupiedLeaseholdsByLandlord(Party.personal(playerId)),
                 this.backend.countRegionsByTenant(playerId),
-                this.backend.countRegionsByAuthority(new Party.Personal(playerId))));
+                this.backend.countRegionsByAuthority(Party.personal(playerId))));
     }
 }

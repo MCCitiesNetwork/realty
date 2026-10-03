@@ -58,10 +58,10 @@ final class RegionMembersHandler {
 
         List<Party> players = new ArrayList<>();
         for (UUID id : members.owners().playerIds()) {
-            players.add(new Party.Personal(id));
+            players.add(Party.personal(id));
         }
         for (UUID id : members.members().playerIds()) {
-            players.add(new Party.Personal(id));
+            players.add(Party.personal(id));
         }
         PartyNames.Resolved names = PartyNames.resolve(this.moduleClient, players);
         ctx.json(new RegionMembersResponse(

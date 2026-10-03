@@ -65,13 +65,13 @@ public final class PartyResolver {
     private @NotNull Resolution resolvePlayer(@NotNull String name) {
         Player online = server.getPlayerExact(name);
         if (online != null) {
-            return new Resolution.Resolved(new Party.Personal(online.getUniqueId()));
+            return new Resolution.Resolved(Party.personal(online.getUniqueId()));
         }
         OfflinePlayer offline = server.getOfflinePlayerIfCached(name);
         if (offline == null || !offline.hasPlayedBefore()) {
             return refused(MessageKeys.COMMON_PLAYER_NOT_FOUND, name);
         }
-        return new Resolution.Resolved(new Party.Personal(offline.getUniqueId()));
+        return new Resolution.Resolved(Party.personal(offline.getUniqueId()));
     }
 
     private @NotNull Resolution resolveGroup(@NotNull String name) {
@@ -132,7 +132,7 @@ public final class PartyResolver {
             return refused(MessageKeys.PARTY_TYPE_MISMATCH, name);
         }
         Resolution unavailable = checkAvailable(account, name);
-        return unavailable != null ? unavailable : new Resolution.Resolved(new Party.Account(account.getAccountId(), wanted));
+        return unavailable != null ? unavailable : new Resolution.Resolved(Party.account(account.getAccountId(), wanted));
     }
 
     /**

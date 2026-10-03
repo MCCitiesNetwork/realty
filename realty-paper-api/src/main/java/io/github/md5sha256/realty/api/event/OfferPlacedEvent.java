@@ -39,7 +39,7 @@ public class OfferPlacedEvent extends RealtyRegionEvent {
      * region is held only by an authority.
      */
     public @Nullable Party getTitleHolder() {
-        return this.titleHolderId == null ? null : new Party.Personal(this.titleHolderId);
+        return this.titleHolderId == null ? null : Party.personal(this.titleHolderId);
     }
 
     /**

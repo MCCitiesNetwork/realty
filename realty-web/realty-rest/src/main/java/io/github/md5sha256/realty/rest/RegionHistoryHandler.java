@@ -122,14 +122,14 @@ final class RegionHistoryHandler {
                 parties.add(leasehold.landlord());
             }
             case HistoryEntry.Agent agent -> {
-                parties.add(new Party.Personal(agent.agentId()));
-                parties.add(new Party.Personal(agent.actorId()));
+                parties.add(Party.personal(agent.agentId()));
+                parties.add(Party.personal(agent.actorId()));
             }
         }
     }
 
     private static @Nullable Party personal(@Nullable UUID player) {
-        return player == null ? null : new Party.Personal(player);
+        return player == null ? null : Party.personal(player);
     }
 
     private static @NotNull HistoryResponse.Entry toEntry(@NotNull HistoryEntry entry,

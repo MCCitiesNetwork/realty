@@ -69,7 +69,7 @@ class PartyResolverTest {
 
         PartyResolver.Resolution result = resolver.resolve("Steve", null, null);
 
-        assertEquals(new PartyResolver.Resolution.Resolved(new Party.Personal(uuid)), result);
+        assertEquals(new PartyResolver.Resolution.Resolved(Party.personal(uuid)), result);
     }
 
     @Test
@@ -82,7 +82,7 @@ class PartyResolverTest {
 
         PartyResolver.Resolution result = resolver.resolve("Steve", null, null);
 
-        assertEquals(new PartyResolver.Resolution.Resolved(new Party.Personal(uuid)), result);
+        assertEquals(new PartyResolver.Resolution.Resolved(Party.personal(uuid)), result);
     }
 
     @Test
@@ -121,7 +121,7 @@ class PartyResolverTest {
 
     @Test
     void group_mapped() {
-        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("police")).thenReturn(group);
         when(treasury.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, "police"));
 
@@ -132,7 +132,7 @@ class PartyResolverTest {
 
     @Test
     void group_inCapitals_findsTheMappedGroup() {
-        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("Police")).thenReturn(group);
         when(treasury.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, "police"));
 
@@ -152,7 +152,7 @@ class PartyResolverTest {
 
     @Test
     void group_accountNoLongerExists_isRefused() {
-        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("police")).thenReturn(group);
         when(treasury.getAccountById(42)).thenReturn(null);
 
@@ -163,7 +163,7 @@ class PartyResolverTest {
 
     @Test
     void group_archivedAccount_isRefused() {
-        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("police")).thenReturn(group);
         Account archived = account(42, AccountType.GOVERNMENT, "police");
         archived.setArchived(true);
@@ -176,7 +176,7 @@ class PartyResolverTest {
 
     @Test
     void group_requiresAuthorization_isRefused() {
-        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("police")).thenReturn(group);
         Account requiresAuth = account(42, AccountType.GOVERNMENT, "police");
         requiresAuth.setRequiresAuthorization(true);
@@ -189,7 +189,7 @@ class PartyResolverTest {
 
     @Test
     void group_accountNoLongerOfTheStoredType_isRefused() {
-        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("police")).thenReturn(group);
         when(treasury.getAccountById(42)).thenReturn(account(42, AccountType.BUSINESS, "police"));
 
@@ -200,7 +200,7 @@ class PartyResolverTest {
 
     @Test
     void group_accountNowPersonal_isRefused() {
-        Party.Group group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("police")).thenReturn(group);
         when(treasury.getAccountById(42)).thenReturn(account(42, AccountType.PERSONAL, "Steve"));
 
@@ -218,7 +218,7 @@ class PartyResolverTest {
 
         PartyResolver.Resolution result = resolver.resolve("GovSecurity", PartyFlag.GOVERNMENT, null);
 
-        assertEquals(new PartyResolver.Resolution.Resolved(new Party.Account(42, AccountKind.GOVERNMENT)), result);
+        assertEquals(new PartyResolver.Resolution.Resolved(Party.account(42, AccountKind.GOVERNMENT)), result);
     }
 
     @Test
@@ -240,7 +240,7 @@ class PartyResolverTest {
         // Matched without regard to case.
         PartyResolver.Resolution result = resolver.resolve("acme", PartyFlag.BUSINESS, sender);
 
-        assertEquals(new PartyResolver.Resolution.Resolved(new Party.Account(7, AccountKind.BUSINESS)), result);
+        assertEquals(new PartyResolver.Resolution.Resolved(Party.account(7, AccountKind.BUSINESS)), result);
     }
 
     @Test
@@ -271,7 +271,7 @@ class PartyResolverTest {
 
         PartyResolver.Resolution result = resolver.resolve("#7", PartyFlag.BUSINESS, null);
 
-        assertEquals(new PartyResolver.Resolution.Resolved(new Party.Account(7, AccountKind.BUSINESS)), result);
+        assertEquals(new PartyResolver.Resolution.Resolved(Party.account(7, AccountKind.BUSINESS)), result);
         verify(treasury, never()).getAccountsByMember(any(UUID.class));
     }
 

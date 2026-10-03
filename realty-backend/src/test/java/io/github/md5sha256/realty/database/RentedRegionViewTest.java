@@ -41,7 +41,7 @@ class RentedRegionViewTest extends AbstractDatabaseTest {
     @Test
     void returnsOneRowPerRentedRegionCarryingItsEndDate() throws SQLException {
         LocalDateTime end = LocalDateTime.of(2026, 10, 1, 12, 0, 0);
-        logic.createLeasehold("plot_rented", WORLD_ID, 100.0, 604800L, -1, new Party.Personal(LANDLORD));
+        logic.createLeasehold("plot_rented", WORLD_ID, 100.0, 604800L, -1, Party.personal(LANDLORD));
         logic.setTenant("plot_rented", WORLD_ID, TENANT);
         setEndDate("plot_rented", end);
 
@@ -56,7 +56,7 @@ class RentedRegionViewTest extends AbstractDatabaseTest {
 
     @Test
     void toleratesANullEndDate() {
-        logic.createLeasehold("plot_no_end", WORLD_ID, 100.0, 604800L, -1, new Party.Personal(LANDLORD));
+        logic.createLeasehold("plot_no_end", WORLD_ID, 100.0, 604800L, -1, Party.personal(LANDLORD));
         logic.setTenant("plot_no_end", WORLD_ID, TENANT);
 
         try (SqlSessionWrapper session = database.openSession(true)) {

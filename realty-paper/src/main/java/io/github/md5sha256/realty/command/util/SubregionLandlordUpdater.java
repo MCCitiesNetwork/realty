@@ -53,7 +53,7 @@ public final class SubregionLandlordUpdater {
         List<String> childIds = children.stream().map(ProtectedRegion::getId).toList();
         UUID worldId = world.getUID();
         CompletableFuture.runAsync(
-                () -> logic.updateSubregionLandlords(childIds, worldId, new Party.Personal(newLandlord)),
+                () -> logic.updateSubregionLandlords(childIds, worldId, Party.personal(newLandlord)),
                 executorState.dbExec()
         );
     }

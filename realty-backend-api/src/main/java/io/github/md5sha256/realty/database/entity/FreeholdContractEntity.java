@@ -29,6 +29,6 @@ public record FreeholdContractEntity(
      * @return the title holder as a party, if the region has one
      */
     public @NotNull Optional<Party> titleHolder() {
-        return Optional.ofNullable(titleHolderId).map(Party.Personal::new);
+        return Optional.ofNullable(titleHolderId).map(Party::personal);
     }
 }

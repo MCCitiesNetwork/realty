@@ -51,7 +51,7 @@ public class LeaseTerminationCancelledEvent extends RealtyRegionEvent {
      * The tenant of the lease, or {@code null} for a lease that has none.
      */
     public @Nullable Party getTenant() {
-        return this.tenantId == null ? null : new Party.Personal(this.tenantId);
+        return this.tenantId == null ? null : Party.personal(this.tenantId);
     }
 
     /**

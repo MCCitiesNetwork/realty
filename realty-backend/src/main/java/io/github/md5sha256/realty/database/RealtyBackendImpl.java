@@ -1402,7 +1402,7 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     @Override
     public @NotNull MapGroupResult mapGroup(@NotNull String groupName, @NotNull Party.Account account) {
-        Party.Group mapped = new Party.Group(groupName, account.accountId(), account.kind());
+        Party.Group mapped = Party.group(groupName, account.accountId(), account.kind());
         try (SqlSessionWrapper wrapper = database.openSession()) {
             PartyMapper partyMapper = wrapper.partyMapper();
             Integer partyId = partyMapper.lockGroupId(mapped.groupName());
@@ -1518,7 +1518,7 @@ public class RealtyBackendImpl implements RealtyBackend {
         FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
         if (freehold != null) {
             String titleHolder = freehold.titleHolderId() != null
-                    ? partyNameResolver.apply(new Party.Personal(freehold.titleHolderId())).join() : "";
+                    ? partyNameResolver.apply(Party.personal(freehold.titleHolderId())).join() : "";
             placeholders.put("title_holder", titleHolder);
             placeholders.put("titleholder", titleHolder);
             placeholders.put("authority", partyNameResolver.apply(freehold.authority()).join());
@@ -1995,7 +1995,7 @@ public class RealtyBackendImpl implements RealtyBackend {
     private static boolean conflictsWithAuthority(@NotNull Party authority,
                                                   @NotNull ActorContext actor,
                                                   boolean bypassConflict) {
-        if (new Party.Personal(actor.requirePlayer()).equals(authority)) {
+        if (Party.personal(actor.requirePlayer()).equals(authority)) {
             return true;
         }
         return !bypassConflict && actor.manages().contains(authority);

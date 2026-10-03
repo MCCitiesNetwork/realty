@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DefaultPartiesTest {
 
-    private static final Party GOV = new Party.Account(7, AccountKind.GOVERNMENT);
+    private static final Party GOV = Party.account(7, AccountKind.GOVERNMENT);
     private static final PartySetting GOV_SETTING = new PartySetting("GovSecurity", null, PartyFlag.GOVERNMENT);
 
     @Mock
@@ -45,7 +45,7 @@ class DefaultPartiesTest {
         govResolves();
         UUID steve = UUID.randomUUID();
         when(resolver.resolve("Steve", null, null))
-                .thenReturn(new PartyResolver.Resolution.Resolved(new Party.Personal(steve)));
+                .thenReturn(new PartyResolver.Resolution.Resolved(Party.personal(steve)));
 
         DefaultParties parties = DefaultParties.resolve(
                 settings(GOV_SETTING, GOV_SETTING, new PartySetting("Steve", null, null)), resolver);
@@ -79,8 +79,8 @@ class DefaultPartiesTest {
 
         DefaultParties parties = DefaultParties.resolve(settings(byUuid, byUuid, byUuid), resolver);
 
-        assertEquals(new Party.Personal(steve), parties.freeholdAuthority());
-        assertEquals(new Party.Personal(steve), parties.leaseholdLandlord());
+        assertEquals(Party.personal(steve), parties.freeholdAuthority());
+        assertEquals(Party.personal(steve), parties.leaseholdLandlord());
         assertEquals(steve, parties.freeholdTitleholder());
         assertTrue(parties.errors().isEmpty());
         verifyNoInteractions(resolver);

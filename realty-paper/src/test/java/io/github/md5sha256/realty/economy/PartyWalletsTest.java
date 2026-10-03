@@ -51,7 +51,7 @@ class PartyWalletsTest {
         // As a Personal party it still pays and is paid through its PERSONAL account.
         when(treasuryApi.resolveOrCreatePersonal(player)).thenReturn(account(13, AccountType.PERSONAL, player));
 
-        assertEquals(13, wallets.forPayment(new Party.Personal(player)).getAccountId());
+        assertEquals(13, wallets.forPayment(Party.personal(player)).getAccountId());
         verify(treasuryApi, never()).getAccountsByOwner(any());
     }
 
@@ -59,14 +59,14 @@ class PartyWalletsTest {
     void account_usesTheNamedAccount() throws Exception {
         when(treasuryApi.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, player));
 
-        assertEquals(42, wallets.forPayment(new Party.Account(42, AccountKind.GOVERNMENT)).getAccountId());
+        assertEquals(42, wallets.forPayment(Party.account(42, AccountKind.GOVERNMENT)).getAccountId());
     }
 
     @Test
     void group_usesTheMappedAccount() throws Exception {
         when(treasuryApi.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, player));
 
-        assertEquals(42, wallets.forPayment(new Party.Group("police", 42, AccountKind.GOVERNMENT)).getAccountId());
+        assertEquals(42, wallets.forPayment(Party.group("police", 42, AccountKind.GOVERNMENT)).getAccountId());
     }
 
     @Test
@@ -74,7 +74,7 @@ class PartyWalletsTest {
         when(treasuryApi.getAccountById(42)).thenReturn(null);
 
         PartyWallets.WalletUnavailable failure = assertThrows(PartyWallets.WalletUnavailable.class,
-                () -> wallets.forPayment(new Party.Account(42, AccountKind.GOVERNMENT)));
+                () -> wallets.forPayment(Party.account(42, AccountKind.GOVERNMENT)));
         assertEquals("Account #42 no longer exists", failure.getMessage());
     }
 
@@ -85,7 +85,7 @@ class PartyWalletsTest {
         when(treasuryApi.getAccountById(42)).thenReturn(archived);
 
         PartyWallets.WalletUnavailable failure = assertThrows(PartyWallets.WalletUnavailable.class,
-                () -> wallets.forPayment(new Party.Account(42, AccountKind.GOVERNMENT)));
+                () -> wallets.forPayment(Party.account(42, AccountKind.GOVERNMENT)));
         assertEquals("Account #42 is archived", failure.getMessage());
     }
 
@@ -94,7 +94,7 @@ class PartyWalletsTest {
         when(treasuryApi.getAccountById(42)).thenReturn(account(42, AccountType.BUSINESS, player));
 
         PartyWallets.WalletUnavailable failure = assertThrows(PartyWallets.WalletUnavailable.class,
-                () -> wallets.forPayment(new Party.Account(42, AccountKind.GOVERNMENT)));
+                () -> wallets.forPayment(Party.account(42, AccountKind.GOVERNMENT)));
         assertEquals("Account #42 is no longer a government account", failure.getMessage());
     }
 
@@ -107,7 +107,7 @@ class PartyWalletsTest {
         when(treasuryApi.getAccountById(42)).thenReturn(guarded);
 
         PartyWallets.WalletUnavailable failure = assertThrows(PartyWallets.WalletUnavailable.class,
-                () -> wallets.forPayment(new Party.Group("police", 42, AccountKind.GOVERNMENT)));
+                () -> wallets.forPayment(Party.group("police", 42, AccountKind.GOVERNMENT)));
         assertEquals("Account #42 requires authorization", failure.getMessage());
     }
 
@@ -115,7 +115,7 @@ class PartyWalletsTest {
     void balanceOfPlayerWithNoAccount_createsNothing() throws Exception {
         when(treasuryApi.getAccountsByTypeAndOwner(AccountType.PERSONAL, player)).thenReturn(List.of());
 
-        assertNull(wallets.forBalance(new Party.Personal(player)));
+        assertNull(wallets.forBalance(Party.personal(player)));
         // A balance read must never have the side effect of opening an account.
         verify(treasuryApi, never()).resolveOrCreatePersonal(any());
     }
@@ -127,7 +127,7 @@ class PartyWalletsTest {
         when(treasuryApi.getAccountById(42)).thenReturn(archived);
 
         PartyWallets.WalletUnavailable failure = assertThrows(PartyWallets.WalletUnavailable.class,
-                () -> wallets.forBalance(new Party.Account(42, AccountKind.GOVERNMENT)));
+                () -> wallets.forBalance(Party.account(42, AccountKind.GOVERNMENT)));
         assertEquals("Account #42 is archived", failure.getMessage());
     }
 }

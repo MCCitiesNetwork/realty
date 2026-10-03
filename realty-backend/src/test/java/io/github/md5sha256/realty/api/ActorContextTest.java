@@ -9,7 +9,7 @@ import java.util.UUID;
 
 class ActorContextTest {
 
-    private static final Party GOV = new Party.Account(42, AccountKind.GOVERNMENT);
+    private static final Party GOV = Party.account(42, AccountKind.GOVERNMENT);
 
     @Test
     void player_managesAndReassignsThemself() {
@@ -17,11 +17,11 @@ class ActorContextTest {
         ActorContext ctx = ActorContext.player(player, false);
 
         Assertions.assertEquals(player, ctx.requirePlayer());
-        Assertions.assertTrue(ctx.mayManage(new Party.Personal(player)));
-        Assertions.assertTrue(ctx.mayReassign(new Party.Personal(player)));
+        Assertions.assertTrue(ctx.mayManage(Party.personal(player)));
+        Assertions.assertTrue(ctx.mayReassign(Party.personal(player)));
         Assertions.assertFalse(ctx.mayManage(GOV));
         Assertions.assertFalse(ctx.mayReassign(GOV));
-        Assertions.assertFalse(ctx.mayManage(new Party.Personal(UUID.randomUUID())));
+        Assertions.assertFalse(ctx.mayManage(Party.personal(UUID.randomUUID())));
     }
 
     @Test
@@ -49,7 +49,7 @@ class ActorContextTest {
 
         Assertions.assertFalse(ctx.mayManage(GOV));
         Assertions.assertFalse(ctx.mayReassign(GOV));
-        Assertions.assertEquals(Set.of(new Party.Personal(player)), ctx.manages());
+        Assertions.assertEquals(Set.of(Party.personal(player)), ctx.manages());
         Assertions.assertThrows(UnsupportedOperationException.class, () -> ctx.manages().add(GOV));
     }
 }

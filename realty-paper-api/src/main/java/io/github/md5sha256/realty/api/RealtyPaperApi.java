@@ -240,7 +240,7 @@ public interface RealtyPaperApi {
     @Deprecated(forRemoval = true)
     default @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
             @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
-        return setTitleHolder(region, titleHolderId == null ? null : new Party.Personal(titleHolderId));
+        return setTitleHolder(region, titleHolderId == null ? null : Party.personal(titleHolderId));
     }
 
     // --- TransferTitleHolder (sets title holder and clears price) ---
@@ -258,7 +258,7 @@ public interface RealtyPaperApi {
     @Deprecated(forRemoval = true)
     default @NotNull CompletableFuture<SetTitleHolderResult> transferTitleHolder(
             @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
-        return transferTitleHolder(region, titleHolderId == null ? null : new Party.Personal(titleHolderId));
+        return transferTitleHolder(region, titleHolderId == null ? null : Party.personal(titleHolderId));
     }
 
     // --- SetTenant ---
@@ -284,7 +284,7 @@ public interface RealtyPaperApi {
     @Deprecated(forRemoval = true)
     default @NotNull CompletableFuture<SetTenantResult> setTenant(
             @NotNull WorldGuardRegion region, @Nullable UUID tenantId) {
-        return setTenant(region, tenantId == null ? null : new Party.Personal(tenantId));
+        return setTenant(region, tenantId == null ? null : Party.personal(tenantId));
     }
 
     // --- SetLandlord ---
@@ -353,7 +353,7 @@ public interface RealtyPaperApi {
             @Nullable Double price,
             @NotNull Party authority,
             @Nullable UUID titleHolder) {
-        return createFreehold(region, price, authority, titleHolder == null ? null : new Party.Personal(titleHolder));
+        return createFreehold(region, price, authority, titleHolder == null ? null : Party.personal(titleHolder));
     }
 
     /**
@@ -375,7 +375,7 @@ public interface RealtyPaperApi {
             @Nullable Double price,
             @NotNull Party authority,
             @Nullable UUID titleHolder) {
-        return registerFreehold(region, price, authority, titleHolder == null ? null : new Party.Personal(titleHolder));
+        return registerFreehold(region, price, authority, titleHolder == null ? null : Party.personal(titleHolder));
     }
 
     // --- Create/Register Leasehold ---
@@ -582,7 +582,7 @@ public interface RealtyPaperApi {
 
     default @NotNull CompletableFuture<RealtyBackend.ListResult> listRegions(
             @NotNull UUID targetId, int limit, int offset) {
-        return listRegions(new Party.Personal(targetId), limit, offset);
+        return listRegions(Party.personal(targetId), limit, offset);
     }
 
     @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listOwnedRegions(
@@ -590,7 +590,7 @@ public interface RealtyPaperApi {
 
     default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listOwnedRegions(
             @NotNull UUID targetId, int limit, int offset) {
-        return listOwnedRegions(new Party.Personal(targetId), limit, offset);
+        return listOwnedRegions(Party.personal(targetId), limit, offset);
     }
 
     /** See {@link RealtyBackend#listAuthorityRegions(Party, int, int)}. */
@@ -599,7 +599,7 @@ public interface RealtyPaperApi {
 
     default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listAuthorityRegions(
             @NotNull UUID targetId, int limit, int offset) {
-        return listAuthorityRegions(new Party.Personal(targetId), limit, offset);
+        return listAuthorityRegions(Party.personal(targetId), limit, offset);
     }
 
     /** See {@link RealtyBackend#listLandlordRegions(Party, int, int)}. */
@@ -608,7 +608,7 @@ public interface RealtyPaperApi {
 
     default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listLandlordRegions(
             @NotNull UUID targetId, int limit, int offset) {
-        return listLandlordRegions(new Party.Personal(targetId), limit, offset);
+        return listLandlordRegions(Party.personal(targetId), limit, offset);
     }
 
     @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
@@ -616,7 +616,7 @@ public interface RealtyPaperApi {
 
     default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
             @NotNull UUID targetId, int limit, int offset) {
-        return listRentedRegions(new Party.Personal(targetId), limit, offset);
+        return listRentedRegions(Party.personal(targetId), limit, offset);
     }
 
     @NotNull CompletableFuture<RealtyBackend.HistoryResult> searchHistory(

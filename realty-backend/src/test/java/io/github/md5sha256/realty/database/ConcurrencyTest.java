@@ -45,7 +45,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId, UUID worldId, UUID authority, UUID titleHolder) {
-        boolean created = logic.createFreehold(regionId, worldId, 1000.0, new Party.Personal(authority), titleHolder);
+        boolean created = logic.createFreehold(regionId, worldId, 1000.0, Party.personal(authority), titleHolder);
         Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 
@@ -168,7 +168,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         @DisplayName("only one of two concurrent renters succeeds")
         void onlyOneSucceeds() throws Exception {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(AUTHORITY));
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, Party.personal(AUTHORITY));
 
             List<RaceOutcome<RentResult>> outcomes = racePair(
                     () -> logic.rentRegion(regionId, WORLD_ID, PLAYER_A),
@@ -200,7 +200,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         void onlyOneSucceedsOnLastExtension() throws Exception {
             String regionId = uniqueRegionId();
             // maxRenewals=1 means only one extension possible
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 1, new Party.Personal(AUTHORITY));
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 1, Party.personal(AUTHORITY));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             List<RaceOutcome<RenewLeaseholdResult>> outcomes = racePair(
@@ -232,7 +232,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         @DisplayName("only one of two concurrent unrent calls succeeds")
         void onlyOneSucceeds() throws Exception {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, new Party.Personal(AUTHORITY));
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, Party.personal(AUTHORITY));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             List<RaceOutcome<RealtyBackend.UnrentResult>> outcomes = racePair(
@@ -461,7 +461,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         void manyCallersNamingOneNewAccount_allSucceedAndShareOneParty() throws Exception {
             for (int round = 0; round < ROUNDS; round++) {
                 int accountId = 4200 + round;
-                nameOneNewPartyAtOnce(new Party.Account(accountId, AccountKind.GOVERNMENT),
+                nameOneNewPartyAtOnce(Party.account(accountId, AccountKind.GOVERNMENT),
                         "SELECT COUNT(*) FROM AccountParty WHERE accountId = " + accountId);
             }
         }
@@ -471,7 +471,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         void manyCallersNamingOneNewPlayer_allSucceedAndShareOneParty() throws Exception {
             for (int round = 0; round < ROUNDS; round++) {
                 UUID player = UUID.randomUUID();
-                nameOneNewPartyAtOnce(new Party.Personal(player), "SELECT COUNT(*) FROM PersonalParty WHERE playerUuid = '" + player + "'");
+                nameOneNewPartyAtOnce(Party.personal(player), "SELECT COUNT(*) FROM PersonalParty WHERE playerUuid = '" + player + "'");
             }
         }
 
@@ -484,7 +484,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         void historyWrites_doNotUseUpPartyIds() throws Exception {
             String regionId = uniqueRegionId();
             Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 25,
-                    new Party.Personal(AUTHORITY)));
+                    Party.personal(AUTHORITY)));
             int rowsBefore = queryInt("SELECT COUNT(*) FROM Party");
             long nextIdBefore = nextPartyId();
 

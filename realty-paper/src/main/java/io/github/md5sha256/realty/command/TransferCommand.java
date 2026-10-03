@@ -69,7 +69,7 @@ public record TransferCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.transferTitleHolder(region, new Party.Personal(titleHolderId)).thenAccept(result -> {
+        api.transferTitleHolder(region, Party.personal(titleHolderId)).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTitleHolderResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_SUCCESS,

@@ -60,20 +60,20 @@ class VaultEconomyProviderTest {
 
     @Test
     void accountParty_isRefused() {
-        Party government = new Party.Account(42, AccountKind.GOVERNMENT);
-        Party group = new Party.Group("police", 42, AccountKind.GOVERNMENT);
+        Party government = Party.account(42, AccountKind.GOVERNMENT);
+        Party group = Party.group("police", 42, AccountKind.GOVERNMENT);
 
         assertEquals(new PaymentResult.Failure("Account and group parties require Treasury"),
-                provider.transfer(new Party.Personal(payerId), government, 50.0, "Rental Payment: REGION", payerId));
+                provider.transfer(Party.personal(payerId), government, 50.0, "Rental Payment: REGION", payerId));
         assertEquals(new PaymentResult.Failure("Account and group parties require Treasury"),
-                provider.transfer(group, new Party.Personal(payerId), 50.0, "Refund: REGION", payerId));
+                provider.transfer(group, Party.personal(payerId), 50.0, "Refund: REGION", payerId));
         verify(economy, never()).withdrawPlayer(any(OfflinePlayer.class), anyDouble());
         verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
     }
 
     @Test
     void accountParty_hasNoBalance() {
-        assertEquals(0.0, provider.getBalance(new Party.Account(42, AccountKind.GOVERNMENT)));
+        assertEquals(0.0, provider.getBalance(Party.account(42, AccountKind.GOVERNMENT)));
         verifyNoInteractions(economy);
     }
 
@@ -82,7 +82,7 @@ class VaultEconomyProviderTest {
         when(economy.withdrawPlayer(payer, 50.0)).thenReturn(ok(50.0));
         when(economy.depositPlayer(recipient, 50.0)).thenReturn(ok(50.0));
 
-        PaymentResult result = provider.transfer(new Party.Personal(payerId), new Party.Personal(recipientId),
+        PaymentResult result = provider.transfer(Party.personal(payerId), Party.personal(recipientId),
                 50.0, "Rental Payment: REGION", payerId);
 
         assertInstanceOf(PaymentResult.Success.class, result);
@@ -94,6 +94,6 @@ class VaultEconomyProviderTest {
     void playerBalance_isReadFromVault() {
         when(economy.getBalance(payer)).thenReturn(75.0);
 
-        assertEquals(75.0, provider.getBalance(new Party.Personal(payerId)));
+        assertEquals(75.0, provider.getBalance(Party.personal(payerId)));
     }
 }

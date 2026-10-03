@@ -21,7 +21,7 @@ class ActivityEndpointTest {
 
     private static ActivityRow freehold(String region, String eventType) {
         return new ActivityRow("freehold", region, WORLD_ID, eventType,
-                LocalDateTime.of(2026, 8, 30, 14, 2, 11), ALICE, new Party.Personal(BOB), 21500.0, null, null);
+                LocalDateTime.of(2026, 8, 30, 14, 2, 11), ALICE, Party.personal(BOB), 21500.0, null, null);
     }
 
     @Test
@@ -45,9 +45,9 @@ class ActivityEndpointTest {
     @Test
     void carriesTheLeaseholdAndAgentShapesToo() {
         ActivityRow lease = new ActivityRow("leasehold", "plot_b", WORLD_ID, "RENT",
-                LocalDateTime.of(2026, 8, 12, 9, 40), ALICE, new Party.Personal(BOB), 800.0, 604800L, 3);
+                LocalDateTime.of(2026, 8, 12, 9, 40), ALICE, Party.personal(BOB), 800.0, 604800L, 3);
         ActivityRow agent = new ActivityRow("agent", "plot_c", WORLD_ID, "AGENT_ADD",
-                LocalDateTime.of(2026, 8, 1, 18, 0), ALICE, new Party.Personal(BOB), null, null, null);
+                LocalDateTime.of(2026, 8, 1, 18, 0), ALICE, Party.personal(BOB), null, null, null);
         RealtyRestServer server = TestServers.withActivity(List.of(lease, agent), 2, Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             String body = client.get("/v1/activity").body().string();
@@ -61,7 +61,7 @@ class ActivityEndpointTest {
     @Test
     void anAccountLandlordIsServedWithItsKind() {
         ActivityRow lease = new ActivityRow("leasehold", "plot_b", WORLD_ID, "RENT",
-                LocalDateTime.of(2026, 8, 12, 9, 40), ALICE, new Party.Account(42, AccountKind.GOVERNMENT),
+                LocalDateTime.of(2026, 8, 12, 9, 40), ALICE, Party.account(42, AccountKind.GOVERNMENT),
                 800.0, 604800L, 3);
         RealtyRestServer server = TestServers.withActivity(List.of(lease), 1, Map.of(ALICE, "Alice"));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {

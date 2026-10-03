@@ -68,9 +68,9 @@ final class AuctionsHandler {
         List<Party> parties = new ArrayList<>();
         Set<UUID> worldIds = new HashSet<>();
         for (ActiveAuctionRow row : rows) {
-            parties.add(new Party.Personal(row.auctioneerId()));
+            parties.add(Party.personal(row.auctioneerId()));
             if (row.highestBidderId() != null) {
-                parties.add(new Party.Personal(row.highestBidderId()));
+                parties.add(Party.personal(row.highestBidderId()));
             }
             worldIds.add(row.worldId());
         }

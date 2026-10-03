@@ -433,7 +433,7 @@ final class TestServers {
     static @NotNull RealtyRestServer withForSaleRegion() {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), "world"));
         FreeholdContractEntity freehold = new FreeholdContractEntity(
-                1, new Party.Personal(UUID.randomUUID()), null, 25000.0, true);
+                1, Party.personal(UUID.randomUUID()), null, 25000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds, false, List.of()), defaultSettings());
@@ -449,7 +449,7 @@ final class TestServers {
      */
     static @NotNull RealtyRestServer withModule(@NotNull ModuleClient module) {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
-        FreeholdContractEntity freehold = new FreeholdContractEntity(1, new Party.Personal(AUTHORITY), null, 25000.0, true);
+        FreeholdContractEntity freehold = new FreeholdContractEntity(1, Party.personal(AUTHORITY), null, 25000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds), defaultSettings(), module);
@@ -677,7 +677,7 @@ final class TestServers {
     static @NotNull RealtyRestServer withRegionInWorldNamedMyWorld() {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), "My World"));
         FreeholdContractEntity freehold = new FreeholdContractEntity(
-                1, new Party.Personal(UUID.randomUUID()), null, 1000.0, true);
+                1, Party.personal(UUID.randomUUID()), null, 1000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds, false, List.of()), defaultSettings());
@@ -691,7 +691,7 @@ final class TestServers {
     static @NotNull RealtyRestServer withRegionInWorldNamed(@NotNull String worldName) {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), worldName));
         FreeholdContractEntity freehold = new FreeholdContractEntity(
-                1, new Party.Personal(UUID.randomUUID()), null, 1000.0, true);
+                1, Party.personal(UUID.randomUUID()), null, 1000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds, false, List.of()), defaultSettings());
@@ -831,7 +831,7 @@ final class TestServers {
                 }
                 case "listRegions", "listOwnedRegions", "listAuthorityRegions", "listLandlordRegions",
                      "listRentedRegions" -> {
-                    Party party = args[0] instanceof UUID id ? new Party.Personal(id) : (Party) args[0];
+                    Party party = args[0] instanceof UUID id ? Party.personal(id) : (Party) args[0];
                     stub.asked.add(party);
                     return answerListing(method.getName(), stub.lists.getOrDefault(party, EMPTY_LIST));
                 }

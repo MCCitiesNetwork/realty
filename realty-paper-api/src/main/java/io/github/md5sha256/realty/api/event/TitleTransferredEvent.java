@@ -30,14 +30,14 @@ public class TitleTransferredEvent extends RealtyRegionEvent {
      * The new title holder, or {@code null} if the title was cleared.
      */
     public @Nullable Party getNewTitleHolder() {
-        return this.newTitleHolderId == null ? null : new Party.Personal(this.newTitleHolderId);
+        return this.newTitleHolderId == null ? null : Party.personal(this.newTitleHolderId);
     }
 
     /**
      * The previous title holder, or {@code null} if there was none.
      */
     public @Nullable Party getPreviousTitleHolder() {
-        return this.previousTitleHolderId == null ? null : new Party.Personal(this.previousTitleHolderId);
+        return this.previousTitleHolderId == null ? null : Party.personal(this.previousTitleHolderId);
     }
 
     /**

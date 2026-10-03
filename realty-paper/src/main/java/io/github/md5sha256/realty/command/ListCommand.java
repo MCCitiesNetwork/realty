@@ -105,7 +105,7 @@ public record ListCommand(
                 .handler(ctx -> {
                     Player player = ctx.sender().source();
                     int page = ctx.flags().getValue(PAGE_FLAG, 1);
-                    listRegions(player, new Target(new Party.Personal(player.getUniqueId()), player.getName(),
+                    listRegions(player, new Target(Party.personal(player.getUniqueId()), player.getName(),
                             null, null), null, page);
                 })
                 .build();
@@ -148,7 +148,7 @@ public record ListCommand(
                 sender.sendMessage(messages.messageFor(MessageKeys.LIST_PLAYERS_ONLY));
                 return;
             }
-            listRegions(sender, new Target(new Party.Personal(player.getUniqueId()), player.getName(),
+            listRegions(sender, new Target(Party.personal(player.getUniqueId()), player.getName(),
                     null, null), category, page);
             return;
         }

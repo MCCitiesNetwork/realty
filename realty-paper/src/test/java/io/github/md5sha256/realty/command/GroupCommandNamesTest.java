@@ -34,14 +34,14 @@ class GroupCommandNamesTest {
     @Test
     void groupAccount_isShownAsEverywhereElse() {
         PartyNames names = names(account(7, AccountType.GOVERNMENT, "GovSecurity"));
-        Party.Group police = new Party.Group("police", 7, AccountKind.GOVERNMENT);
+        Party.Group police = Party.group("police", 7, AccountKind.GOVERNMENT);
         assertEquals("GovSecurity (government)", GroupCommandGroup.accountName(police, names));
     }
 
     @Test
     void groupAccountWithoutAName_isShownByItsId() {
         PartyNames names = names(account(7, AccountType.BUSINESS, ""));
-        Party.Group police = new Party.Group("police", 7, AccountKind.BUSINESS);
+        Party.Group police = Party.group("police", 7, AccountKind.BUSINESS);
         assertEquals("#7 (business)", GroupCommandGroup.accountName(police, names));
     }
 }

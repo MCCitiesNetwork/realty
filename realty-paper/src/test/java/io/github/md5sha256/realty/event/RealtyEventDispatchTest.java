@@ -83,7 +83,7 @@ class RealtyEventDispatchTest {
     void fireSync_syncEvent_offMainThread_nonCancellable_routedToMainThread() {
         when(server.isPrimaryThread()).thenReturn(false);
         RegionRentedEvent event = new RegionRentedEvent(
-                region, UUID.randomUUID(), new Party.Personal(UUID.randomUUID()), 10.0, 60L);
+                region, UUID.randomUUID(), Party.personal(UUID.randomUUID()), 10.0, 60L);
 
         // Deferred — not fired inline, scheduled onto the main-thread executor; reports proceed.
         assertTrue(dispatch.fireSync(event));

@@ -25,12 +25,12 @@ class OwnersLeaderboardQueryTest extends AbstractDatabaseTest {
     @BeforeEach
     void seed() {
         for (int i = 0; i < 3; i++) {
-            Assertions.assertTrue(logic.createFreehold("alice_" + i, WORLD_ID, null, new Party.Personal(AUTHORITY), ALICE));
+            Assertions.assertTrue(logic.createFreehold("alice_" + i, WORLD_ID, null, Party.personal(AUTHORITY), ALICE));
         }
-        Assertions.assertTrue(logic.createFreehold("bob_0", WORLD_ID, null, new Party.Personal(AUTHORITY), BOB));
-        Assertions.assertTrue(logic.createFreehold("carol_0", WORLD_ID, null, new Party.Personal(AUTHORITY), CAROL));
+        Assertions.assertTrue(logic.createFreehold("bob_0", WORLD_ID, null, Party.personal(AUTHORITY), BOB));
+        Assertions.assertTrue(logic.createFreehold("carol_0", WORLD_ID, null, Party.personal(AUTHORITY), CAROL));
         // Unsold: it has no title holder, so nobody should be credited with it.
-        Assertions.assertTrue(logic.createFreehold("unsold", WORLD_ID, 100.0, new Party.Personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("unsold", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
     }
 
     private static List<PlotOwnerCount> page(int limit, int offset) {

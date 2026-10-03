@@ -27,10 +27,10 @@ class GroupMappingTest extends AbstractDatabaseTest {
     private static final UUID WORLD_ID = UUID.randomUUID();
     private static final UUID PLAYER = UUID.randomUUID();
 
-    private static final Party.Account GOV_42 = new Party.Account(42, AccountKind.GOVERNMENT);
-    private static final Party.Account BUSINESS_77 = new Party.Account(77, AccountKind.BUSINESS);
-    private static final Party.Group POLICE_ON_42 = new Party.Group("police", 42, AccountKind.GOVERNMENT);
-    private static final Party.Group POLICE_ON_77 = new Party.Group("police", 77, AccountKind.BUSINESS);
+    private static final Party.Account GOV_42 = Party.account(42, AccountKind.GOVERNMENT);
+    private static final Party.Account BUSINESS_77 = Party.account(77, AccountKind.BUSINESS);
+    private static final Party.Group POLICE_ON_42 = Party.group("police", 42, AccountKind.GOVERNMENT);
+    private static final Party.Group POLICE_ON_77 = Party.group("police", 77, AccountKind.BUSINESS);
 
     private static void createLease(String regionId, Party landlord) {
         Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, landlord));
@@ -143,12 +143,12 @@ class GroupMappingTest extends AbstractDatabaseTest {
     void unmap_whileOnlyHistoryUsesIt_isRefused() {
         logic.mapGroup("police", GOV_42);
         String regionId = "police_station";
-        createLease(regionId, new Party.Personal(PLAYER));
+        createLease(regionId, Party.personal(PLAYER));
         ActorContext console = ActorContext.console();
         Assertions.assertInstanceOf(SetLandlordResult.Success.class,
                 logic.setLandlord(regionId, WORLD_ID, POLICE_ON_42, console));
         Assertions.assertInstanceOf(SetLandlordResult.Success.class,
-                logic.setLandlord(regionId, WORLD_ID, new Party.Personal(PLAYER), console));
+                logic.setLandlord(regionId, WORLD_ID, Party.personal(PLAYER), console));
 
         UnmapGroupResult result = logic.unmapGroup("police");
 
@@ -161,7 +161,7 @@ class GroupMappingTest extends AbstractDatabaseTest {
     @Test
     void unmap_waitsForAnAssignmentInFlight() throws Exception {
         logic.mapGroup("police", GOV_42);
-        createLease("police_station", new Party.Personal(PLAYER));
+        createLease("police_station", Party.personal(PLAYER));
         int groupPartyId;
         try (SqlSessionWrapper wrapper = database.openSession(true);
              Statement statement = wrapper.session().getConnection().createStatement();
@@ -206,12 +206,12 @@ class GroupMappingTest extends AbstractDatabaseTest {
         createLease("station_1", POLICE_ON_42);
         createLease("station_2", POLICE_ON_42);
         Assertions.assertTrue(logic.createFreehold("barracks", WORLD_ID, 1000.0,
-                new Party.Group("army", 77, AccountKind.BUSINESS), null));
+                Party.group("army", 77, AccountKind.BUSINESS), null));
         Assertions.assertTrue(logic.createFreehold("hq", WORLD_ID, 1000.0, POLICE_ON_42, null));
 
         Assertions.assertEquals(List.of(
-                        new GroupMapping(new Party.Group("army", 77, AccountKind.BUSINESS), 1),
-                        new GroupMapping(new Party.Group("bank", 42, AccountKind.GOVERNMENT), 0),
+                        new GroupMapping(Party.group("army", 77, AccountKind.BUSINESS), 1),
+                        new GroupMapping(Party.group("bank", 42, AccountKind.GOVERNMENT), 0),
                         new GroupMapping(POLICE_ON_42, 3)),
                 logic.listGroupMappings());
     }
@@ -232,7 +232,7 @@ class GroupMappingTest extends AbstractDatabaseTest {
         Assertions.assertInstanceOf(MapGroupResult.Created.class, logic.mapGroup("wardens", GOV_42));
 
         Assertions.assertEquals(POLICE_ON_42, logic.findGroupParty("police"));
-        Assertions.assertEquals(new Party.Group("wardens", 42, AccountKind.GOVERNMENT),
+        Assertions.assertEquals(Party.group("wardens", 42, AccountKind.GOVERNMENT),
                 logic.findGroupParty("wardens"));
     }
 }

@@ -26,7 +26,7 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
     private static final UUID WORLD_ID = UUID.randomUUID();
     private static final UUID PLAYER_A = UUID.randomUUID();
     private static final UUID PLAYER_B = UUID.randomUUID();
-    private static final Party.Account GOV = new Party.Account(42, AccountKind.GOVERNMENT);
+    private static final Party.Account GOV = Party.account(42, AccountKind.GOVERNMENT);
 
     private static int regionCounter;
 
@@ -50,7 +50,7 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
     void account_listsTheLandItIsAuthorityOf() {
         String first = freeholdOf(GOV, PLAYER_A);
         String second = freeholdOf(GOV, PLAYER_B);
-        freeholdOf(new Party.Personal(PLAYER_A), PLAYER_B);
+        freeholdOf(Party.personal(PLAYER_A), PLAYER_B);
 
         ListResult result = logic.listRegions(GOV, 10, 0);
         Assertions.assertEquals(2, result.authorityCount());
@@ -75,7 +75,7 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
 
     @Test
     void group_listsItsLand() {
-        Party.Group wardens = new Party.Group("wardens", GOV.accountId(), GOV.kind());
+        Party.Group wardens = Party.group("wardens", GOV.accountId(), GOV.kind());
         Assertions.assertInstanceOf(RealtyBackend.MapGroupResult.Created.class, logic.mapGroup("wardens", GOV));
         String regionId = freeholdOf(wardens, PLAYER_A);
         freeholdOf(GOV, PLAYER_A);
@@ -89,12 +89,12 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
     @Test
     void player_matchesTheUuidForm() {
         freeholdOf(GOV, PLAYER_A);
-        freeholdOf(new Party.Personal(PLAYER_A), PLAYER_B);
-        leaseholdOf(new Party.Personal(PLAYER_A));
+        freeholdOf(Party.personal(PLAYER_A), PLAYER_B);
+        leaseholdOf(Party.personal(PLAYER_A));
         String rented = leaseholdOf(GOV);
         logic.rentRegion(rented, WORLD_ID, PLAYER_A);
 
-        Party.Personal a = new Party.Personal(PLAYER_A);
+        Party.Personal a = Party.personal(PLAYER_A);
         ListResult byParty = logic.listRegions(a, 10, 0);
         Assertions.assertEquals(logic.listRegions(PLAYER_A, 10, 0), byParty);
         Assertions.assertEquals(4, byParty.totalCount());
@@ -108,17 +108,17 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
     void countRegionsByLandlord_countsPerParty() {
         leaseholdOf(GOV);
         leaseholdOf(GOV);
-        leaseholdOf(new Party.Personal(PLAYER_A));
+        leaseholdOf(Party.personal(PLAYER_A));
 
         Assertions.assertEquals(2, logic.countRegionsByLandlord(GOV));
-        Assertions.assertEquals(1, logic.countRegionsByLandlord(new Party.Personal(PLAYER_A)));
+        Assertions.assertEquals(1, logic.countRegionsByLandlord(Party.personal(PLAYER_A)));
     }
 
     @Test
     void landlord_listsTheLeasesThePartyLets() {
         String first = leaseholdOf(GOV);
         String second = leaseholdOf(GOV);
-        leaseholdOf(new Party.Personal(PLAYER_A));
+        leaseholdOf(Party.personal(PLAYER_A));
 
         ListResult result = logic.listRegions(GOV, 10, 0);
         Assertions.assertEquals(2, result.landlordCount());
@@ -135,7 +135,7 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
         String first = freeholdOf(GOV, PLAYER_A);
         String second = freeholdOf(GOV, PLAYER_B);
         String third = freeholdOf(GOV, null);
-        freeholdOf(new Party.Personal(PLAYER_A), PLAYER_B);
+        freeholdOf(Party.personal(PLAYER_A), PLAYER_B);
 
         ListResult result = logic.listRegions(GOV, 10, 0);
         Assertions.assertEquals(3, result.authorityCount());
@@ -163,8 +163,8 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
     @Test
     void player_hasAllFourParts() {
         String owned = freeholdOf(GOV, PLAYER_A);
-        String authority = freeholdOf(new Party.Personal(PLAYER_A), PLAYER_B);
-        String let = leaseholdOf(new Party.Personal(PLAYER_A));
+        String authority = freeholdOf(Party.personal(PLAYER_A), PLAYER_B);
+        String let = leaseholdOf(Party.personal(PLAYER_A));
         String rented = leaseholdOf(GOV);
         logic.rentRegion(rented, WORLD_ID, PLAYER_A);
 
@@ -179,7 +179,7 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
 
     @Test
     void paging_runsOverTheFourPartsInOrder() {
-        Party.Personal a = new Party.Personal(PLAYER_A);
+        Party.Personal a = Party.personal(PLAYER_A);
         Set<String> owned = Set.of(freeholdOf(GOV, PLAYER_A), freeholdOf(GOV, PLAYER_A));
         Set<String> authority = Set.of(freeholdOf(a, PLAYER_B), freeholdOf(a, PLAYER_B));
         Set<String> let = Set.of(leaseholdOf(a), leaseholdOf(a));
@@ -209,7 +209,7 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
         // Created out of name order and across two worlds, so a page that is not ordered on the
         // region shows it. Paged one region at a time, every part comes back complete, with
         // nothing repeated, in the order of the region's name.
-        Party.Personal a = new Party.Personal(PLAYER_A);
+        Party.Personal a = Party.personal(PLAYER_A);
         UUID otherWorld = UUID.randomUUID();
         List<String> names = List.of("order_e", "order_b", "order_d", "order_a", "order_c");
         for (int i = 0; i < names.size(); i++) {
@@ -272,7 +272,7 @@ class PartyPortfolioTest extends AbstractDatabaseTest {
         freeholdOf(GOV, PLAYER_A);
         int partiesBefore = partyRows();
 
-        Party.Account stranger = new Party.Account(99, AccountKind.BUSINESS);
+        Party.Account stranger = Party.account(99, AccountKind.BUSINESS);
         Assertions.assertEquals(new ListResult(0, 0, 0, 0, List.of(), List.of(), List.of(), List.of()),
                 logic.listRegions(stranger, 10, 0));
         Assertions.assertEquals(new RealtyBackend.SingleCategoryResult(0, List.of()),

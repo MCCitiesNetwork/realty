@@ -28,7 +28,7 @@ public class TitleTransferEvent extends RealtyRegionEvent implements Cancellable
      * The new title holder, or {@code null} if the title is being cleared.
      */
     public @Nullable Party getNewTitleHolder() {
-        return this.newTitleHolderId == null ? null : new Party.Personal(this.newTitleHolderId);
+        return this.newTitleHolderId == null ? null : Party.personal(this.newTitleHolderId);
     }
 
     /**
