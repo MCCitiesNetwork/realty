@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.settings.DefaultParties;
 import net.democracycraft.treasury.api.TreasuryApi;
 import net.democracycraft.treasury.model.economy.Account;
 import net.democracycraft.treasury.model.economy.AccountType;
@@ -184,6 +185,23 @@ public final class PartyFlags {
         } else {
             onResolved.accept(fallback);
         }
+    }
+
+    /**
+     * Whether a command that creates a freehold without {@code --titleholder} must refuse,
+     * because a default titleholder is set but could not be resolved. Falling back to no
+     * titleholder would put up for sale a plot that the setting meant to give to a player.
+     * Tells {@code sender} why when it refuses.
+     */
+    public static boolean refuseUnresolvedTitleholder(@NotNull MessageContainer messages,
+                                                      @NotNull CommandSender sender,
+                                                      @NotNull DefaultParties defaults) {
+        if (!defaults.freeholdTitleholderUnresolved()) {
+            return false;
+        }
+        sender.sendMessage(messages.messageFor(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED,
+                Placeholder.unparsed("role", "titleholder")));
+        return true;
     }
 
     /**

@@ -68,14 +68,11 @@ public final class RegionNotificationListener implements Listener {
 
     @EventHandler
     public void onRegionBought(@NotNull RegionBoughtEvent event) {
-        UUID seller = event.getPreviousTitleHolderId();
-        if (seller == null) {
-            return;
-        }
-        notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_REGION_BOUGHT,
-                Placeholder.unparsed("player", partyNames.display(event.getBuyerId())),
-                Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
-                Placeholder.unparsed("region", event.getRegionId()));
+        Party.playerUuidOf(event.getPreviousTitleHolder()).ifPresent(seller ->
+                notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_REGION_BOUGHT,
+                        Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
+                        Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
+                        Placeholder.unparsed("region", event.getRegionId())));
     }
 
     @EventHandler

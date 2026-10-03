@@ -65,7 +65,7 @@ final class PartyRegionsListing {
             case "owned" -> handleOwned(ref, party, page, pageSize, offset);
             case "rented" -> handleRented(ref, party, page, pageSize, offset);
             default -> throw ApiException.badRequest("INVALID_CATEGORY",
-                    "Query parameter 'category' must be one of [all, owned, rented], got '" + category + "'");
+                    "Query parameter 'category' must be one of [all, owned, rented]");
         };
 
         ctx.json(response);

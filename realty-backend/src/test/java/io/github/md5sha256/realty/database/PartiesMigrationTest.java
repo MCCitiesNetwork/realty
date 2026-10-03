@@ -376,4 +376,117 @@ class PartiesMigrationTest extends AbstractDatabaseTest {
             }
         }
     }
+
+    /** The manual fix in docs/release-notes/2.0.0.md, values substituted. Keep the two in step. */
+    private static final String MANUAL_FIX = """
+            SET @account = NULL, @legacy = NULL, @new = NULL, @old = NULL;
+            SET @account = %d;
+            SET @legacy = '%s';
+            SET @old = (SELECT partyId FROM PersonalParty WHERE playerUuid = @legacy);
+            SET @new = (SELECT partyId FROM AccountParty WHERE accountId = @account);
+            INSERT INTO Party (kind) SELECT 'ACCOUNT' FROM DUAL WHERE @old IS NOT NULL AND @new IS NULL AND @account IS NOT NULL;
+            INSERT INTO AccountParty (partyId, accountId, accountKind)
+                SELECT LAST_INSERT_ID(), @account, 'GOVERNMENT' FROM DUAL WHERE @old IS NOT NULL AND @new IS NULL AND @account IS NOT NULL;
+            SET @new = (SELECT partyId FROM AccountParty WHERE accountId = @account AND accountKind = 'GOVERNMENT');
+            UPDATE LeaseholdContract SET landlordPartyId  = @new WHERE landlordPartyId  = @old AND @new IS NOT NULL;
+            UPDATE LeaseholdHistory  SET landlordPartyId  = @new WHERE landlordPartyId  = @old AND @new IS NOT NULL;
+            UPDATE FreeholdContract  SET authorityPartyId = @new WHERE authorityPartyId = @old AND @new IS NOT NULL;
+            UPDATE FreeholdHistory   SET authorityPartyId = @new WHERE authorityPartyId = @old AND @new IS NOT NULL;
+            """;
+
+    private static void runManualFix(Connection connection, int accountId, UUID legacy) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            for (String sql : MANUAL_FIX.formatted(accountId, legacy).split(";\\s*\\n")) {
+                if (!sql.isBlank()) {
+                    statement.execute(sql);
+                }
+            }
+        }
+    }
+
+    @Test
+    void manualFix_movesTheLegacyUuidToTheAccountParty() throws SQLException {
+        try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD)) {
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                runManualFix(connection, 42, LANDLORD_AND_AUTHORITY);
+                int accountPartyId = count(statement, "SELECT partyId FROM AccountParty WHERE accountId = 42 AND accountKind = 'GOVERNMENT'");
+                Assertions.assertEquals(1, count(statement, "SELECT COUNT(*) FROM Party WHERE partyId = " + accountPartyId + " AND kind = 'ACCOUNT'"));
+                Assertions.assertEquals(1, count(statement, "SELECT COUNT(*) FROM LeaseholdContract WHERE landlordPartyId = " + accountPartyId));
+                Assertions.assertEquals(1, count(statement, "SELECT COUNT(*) FROM FreeholdContract WHERE authorityPartyId = " + accountPartyId));
+                Assertions.assertEquals(1, count(statement, "SELECT COUNT(*) FROM FreeholdHistory WHERE authorityPartyId = " + accountPartyId));
+                Assertions.assertEquals(0, count(statement, "SELECT COUNT(*) FROM LeaseholdHistory WHERE landlordPartyId = " + accountPartyId),
+                        "player B's history row is not the legacy UUID's");
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
+    @Test
+    void manualFix_runTwice_changesNothingTheSecondTime() throws SQLException {
+        try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD)) {
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                runManualFix(connection, 42, LANDLORD_AND_AUTHORITY);
+                int parties = count(statement, "SELECT COUNT(*) FROM Party");
+                runManualFix(connection, 42, LANDLORD_AND_AUTHORITY);
+                Assertions.assertEquals(parties, count(statement, "SELECT COUNT(*) FROM Party"));
+                Assertions.assertEquals(1, count(statement, "SELECT COUNT(*) FROM AccountParty WHERE accountId = 42"));
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
+    @Test
+    void manualFix_unknownUuid_createsNoParty() throws SQLException {
+        try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD)) {
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                int parties = count(statement, "SELECT COUNT(*) FROM Party");
+                runManualFix(connection, 42, UUID.fromString("3a1c88f0-0000-0000-0000-0000000000ff"));
+                Assertions.assertEquals(parties, count(statement, "SELECT COUNT(*) FROM Party"), "no base row without a kind row, and no account party");
+                Assertions.assertEquals(0, count(statement, "SELECT COUNT(*) FROM AccountParty"));
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
+    @Test
+    void manualFix_accountLineFailed_createsNothing() throws SQLException {
+        try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD)) {
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                int parties = count(statement, "SELECT COUNT(*) FROM Party");
+                // The line SET @account = <accountId> failed, so @account is NULL; the script must insert nothing.
+                for (String sql : MANUAL_FIX.formatted(0, LANDLORD_AND_AUTHORITY).replace("SET @account = 0;", "SET @account = NULL;").split(";\\s*\\n")) {
+                    if (!sql.isBlank()) {
+                        statement.execute(sql);
+                    }
+                }
+                Assertions.assertEquals(parties, count(statement, "SELECT COUNT(*) FROM Party"), "no base row without a kind row");
+                Assertions.assertEquals(0, count(statement, "SELECT COUNT(*) FROM AccountParty"));
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
+    @Test
+    void manualFix_accountStoredUnderAnotherKind_movesNothing() throws SQLException {
+        try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD)) {
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                int business = fetchGeneratedId(statement, "INSERT INTO Party (kind) VALUES ('ACCOUNT') RETURNING partyId");
+                statement.executeUpdate("INSERT INTO AccountParty (partyId, accountId, accountKind) VALUES (%d, 42, 'BUSINESS')".formatted(business));
+                runManualFix(connection, 42, LANDLORD_AND_AUTHORITY);
+                Assertions.assertEquals(0, count(statement, "SELECT COUNT(*) FROM LeaseholdContract WHERE landlordPartyId = " + business));
+                Assertions.assertEquals(1, count(statement, "SELECT COUNT(*) FROM AccountParty WHERE accountId = 42"), "no second row for the account");
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
 }

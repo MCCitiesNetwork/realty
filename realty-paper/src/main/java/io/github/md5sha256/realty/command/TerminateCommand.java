@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.ExecutorState;
@@ -104,7 +105,7 @@ public record TerminateCommand(
                                 Placeholder.unparsed("date", date)));
                     }
                     events.fireSync(new LeaseTerminationScheduledEvent(region, success.landlord(),
-                            success.tenantId(), success.terminatedByRole(), success.effectiveDate(),
+                            Party.playerUuidOf(success.tenant()).orElse(null), success.terminatedByRole(), success.effectiveDate(),
                             success.charged()));
                 }
                 case RealtyPaperApi.TerminateResult.NoLeaseholdContract ignored ->

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
@@ -32,6 +33,16 @@ public class AuctionWonPurchaseEvent extends RealtyRegionEvent {
     /**
      * The player who won the auction and is now the new title holder.
      */
+    public @NotNull Party getNewTitleHolder() {
+        return new Party.Personal(this.winnerId);
+    }
+
+    /**
+     * The player who won the auction and is now the new title holder.
+     *
+     * @deprecated use {@link #getNewTitleHolder()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @NotNull UUID getWinnerId() {
         return this.winnerId;
     }
@@ -40,6 +51,17 @@ public class AuctionWonPurchaseEvent extends RealtyRegionEvent {
      * The previous title holder who received the payment, or {@code null} if the
      * region was previously held only by an authority.
      */
+    public @Nullable Party getPreviousTitleHolder() {
+        return this.previousTitleHolderId == null ? null : new Party.Personal(this.previousTitleHolderId);
+    }
+
+    /**
+     * The previous title holder who received the payment, or {@code null} if the
+     * region was previously held only by an authority.
+     *
+     * @deprecated use {@link #getPreviousTitleHolder()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @Nullable UUID getPreviousTitleHolderId() {
         return this.previousTitleHolderId;
     }

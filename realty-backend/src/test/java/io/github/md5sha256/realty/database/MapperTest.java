@@ -1677,8 +1677,6 @@ class MapperTest extends AbstractDatabaseTest {
         void history_withoutTenantStoresNull() throws SQLException {
             String regionId = uniqueRegionId();
             createLeaseholdRegion(regionId, AUTHORITY);
-            // setDuration rather than setPrice: setPrice reads the freehold first, and the
-            // freehold's SQL is not moved onto parties until the authority is.
             Assertions.assertInstanceOf(RealtyBackend.SetDurationResult.Success.class,
                     logic.setDuration(regionId, WORLD_ID, 3600));
 

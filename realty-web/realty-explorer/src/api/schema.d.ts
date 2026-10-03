@@ -525,7 +525,7 @@ export interface components {
             totalPages: number;
             entries: components["schemas"]["HistoryResponse_Entry"][];
         };
-        /** @description One event. `kind` decides which of the remaining fields are present; the others are omitted rather than sent as null, so a consumer cannot mistake "this kind has no such field" for "this field happened to be empty". Switch on `kind`: freehold carries buyer, authority and price; leasehold carries tenant, landlord and the lease terms; agent carries agent and actor. */
+        /** @description One event. `kind` decides which of the remaining fields are present; the others are omitted rather than sent as null, so a consumer cannot mistake "this kind has no such field" for "this field happened to be empty". Switch on `kind`: freehold carries buyer, authority and price; leasehold carries tenant, landlord and the lease terms; agent carries agent and actor. `buyer` and `tenant` are left out when the event had none. */
         HistoryResponse_Entry: {
             /** @enum {string} */
             kind: "freehold" | "leasehold" | "agent";
@@ -550,7 +550,7 @@ export interface components {
             totalPages: number;
             events: components["schemas"]["ActivityResponse_Event"][];
         };
-        /** @description The same polymorphic shape as HistoryResponse_Entry, with the region and world added since a server-wide feed must say where each event happened. `kind` decides which party and detail fields are present; the others are omitted rather than sent as null. */
+        /** @description The same polymorphic shape as HistoryResponse_Entry, with the region and world added since a server-wide feed must say where each event happened. `kind` decides which party and detail fields are present; the others are omitted rather than sent as null. `buyer` and `tenant` are left out when the event had none. */
         ActivityResponse_Event: {
             /** @enum {string} */
             kind: "freehold" | "leasehold" | "agent";

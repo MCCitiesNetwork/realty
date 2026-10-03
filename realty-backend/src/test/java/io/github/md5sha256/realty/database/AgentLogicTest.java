@@ -152,7 +152,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
         @DisplayName("an invitee whose groups were unknown at invite time is refused on accept")
         void inviteeWhoseGroupWasUnknown_isRefusedOnAccept() {
             String regionId = governmentFreehold();
-            // D9: the invitee was offline, so the invite saw a context that manages nothing.
+            // The invitee was offline, so the invite saw a context that manages nothing.
             Assertions.assertInstanceOf(InviteAgentResult.Success.class,
                     logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false));
 

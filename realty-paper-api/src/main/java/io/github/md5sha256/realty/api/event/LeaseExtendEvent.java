@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.HandlerList;
@@ -28,6 +29,16 @@ public class LeaseExtendEvent extends RealtyRegionEvent implements Cancellable {
     /**
      * The tenant attempting to extend the lease.
      */
+    public @NotNull Party getTenant() {
+        return new Party.Personal(this.tenantId);
+    }
+
+    /**
+     * The tenant attempting to extend the lease.
+     *
+     * @deprecated use {@link #getTenant()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @NotNull UUID getTenantId() {
         return this.tenantId;
     }

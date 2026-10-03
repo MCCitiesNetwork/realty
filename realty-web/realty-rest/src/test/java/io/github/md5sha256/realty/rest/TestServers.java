@@ -823,6 +823,12 @@ final class TestServers {
      * world named {@code world}.
      */
     static @NotNull RealtyRestServer withPartyHoldings(@NotNull PartyStub stub, int maxPageSize) {
+        return withPartyHoldings(stub, maxPageSize, ModuleClient.disabled());
+    }
+
+    /** As {@link #withPartyHoldings(PartyStub, int)}, wired to the given module. */
+    static @NotNull RealtyRestServer withPartyHoldings(@NotNull PartyStub stub, int maxPageSize,
+                                                       @NotNull ModuleClient module) {
         RealtyBackend.ListResult none = new RealtyBackend.ListResult(0, 0, 0, List.of(), List.of(), List.of());
         InvocationHandler handler = (proxy, method, args) -> {
             switch (method.getName()) {
@@ -854,7 +860,7 @@ final class TestServers {
         RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, 0, null);
         return new RealtyRestServer(backend,
                 new StubDatabase(false, List.of(new RealtyWorldEntity(worldId, "world")), false, List.of(), List.of(rented)),
-                settings, ModuleClient.disabled());
+                settings, module);
     }
 
     private static @NotNull RealtyBackend playerBackend(@NotNull RealtyBackend.ListResult listResult,

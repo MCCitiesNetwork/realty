@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
@@ -370,15 +371,16 @@ public record OfferCommandGroup(
                 case RealtyPaperApi.PayOfferResult.FullyPaid fullyPaid -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
-                    if (fullyPaid.previousTitleHolderId() != null) {
-                        events.fireSync(new RealtyNotificationEvent(List.of(fullyPaid.previousTitleHolderId()),
+                    UUID previousTitleHolderId = Party.playerUuidOf(fullyPaid.previousTitleHolder()).orElse(null);
+                    if (previousTitleHolderId != null) {
+                        events.fireSync(new RealtyNotificationEvent(List.of(previousTitleHolderId),
                                 MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("region", fullyPaid.regionId())), region));
                     }
                     events.fireSync(new OfferPurchaseCompletedEvent(region, sender.getUniqueId(),
-                            fullyPaid.previousTitleHolderId(), fullyPaid.amount()));
+                            previousTitleHolderId, fullyPaid.amount()));
                 }
                 case RealtyPaperApi.PayOfferResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,

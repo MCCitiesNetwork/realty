@@ -4,11 +4,13 @@ import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.javalin.testtools.JavalinTest;
 import io.javalin.testtools.Response;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.UUID;
 
@@ -161,6 +163,45 @@ class PartyRegionsEndpointTest {
             Response response = client.get("/v1/parties/government/" + TestServers.ACCOUNT_ID + "/regions");
             Assertions.assertEquals(200, response.code());
             Assertions.assertTrue(response.body().string().contains("\"town_hall\""));
+        });
+    }
+
+    @Test
+    void accountNobodyNames_asksTheModuleForNothing() {
+        List<String> moduleCalls = new java.util.concurrent.CopyOnWriteArrayList<>();
+        ModuleClient module = (ModuleClient) Proxy.newProxyInstance(ModuleClient.class.getClassLoader(),
+                new Class<?>[]{ModuleClient.class}, (proxy, method, args) -> {
+                    moduleCalls.add(method.getName());
+                    throw new AssertionError("the module was asked: " + method.getName());
+                });
+        JavalinTest.test(TestServers.withPartyHoldings(new TestServers.PartyStub(), 100, module).javalin(),
+                (server, client) -> {
+                    Response response = client.get("/v1/parties/business/7/regions");
+                    Assertions.assertEquals(200, response.code());
+                    String body = response.body().string();
+                    Assertions.assertTrue(body.contains("\"player\":{\"kind\":\"business\",\"id\":\"7\",\"name\":null}"), body);
+                    Assertions.assertTrue(body.contains("\"totalCount\":0"), body);
+                    Assertions.assertEquals(List.of(), moduleCalls);
+                });
+    }
+
+    @Test
+    void unknownCategory_is400AndIsNotEchoed() {
+        JavalinTest.test(TestServers.withPartyHoldings(new TestServers.PartyStub(), 100).javalin(), (server, client) -> {
+            Response response = client.get("/v1/parties/business/42/regions?category=owned2");
+            Assertions.assertEquals(400, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains("INVALID_CATEGORY"), body);
+            Assertions.assertFalse(body.contains("owned2"), body);
+        });
+    }
+
+    @Test
+    void pageSoLargeItsOffsetOverflows_is400Not500() {
+        JavalinTest.test(TestServers.withPartyHoldings(new TestServers.PartyStub(), 100).javalin(), (server, client) -> {
+            Response response = client.get("/v1/parties/business/42/regions?page=2147483647");
+            Assertions.assertEquals(400, response.code());
+            Assertions.assertTrue(response.body().string().contains("INVALID_PAGE"));
         });
     }
 

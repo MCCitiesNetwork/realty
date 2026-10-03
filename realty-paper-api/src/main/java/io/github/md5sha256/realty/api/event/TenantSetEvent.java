@@ -32,6 +32,16 @@ public class TenantSetEvent extends RealtyRegionEvent {
     /**
      * The new tenant, or {@code null} if the tenancy was cleared.
      */
+    public @Nullable Party getNewTenant() {
+        return this.newTenantId == null ? null : new Party.Personal(this.newTenantId);
+    }
+
+    /**
+     * The new tenant, or {@code null} if the tenancy was cleared.
+     *
+     * @deprecated use {@link #getNewTenant()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @Nullable UUID getNewTenantId() {
         return this.newTenantId;
     }
@@ -39,6 +49,16 @@ public class TenantSetEvent extends RealtyRegionEvent {
     /**
      * The previous tenant, or {@code null} if there was none.
      */
+    public @Nullable Party getPreviousTenant() {
+        return this.previousTenantId == null ? null : new Party.Personal(this.previousTenantId);
+    }
+
+    /**
+     * The previous tenant, or {@code null} if there was none.
+     *
+     * @deprecated use {@link #getPreviousTenant()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @Nullable UUID getPreviousTenantId() {
         return this.previousTenantId;
     }

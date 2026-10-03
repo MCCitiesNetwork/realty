@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -52,6 +53,7 @@ class DefaultPartiesTest {
         assertEquals(GOV, parties.freeholdAuthority());
         assertEquals(GOV, parties.leaseholdLandlord());
         assertEquals(steve, parties.freeholdTitleholder());
+        assertFalse(parties.freeholdTitleholderUnresolved());
         assertTrue(parties.errors().isEmpty());
     }
 
@@ -91,6 +93,7 @@ class DefaultPartiesTest {
         DefaultParties parties = DefaultParties.resolve(settings(GOV_SETTING, GOV_SETTING, GOV_SETTING), resolver);
 
         assertNull(parties.freeholdTitleholder());
+        assertTrue(parties.freeholdTitleholderUnresolved());
         assertEquals(1, parties.errors().size());
         assertTrue(parties.errors().getFirst().contains("default-freehold-titleholder"));
     }
@@ -102,7 +105,28 @@ class DefaultPartiesTest {
         DefaultParties parties = DefaultParties.resolve(settings(GOV_SETTING, GOV_SETTING, null), resolver);
 
         assertNull(parties.freeholdTitleholder());
+        assertFalse(parties.freeholdTitleholderUnresolved());
         assertTrue(parties.errors().isEmpty());
+    }
+
+    @Test
+    void unknownTitleholder_isUnresolvedNotAbsent() {
+        govResolves();
+        when(resolver.resolve("Nobody", null, null))
+                .thenReturn(new PartyResolver.Resolution.Refused(MessageKeys.COMMON_PLAYER_NOT_FOUND, "Nobody"));
+
+        DefaultParties parties = DefaultParties.resolve(
+                settings(GOV_SETTING, GOV_SETTING, new PartySetting("Nobody", null, null)), resolver);
+
+        assertNull(parties.freeholdTitleholder());
+        assertTrue(parties.freeholdTitleholderUnresolved());
+        assertEquals(1, parties.errors().size());
+        assertTrue(parties.errors().getFirst().contains("default-freehold-titleholder"));
+    }
+
+    @Test
+    void beforeTheFirstResolve_theTitleholderIsUnresolved() {
+        assertTrue(DefaultParties.unresolved().freeholdTitleholderUnresolved());
     }
 
     @Test

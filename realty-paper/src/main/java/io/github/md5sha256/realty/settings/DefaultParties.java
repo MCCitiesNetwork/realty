@@ -14,11 +14,16 @@ import java.util.UUID;
  * The default parties of {@code settings.yml}, resolved. A default that could not be resolved is
  * {@code null} and has a line in {@code errors}; the commands that need it refuse to run.
  *
- * @param freeholdTitleholder a player, or {@code null} for a region with no titleholder
+ * @param freeholdTitleholder           a player, or {@code null} for a region with no titleholder
+ * @param freeholdTitleholderUnresolved whether a default titleholder is set but could not be
+ *                                      resolved. {@code freeholdTitleholder} is then {@code null},
+ *                                      and a command must refuse rather than create a freehold
+ *                                      that nobody holds.
  */
 public record DefaultParties(@Nullable Party freeholdAuthority,
                              @Nullable Party leaseholdLandlord,
                              @Nullable UUID freeholdTitleholder,
+                             boolean freeholdTitleholderUnresolved,
                              @NotNull List<String> errors) {
 
     private static final String AUTHORITY_KEY = "default-freehold-authority";
@@ -27,7 +32,7 @@ public record DefaultParties(@Nullable Party freeholdAuthority,
 
     /** No default is resolved yet, so every command that needs one refuses. */
     public static @NotNull DefaultParties unresolved() {
-        return new DefaultParties(null, null, null, List.of());
+        return new DefaultParties(null, null, null, true, List.of());
     }
 
     /**
@@ -38,8 +43,10 @@ public record DefaultParties(@Nullable Party freeholdAuthority,
         List<String> errors = new ArrayList<>();
         Party authority = resolveRequired(AUTHORITY_KEY, settings.defaultFreeholdAuthority(), resolver, errors);
         Party landlord = resolveRequired(LANDLORD_KEY, settings.defaultLeaseholdLandlord(), resolver, errors);
-        UUID titleholder = resolveTitleholder(settings.defaultFreeholdTitleholder(), resolver, errors);
-        return new DefaultParties(authority, landlord, titleholder, List.copyOf(errors));
+        PartySetting titleholderSetting = settings.defaultFreeholdTitleholder();
+        UUID titleholder = resolveTitleholder(titleholderSetting, resolver, errors);
+        boolean titleholderUnresolved = titleholderSetting != null && titleholder == null;
+        return new DefaultParties(authority, landlord, titleholder, titleholderUnresolved, List.copyOf(errors));
     }
 
     private static @Nullable Party resolveRequired(@NotNull String key, @Nullable PartySetting setting,

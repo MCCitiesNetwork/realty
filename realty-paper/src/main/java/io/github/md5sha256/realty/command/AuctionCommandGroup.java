@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
@@ -332,15 +333,16 @@ public record AuctionCommandGroup(
                 case RealtyPaperApi.PayBidResult.FullyPaid fullyPaid -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
-                    if (fullyPaid.previousTitleHolderId() != null) {
-                        events.fireSync(new RealtyNotificationEvent(List.of(fullyPaid.previousTitleHolderId()),
+                    UUID previousTitleHolderId = Party.playerUuidOf(fullyPaid.previousTitleHolder()).orElse(null);
+                    if (previousTitleHolderId != null) {
+                        events.fireSync(new RealtyNotificationEvent(List.of(previousTitleHolderId),
                                 MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("region", fullyPaid.regionId())), region));
                     }
                     events.fireSync(new AuctionWonPurchaseEvent(region, sender.getUniqueId(),
-                            fullyPaid.previousTitleHolderId(), fullyPaid.amount()));
+                            previousTitleHolderId, fullyPaid.amount()));
                 }
                 case RealtyPaperApi.PayBidResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_NO_PAYMENT_RECORD,

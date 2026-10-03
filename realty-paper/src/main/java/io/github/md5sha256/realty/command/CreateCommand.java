@@ -211,8 +211,11 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
             return;
         }
         Double price = ctx.flags().getValue(PRICE_FLAG, null);
-        UUID titleholder = ctx.flags()
-                .getValue(TITLEHOLDER_FLAG, defaults.get().freeholdTitleholder());
+        UUID givenTitleholder = ctx.flags().getValue(TITLEHOLDER_FLAG, null);
+        if (givenTitleholder == null && PartyFlags.refuseUnresolvedTitleholder(messages, player, defaults.get())) {
+            return;
+        }
+        UUID titleholder = givenTitleholder != null ? givenTitleholder : defaults.get().freeholdTitleholder();
         String authorityName = ctx.flags().getValue(AUTHORITY_FLAG, null);
         PartyFlags.resolveOrDefault(partyResolver, executorState, messages, player, AUTHORITY_FLAG, authorityName, flag,
                 defaults.get().freeholdAuthority(),
@@ -247,7 +250,8 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
         }
         regionManager.addRegion(wgRegion);
 
-        api.createFreehold(region, price, authority, titleholder)
+        api.createFreehold(region, price, authority,
+                        titleholder == null ? null : new Party.Personal(titleholder))
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyPaperApi.CreateFreeholdResult.Success ignored -> {

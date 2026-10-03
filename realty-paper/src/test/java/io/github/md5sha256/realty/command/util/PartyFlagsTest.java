@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.settings.DefaultParties;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.command.CommandSender;
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -131,6 +133,23 @@ class PartyFlagsTest {
         resolveOrDefault(null, null, DEFAULT_LANDLORD);
         assertEquals(DEFAULT_LANDLORD, resolved.get());
         verifyNoInteractions(resolver);
+        verify(sender, never()).sendMessage(any(Component.class));
+    }
+
+    @Test
+    void unresolvedDefaultTitleholder_isRefused() {
+        DefaultParties defaults = new DefaultParties(GOV_SECURITY, DEFAULT_LANDLORD, null, true, List.of());
+        messages.setMessage(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED, "no default <role>");
+
+        assertTrue(PartyFlags.refuseUnresolvedTitleholder(messages, sender, defaults));
+        assertEquals("no default titleholder", onlyMessageSent());
+    }
+
+    @Test
+    void absentDefaultTitleholder_isNotRefused() {
+        DefaultParties defaults = new DefaultParties(GOV_SECURITY, DEFAULT_LANDLORD, null, false, List.of());
+
+        assertFalse(PartyFlags.refuseUnresolvedTitleholder(messages, sender, defaults));
         verify(sender, never()).sendMessage(any(Component.class));
     }
 

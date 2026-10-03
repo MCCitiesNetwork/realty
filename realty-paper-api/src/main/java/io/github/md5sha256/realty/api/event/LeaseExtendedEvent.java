@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
@@ -28,6 +29,16 @@ public class LeaseExtendedEvent extends RealtyRegionEvent {
     /**
      * The tenant whose lease was extended.
      */
+    public @NotNull Party getTenant() {
+        return new Party.Personal(this.tenantId);
+    }
+
+    /**
+     * The tenant whose lease was extended.
+     *
+     * @deprecated use {@link #getTenant()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @NotNull UUID getTenantId() {
         return this.tenantId;
     }
