@@ -99,6 +99,8 @@ import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.PartyWallets;
+import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.economy.TreasuryEconomyProvider;
 import io.github.md5sha256.realty.economy.VaultEconomyProvider;
 import net.milkbowl.vault.economy.Economy;
@@ -416,7 +418,8 @@ public final class Realty extends JavaPlugin {
                     .getRegistration(net.democracycraft.treasury.api.TreasuryApi.class);
             if (registration != null) {
                 getLogger().info("Detected Treasury, using Treasury as the economy provider (full ledger support)");
-                return new TreasuryEconomyProvider(registration.getProvider());
+                var treasury = registration.getProvider();
+                return new TreasuryEconomyProvider(treasury, new PartyWallets(treasury));
             }
             getLogger().warning("Treasury plugin is loaded but TreasuryApi service is not registered; falling back to Vault");
         }
@@ -543,8 +546,14 @@ public final class Realty extends JavaPlugin {
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.TerminatedLeasehold terminated : terminatedLeaseholds) {
                         if (terminated.refund() > 0 && this.economyProvider != null) {
-                            this.economyProvider.transfer(Party.playerUuidOf(terminated.landlord()).orElse(null), terminated.tenantId(),
-                                    terminated.refund(), "Lease Termination Refund: " + terminated.worldGuardRegionId());
+                            // No player caused this payment, so it has no initiator.
+                            PaymentResult refund = this.economyProvider.transfer(terminated.landlord(),
+                                    new Party.Personal(terminated.tenantId()), terminated.refund(),
+                                    "Lease Termination Refund: " + terminated.worldGuardRegionId(), null);
+                            if (refund instanceof PaymentResult.Failure failure) {
+                                getLogger().warning("Lease termination refund for region "
+                                        + terminated.worldGuardRegionId() + " failed: " + failure.errorMessage());
+                            }
                         }
                         World world = getServer().getWorld(terminated.worldId());
                         if (world != null) {

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptOfferResult;
@@ -245,6 +246,26 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         Assertions.assertNull(titleHolderOf(regionId));
         Assertions.assertEquals(ASKING_PRICE, logic.getRegionInfo(regionId, WORLD_ID).freehold().price());
         Assertions.assertEquals(List.of(), salesRecorded(regionId));
+    }
+
+    @Test
+    void unpaidPurchase_fromAnAccountAuthority_leavesNothingBehind() {
+        // Held by an account authority, which the buyer pays. Treasury refused the
+        // payment, for example because the account was archived since.
+        Party government = new Party.Account(42, AccountKind.GOVERNMENT);
+        String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
+        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, government, null));
+        placeOffer(regionId, OFFERER, 500.0);
+
+        tryToBuyAndFailToPay(regionId, BUYER);
+
+        RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
+        Assertions.assertNull(info.freehold().titleHolderId());
+        Assertions.assertEquals(ASKING_PRICE, info.freehold().price());
+        Assertions.assertEquals(government, info.freehold().authority());
+        Assertions.assertEquals(List.of(), salesRecorded(regionId));
+        Assertions.assertEquals(1, offersOn(regionId).size());
+        Assertions.assertNull(info.lastSoldPrice());
     }
 
     // --- The record that is removed is the one that was written ---
