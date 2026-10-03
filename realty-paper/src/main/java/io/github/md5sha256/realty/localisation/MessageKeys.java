@@ -6,6 +6,7 @@ public final class MessageKeys {
 
     // error
     public static final String ERROR_NO_REGION = "error.no-region";
+    public static final String ERROR_DEFAULT_PARTY_UNRESOLVED = "error.default-party-unresolved";
 
     // common
     public static final String COMMON_PLAYER_NOT_FOUND = "common.player-not-found";
@@ -13,6 +14,28 @@ public final class MessageKeys {
     public static final String COMMON_NO_PERMISSION = "common.no-permission";
     public static final String COMMON_ERROR = "common.error";
     public static final String COMMON_ACTION_CANCELLED = "common.action-cancelled";
+
+    // party
+    public static final String PARTY_UNKNOWN_ACCOUNT = "party.unknown-account";
+    public static final String PARTY_ACCOUNT_AMBIGUOUS = "party.account-ambiguous";
+    public static final String PARTY_ARCHIVED_ACCOUNT = "party.archived-account";
+    public static final String PARTY_TYPE_MISMATCH = "party.type-mismatch";
+    public static final String PARTY_REQUIRES_AUTHORIZATION = "party.requires-authorization";
+    public static final String PARTY_REQUIRES_TREASURY = "party.requires-treasury";
+    public static final String PARTY_GROUP_NOT_MAPPED = "party.group-not-mapped";
+    public static final String PARTY_MULTIPLE_TYPE_FLAGS = "party.multiple-type-flags";
+    public static final String PARTY_TYPE_FLAG_WITHOUT_NAME = "party.type-flag-without-name";
+    public static final String PARTY_NOT_ALLOWED_TO_REASSIGN = "party.not-allowed-to-reassign";
+    public static final String PARTY_NOT_ALLOWED_TO_ASSIGN = "party.not-allowed-to-assign";
+
+    // group
+    public static final String GROUP_MAPPED = "group.mapped";
+    public static final String GROUP_UNMAPPED = "group.unmapped";
+    public static final String GROUP_NOT_MAPPED = "group.not-mapped";
+    public static final String GROUP_STILL_IN_USE = "group.still-in-use";
+    public static final String GROUP_LIST_ENTRY = "group.list-entry";
+    public static final String GROUP_LIST_EMPTY = "group.list-empty";
+    public static final String GROUP_ACCOUNT_FLAG_REQUIRED = "group.account-flag-required";
 
     // accept-offer
     public static final String ACCEPT_OFFER_SUCCESS = "accept-offer.success";

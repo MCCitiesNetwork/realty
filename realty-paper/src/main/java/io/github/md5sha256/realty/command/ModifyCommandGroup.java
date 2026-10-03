@@ -17,11 +17,10 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -57,7 +56,8 @@ public record ModifyCommandGroup(
         @NotNull ActorContexts actors,
         @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
-        @NotNull RealtyEventDispatch events
+        @NotNull RealtyEventDispatch events,
+        @NotNull PartyNames partyNames
 ) implements CustomCommandBean {
 
     @Override
@@ -124,7 +124,7 @@ public record ModifyCommandGroup(
             for (LeaseholdModificationView view : views) {
                 output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_INBOX_ENTRY,
                         Placeholder.unparsed("region", view.worldGuardRegionId()),
-                        Placeholder.unparsed("player", resolveName(view.proposerId())),
+                        Placeholder.unparsed("player", partyNames.display(view.proposerId())),
                         Placeholder.component("changes", describeChanges(view))));
             }
             sender.sendMessage(output);
@@ -158,12 +158,6 @@ public record ModifyCommandGroup(
     private @NotNull Component describeChanges(@NotNull LeaseholdModificationView view) {
         return LeaseholdChangeSummary.render(messages,
                 view.newPrice(), view.newDurationSeconds(), view.newMaxExtensions());
-    }
-
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
-        String name = player.getName();
-        return name != null ? name : uuid.toString();
     }
 
     /** The three ways to resolve a pending proposal, each carrying its success message and resolution name. */

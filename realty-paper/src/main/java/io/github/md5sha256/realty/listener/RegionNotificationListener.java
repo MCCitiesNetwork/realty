@@ -16,11 +16,9 @@ import io.github.md5sha256.realty.api.event.RegionRentedEvent;
 import io.github.md5sha256.realty.api.event.RegionUnrentedEvent;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.jetbrains.annotations.NotNull;
@@ -41,11 +39,14 @@ public final class RegionNotificationListener implements Listener {
 
     private final RealtyEventDispatch events;
     private final MessageContainer messages;
+    private final PartyNames partyNames;
 
     public RegionNotificationListener(@NotNull RealtyEventDispatch events,
-                                      @NotNull MessageContainer messages) {
+                                      @NotNull MessageContainer messages,
+                                      @NotNull PartyNames partyNames) {
         this.events = events;
         this.messages = messages;
+        this.partyNames = partyNames;
     }
 
     @EventHandler
@@ -57,7 +58,7 @@ public final class RegionNotificationListener implements Listener {
         this.events.fireSync(new RealtyNotificationEvent(List.of(seller),
                 MessageKeys.NOTIFICATION_REGION_BOUGHT,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_REGION_BOUGHT,
-                        Placeholder.unparsed("player", resolveName(event.getBuyerId())),
+                        Placeholder.unparsed("player", partyNames.display(event.getBuyerId())),
                         Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
                         Placeholder.unparsed("region", event.getRegionId())),
                 event.getRegion()));
@@ -72,7 +73,7 @@ public final class RegionNotificationListener implements Listener {
         this.events.fireSync(new RealtyNotificationEvent(recipients,
                 MessageKeys.NOTIFICATION_REGION_RENTED,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENTED,
-                        Placeholder.unparsed("player", resolveName(event.getTenant())),
+                        Placeholder.unparsed("player", partyNames.display(event.getTenant())),
                         Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
                         Placeholder.unparsed("region", event.getRegionId())),
                 event.getRegion()));
@@ -87,7 +88,7 @@ public final class RegionNotificationListener implements Listener {
         this.events.fireSync(new RealtyNotificationEvent(recipients,
                 MessageKeys.NOTIFICATION_REGION_UNRENTED,
                 this.messages.messageFor(MessageKeys.NOTIFICATION_REGION_UNRENTED,
-                        Placeholder.unparsed("player", resolveName(event.getTenant())),
+                        Placeholder.unparsed("player", partyNames.display(event.getTenant())),
                         Placeholder.unparsed("region", event.getRegionId()),
                         Placeholder.unparsed("refund", CurrencyFormatter.format(event.getRefund()))),
                 event.getRegion()));
@@ -128,7 +129,7 @@ public final class RegionNotificationListener implements Listener {
             this.events.fireSync(new RealtyNotificationEvent(recipients,
                     MessageKeys.NOTIFICATION_MODIFY_PROPOSED_TENANT,
                     this.messages.messageFor(MessageKeys.NOTIFICATION_MODIFY_PROPOSED_TENANT,
-                            Placeholder.unparsed("player", resolveName(event.getProposerId())),
+                            Placeholder.unparsed("player", partyNames.display(event.getProposerId())),
                             Placeholder.unparsed("region", event.getRegionId())),
                     event.getRegion()));
         }
@@ -228,24 +229,5 @@ public final class RegionNotificationListener implements Listener {
      */
     private static @NotNull List<UUID> recipientsOf(@Nullable Party party) {
         return Party.playerUuidOf(party).map(playerId -> List.of(playerId)).orElse(List.of());
-    }
-
-    /**
-     * Resolves a player's display name for use in notification text, falling
-     * back to the online player and finally the raw UUID when no name is known.
-     */
-    private @NotNull String resolveName(@NotNull UUID playerId) {
-        Player online = Bukkit.getPlayer(playerId);
-        if (online != null) {
-            return online.getName();
-        }
-        OfflinePlayer offline = Bukkit.getOfflinePlayer(playerId);
-        String name = offline.getName();
-        return name != null ? name : playerId.toString();
-    }
-
-    /** Interim: a player by name, any other party by its record form. */
-    private @NotNull String resolveName(@NotNull Party party) {
-        return Party.playerUuidOf(party).map(playerId -> resolveName(playerId)).orElse(party.toString());
     }
 }

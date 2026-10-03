@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.api;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.GroupMapping;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
@@ -637,6 +638,43 @@ public interface RealtyBackend {
 
     /** Every party in the Party table that is not a player: each account and each group. */
     @NotNull List<Party> listNonPlayerParties();
+
+    /**
+     * The group's mapped party, or {@code null} if {@code /realty group map} has not created
+     * one for it yet. The lookup is case-insensitive.
+     */
+    @Nullable Party.Group findGroupParty(@NotNull String groupName);
+
+    // --- Group mapping ---
+
+    sealed interface MapGroupResult {
+        record Created(@NotNull Party.Group group) implements MapGroupResult {}
+        record Changed(@NotNull Party.Group previous, @NotNull Party.Group current) implements MapGroupResult {}
+        record NoChange(@NotNull Party.Group group) implements MapGroupResult {}
+    }
+
+    /**
+     * Gives a permission group an account, which makes the group a party. A group that already
+     * has one is changed in place: its party id stays, so every contract that names the group
+     * keeps naming it and pays or is paid through the new account from now on. The name is
+     * stored in lower case.
+     */
+    @NotNull MapGroupResult mapGroup(@NotNull String groupName, @NotNull Party.Account account);
+
+    sealed interface UnmapGroupResult {
+        record Success(@NotNull Party.Group group) implements UnmapGroupResult {}
+        record NotMapped() implements UnmapGroupResult {}
+        record StillInUse(int contractCount, int historyCount) implements UnmapGroupResult {}
+    }
+
+    /**
+     * Removes a group's account, and with it the group's party. Refused while any contract or
+     * history entry names the group, since those rows point at the party.
+     */
+    @NotNull UnmapGroupResult unmapGroup(@NotNull String groupName);
+
+    /** Every group that has an account, ordered by group name. */
+    @NotNull List<GroupMapping> listGroupMappings();
 
     @NotNull RegionInfo getRegionInfo(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 

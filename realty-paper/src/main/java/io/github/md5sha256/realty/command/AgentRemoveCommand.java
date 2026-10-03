@@ -8,10 +8,10 @@ import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -30,7 +30,8 @@ import java.util.UUID;
  */
 public record AgentRemoveCommand(@NotNull RealtyPaperApi api,
                                   @NotNull MessageContainer messages,
-                                  @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
+                                  @NotNull RealtyEventDispatch events,
+                                  @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -59,7 +60,7 @@ public record AgentRemoveCommand(@NotNull RealtyPaperApi api,
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        String targetName = resolveName(targetId);
+        String targetName = partyNames.display(targetId);
         if (!region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_REMOVE_NOT_FOUND,
                     Placeholder.unparsed("player", targetName),
@@ -90,8 +91,4 @@ public record AgentRemoveCommand(@NotNull RealtyPaperApi api,
         });
     }
 
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        String name = Bukkit.getOfflinePlayer(uuid).getName();
-        return name != null ? name : uuid.toString();
-    }
 }

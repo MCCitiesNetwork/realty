@@ -1,7 +1,11 @@
-# default-freehold-titleholder-uuid is optional, leave it blank to default to no-titleholder
-# default-freehold-titleholder-uuid: "00000000-0000-0000-0000-000000000000"
-default-freehold-authority-uuid: "00000000-0000-0000-0000-000000000000"
-default-leasehold-authority-uuid: "00000000-0000-0000-0000-000000000000"
+# The default landlord and authority. Every default must resolve at startup; one that does not is
+# logged as an error, and the commands that need it refuse to run.
+# type: government | business | system | group. Leave type out for a player.
+# For a player, `uuid: <uuid>` may be given instead of `name`.
+# A business or system account is named as #<id>.
+default-freehold-authority: { name: GovSecurity, type: government }
+default-leasehold-landlord: { name: GovSecurity, type: government }
+# default-freehold-titleholder: { name: Steve }   # players only; leave out for no titleholder
 date-format: "EEE, d MMMM yyyy (HH:mm)"
 # Maximum number of region profiles to re-apply per tick during startup/reload.
 # Lower values reduce lag spikes, higher values complete faster.

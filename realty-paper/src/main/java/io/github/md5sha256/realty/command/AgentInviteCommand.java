@@ -12,6 +12,7 @@ import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -39,7 +40,8 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
                                   @NotNull ActorContexts actors,
                                   @NotNull ExecutorState executorState,
                                   @NotNull MessageContainer messages,
-                                  @NotNull RealtyEventDispatch events) implements CustomCommandBean.Single {
+                                  @NotNull RealtyEventDispatch events,
+                                  @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -68,7 +70,7 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        String inviteeName = resolveName(inviteeId);
+        String inviteeName = partyNames.display(inviteeId);
         if (!region.region().getOwners().contains(player.getUniqueId())) {
             sender.sendMessage(messages.messageFor(MessageKeys.AGENT_INVITE_NOT_TITLEHOLDER,
                     Placeholder.unparsed("region", regionId)));
@@ -129,8 +131,4 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
         });
     }
 
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        String name = Bukkit.getOfflinePlayer(uuid).getName();
-        return name != null ? name : uuid.toString();
-    }
 }

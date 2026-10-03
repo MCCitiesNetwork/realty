@@ -1,12 +1,40 @@
 prefix: <newline><gradient:#00aaff:#008EFF><b>Realty</b> <dark_grey>»<reset>
 error:
     no-region: <prefix> <red>You are not standing in a WorldGuard region.
+    default-party-unresolved: <prefix> <red>The default <role> in settings.yml could not be found, so this command cannot run without <yellow>--<role></yellow>.
 common:
     player-not-found: Player <player> has never played on this server.
     players-only: Only players can use this command.
     no-permission: You do not have permission to run this command.
     error: 'An error occurred: <error>'
     action-cancelled: That action was blocked.
+party:
+    unknown-account: <prefix> <red>No <type> account named <yellow><name></yellow> was found.
+        For a business or system account that is not yours, write <yellow>#<id></yellow>.
+    account-ambiguous: <prefix> <red>You belong to more than one <type> account named
+        <yellow><name></yellow>. Write <yellow>#<id></yellow> instead.
+    archived-account: <prefix> <red>The account <yellow><name></yellow> is archived.
+    type-mismatch: <prefix> <red>The account <yellow><name></yellow> is not a <type> account.
+    requires-authorization: <prefix> <red>The account <yellow><name></yellow> requires
+        authorization for every transfer, so it cannot hold this role.
+    requires-treasury: <prefix> <red>Accounts and groups as parties require Treasury.
+    group-not-mapped: <prefix> <red>The group <yellow><name></yellow> has no account. Run
+        <yellow>/realty group map</yellow> first.
+    multiple-type-flags: <prefix> <red>Use only one of --government, --business, --system
+        and --group.
+    type-flag-without-name: '<prefix> <red>A type flag needs the name it describes: add <yellow>--<role> <name></yellow>.'
+    not-allowed-to-reassign: <prefix> <red>Only an authorizer of <yellow><name></yellow>
+        can give this role to someone else.
+    not-allowed-to-assign: <prefix> <red>You cannot give this role to <yellow><name></yellow>,
+        because you do not act for it.
+group:
+    mapped: <prefix> Group <yellow><group></yellow> now uses the account <green><account></green>.
+    unmapped: <prefix> Group <yellow><group></yellow> no longer has an account.
+    not-mapped: <prefix> <red>The group <yellow><group></yellow> has no account.
+    still-in-use: <prefix> <red>The group <yellow><group></yellow> is still named by <contracts> contracts and <history> history entries. You can change its account with <yellow>/realty group map</yellow>.
+    list-entry: <yellow><group></yellow> → <green><account></green> (<contracts> contracts)
+    list-empty: <prefix> No group has an account yet.
+    account-flag-required: <prefix> <red>Give the account's type with <yellow>--government</yellow>, <yellow>--business</yellow> or <yellow>--system</yellow>. A player or another group cannot be a group's account.
 accept-offer:
     success: <prefix> You have <green>accepted <player>'s offer</green> for region
         <yellow><region>.</yellow>
@@ -29,7 +57,7 @@ agent-invite:
     not-titleholder: <prefix> You are not the title holder of region <yellow><region>.</yellow>
     is-titleholder: <prefix> <player> is the title holder of region <yellow><region></yellow>
         and cannot be invited as an agent.
-    is-authority: <prefix> <player> is the authority of region <yellow><region></yellow>
+    is-authority: <prefix> <player> acts for the authority of region <yellow><region></yellow>
         and cannot be invited as an agent.
     no-freehold: <prefix> Region <yellow><region></yellow> is not a freehold.
     error: '<prefix> Failed to invite agent: <error>'
@@ -259,10 +287,10 @@ help:
         a lease to end after notice</grey>
     - <dark_grey>►</dark_grey> <green>/realty terminate cancel <region></green> <grey>-
         Cancel a scheduled termination</grey>
-    - <dark_grey>►</dark_grey> <green>/realty add <player> <region></green> <grey>-
-        Add a player to a region</grey>
-    - <dark_grey>►</dark_grey> <green>/realty remove <player> <region></green> <grey>-
-        Remove a player from a region</grey>
+    - <dark_grey>►</dark_grey> <green>/realty add <player> <region> [--group]</green> <grey>-
+        Add a player, or with --group a permission group, to a region</grey>
+    - <dark_grey>►</dark_grey> <green>/realty remove <player> <region> [--group]</green> <grey>-
+        Remove a player, or with --group a permission group, from a region</grey>
     offers:
     - <prefix> Offer Commands
     - <dark_grey>►</dark_grey> <yellow>/realty offer send <price> <region></yellow>
@@ -292,21 +320,29 @@ help:
     admin:
     - <prefix> Administrative Commands
     - <dark_grey>►</dark_grey> <red>/realty create freehold <name> [--price <price>]
-        [--titleholder <player>] [--authority <player>]</red> <grey>- Create a freehold</grey>
-    - <dark_grey>►</dark_grey> <red>/realty create leasehold <price> <period> <maxextensions>
-        [--landlord <name>] <region></red> <grey>- Create a leasehold</grey>
+        [--titleholder <player>] [--authority <name> [type flag]]</red> <grey>- Create a freehold</grey>
+    - <dark_grey>►</dark_grey> <red>/realty create leasehold <region> <price> <period> <maxextensions>
+        [--landlord <name> [type flag]]</red> <grey>- Create a leasehold</grey>
     - <dark_grey>►</dark_grey> <red>/realty delete <region> [includeworldguard]</red>
         <grey>- Delete a region</grey>
     - <dark_grey>►</dark_grey> <red>/realty reload</red> <grey>- Reload configuration</grey>
-    - <dark_grey>►</dark_grey> <red>/realty set authority <player> <region></red>
+    - <dark_grey>►</dark_grey> <red>/realty set authority <name> [region] [type flag]</red>
         <gray>- Set freehold authority</gray>
+    - <dark_grey>►</dark_grey> <red>/realty group map <group> <account> <type flag></red>
+        <grey>- Give a permission group an account, so it can be a landlord or authority</grey>
+    - <dark_grey>►</dark_grey> <red>/realty group unmap <group></red> <grey>- Remove a group's
+        account</grey>
+    - <dark_grey>►</dark_grey> <red>/realty group list</red> <grey>- List groups and their
+        accounts</grey>
+    - <dark_grey>►</dark_grey> <grey>A type flag, one of --government, --business, --system
+        or --group, makes the name an account or a group instead of a player. It goes last.</grey>
     management:
     - <prefix> Management Commands
     - <blue>/realty set price <price> <region></blue> <gray>- Set freehold or leasehold
         price</gray>
     - <blue>/realty unset price <region></blue> <gray>- Remove region freehold price</gray>
     - <blue>/realty set duration <duration> <region></blue> <gray>- Set lease duration</gray>
-    - <blue>/realty set landlord <player> <region></blue> <gray>- Set lease landlord</gray>
+    - <blue>/realty set landlord <name> [region] [type flag]</blue> <gray>- Set lease landlord</gray>
     - <blue>/realty set titleholder <player> <region></blue> <gray>- Set freehold
         title holder</gray>
     - <blue>/realty unset titleholder <region></blue> <gray>- Clear freehold title

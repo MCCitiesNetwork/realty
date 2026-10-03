@@ -10,13 +10,12 @@ import org.spongepowered.configurate.objectmapping.meta.Setting;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @ConfigSerializable
 public record Settings(
-        @Setting("default-freehold-authority-uuid") @Required @NotNull UUID defaultFreeholdAuthority,
-        @Setting("default-freehold-titleholder-uuid") @Nullable UUID defaultFreeholdTitleholder,
-        @Setting("default-leasehold-authority-uuid") @Required @NotNull UUID defaultLeaseholdAuthority,
+        @Setting("default-freehold-authority") @Nullable PartySetting defaultFreeholdAuthority,
+        @Setting("default-leasehold-landlord") @Nullable PartySetting defaultLeaseholdLandlord,
+        @Setting("default-freehold-titleholder") @Nullable PartySetting defaultFreeholdTitleholder,
         @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat,
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
         @Setting("subregion-min-volume") int subregionMinVolume,
@@ -32,6 +31,9 @@ public record Settings(
 ) {
 
     public Settings {
+        defaultFreeholdAuthority = PartySetting.nullIfEmpty(defaultFreeholdAuthority);
+        defaultLeaseholdLandlord = PartySetting.nullIfEmpty(defaultLeaseholdLandlord);
+        defaultFreeholdTitleholder = PartySetting.nullIfEmpty(defaultFreeholdTitleholder);
         if (profileReapplyPerTick <= 0) {
             profileReapplyPerTick = 10;
         }
