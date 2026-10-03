@@ -25,6 +25,28 @@ public sealed interface Party {
     }
 
     /**
+     * @return the party that is the player {@code playerUuid}.
+     */
+    static @NotNull Personal personal(@NotNull UUID playerUuid) {
+        return new Personal(playerUuid);
+    }
+
+    /**
+     * @return the party that is the Treasury account {@code accountId} of kind {@code kind}.
+     */
+    static @NotNull Account account(int accountId, @NotNull AccountKind kind) {
+        return new Account(accountId, kind);
+    }
+
+    /**
+     * @return the party that is the group {@code groupName}, paid through the account
+     * {@code accountId}; the name is stored in lower case.
+     */
+    static @NotNull Group group(@NotNull String groupName, int accountId, @NotNull AccountKind accountKind) {
+        return new Group(groupName, accountId, accountKind);
+    }
+
+    /**
      * @return this party's kind.
      */
     default @NotNull PartyKind partyKind() {
