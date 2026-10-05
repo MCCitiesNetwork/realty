@@ -1596,16 +1596,26 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                                          @NotNull Supplier<T> write) {
         return CompletableFuture.supplyAsync(() -> {
             T result = write.get();
-            RealtyBackend.RegionWithState region = successType.isInstance(result)
-                    ? realtyApi.getRegionWithState(regionId, worldId)
-                    : null;
+            RealtyBackend.RegionWithState region = null;
+            if (successType.isInstance(result)) {
+                // The write has committed: a failed read only costs the redraw, not the answer.
+                try {
+                    region = realtyApi.getRegionWithState(regionId, worldId);
+                } catch (RuntimeException ex) {
+                    ex.printStackTrace();
+                }
+            }
             return new TermsWritten<>(result, region);
         }, executorState.dbExec()).thenApplyAsync(written -> {
             RealtyBackend.RegionWithState region = written.region();
-            World world = region != null ? Bukkit.getWorld(worldId) : null;
-            if (world != null) {
-                signTextApplicator.updateLoadedSigns(world, regionId,
-                        region.state(), region.placeholders());
+            try {
+                World world = region != null ? Bukkit.getWorld(worldId) : null;
+                if (world != null) {
+                    signTextApplicator.updateLoadedSigns(world, regionId,
+                            region.state(), region.placeholders());
+                }
+            } catch (RuntimeException ex) {
+                ex.printStackTrace();
             }
             return written.result();
         }, executorState.mainThreadExec());

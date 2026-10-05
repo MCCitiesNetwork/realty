@@ -1158,6 +1158,68 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
+        @DisplayName("a failed state read after the write still returns the result")
+        void stateReadFails() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
+                    .thenThrow(new IllegalStateException("database gone"));
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a failed sign update after the write still returns the result")
+        void signUpdateFails() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+            org.mockito.Mockito.doThrow(new IllegalStateException("sign gone"))
+                    .when(signTextApplicator).updateLoadedSigns(any(), any(), any(), any());
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("the sign is redrawn and the future completes only when the main thread runs")
+        void completesOnTheMainThread() {
+            java.util.ArrayDeque<Runnable> mainThread = new java.util.ArrayDeque<>();
+            ExecutorState controlled = new ExecutorState(mainThread::add,
+                    sameThreadExecutorService(), sameThreadExecutorService());
+            RealtyPaperApiImpl onControlled = new RealtyPaperApiImpl(realtyApi, economyProvider,
+                    controlled, database, regionProfileService, signTextApplicator, signCache,
+                    () -> 604800, new SafeLocationFinder(), stubPlayerNameService(),
+                    accountId -> CompletableFuture.completedFuture(Optional.empty()),
+                    new ActorContexts(treasury, null,
+                            new AtomicReference<>(new Settings(null, null, null,
+                                    new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
+                                    0, 0, 0, 0, AccountManagers.MEMBERS)),
+                            realtyApi));
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+
+            CompletableFuture<RealtyBackend.SetPriceResult> future =
+                    onControlled.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true);
+
+            Assertions.assertFalse(future.isDone());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+            Assertions.assertEquals(1, mainThread.size());
+
+            mainThread.poll().run();
+
+            Assertions.assertTrue(future.isDone());
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
+        }
+
+        @Test
         @DisplayName("unsetPrice success updates loaded signs")
         void unsetPriceSuccess() {
             when(realtyApi.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX))
