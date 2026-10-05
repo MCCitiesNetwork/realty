@@ -566,7 +566,11 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull Party authority);
 
-    /** Sets the price as the console does: no check of who is acting and no tenancy condition. */
+    /**
+     * Sets the price as the console does: no check of who is acting and no tenancy condition.
+     *
+     * <p>The returned future completes on the main thread, so it must not be joined from there.
+     */
     default @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
             @NotNull String regionId, @NotNull UUID worldId, double price) {
         return setPrice(regionId, worldId, price, ActorContext.console(), false);
@@ -586,7 +590,11 @@ public interface RealtyPaperApi {
             @NotNull String regionId, @NotNull UUID worldId, double price,
             @NotNull ActorContext ctx, boolean vacantOnly);
 
-    /** Clears the price as the console does: no check of who is acting. */
+    /**
+     * Clears the price as the console does: no check of who is acting.
+     *
+     * <p>The returned future completes on the main thread, so it must not be joined from there.
+     */
     default @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
             @NotNull String regionId, @NotNull UUID worldId) {
         return unsetPrice(regionId, worldId, ActorContext.console());
@@ -602,7 +610,11 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
-    /** Sets the duration as the console does: no check of who is acting and no tenancy condition. */
+    /**
+     * Sets the duration as the console does: no check of who is acting and no tenancy condition.
+     *
+     * <p>The returned future completes on the main thread, so it must not be joined from there.
+     */
     default @NotNull CompletableFuture<RealtyBackend.SetDurationResult> setDuration(
             @NotNull String regionId, @NotNull UUID worldId, long durationSeconds) {
         return setDuration(regionId, worldId, durationSeconds, ActorContext.console(), false);
@@ -621,7 +633,11 @@ public interface RealtyPaperApi {
             @NotNull String regionId, @NotNull UUID worldId, long durationSeconds,
             @NotNull ActorContext ctx, boolean vacantOnly);
 
-    /** Sets the renewal limit as the console does: no check of who is acting and no tenancy condition. */
+    /**
+     * Sets the renewal limit as the console does: no check of who is acting and no tenancy condition.
+     *
+     * <p>The returned future completes on the main thread, so it must not be joined from there.
+     */
     default @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
             @NotNull String regionId, @NotNull UUID worldId, int maxRenewals) {
         return setMaxRenewals(regionId, worldId, maxRenewals, ActorContext.console(), false);
