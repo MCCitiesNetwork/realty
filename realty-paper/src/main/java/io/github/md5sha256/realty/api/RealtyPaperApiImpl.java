@@ -142,6 +142,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * example, {@code unrent} could compute a refund from an {@code endDate}
      * that a concurrent, not-yet-paid {@code extend} had committed.</p>
      *
+     * <p>A write of a region's terms or parties moves no money but goes through
+     * here too. A purchase or a tenancy is stored before it is paid for, so until
+     * the payment settles the database names a holder who may yet be rolled
+     * back, and a write started then would be authorised by that holder.</p>
+     *
      * @param regionId  the WorldGuard region id
      * @param worldId   the world the region belongs to
      * @param operation factory that builds the operation's future; invoked only
@@ -198,7 +203,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID worldId = region.world().getUID();
         // DB-first: atomically transfer ownership before processing payment.
         // executeBuy uses WHERE price IS NOT NULL, preventing races.
-        return CompletableFuture.supplyAsync(() -> {
+        // Serialized per region so nothing else can act on the region while the
+        // database names a buyer who has not paid: until the payment or its
+        // rollback has finished, that buyer is the stored titleholder.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.BuyResult result = realtyApi.executeBuy(regionId, worldId, buyer, bypassConflict);
             if (result instanceof RealtyBackend.BuyResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -221,7 +229,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new BuyResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     private @NotNull CompletableFuture<BuyResult> handleBuyPayment(
@@ -784,7 +792,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID titleHolderId = Party.playerUuidOf(titleHolder).orElse(null);
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        return CompletableFuture.supplyAsync(() -> {
+        // Serialized per region: see serializeByRegion for why a write waits its turn.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.SetTitleHolderResult result = realtyApi.setTitleHolder(regionId, worldId, titleHolderId, ctx);
             if (result instanceof RealtyBackend.SetTitleHolderResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -819,7 +828,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new SetTitleHolderResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     @Override
@@ -879,7 +888,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID tenantId = Party.playerUuidOf(tenant).orElse(null);
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        return CompletableFuture.supplyAsync(() -> {
+        // Serialized per region: see serializeByRegion for why a write waits its turn.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.SetTenantResult result = realtyApi.setTenant(regionId, worldId, tenantId, ctx, vacantOnly);
             if (result instanceof RealtyBackend.SetTenantResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -915,7 +925,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new SetTenantResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     @Override
@@ -924,7 +934,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext ctx, boolean vacantOnly) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        return CompletableFuture.supplyAsync(
+        // Serialized per region: see serializeByRegion for why a write waits its turn.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
                 () -> realtyApi.setLandlord(regionId, worldId, landlord, ctx, vacantOnly),
                 executorState.dbExec()
         ).thenApplyAsync(result -> switch (result) {
@@ -946,7 +957,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new SetLandlordResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     @Override
@@ -1589,12 +1600,16 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * {@code successType}, redraws the region's loaded signs from what is now stored. These terms
      * are not part of a region's state, so its flags stay as they are. The returned future
      * completes on the main thread with the write's own answer.
+     *
+     * <p>The write waits its turn on the region, see {@link #serializeByRegion}. The redraw is
+     * left out of that turn: it always hops to the main thread, which is what makes the future
+     * complete there whichever thread the turn came up on.
      */
     private <T> @NotNull CompletableFuture<T> writeTerms(@NotNull String regionId,
                                                          @NotNull UUID worldId,
                                                          @NotNull Class<? extends T> successType,
                                                          @NotNull Supplier<T> write) {
-        return CompletableFuture.supplyAsync(() -> {
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             T result = write.get();
             RealtyBackend.RegionWithState region = null;
             if (successType.isInstance(result)) {
@@ -1606,7 +1621,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 }
             }
             return new TermsWritten<>(result, region);
-        }, executorState.dbExec()).thenApplyAsync(written -> {
+        }, executorState.dbExec())).thenApplyAsync(written -> {
             RealtyBackend.RegionWithState region = written.region();
             try {
                 World world = region != null ? Bukkit.getWorld(worldId) : null;

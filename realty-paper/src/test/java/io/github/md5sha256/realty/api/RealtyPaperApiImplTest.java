@@ -452,6 +452,209 @@ class RealtyPaperApiImplTest {
     }
 
     // ═══════════════════════════════════════════════════
+    // a region is held until its payment settles
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("a region is held until its payment settles")
+    class HeldUntilPaymentSettles {
+
+        private static final String OTHER_REGION_ID = "other_region";
+        private static final ActorContext SECOND_BUYER_CTX = ActorContext.player(UUID.randomUUID(), false);
+
+        /** What waits for the main thread. It runs when the test says so. */
+        private final java.util.ArrayDeque<Runnable> mainThread = new java.util.ArrayDeque<>();
+        private RealtyPaperApiImpl held;
+
+        @BeforeEach
+        void holdTheMainThread() {
+            ExecutorState controlled = new ExecutorState(mainThread::add,
+                    sameThreadExecutorService(), sameThreadExecutorService());
+            held = new RealtyPaperApiImpl(realtyApi, economyProvider,
+                    controlled, database, regionProfileService, signTextApplicator, signCache,
+                    () -> 604800, new SafeLocationFinder(), stubPlayerNameService(),
+                    accountId -> CompletableFuture.completedFuture(Optional.empty()),
+                    new ActorContexts(treasury, null,
+                            new AtomicReference<>(new Settings(null, null, null,
+                                    new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
+                                    0, 0, 0, 0, AccountManagers.MEMBERS)),
+                            realtyApi));
+        }
+
+        private void runMainThread() {
+            Runnable next;
+            while ((next = mainThread.poll()) != null) {
+                next.run();
+            }
+        }
+
+        /** A purchase that is reserved in the database and whose payment has not run yet. */
+        private CompletableFuture<RealtyPaperApi.BuyResult> reservedPurchase() {
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(RESERVED);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = held.buy(wgRegion, BUYER_CTX, false);
+            Assertions.assertFalse(purchase.isDone());
+            Assertions.assertEquals(1, mainThread.size());
+            return purchase;
+        }
+
+        /** A tenancy that is reserved in the database and whose payment has not run yet. */
+        private CompletableFuture<RealtyPaperApi.RentResult> reservedTenancy() {
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(LET);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            CompletableFuture<RealtyPaperApi.RentResult> tenancy = held.rent(wgRegion, TENANT_ID);
+            Assertions.assertFalse(tenancy.isDone());
+            Assertions.assertEquals(1, mainThread.size());
+            return tenancy;
+        }
+
+        @Test
+        @DisplayName("setPrice waits for a purchase of the region and runs once it is rolled back")
+        void setPriceWaitsForThePurchase() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(economyProvider.getBalance(BUYER)).thenReturn(500.0);
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+
+            CompletableFuture<RealtyBackend.SetPriceResult> price =
+                    held.setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+
+            // The unpaid buyer is the stored titleholder here, so the write must not start.
+            verify(realtyApi, never()).setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+            Assertions.assertFalse(price.isDone());
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.InsufficientFunds.class, purchase.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, RESERVED);
+            order.verify(realtyApi).setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, price.join());
+        }
+
+        @Test
+        @DisplayName("a second purchase of the region waits for the first to settle")
+        void secondPurchaseWaitsForTheFirst() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(economyProvider.getBalance(BUYER)).thenReturn(500.0);
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, SECOND_BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.BuyResult.NotForFreehold());
+
+            CompletableFuture<RealtyPaperApi.BuyResult> second = held.buy(wgRegion, SECOND_BUYER_CTX, false);
+
+            verify(realtyApi, never()).executeBuy(REGION_ID, WORLD_ID, SECOND_BUYER_CTX, false);
+            Assertions.assertFalse(second.isDone());
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.InsufficientFunds.class, purchase.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, RESERVED);
+            order.verify(realtyApi).executeBuy(REGION_ID, WORLD_ID, SECOND_BUYER_CTX, false);
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.NotForSale.class, second.join());
+        }
+
+        @Test
+        @DisplayName("setPrice on another region does not wait for the purchase")
+        void setPriceElsewhereIsNotHeld() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(realtyApi.setPrice(OTHER_REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.NotAuthorized());
+
+            held.setPrice(OTHER_REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+
+            verify(realtyApi).setPrice(OTHER_REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+            Assertions.assertFalse(purchase.isDone());
+        }
+
+        @Test
+        @DisplayName("a purchase whose payment step throws still lets go of the region")
+        void paymentThatThrowsLetsGo() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(economyProvider.getBalance(BUYER)).thenThrow(new IllegalStateException("economy down"));
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.NotAuthorized());
+
+            CompletableFuture<RealtyBackend.SetPriceResult> price =
+                    held.setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+
+            verify(realtyApi, never()).setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.Error.class, purchase.join());
+            verify(realtyApi).setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.NotAuthorized.class, price.join());
+        }
+
+        @Test
+        @DisplayName("setTitleHolder waits for a purchase of the region")
+        void setTitleHolderWaitsForThePurchase() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(economyProvider.getBalance(BUYER)).thenReturn(500.0);
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, TENANT_ID, BUYER_CTX))
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.NotAuthorized());
+
+            CompletableFuture<RealtyPaperApi.SetTitleHolderResult> title =
+                    held.setTitleHolder(wgRegion, TENANT, BUYER_CTX);
+
+            verify(realtyApi, never()).setTitleHolder(REGION_ID, WORLD_ID, TENANT_ID, BUYER_CTX);
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.InsufficientFunds.class, purchase.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, RESERVED);
+            order.verify(realtyApi).setTitleHolder(REGION_ID, WORLD_ID, TENANT_ID, BUYER_CTX);
+            Assertions.assertInstanceOf(RealtyPaperApi.SetTitleHolderResult.NotAuthorized.class, title.join());
+        }
+
+        @Test
+        @DisplayName("setTenant waits for a tenancy of the region that is being paid for")
+        void setTenantWaitsForTheTenancy() {
+            CompletableFuture<RealtyPaperApi.RentResult> tenancy = reservedTenancy();
+            when(economyProvider.getBalance(TENANT)).thenReturn(0.0);
+            when(realtyApi.setTenant(REGION_ID, WORLD_ID, null, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.SetTenantResult.NotAuthorized());
+
+            CompletableFuture<RealtyPaperApi.SetTenantResult> cleared =
+                    held.setTenant(wgRegion, null, BUYER_CTX, false);
+
+            verify(realtyApi, never()).setTenant(REGION_ID, WORLD_ID, null, BUYER_CTX, false);
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RentResult.InsufficientFunds.class, tenancy.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackRent(REGION_ID, WORLD_ID, TENANT_ID, LET);
+            order.verify(realtyApi).setTenant(REGION_ID, WORLD_ID, null, BUYER_CTX, false);
+            Assertions.assertInstanceOf(RealtyPaperApi.SetTenantResult.NotAuthorized.class, cleared.join());
+        }
+
+        @Test
+        @DisplayName("setLandlord waits for a tenancy of the region that is being paid for")
+        void setLandlordWaitsForTheTenancy() {
+            CompletableFuture<RealtyPaperApi.RentResult> tenancy = reservedTenancy();
+            when(economyProvider.getBalance(TENANT)).thenReturn(0.0);
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, BUYER, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetLandlordResult.Occupied());
+
+            CompletableFuture<RealtyPaperApi.SetLandlordResult> landlord =
+                    held.setLandlord(wgRegion, BUYER, BUYER_CTX, true);
+
+            verify(realtyApi, never()).setLandlord(REGION_ID, WORLD_ID, BUYER, BUYER_CTX, true);
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RentResult.InsufficientFunds.class, tenancy.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackRent(REGION_ID, WORLD_ID, TENANT_ID, LET);
+            order.verify(realtyApi).setLandlord(REGION_ID, WORLD_ID, BUYER, BUYER_CTX, true);
+            Assertions.assertInstanceOf(RealtyPaperApi.SetLandlordResult.Occupied.class, landlord.join());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
     // rent()
     // ═══════════════════════════════════════════════════
 
