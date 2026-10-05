@@ -575,6 +575,8 @@ public interface RealtyPaperApi {
     /**
      * Sets the price of a freehold or a leasehold.
      *
+     * <p>The returned future completes on the main thread, so it must not be joined from there.
+     *
      * @param ctx        who is acting; they must manage the region's holder unless they bypass
      *                   the check
      * @param vacantOnly whether a lease that has a tenant refuses the change, even for a
@@ -593,6 +595,8 @@ public interface RealtyPaperApi {
     /**
      * Clears a freehold's price.
      *
+     * <p>The returned future completes on the main thread, so it must not be joined from there.
+     *
      * @param ctx who is acting; they must manage the freehold's holder unless they bypass the check
      */
     @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
@@ -606,6 +610,8 @@ public interface RealtyPaperApi {
 
     /**
      * Sets a leasehold's duration.
+     *
+     * <p>The returned future completes on the main thread, so it must not be joined from there.
      *
      * @param ctx        who is acting; they must manage the landlord unless they bypass the check
      * @param vacantOnly whether a lease that has a tenant refuses the change, even for a
@@ -623,6 +629,8 @@ public interface RealtyPaperApi {
 
     /**
      * Sets a leasehold's renewal limit.
+     *
+     * <p>The returned future completes on the main thread, so it must not be joined from there.
      *
      * @param ctx        who is acting; they must manage the landlord unless they bypass the check
      * @param vacantOnly whether a lease that has a tenant refuses the change, even for a

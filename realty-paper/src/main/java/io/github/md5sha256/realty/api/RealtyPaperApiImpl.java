@@ -1366,36 +1366,32 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
             @NotNull String regionId, @NotNull UUID worldId, double price,
             @NotNull ActorContext ctx, boolean vacantOnly) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.setPrice(regionId, worldId, price, ctx, vacantOnly),
-                executorState.dbExec());
+        return writeTerms(regionId, worldId, RealtyBackend.SetPriceResult.Success.class,
+                () -> realtyApi.setPrice(regionId, worldId, price, ctx, vacantOnly));
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.unsetPrice(regionId, worldId, ctx),
-                executorState.dbExec());
+        return writeTerms(regionId, worldId, RealtyBackend.UnsetPriceResult.Success.class,
+                () -> realtyApi.unsetPrice(regionId, worldId, ctx));
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SetDurationResult> setDuration(
             @NotNull String regionId, @NotNull UUID worldId, long durationSeconds,
             @NotNull ActorContext ctx, boolean vacantOnly) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.setDuration(regionId, worldId, durationSeconds, ctx, vacantOnly),
-                executorState.dbExec());
+        return writeTerms(regionId, worldId, RealtyBackend.SetDurationResult.Success.class,
+                () -> realtyApi.setDuration(regionId, worldId, durationSeconds, ctx, vacantOnly));
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
             @NotNull String regionId, @NotNull UUID worldId, int maxRenewals,
             @NotNull ActorContext ctx, boolean vacantOnly) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.setMaxRenewals(regionId, worldId, maxRenewals, ctx, vacantOnly),
-                executorState.dbExec());
+        return writeTerms(regionId, worldId, RealtyBackend.SetMaxRenewalsResult.Success.class,
+                () -> realtyApi.setMaxRenewals(regionId, worldId, maxRenewals, ctx, vacantOnly));
     }
 
     @Override
@@ -1584,6 +1580,36 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     // ═══════════════════════════════════════
     // PRIVATE HELPERS
     // ═══════════════════════════════════════
+
+    /** The answer of a write of a region's terms and, when it succeeded, the region as it now stands. */
+    private record TermsWritten<T>(@NotNull T result, @Nullable RealtyBackend.RegionWithState region) {}
+
+    /**
+     * Runs a write of a region's price, duration or extension limit and, when it answers with
+     * {@code successType}, redraws the region's loaded signs from what is now stored. These terms
+     * are not part of a region's state, so its flags stay as they are. The returned future
+     * completes on the main thread with the write's own answer.
+     */
+    private <T> @NotNull CompletableFuture<T> writeTerms(@NotNull String regionId,
+                                                         @NotNull UUID worldId,
+                                                         @NotNull Class<? extends T> successType,
+                                                         @NotNull Supplier<T> write) {
+        return CompletableFuture.supplyAsync(() -> {
+            T result = write.get();
+            RealtyBackend.RegionWithState region = successType.isInstance(result)
+                    ? realtyApi.getRegionWithState(regionId, worldId)
+                    : null;
+            return new TermsWritten<>(result, region);
+        }, executorState.dbExec()).thenApplyAsync(written -> {
+            RealtyBackend.RegionWithState region = written.region();
+            World world = region != null ? Bukkit.getWorld(worldId) : null;
+            if (world != null) {
+                signTextApplicator.updateLoadedSigns(world, regionId,
+                        region.state(), region.placeholders());
+            }
+            return written.result();
+        }, executorState.mainThreadExec());
+    }
 
     private void updateChildLandlords(@NotNull String parentRegionId,
                                       @NotNull World world,

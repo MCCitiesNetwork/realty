@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.settings.AccountManagers;
@@ -1032,6 +1033,206 @@ class RealtyPaperApiImplTest {
             Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
             verify(regionProfileService, never()).applyFlags(any(), any(), any());
             verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // setPrice() / unsetPrice() / setDuration() / setMaxRenewals()
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("term setters")
+    class TermSetters {
+
+        private static final Map<String, String> NEW_TERMS = Map.of("price", "5000");
+
+        private void regionIs(RegionState state) {
+            bukkitMock.when(() -> Bukkit.getWorld(WORLD_ID)).thenReturn(world);
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
+                    .thenReturn(new RealtyBackend.RegionWithState(
+                            new RealtyRegionEntity(1, REGION_ID, WORLD_ID), state, NEW_TERMS));
+        }
+
+        private void assertNothingTouched() {
+            verify(realtyApi, never()).getRegionWithState(any(), any());
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("setPrice success updates loaded signs and leaves the flags alone")
+        void setPriceSuccess() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("the old setPrice signature updates loaded signs too")
+        void setPriceOldSignature() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, ActorContext.console(), false))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+
+            api.setPrice(REGION_ID, WORLD_ID, 5000.0).join();
+
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
+        }
+
+        @Test
+        @DisplayName("setPrice on a rented lease redraws the sign as leased, not for lease")
+        void setPriceRentedLease() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.LEASED);
+
+            api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, false).join();
+
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.LEASED, NEW_TERMS);
+            verify(signTextApplicator, never())
+                    .updateLoadedSigns(any(), any(), eq(RegionState.FOR_LEASE), any());
+        }
+
+        @Test
+        @DisplayName("setPrice NotAuthorized touches nothing")
+        void setPriceNotAuthorized() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.NotAuthorized());
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.NotAuthorized.class, result);
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("setPrice Occupied touches nothing")
+        void setPriceOccupied() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Occupied());
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Occupied.class, result);
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("an unreadable state skips the redraw and still returns the result")
+        void unreadableState() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(null);
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a world that is not loaded skips the redraw and still returns the result")
+        void unloadedWorld() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            bukkitMock.when(() -> Bukkit.getWorld(WORLD_ID)).thenReturn(null);
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
+                    .thenReturn(new RealtyBackend.RegionWithState(
+                            new RealtyRegionEntity(1, REGION_ID, WORLD_ID), RegionState.SOLD, NEW_TERMS));
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("unsetPrice success updates loaded signs")
+        void unsetPriceSuccess() {
+            when(realtyApi.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX))
+                    .thenReturn(new RealtyBackend.UnsetPriceResult.Success());
+            regionIs(RegionState.SOLD);
+
+            RealtyBackend.UnsetPriceResult result =
+                    api.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.UnsetPriceResult.Success.class, result);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, NEW_TERMS);
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("unsetPrice NotAuthorized touches nothing")
+        void unsetPriceNotAuthorized() {
+            when(realtyApi.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX))
+                    .thenReturn(new RealtyBackend.UnsetPriceResult.NotAuthorized());
+
+            api.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX).join();
+
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("setDuration success updates loaded signs")
+        void setDurationSuccess() {
+            when(realtyApi.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetDurationResult.Success());
+            regionIs(RegionState.FOR_LEASE);
+
+            RealtyBackend.SetDurationResult result =
+                    api.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetDurationResult.Success.class, result);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_LEASE, NEW_TERMS);
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("setDuration Occupied touches nothing")
+        void setDurationOccupied() {
+            when(realtyApi.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetDurationResult.Occupied());
+
+            api.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true).join();
+
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("setMaxRenewals success updates loaded signs")
+        void setMaxRenewalsSuccess() {
+            when(realtyApi.setMaxRenewals(REGION_ID, WORLD_ID, 4, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.SetMaxRenewalsResult.Success());
+            regionIs(RegionState.LEASED);
+
+            RealtyBackend.SetMaxRenewalsResult result =
+                    api.setMaxRenewals(REGION_ID, WORLD_ID, 4, BUYER_CTX, false).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetMaxRenewalsResult.Success.class, result);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.LEASED, NEW_TERMS);
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("setMaxRenewals BelowCurrentExtensions touches nothing")
+        void setMaxRenewalsBelowCurrent() {
+            when(realtyApi.setMaxRenewals(REGION_ID, WORLD_ID, 1, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.SetMaxRenewalsResult.BelowCurrentExtensions(3));
+
+            api.setMaxRenewals(REGION_ID, WORLD_ID, 1, BUYER_CTX, false).join();
+
+            assertNothingTouched();
         }
     }
 
