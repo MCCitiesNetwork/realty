@@ -298,6 +298,9 @@ permissions:
   realty.command.terminate:
     description: Allows using /realty terminate
     default: true
+  realty.command.set.now:
+    description: Allows --now on /realty set price, duration and maxextensions, applying the change to a rented region at once
+    default: op
   realty.command.terminate.now:
     description: Allows --now on /realty terminate, skipping the notice period
     default: op

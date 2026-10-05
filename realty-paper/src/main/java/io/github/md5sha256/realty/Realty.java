@@ -62,6 +62,7 @@ import io.github.md5sha256.realty.command.SearchDialog;
 import io.github.md5sha256.realty.command.ModifyCommandGroup;
 import io.github.md5sha256.realty.command.SchematicCommandGroup;
 import io.github.md5sha256.realty.command.SetCommandGroup;
+import io.github.md5sha256.realty.command.util.SetRouter;
 import io.github.md5sha256.realty.command.TerminateCommand;
 import io.github.md5sha256.realty.command.SignCommand;
 import io.github.md5sha256.realty.command.SubregionCommandGroup;
@@ -992,7 +993,8 @@ public final class Realty extends JavaPlugin {
                         getLogger()),
                 new SetCommandGroup(paperApi, this.actorContexts, this.partyResolver, partySuggestions,
                         executorState, messageContainer,
-                        this.eventDispatch, this.partyNames),
+                        this.eventDispatch, this.partyNames,
+                        new SetRouter(paperApi, this.actorContexts, messageContainer, executorState, getLogger())),
                 new ModifyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch, this.partyNames),
                 new TerminateCommand(paperApi, this.actorContexts, executorState, messageContainer,
