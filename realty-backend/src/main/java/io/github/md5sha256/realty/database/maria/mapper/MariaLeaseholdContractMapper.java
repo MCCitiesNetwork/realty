@@ -343,10 +343,14 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             SET lc.durationSeconds = #{durationSeconds}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR lc.landlordPartyId = #{requiredLandlordPartyId})
+            AND (#{vacantOnly} = FALSE OR lc.tenantId IS NULL)
             """)
     int updateDurationByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                @Param("worldId") @NotNull UUID worldId,
-                               @Param("durationSeconds") long durationSeconds);
+                               @Param("durationSeconds") long durationSeconds,
+                               @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId,
+                               @Param("vacantOnly") boolean vacantOnly);
 
     @Override
     @Update("""
@@ -356,10 +360,14 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             SET lc.price = #{price}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR lc.landlordPartyId = #{requiredLandlordPartyId})
+            AND (#{vacantOnly} = FALSE OR lc.tenantId IS NULL)
             """)
     int updatePriceByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                             @Param("worldId") @NotNull UUID worldId,
-                            @Param("price") double price);
+                            @Param("price") double price,
+                            @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId,
+                            @Param("vacantOnly") boolean vacantOnly);
 
     @Override
     @Update("""
@@ -402,10 +410,14 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
                 lc.currentMaxExtensions = CASE WHEN #{maxRenewals} >= 0 THEN 0 ELSE NULL END
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR lc.landlordPartyId = #{requiredLandlordPartyId})
+            AND (#{vacantOnly} = FALSE OR lc.tenantId IS NULL)
             """)
     int updateMaxRenewalsByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                   @Param("worldId") @NotNull UUID worldId,
-                                  @Param("maxRenewals") int maxRenewals);
+                                  @Param("maxRenewals") int maxRenewals,
+                                  @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId,
+                                  @Param("vacantOnly") boolean vacantOnly);
 
     @Override
     @Update("""

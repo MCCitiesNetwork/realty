@@ -328,7 +328,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 int updated = wrapper.freeholdContractMapper()
-                        .updatePriceByRegion(regionId, WORLD_ID, 2000.0);
+                        .updatePriceByRegion(regionId, WORLD_ID, 2000.0, false, null);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
@@ -346,7 +346,7 @@ class MapperTest extends AbstractDatabaseTest {
 
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
-                wrapper.freeholdContractMapper().updatePriceByRegion(regionId, WORLD_ID, null);
+                wrapper.freeholdContractMapper().updatePriceByRegion(regionId, WORLD_ID, null, false, null);
                 session.commit();
 
                 FreeholdContractEntity entity = wrapper.freeholdContractMapper()
@@ -381,7 +381,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 int updated = wrapper.freeholdContractMapper()
-                        .updatePriceByRegion("nonexistent", WORLD_ID, 500.0);
+                        .updatePriceByRegion("nonexistent", WORLD_ID, 500.0, false, null);
                 session.commit();
                 Assertions.assertEquals(0, updated);
             }
@@ -584,7 +584,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 int updated = wrapper.leaseholdContractMapper()
-                        .updateDurationByRegion(regionId, WORLD_ID, 172800);
+                        .updateDurationByRegion(regionId, WORLD_ID, 172800, null, false);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
@@ -603,7 +603,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 int updated = wrapper.leaseholdContractMapper()
-                        .updatePriceByRegion(regionId, WORLD_ID, 350.0);
+                        .updatePriceByRegion(regionId, WORLD_ID, 350.0, null, false);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
@@ -619,7 +619,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 int updated = wrapper.leaseholdContractMapper()
-                        .updateDurationByRegion("nonexistent", WORLD_ID, 172800);
+                        .updateDurationByRegion("nonexistent", WORLD_ID, 172800, null, false);
                 session.commit();
                 Assertions.assertEquals(0, updated);
             }

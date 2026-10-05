@@ -267,6 +267,11 @@ public record SetCommandGroup(
                 case RealtyBackend.SetPriceResult.BidPaymentInProgress ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_BID_PAYMENT_IN_PROGRESS,
                                 Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.SetPriceResult.NotAuthorized ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                case RealtyBackend.SetPriceResult.Occupied ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
+                                Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.SetPriceResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_PRICE_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
@@ -296,6 +301,11 @@ public record SetCommandGroup(
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.SetDurationResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_NO_LEASEHOLD_CONTRACT,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.SetDurationResult.NotAuthorized ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                case RealtyBackend.SetDurationResult.Occupied ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.SetDurationResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_DURATION_UPDATE_FAILED,
@@ -454,6 +464,11 @@ public record SetCommandGroup(
                 case RealtyBackend.SetMaxRenewalsResult.BelowCurrentExtensions(int current) ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_BELOW_CURRENT,
                                 Placeholder.unparsed("current", String.valueOf(current)),
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.SetMaxRenewalsResult.NotAuthorized ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                case RealtyBackend.SetMaxRenewalsResult.Occupied ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.SetMaxRenewalsResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_MAX_EXTENSIONS_UPDATE_FAILED,

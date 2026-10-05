@@ -86,6 +86,8 @@ public record UnsetCommandGroup(
                 case RealtyBackend.UnsetPriceResult.BidPaymentInProgress ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_BID_PAYMENT_IN_PROGRESS,
                                 Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.UnsetPriceResult.NotAuthorized ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION));
                 case RealtyBackend.UnsetPriceResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_PRICE_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));

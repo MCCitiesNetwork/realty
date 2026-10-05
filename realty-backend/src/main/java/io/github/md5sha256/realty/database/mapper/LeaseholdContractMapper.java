@@ -95,13 +95,23 @@ public interface LeaseholdContractMapper {
                                @NotNull UUID worldId,
                                @NotNull UUID tenantId);
 
+    /**
+     * The next three updates take the same guards: {@code requiredLandlordPartyId}, when non-null,
+     * makes the write apply only while that party is still the landlord, and {@code vacantOnly}
+     * makes it apply only while there is no tenant. Pass {@code null} and {@code false} for an
+     * unconditional write. They return 0 when no row matches or a guard fails.
+     */
     int updateDurationByRegion(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
-                               long durationSeconds);
+                               long durationSeconds,
+                               @Nullable Integer requiredLandlordPartyId,
+                               boolean vacantOnly);
 
     int updatePriceByRegion(@NotNull String worldGuardRegionId,
                             @NotNull UUID worldId,
-                            double price);
+                            double price,
+                            @Nullable Integer requiredLandlordPartyId,
+                            boolean vacantOnly);
 
     int updateLandlordByRegion(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
@@ -113,7 +123,9 @@ public interface LeaseholdContractMapper {
 
     int updateMaxRenewalsByRegion(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,
-                                  int maxRenewals);
+                                  int maxRenewals,
+                                  @Nullable Integer requiredLandlordPartyId,
+                                  boolean vacantOnly);
 
     /** Sets whether the region accepts new tenants. */
     int updateAcceptingTenantsByRegion(@NotNull String worldGuardRegionId,
