@@ -48,6 +48,82 @@ This causes six faults:
    seller who runs `set price` in that moment passes the check and puts the
    buyer's region up for sale.
 
+## The change in plain terms
+
+This section answers "what logic does `set` take on?" without the rest of
+the document's terms.
+
+### The one new thing `set` does
+
+On a region that someone is renting, `set price`, `set duration` and
+`set maxextensions` used to refuse and tell you to use `modify`. Now they do
+what `modify price|duration|maxextensions` did: the change is saved and takes
+effect when the tenant next renews. If the tenant runs the command, it becomes
+a request the landlord has to accept.
+
+This calls the same backend method `modify` called, `proposeModification`. How
+a saved change is stored, merged and applied at renewal is not touched.
+
+### Checks that already existed, now made in one place
+
+| Check | Before | Now |
+|---|---|---|
+| Is someone renting the region? | In `set`, which refused if so | Same check. It now chooses between "change now" and "change at renewal" |
+| May the caller change this region? | Three different versions: one in `set` for leases, the WorldGuard owner list for `set titleholder` and `unset`, and one in the backend for `modify` | One version. The caller must act for the landlord (lease) or be the title holder (freehold), or have the command's `.others` permission |
+| May the caller change a rented region immediately? | Anyone with `.others` did so without being asked, and there were `.leasehold` permissions that were never declared | Only with `--now`, which needs `realty.command.set.now` (op by default) |
+
+### Three refusals that are new
+
+- `set maxextensions -1` on a rented region without `--now`. A saved change
+  has no way to store "no limit".
+- Changing terms on a lease that is already ending. `modify` refused this too.
+- The console saving a change for renewal on a lease held by an account or
+  group. A saved change records which player proposed it, and there is none.
+
+### What `set` does not take on
+
+- `modify accept`, `reject`, `withdraw`, `inbox` and `outbox` stay as they are.
+- `set authority` is unchanged.
+
+### What happens when you run a `set` or `unset` command, in order
+
+1. The region has no contract: the backend replies "no contract", as before.
+2. Freehold, or a lease nobody is renting: if the caller may change the
+   region, it changes now. Otherwise refused.
+3. Rented, with `--now`: it changes now if the caller may change the region
+   and has `realty.command.set.now`. Otherwise refused.
+4. Rented, no `--now`, and the command changes the landlord, tenant or title
+   holder: refused, with a message to add `--now`.
+5. Rented, no `--now`, and the command changes price, duration or extensions:
+   from the tenant it is a request; from the landlord's side it is saved for
+   the next renewal; from anyone else it is refused.
+
+### Where the code is
+
+Line counts are from the implementation in this stack.
+
+| File | Lines before | Lines after | What it does |
+|---|---|---|---|
+| `SetRouting` (new) | 0 | 122 | The five steps above, in one method of about 40 lines. No Bukkit or database calls. Tested with one case per outcome (27 cases) |
+| `SetRouter` (new) | 0 | 151 | Finds out who the caller acts for, reads the region's contract, runs the five steps, then sends the refusal or lets the command continue |
+| `SetCommandGroup` | 504 | 534 | Each command asks `SetRouter`, then calls the backend. The three term commands have one extra path: save for renewal |
+| `UnsetCommandGroup` | 164 | 189 | Same |
+| `ModifyCommandGroup` | 293 | 209 | Lost the three term subcommands |
+
+That is about 240 more lines in the command code overall. In exchange,
+`authorizeLeaseholdSet`, `authorizeAsLandlord`, `LandlordGate`, the
+`.leasehold` permission strings and `executePropose` are gone, and the five
+steps are in one tested method. The command handlers no longer decide who is
+allowed or whether the region is rented.
+
+### The alternative that was not taken
+
+Keep `modify price|duration|maxextensions` as the command for "at next
+renewal", and have `set` keep refusing on a rented region. `set` would then do
+one thing. The cost is the problem this started from: a landlord has to know
+which of the two commands applies, and a landlord without op has no command at
+all for a lease nobody is renting.
+
 ## Design
 
 Two rules replace the table above. Every `set` and `unset` command uses both,
