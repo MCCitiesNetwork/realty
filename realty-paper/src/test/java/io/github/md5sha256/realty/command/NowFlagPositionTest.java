@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.command.util.PartyFlags;
 import io.github.md5sha256.realty.command.util.RegionOrFlagParser;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
@@ -16,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Where {@code --now} may stand in {@code /realty set price <price> [region] [--now]} and
@@ -48,6 +50,12 @@ class NowFlagPositionTest {
         manager.command(manager.commandBuilder("set").literal("maxextensions")
                 .required("maxextensions", IntegerParser.integerParser(-1))
                 .optional("region", RegionOrFlagParser.of(StringParser.<Object>stringParser()))
+                .flag(SetCommandGroup.NOW_FLAG)
+                .handler(last::set));
+        // The same shape as /realty set landlord: type flags and --now share the flag position.
+        manager.command(PartyFlags.addTo(manager.commandBuilder("set").literal("landlord")
+                .required("landlord", StringParser.<Object>stringParser())
+                .optional("region", RegionOrFlagParser.of(StringParser.<Object>stringParser())))
                 .flag(SetCommandGroup.NOW_FLAG)
                 .handler(last::set));
     }
@@ -84,5 +92,31 @@ class NowFlagPositionTest {
     @Test
     void unlimitedExtensionsWithoutTheFlag_parsesTheNegativeCount() {
         assertEquals(new Parsed(-1, Optional.empty(), false), parse("set maxextensions -1", "maxextensions"));
+    }
+
+    private void assertLandlordParses(String input, Optional<String> region) {
+        Parsed parsed = parse(input, "landlord");
+        assertEquals(new Parsed("Name", region, true), parsed);
+        assertTrue(last.get().flags().isPresent("government"));
+    }
+
+    @Test
+    void landlordTypeFlagThenNow_parsesWithoutARegion() {
+        assertLandlordParses("set landlord Name --government --now", Optional.empty());
+    }
+
+    @Test
+    void landlordNowThenTypeFlag_parsesWithoutARegion() {
+        assertLandlordParses("set landlord Name --now --government", Optional.empty());
+    }
+
+    @Test
+    void landlordTypeFlagThenNow_parsesWithARegion() {
+        assertLandlordParses("set landlord Name someregion --government --now", Optional.of("someregion"));
+    }
+
+    @Test
+    void landlordNowThenTypeFlag_parsesWithARegion() {
+        assertLandlordParses("set landlord Name someregion --now --government", Optional.of("someregion"));
     }
 }

@@ -14,13 +14,16 @@ import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -59,6 +62,7 @@ class SetRouterTest {
     private static final UUID OTHER_ID = UUID.randomUUID();
     private static final Party ACCOUNT = new Party.Account(7, io.github.md5sha256.realty.api.AccountKind.BUSINESS);
     private static final String OTHERS = "realty.command.set.price.others";
+    private static final String NOW_NODE = "realty.command.set.now";
 
     @Mock
     private RealtyPaperApi api;
@@ -349,5 +353,114 @@ class SetRouterTest {
         router.reportWriteFailure(write, player, MessageKeys.SET_PRICE_ERROR);
         verifySent(MessageKeys.SET_PRICE_ERROR);
         assertEquals(Level.SEVERE, logged.get(0).getLevel());
+    }
+
+    private static LeaseholdContractEntity endingLease(Party landlord, UUID tenant) {
+        return new LeaseholdContractEntity(1, landlord, tenant, 100.0, 3600L, null, null,
+                null, null, java.time.LocalDateTime.of(2030, 1, 1, 0, 0), "LANDLORD", true);
+    }
+
+    private void holderRoute(CommandSender sender, boolean now) {
+        route(sender, Kind.HOLDER, HolderTest.MANAGES, MessageKeys.UNSET_NO_PERMISSION, now, false);
+    }
+
+    /** The text a message would show for {@code tag}, taken from the resolver the router sent. */
+    private String sentPlaceholder(String key, String tag) {
+        ArgumentCaptor<TagResolver> captor = ArgumentCaptor.forClass(TagResolver.class);
+        verify(messages).messageFor(eq(key), captor.capture());
+        return PlainTextComponentSerializer.plainText()
+                .serialize(MiniMessage.miniMessage().deserialize("<" + tag + ">", captor.getValue()));
+    }
+
+    @Test
+    void tenantRunningUnsetTenantDoesNotHoldTheLease() {
+        givenLease(lease(Party.personal(OTHER_ID), PLAYER_ID));
+        lenient().when(player.hasPermission(NOW_NODE)).thenReturn(true);
+        holderRoute(player, true);
+        assertTrue(routed.isEmpty());
+        verifySent(MessageKeys.SET_NOT_LANDLORD);
+    }
+
+    @Test
+    void landlordRunningUnsetTenantWithNowIsRouted() {
+        givenLease(lease(Party.personal(PLAYER_ID), UUID.randomUUID()));
+        lenient().when(player.hasPermission(NOW_NODE)).thenReturn(true);
+        holderRoute(player, true);
+        assertEquals(1, routed.size());
+        assertEquals(new Outcome.ApplyNow(false), routed.get(0).outcome());
+    }
+
+    @Test
+    void landlordRunningUnsetTenantWithoutNowIsToldToAddIt() {
+        givenLease(lease(Party.personal(PLAYER_ID), UUID.randomUUID()));
+        lenient().when(player.hasPermission(NOW_NODE)).thenReturn(true);
+        holderRoute(player, false);
+        assertTrue(routed.isEmpty());
+        verifySent(MessageKeys.SET_RENTED_NEEDS_NOW);
+    }
+
+    @Test
+    void titleHolderIsRoutedOnTheirFreehold() {
+        givenFreehold(freehold(PLAYER_ID));
+        holderRoute(player, false);
+        assertEquals(1, routed.size());
+        assertEquals(new Outcome.ApplyNow(true), routed.get(0).outcome());
+    }
+
+    @Test
+    void managerOfTheAuthorityIsRoutedOnAnUnsoldFreehold() {
+        givenFreehold(new FreeholdContractEntity(1, ACCOUNT, null, null, false));
+        lenient().when(actors.forRegion(any(), anyBoolean(), any(), any(Party[].class)))
+                .thenReturn(new ActorContext(PLAYER_ID, Set.of(ACCOUNT), Set.of(), false));
+        holderRoute(player, false);
+        assertEquals(1, routed.size());
+        assertEquals(new Outcome.ApplyNow(true), routed.get(0).outcome());
+    }
+
+    @Test
+    void holderOnARentedLeaseWithNowAndTheNodeAppliesNow() {
+        givenLease(lease(Party.personal(PLAYER_ID), UUID.randomUUID()));
+        lenient().when(player.hasPermission(NOW_NODE)).thenReturn(true);
+        route(player, true);
+        assertEquals(1, routed.size());
+        assertEquals(new Outcome.ApplyNow(false), routed.get(0).outcome());
+    }
+
+    @Test
+    void holderOnARentedLeaseWithNowButNotTheNodeIsRefused() {
+        givenLease(lease(Party.personal(PLAYER_ID), UUID.randomUUID()));
+        route(player, true);
+        assertTrue(routed.isEmpty());
+        verifySent(MessageKeys.SET_RENTED_NO_NOW_PERMISSION);
+    }
+
+    @Test
+    void aTermChangeOnAnEndingLeaseIsRefused() {
+        givenLease(endingLease(Party.personal(PLAYER_ID), UUID.randomUUID()));
+        route(player, false);
+        assertTrue(routed.isEmpty());
+        verifySent(MessageKeys.MODIFY_TERMINATING);
+    }
+
+    @Test
+    void unlimitedExtensionsWithoutNowAreRefused() {
+        givenLease(lease(Party.personal(PLAYER_ID), UUID.randomUUID()));
+        route(player, Kind.TERM, HolderTest.MANAGES, MessageKeys.SET_NO_PERMISSION, false, true);
+        assertTrue(routed.isEmpty());
+        verifySent(MessageKeys.SET_UNLIMITED_NEEDS_NOW);
+    }
+
+    @Test
+    void aRefusalSendsTheRegionPlaceholder() {
+        givenLease(lease(Party.personal(OTHER_ID), null));
+        route(player, false);
+        assertEquals(REGION_ID, sentPlaceholder(MessageKeys.SET_NOT_LANDLORD, "region"));
+    }
+
+    @Test
+    void aWriteFailureSendsTheErrorPlaceholder() {
+        router.reportWriteFailure(CompletableFuture.failedFuture(new IllegalStateException("down")), player,
+                MessageKeys.SET_TENANT_ERROR);
+        assertEquals("down", sentPlaceholder(MessageKeys.SET_TENANT_ERROR, "error"));
     }
 }

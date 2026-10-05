@@ -938,6 +938,8 @@ public final class Realty extends JavaPlugin {
 
         SuggestionProvider<Source> partySuggestions =
                 PartyFlags.suggestions(this.treasury, this.logic, executorState.dbExec());
+        SetRouter setRouter = new SetRouter(paperApi, this.actorContexts, messageContainer, executorState,
+                getLogger());
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
@@ -991,16 +993,15 @@ public final class Realty extends JavaPlugin {
                         this.settings,
                         messageContainer,
                         getLogger()),
-                new SetCommandGroup(paperApi, this.actorContexts, this.partyResolver, partySuggestions,
+                new SetCommandGroup(paperApi, this.partyResolver, partySuggestions,
                         executorState, messageContainer,
-                        this.eventDispatch, this.partyNames,
-                        new SetRouter(paperApi, this.actorContexts, messageContainer, executorState, getLogger())),
+                        this.eventDispatch, this.partyNames, setRouter),
                 new ModifyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch, this.partyNames),
                 new TerminateCommand(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch),
                 new TransferCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
-                new UnsetCommandGroup(paperApi, messageContainer),
+                new UnsetCommandGroup(paperApi, messageContainer, setRouter),
                 new ModuleCommandGroup(this.moduleManager, executorState, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();

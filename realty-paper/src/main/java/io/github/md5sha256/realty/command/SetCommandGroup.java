@@ -1,8 +1,6 @@
 package io.github.md5sha256.realty.command;
 
-import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.ExecutorState;
-import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.Party;
@@ -51,10 +49,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
-import java.util.function.BiPredicate;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -63,25 +58,30 @@ import java.util.function.Function;
  * <ul>
  *   <li>{@code /realty set price <price> [region] [--now]} — set freehold or leasehold price</li>
  *   <li>{@code /realty set duration <duration> [region] [--now]} — set leasehold duration</li>
- *   <li>{@code /realty set landlord <name> [region] [type flag]} — set leasehold landlord</li>
- *   <li>{@code /realty set titleholder <player> <region>} — set freehold title holder</li>
- *   <li>{@code /realty set tenant <player> <region>} — set leasehold tenant</li>
+ *   <li>{@code /realty set landlord <name> [region] [type flag] [--now]} — set leasehold landlord</li>
+ *   <li>{@code /realty set titleholder <player> [region] [--now]} — set freehold title holder</li>
+ *   <li>{@code /realty set tenant <player> [region] [--now]} — set leasehold tenant</li>
  *   <li>{@code /realty set maxextensions <count> [region] [--now]} — set leasehold max extensions (-1 for unlimited, which needs {@code --now})</li>
  *   <li>{@code /realty set authority <name> [region] [type flag]} — set freehold authority</li>
  * </ul>
  *
  * <p>A landlord or authority name is a player unless one of the type flags {@code --government},
  * {@code --business}, {@code --system} or {@code --group} is given; see {@link PartyFlags}. The type
- * flag comes last. When the region is left out, {@link RegionOrFlagParser} lets the flag through and
- * the region the player stands in is used.</p>
+ * flags and {@code --now} may come in any order after the region. When the region is left out,
+ * {@link RegionOrFlagParser} lets the flag through and the region the player stands in is used.</p>
  *
- * <p>On a rented region a price, duration or max-extensions change waits for the next renewal unless
- * {@code --now} is given: a landlord's change is scheduled and a tenant's is requested, both through the
- * modification flow. {@link SetRouter} decides which.</p>
+ * <p>Two rules decide what a command may do, both applied by {@link SetRouter}. A term change (price,
+ * duration, max extensions) on a rented region waits for the next renewal unless {@code --now} is given:
+ * a landlord's change is scheduled and a tenant's is requested, both through the modification flow. A
+ * holder change (landlord, tenant, title holder) is never deferred: on a rented region only someone who
+ * holds the region and gives {@code --now} may make it, and on a vacant or freehold region the holder
+ * makes it at once. The holder is the landlord of a lease and the title holder, or the authority while
+ * there is none, of a freehold; for {@code set landlord} the sender must be allowed to hand the role on.
+ * {@code --now} needs {@code realty.command.set.now}, and each command's {@code .others} node lets its
+ * holder test be bypassed. {@code set authority} is decided by its permission alone.</p>
  */
 public record SetCommandGroup(
         @NotNull RealtyPaperApi api,
-        @NotNull ActorContexts actors,
         @NotNull PartyResolver partyResolver,
         @NotNull SuggestionProvider<Source> partySuggestions,
         @NotNull ExecutorState executorState,
@@ -97,104 +97,6 @@ public record SetCommandGroup(
      */
     static final CommandFlag<Void> NOW_FLAG = CommandFlag.<Source>builder("now").build();
 
-    /**
-     * The test a player's context must pass against a vacant leasehold's landlord before an instant
-     * {@code /realty set}: acting for the landlord for the lease's terms, or being allowed to hand the
-     * landlord's role on for {@code /realty set landlord}, since reassignment follows the money.
-     */
-    enum LandlordGate {
-        MANAGES(ActorContext::mayManage),
-        REASSIGNS(ActorContext::mayReassign);
-
-        private final @NotNull BiPredicate<ActorContext, Party> test;
-
-        LandlordGate(@NotNull BiPredicate<ActorContext, Party> test) {
-            this.test = test;
-        }
-
-        boolean admits(@NotNull ActorContext actor, @NotNull Party landlord) {
-            return this.test.test(actor, landlord);
-        }
-    }
-
-    /** The gate {@code /realty set landlord} uses; every other subcommand uses {@link LandlordGate#MANAGES}. */
-    static final LandlordGate SET_LANDLORD_GATE = LandlordGate.REASSIGNS;
-
-    /**
-     * Authorizes a leasehold {@code set} mutation, then runs {@code onAuthorized} with the actor's context.
-     * Non-players (console) and admins holding {@code bypassPerm} are trusted. For a leasehold the
-     * authority is the landlord, not WorldGuard ownership (the WorldGuard owner of an active lease is the
-     * tenant): a vacant lease may be set instantly by anyone whose context passes {@code landlordGate}
-     * against its landlord party (managing it for the terms and the tenant, reassigning it for
-     * {@code /realty set landlord}), an occupied lease must use {@code /realty modify} so rents cannot be
-     * changed mid-tenancy without notice. For a freehold/unregistered region this falls back to the
-     * WorldGuard-owner check so title-holder-owned regions keep working. The context is built on the
-     * database executor and also tests {@code extra}.
-     *
-     * <p>A non-null {@code leaseholdPerm} additionally gates an instant leasehold term change behind that
-     * node, so it is refused (pointing at {@code /realty modify}) unless the caller holds it. It is set for
-     * the terms {@code /realty modify} also covers (price, duration, max-extensions) and left {@code null}
-     * for structural transfers (landlord, tenant), which have no {@code /modify} equivalent.</p>
-     */
-    private void authorizeLeaseholdSet(@NotNull CommandSender sender, @NotNull WorldGuardRegion region,
-                                       @NotNull String bypassPerm, @Nullable String leaseholdPerm,
-                                       @NotNull LandlordGate landlordGate,
-                                       @NotNull Consumer<ActorContext> onAuthorized, @NotNull Party... extra) {
-        if (!(sender instanceof Player player)) {
-            onAuthorized.accept(ActorContext.console());
-            return;
-        }
-        boolean bypass = player.hasPermission(bypassPerm);
-        String regionId = region.region().getId();
-        boolean isWorldGuardOwner = region.region().getOwners().contains(player.getUniqueId());
-        CompletableFuture.supplyAsync(() -> actors.forRegion(player, bypass, region, extra), executorState.dbExec())
-                .thenAcceptAsync(actor -> {
-                    if (actor.bypass()) {
-                        onAuthorized.accept(actor);
-                    } else {
-                        authorizeAsLandlord(player, region, regionId, isWorldGuardOwner, leaseholdPerm,
-                                landlordGate, actor, onAuthorized);
-                    }
-                }, executorState.mainThreadExec())
-                .exceptionally(ex -> {
-                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                    player.sendMessage(messages.messageFor(MessageKeys.COMMON_ERROR,
-                            Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
-                    return null;
-                });
-    }
-
-    private void authorizeAsLandlord(@NotNull Player player, @NotNull WorldGuardRegion region,
-                                     @NotNull String regionId, boolean isWorldGuardOwner,
-                                     @Nullable String leaseholdPerm, @NotNull LandlordGate landlordGate,
-                                     @NotNull ActorContext actor,
-                                     @NotNull Consumer<ActorContext> onAuthorized) {
-        api.getLeaseholdContract(regionId, region.world().getUID()).thenAccept(lease -> {
-            if (lease != null) {
-                // Some instant term changes on a leasehold require an extra node; without it the
-                // change must go through /realty modify so it applies on the next cycle.
-                if (leaseholdPerm != null && !player.hasPermission(leaseholdPerm)) {
-                    player.sendMessage(messages.messageFor(MessageKeys.SET_LEASEHOLD_NO_PERMISSION,
-                            Placeholder.unparsed("region", regionId)));
-                } else if (lease.tenantId() != null) {
-                    player.sendMessage(messages.messageFor(MessageKeys.SET_OCCUPIED_USE_MODIFY,
-                            Placeholder.unparsed("region", regionId)));
-                } else if (!landlordGate.admits(actor, lease.landlord())) {
-                    player.sendMessage(messages.messageFor(MessageKeys.SET_NOT_LANDLORD,
-                            Placeholder.unparsed("region", regionId)));
-                } else {
-                    onAuthorized.accept(actor);
-                }
-                return;
-            }
-            if (isWorldGuardOwner) {
-                onAuthorized.accept(actor);
-            } else {
-                player.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            }
-        });
-    }
-
     @Override
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder
@@ -202,7 +104,8 @@ public record SetCommandGroup(
         var titleholderCommand = base.literal("titleholder")
                 .permission("realty.command.set.titleholder")
                 .required("titleholder", AuthorityParser.authority())
-                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                .optional("region", RegionOrFlagParser.regionOrFlag())
+                .flag(NOW_FLAG)
                 .handler(this::executeSetTitleHolder)
                 .build();
         return List.of(
@@ -225,13 +128,15 @@ public record SetCommandGroup(
                         .permission("realty.command.set.landlord")
                         .required("landlord", StringParser.stringParser(), partySuggestions)
                         .optional("region", RegionOrFlagParser.regionOrFlag()))
+                        .flag(NOW_FLAG)
                         .handler(this::executeSetLandlord)
                         .build(),
                 titleholderCommand,
                 base.literal("tenant")
                         .permission("realty.command.set.tenant")
                         .required("tenant", AuthorityParser.authority())
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                        .optional("region", RegionOrFlagParser.regionOrFlag())
+                        .flag(NOW_FLAG)
                         .handler(this::executeSetTenant)
                         .build(),
                 base.literal("maxextensions")
@@ -416,26 +321,25 @@ public record SetCommandGroup(
             return;
         }
         String landlordName = ctx.get("landlord");
-        WorldGuardRegion region = ctx.<Optional<WorldGuardRegion>>optional("region")
-                .flatMap(Function.identity())
-                .orElseGet(() -> sender instanceof Player player
-                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        WorldGuardRegion region = regionOf(ctx, sender);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        PartyFlags.resolveThen(partyResolver, executorState, messages, sender, landlordName, flag, newLandlord ->
+        boolean now = ctx.flags().hasFlag(NOW_FLAG);
         // The current landlord must be one the player may reassign; the new landlord is tested too: a
         // non-admin may only hand the lease to a party they manage.
-        authorizeLeaseholdSet(sender, region, "realty.command.set.landlord.others", null, SET_LANDLORD_GATE,
-                actor ->
-        api.setLandlord(region, newLandlord, actor).thenAccept(result -> {
+        PartyFlags.resolveThen(partyResolver, executorState, messages, sender, landlordName, flag, newLandlord ->
+        router.route(sender, region, SetRouting.Kind.HOLDER, SetRouter.HolderTest.REASSIGNS,
+                "realty.command.set.landlord.others", MessageKeys.SET_NO_PERMISSION, now, false, routed ->
+        router.reportWriteFailure(api.setLandlord(region, newLandlord, routed.actor(), routed.vacantOnly())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetLandlordResult.Success success -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
-                                Placeholder.unparsed("landlord", partyNames.display(newLandlord)),
-                                Placeholder.unparsed("region", success.regionId())));
-                        events.fireSync(new LandlordSetEvent(region, newLandlord, success.previousLandlord()));
+                    sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_SUCCESS,
+                            Placeholder.unparsed("landlord", partyNames.display(newLandlord)),
+                            Placeholder.unparsed("region", success.regionId())));
+                    events.fireSync(new LandlordSetEvent(region, newLandlord, success.previousLandlord()));
                 }
                 case RealtyPaperApi.SetLandlordResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASEHOLD_CONTRACT,
@@ -456,79 +360,80 @@ public record SetCommandGroup(
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_ERROR,
                                 Placeholder.unparsed("error", error.message())));
             }
-        }), newLandlord));
+        }), sender, MessageKeys.SET_LANDLORD_ERROR), newLandlord));
     }
 
     private void executeSetTitleHolder(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
         UUID titleHolderId = ctx.get("titleholder");
-        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> sender instanceof Player player
-                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        WorldGuardRegion region = regionOf(ctx, sender);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        if (sender instanceof Player player
-                && !sender.hasPermission("realty.command.set.titleholder.others")
-                && !region.region().getOwners().contains(player.getUniqueId())) {
-            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-            return;
-        }
-        if (!events.fireSync(new TitleTransferEvent(region, titleHolderId))) {
-            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
-            return;
-        }
-        api.setTitleHolder(region, Party.personal(titleHolderId)).thenAccept(result -> {
-            switch (result) {
-                case RealtyPaperApi.SetTitleHolderResult.Success success -> {
+        router.route(sender, region, SetRouting.Kind.HOLDER, SetRouter.HolderTest.MANAGES,
+                "realty.command.set.titleholder.others", MessageKeys.SET_NO_PERMISSION,
+                ctx.flags().hasFlag(NOW_FLAG), false, routed -> {
+            // On the main thread, where a listener may cancel, and before anything is written.
+            if (!events.fireSync(new TitleTransferEvent(region, titleHolderId))) {
+                sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+                return;
+            }
+            router.reportWriteFailure(api.setTitleHolder(region, Party.personal(titleHolderId), routed.actor())
+                    .thenAccept(result -> {
+                switch (result) {
+                    case RealtyPaperApi.SetTitleHolderResult.Success success -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SUCCESS,
                                 Placeholder.unparsed("titleholder", partyNames.display(titleHolderId)),
                                 Placeholder.unparsed("region", success.regionId())));
                         events.fireSync(new TitleTransferredEvent(region, titleHolderId,
                                 Party.playerUuidOf(success.previousTitleHolder()).orElse(null)));
+                    }
+                    case RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract noContract ->
+                            sender.sendMessage(messages.messageFor(
+                                    MessageKeys.SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
+                                    Placeholder.unparsed("region", noContract.regionId())));
+                    case RealtyPaperApi.SetTitleHolderResult.NotAuthorized notAuthorized ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION,
+                                    Placeholder.unparsed("region", notAuthorized.regionId())));
+                    case RealtyPaperApi.SetTitleHolderResult.UpdateFailed updateFailed ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_UPDATE_FAILED,
+                                    Placeholder.unparsed("region", updateFailed.regionId())));
+                    case RealtyPaperApi.SetTitleHolderResult.Error error ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_ERROR,
+                                    Placeholder.unparsed("error", error.message())));
                 }
-                case RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract noContract ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
-                                Placeholder.unparsed("region", noContract.regionId())));
-                case RealtyPaperApi.SetTitleHolderResult.NotAuthorized ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
-                case RealtyPaperApi.SetTitleHolderResult.UpdateFailed updateFailed ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_UPDATE_FAILED,
-                                Placeholder.unparsed("region", updateFailed.regionId())));
-                case RealtyPaperApi.SetTitleHolderResult.Error error ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_ERROR,
-                                Placeholder.unparsed("error", error.message())));
-            }
+            }), sender, MessageKeys.SET_TITLEHOLDER_ERROR);
         });
     }
 
     private void executeSetTenant(@NotNull CommandContext<Source> ctx) {
         CommandSender sender = ctx.sender().source();
         UUID tenantId = ctx.get("tenant");
-        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> sender instanceof Player player
-                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
+        WorldGuardRegion region = regionOf(ctx, sender);
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        authorizeLeaseholdSet(sender, region, "realty.command.set.tenant.others", null, LandlordGate.MANAGES,
-                _ ->
-        api.setTenant(region, Party.personal(tenantId)).thenAccept(result -> {
+        router.route(sender, region, SetRouting.Kind.HOLDER, SetRouter.HolderTest.MANAGES,
+                "realty.command.set.tenant.others", MessageKeys.SET_NO_PERMISSION,
+                ctx.flags().hasFlag(NOW_FLAG), false, routed ->
+        router.reportWriteFailure(api.setTenant(region, Party.personal(tenantId), routed.actor(),
+                routed.vacantOnly()).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.SetTenantResult.Success success -> {
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,
-                                Placeholder.unparsed("tenant", partyNames.display(tenantId)),
-                                Placeholder.unparsed("region", success.regionId())));
-                        events.fireSync(new TenantSetEvent(region, tenantId, Party.playerUuidOf(success.previousTenant()).orElse(null),
-                                success.landlord()));
+                    sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_SUCCESS,
+                            Placeholder.unparsed("tenant", partyNames.display(tenantId)),
+                            Placeholder.unparsed("region", success.regionId())));
+                    events.fireSync(new TenantSetEvent(region, tenantId,
+                            Party.playerUuidOf(success.previousTenant()).orElse(null), success.landlord()));
                 }
                 case RealtyPaperApi.SetTenantResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));
-                case RealtyPaperApi.SetTenantResult.NotAuthorized ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                case RealtyPaperApi.SetTenantResult.NotAuthorized notAuthorized ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NOT_LANDLORD,
+                                Placeholder.unparsed("region", notAuthorized.regionId())));
                 case RealtyPaperApi.SetTenantResult.Occupied occupied ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
                                 Placeholder.unparsed("region", occupied.regionId())));
@@ -539,7 +444,16 @@ public record SetCommandGroup(
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_ERROR,
                                 Placeholder.unparsed("error", error.message())));
             }
-        }));
+        }), sender, MessageKeys.SET_TENANT_ERROR));
+    }
+
+    /** The region the command names, or the one the player stands in; null when there is neither. */
+    private static @Nullable WorldGuardRegion regionOf(@NotNull CommandContext<Source> ctx,
+                                                       @NotNull CommandSender sender) {
+        return ctx.<Optional<WorldGuardRegion>>optional("region")
+                .flatMap(Function.identity())
+                .orElseGet(() -> sender instanceof Player player
+                        ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);
     }
 
     private void executeSetMaxExtensions(@NotNull CommandContext<Source> ctx) {
