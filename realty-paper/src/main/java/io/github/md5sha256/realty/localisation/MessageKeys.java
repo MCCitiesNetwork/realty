@@ -354,6 +354,12 @@ public final class MessageKeys {
     // set (shared)
     public static final String SET_NO_PERMISSION = "set.no-permission";
     public static final String SET_CHECK_PERMISSIONS_ERROR = "set.check-permissions-error";
+    public static final String SET_RENTED_NEEDS_NOW = "set.rented-needs-now";
+    public static final String SET_RENTED_NO_NOW_PERMISSION = "set.rented-no-now-permission";
+    public static final String SET_UNLIMITED_NEEDS_NOW = "set.unlimited-needs-now";
+    public static final String SET_CONSOLE_NEEDS_NOW = "set.console-needs-now";
+    public static final String SET_JUST_RENTED = "set.just-rented";
+    public static final String SET_JUST_VACATED = "set.just-vacated";
 
     // set-duration
     public static final String SET_DURATION_SUCCESS = "set-duration.success";

@@ -689,6 +689,19 @@ set:
         have an admin force the change.
     leasehold-no-permission: <prefix> Leasehold terms cannot be set instantly. Use <green>/realty
         modify</green> to change region <yellow><region></yellow> from the next cycle.
+    rented-needs-now: <prefix> Region <yellow><region></yellow> is currently rented. Add
+        <green>--now</green> to change this immediately.
+    rented-no-now-permission: <prefix> Region <yellow><region></yellow> is currently rented,
+        and you do not have permission to change this while it is rented.
+    unlimited-needs-now: <prefix> Unlimited extensions cannot wait for a renewal on region
+        <yellow><region>.</yellow> Choose a number instead.
+    console-needs-now: <prefix> Region <yellow><region></yellow> is rented and its landlord
+        is not a player, so the console cannot schedule this. Add <green>--now</green> to
+        change it immediately.
+    just-rented: <prefix> Region <yellow><region></yellow> was just rented, so nothing was
+        changed. Run the command again.
+    just-vacated: <prefix> Region <yellow><region></yellow> was just vacated, so nothing was
+        changed. Run the command again.
 modify:
     propose-success-landlord: <prefix> You have <green>proposed new terms</green> for
         region <yellow><region></yellow>. They take effect the next time the tenant
