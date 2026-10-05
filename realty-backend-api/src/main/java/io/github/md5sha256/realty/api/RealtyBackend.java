@@ -160,8 +160,8 @@ public interface RealtyBackend {
     }
 
     /**
-     * Sets the price of a freehold or a leasehold on behalf of {@code ctx}, with no check of who
-     * is acting and no tenancy condition.
+     * Sets the price of a freehold or a leasehold, with no check of who is acting and no
+     * tenancy condition.
      */
     default @NotNull SetPriceResult setPrice(@NotNull String worldGuardRegionId,
                                              @NotNull UUID worldId,

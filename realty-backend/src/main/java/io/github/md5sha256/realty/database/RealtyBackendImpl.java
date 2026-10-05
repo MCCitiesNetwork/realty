@@ -453,6 +453,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (freehold != null) {
+                if (!ctx.mayManage(freeholdHolder(freehold))) {
+                    return new SetPriceResult.NotAuthorized();
+                }
                 if (wrapper.freeholdContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)) {
                     return new SetPriceResult.AuctionExists();
                 }
@@ -461,9 +464,6 @@ public class RealtyBackendImpl implements RealtyBackend {
                 }
                 if (wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                     return new SetPriceResult.BidPaymentInProgress();
-                }
-                if (!ctx.mayManage(freeholdHolder(freehold))) {
-                    return new SetPriceResult.NotAuthorized();
                 }
                 int authorityPartyId = namedPartyId(wrapper, freehold.authority());
                 boolean guardTitleHolder = !ctx.bypass();
@@ -528,14 +528,14 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (freehold == null) {
                 return new UnsetPriceResult.NoFreeholdContract();
             }
+            if (!ctx.mayManage(freeholdHolder(freehold))) {
+                return new UnsetPriceResult.NotAuthorized();
+            }
             if (wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new UnsetPriceResult.OfferPaymentInProgress();
             }
             if (wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new UnsetPriceResult.BidPaymentInProgress();
-            }
-            if (!ctx.mayManage(freeholdHolder(freehold))) {
-                return new UnsetPriceResult.NotAuthorized();
             }
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
             boolean guardTitleHolder = !ctx.bypass();
@@ -614,13 +614,13 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease == null) {
                 return new SetMaxRenewalsResult.NoLeaseholdContract();
             }
+            if (!ctx.mayManage(lease.landlord())) {
+                return new SetMaxRenewalsResult.NotAuthorized();
+            }
             if (maxRenewals >= 0 && lease.tenantId() != null
                     && lease.currentMaxExtensions() != null
                     && maxRenewals < lease.currentMaxExtensions()) {
                 return new SetMaxRenewalsResult.BelowCurrentExtensions(lease.currentMaxExtensions());
-            }
-            if (!ctx.mayManage(lease.landlord())) {
-                return new SetMaxRenewalsResult.NotAuthorized();
             }
             int landlordPartyId = namedPartyId(wrapper, lease.landlord());
             Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;

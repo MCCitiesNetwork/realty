@@ -3,6 +3,8 @@ package io.github.md5sha256.realty.database;
 import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.Party;
+import io.github.md5sha256.realty.api.RealtyBackend.CreateAuctionResult;
+import io.github.md5sha256.realty.api.RealtyBackend.RenewLeaseholdResult;
 import io.github.md5sha256.realty.api.RealtyBackend.SetDurationResult;
 import io.github.md5sha256.realty.api.RealtyBackend.SetMaxRenewalsResult;
 import io.github.md5sha256.realty.api.RealtyBackend.SetPriceResult;
@@ -156,6 +158,60 @@ class GuardedTermSetterTest extends AbstractDatabaseTest {
         Assertions.assertInstanceOf(SetPriceResult.Success.class,
                 logic.setPrice(id, WORLD_ID, 300.0, admin, true));
         Assertions.assertEquals(300.0, lease(id).price());
+    }
+
+    @Test
+    void bypassIsStillHeldToVacantOnlyOnARentedLease() {
+        String id = rentedLease();
+        ActorContext admin = ActorContext.player(PLAYER_C, true);
+        Assertions.assertInstanceOf(SetPriceResult.Occupied.class,
+                logic.setPrice(id, WORLD_ID, 300.0, admin, true));
+        Assertions.assertEquals(200.0, lease(id).price());
+        Assertions.assertEquals(PLAYER_B, lease(id).tenantId());
+    }
+
+    @Test
+    void bypassActsOnAFreeholdHeldBySomeoneElse() {
+        String id = freehold();
+        ActorContext admin = ActorContext.player(PLAYER_C, true);
+        Assertions.assertInstanceOf(SetPriceResult.Success.class,
+                logic.setPrice(id, WORLD_ID, 750.0, admin, true));
+        Assertions.assertEquals(750.0, freeholdContract(id).price());
+        Assertions.assertInstanceOf(UnsetPriceResult.Success.class,
+                logic.unsetPrice(id, WORLD_ID, admin));
+        Assertions.assertNull(freeholdContract(id).price());
+        Assertions.assertEquals(PLAYER_A, freeholdContract(id).titleHolderId());
+    }
+
+    @Test
+    void strangerLearnsNothingAboutTheExtensionCount() {
+        String id = rentedLease();
+        Assertions.assertInstanceOf(RenewLeaseholdResult.Success.class,
+                logic.renewLeasehold(id, WORLD_ID, PLAYER_B));
+        Assertions.assertEquals(1, lease(id).currentMaxExtensions());
+        Assertions.assertInstanceOf(SetMaxRenewalsResult.NotAuthorized.class,
+                logic.setMaxRenewals(id, WORLD_ID, 0, AS_C, false));
+        Assertions.assertEquals(5, lease(id).maxExtensions());
+        Assertions.assertEquals(1, lease(id).currentMaxExtensions());
+        // The landlord does learn it.
+        Assertions.assertInstanceOf(SetMaxRenewalsResult.BelowCurrentExtensions.class,
+                logic.setMaxRenewals(id, WORLD_ID, 0, AS_A, false));
+    }
+
+    @Test
+    void strangerLearnsNothingAboutAnAuction() {
+        String id = freehold();
+        logic.setTitleHolder(id, WORLD_ID, null);
+        Assertions.assertInstanceOf(CreateAuctionResult.Success.class,
+                logic.createAuction(id, WORLD_ID, AS_AUTHORITY, 3600, 3600, 100.0, 10.0));
+        Assertions.assertInstanceOf(SetPriceResult.NotAuthorized.class,
+                logic.setPrice(id, WORLD_ID, 750.0, AS_C, true));
+        Assertions.assertInstanceOf(UnsetPriceResult.NotAuthorized.class,
+                logic.unsetPrice(id, WORLD_ID, AS_C));
+        Assertions.assertEquals(500.0, freeholdContract(id).price());
+        // The manager does learn it.
+        Assertions.assertInstanceOf(SetPriceResult.AuctionExists.class,
+                logic.setPrice(id, WORLD_ID, 750.0, AS_AUTHORITY, true));
     }
 
     @Test
