@@ -9,6 +9,7 @@ import com.sk89q.worldguard.protection.regions.RegionQuery;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -28,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles {@code /realty sign place <region>}, {@code /realty sign remove},
@@ -37,6 +39,7 @@ import java.util.UUID;
  * {@code realty.command.sign.list}.</p>
  */
 public record SignCommand(@NotNull RealtyPaperApi api,
+                           @NotNull ActorContexts actors,
                            @NotNull ExecutorState executorState,
                            @NotNull MessageContainer messages) implements CustomCommandBean {
 
@@ -92,22 +95,22 @@ public record SignCommand(@NotNull RealtyPaperApi api,
         UUID signWorldId = targetBlock.getWorld().getUID();
 
         // Staff with the bypass permission may place signs for any region; everyone else
-        // may only place signs for regions they are the landlord of.
+        // may only place signs for regions whose landlord party they manage.
         boolean canBypass = player.hasPermission(BYPASS_PERMISSION);
         if (canBypass) {
             placeSign(player, region, regionId, signWorldId, blockX, blockY, blockZ);
             return;
         }
         UUID worldId = region.world().getUID();
-        api.getLeaseholdContract(regionId, worldId)
-                .thenAccept(lease -> {
-                    if (lease == null || !player.getUniqueId().equals(lease.landlordId())) {
+        CompletableFuture.supplyAsync(() -> actors.forRegion(player, false, region), executorState.dbExec())
+                .thenCompose(actor -> api.getLeaseholdContract(regionId, worldId).thenAccept(lease -> {
+                    if (lease == null || !actor.mayManage(lease.landlord())) {
                         player.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_NOT_LANDLORD,
                                 Placeholder.unparsed("region", regionId)));
                         return;
                     }
                     placeSign(player, region, regionId, signWorldId, blockX, blockY, blockZ);
-                }).exceptionally(ex -> {
+                })).exceptionally(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     cause.printStackTrace();
                     player.sendMessage(messages.messageFor(MessageKeys.SIGN_PLACE_ERROR,

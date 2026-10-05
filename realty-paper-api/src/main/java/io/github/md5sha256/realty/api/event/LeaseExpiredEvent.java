@@ -1,8 +1,10 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -16,19 +18,29 @@ public class LeaseExpiredEvent extends RealtyRegionEvent {
     private static final HandlerList HANDLERS = new HandlerList();
 
     private final UUID tenantId;
-    private final UUID landlordId;
+    private final Party landlord;
 
     public LeaseExpiredEvent(@NotNull WorldGuardRegion region,
                              @NotNull UUID tenantId,
-                             @NotNull UUID landlordId) {
+                             @NotNull Party landlord) {
         super(region);
         this.tenantId = tenantId;
-        this.landlordId = landlordId;
+        this.landlord = landlord;
     }
 
     /**
      * The former tenant whose lease expired.
      */
+    public @NotNull Party getTenant() {
+        return Party.personal(this.tenantId);
+    }
+
+    /**
+     * The former tenant whose lease expired.
+     *
+     * @deprecated use {@link #getTenant()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @NotNull UUID getTenantId() {
         return this.tenantId;
     }
@@ -36,8 +48,19 @@ public class LeaseExpiredEvent extends RealtyRegionEvent {
     /**
      * The landlord of the expired lease.
      */
-    public @NotNull UUID getLandlordId() {
-        return this.landlordId;
+    public @NotNull Party getLandlord() {
+        return this.landlord;
+    }
+
+    /**
+     * The landlord of the expired lease.
+     *
+     * @deprecated use {@link #getLandlord()}; {@code null} when the landlord is not a player.
+     * Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    public @Nullable UUID getLandlordId() {
+        return Party.playerUuidOf(this.landlord).orElse(null);
     }
 
     @Override

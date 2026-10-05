@@ -70,7 +70,7 @@ them concurrently, so the two share one timeout budget.
   in a fixed total order.
 - `GET /v1/regions/search?type=&world=&minPrice=&maxPrice=&tag=&occupancy=&sort=&page=&pageSize=` --
   browse and filter regions (the HTTP form of `/realty search`). Every filter is optional.
-- `GET /v1/players/regions?player=&category=&page=&pageSize=` -- a player's owned/landlord/rented regions (the HTTP form of `/realty list`).
+- `GET /v1/players/regions?player=&category=&page=&pageSize=` -- a player's owned, authority, landlord and rented regions (the HTTP form of `/realty list`).
 - `GET /v1/players/summary?player=` -- one player's holdings as counts.
 - `GET /v1/players/lookup?playerName=` -- resolve a name to a UUID, so a client can cache it.
 - `GET /v1/region/history?world=&region=&type=&since=&player=&page=&pageSize=` -- one region's history (the HTTP form of `/realty history`).

@@ -13,6 +13,7 @@ import com.djrapitops.plan.extension.icon.Color;
 import com.djrapitops.plan.extension.icon.Family;
 import com.djrapitops.plan.extension.icon.Icon;
 import com.djrapitops.plan.extension.table.Table;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import org.jetbrains.annotations.NotNull;
 
@@ -163,7 +164,7 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
     )
     public long playerTotalOwnedRegions(UUID playerUUID) {
         return realtyApi.countRegionsByTitleHolder(playerUUID)
-                + realtyApi.countRegionsByLandlord(playerUUID);
+                + realtyApi.countRegionsByLandlord(Party.personal(playerUUID));
     }
 
     @NumberProvider(
@@ -185,7 +186,7 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
             iconColor = Color.AMBER
     )
     public long playerTotalLandlordRegions(UUID playerUUID) {
-        return realtyApi.countRegionsByLandlord(playerUUID);
+        return realtyApi.countRegionsByLandlord(Party.personal(playerUUID));
     }
 
     @NumberProvider(
@@ -207,11 +208,11 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
             iconColor = Color.GREEN
     )
     public double playerLeaseholdOccupancyRate(UUID playerUUID) {
-        int total = realtyApi.countRegionsByLandlord(playerUUID);
+        int total = realtyApi.countRegionsByLandlord(Party.personal(playerUUID));
         if (total == 0) {
             return 0;
         }
-        return (double) realtyApi.countOccupiedLeaseholdsByLandlord(playerUUID) / total;
+        return (double) realtyApi.countOccupiedLeaseholdsByLandlord(Party.personal(playerUUID)) / total;
     }
 
     @StringProvider(
@@ -247,7 +248,7 @@ public record RealtyDataExtension(@NotNull RealtyBackend realtyApi) implements D
             iconColor = Color.AMBER
     )
     public String playerLandlordRegions(UUID playerUUID) {
-        return String.join(", ", realtyApi.listRegionNamesByLandlord(playerUUID));
+        return String.join(", ", realtyApi.listRegionNamesByLandlord(Party.personal(playerUUID)));
     }
 
     @TableProvider(tableColor = Color.CYAN)

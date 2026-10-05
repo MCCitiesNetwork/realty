@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
@@ -28,13 +29,33 @@ public class TitleTransferredEvent extends RealtyRegionEvent {
     /**
      * The new title holder, or {@code null} if the title was cleared.
      */
+    public @Nullable Party getNewTitleHolder() {
+        return this.newTitleHolderId == null ? null : Party.personal(this.newTitleHolderId);
+    }
+
+    /**
+     * The previous title holder, or {@code null} if there was none.
+     */
+    public @Nullable Party getPreviousTitleHolder() {
+        return this.previousTitleHolderId == null ? null : Party.personal(this.previousTitleHolderId);
+    }
+
+    /**
+     * The new title holder, or {@code null} if the title was cleared.
+     *
+     * @deprecated use {@link #getNewTitleHolder()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @Nullable UUID getNewTitleHolderId() {
         return this.newTitleHolderId;
     }
 
     /**
      * The previous title holder, or {@code null} if there was none.
+     *
+     * @deprecated use {@link #getPreviousTitleHolder()}. Removed in 3.0.0.
      */
+    @Deprecated(forRemoval = true)
     public @Nullable UUID getPreviousTitleHolderId() {
         return this.previousTitleHolderId;
     }

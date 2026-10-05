@@ -1,12 +1,15 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
+import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LeaseTerminateEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminationCancelledEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminationScheduledEvent;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -20,6 +23,7 @@ import org.incendo.cloud.parser.flag.CommandFlag;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Groups the termination subcommands under {@code /realty terminate}:
@@ -35,6 +39,8 @@ import java.util.List;
  */
 public record TerminateCommand(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
@@ -82,7 +88,9 @@ public record TerminateCommand(
         }
         boolean bypass = sender.hasPermission("realty.command.terminate.others");
         String regionId = region.region().getId();
-        api.terminate(region, sender.getUniqueId(), bypass, immediate).thenAccept(result -> {
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.terminate(region, actor, immediate), executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.TerminateResult.Success success -> {
                     String date = success.effectiveDate().format(DateTimeFormatters.DATE_TIME);
@@ -96,8 +104,8 @@ public record TerminateCommand(
                                 Placeholder.unparsed("region", success.regionId()),
                                 Placeholder.unparsed("date", date)));
                     }
-                    events.fireSync(new LeaseTerminationScheduledEvent(region, success.landlordId(),
-                            success.tenantId(), success.terminatedByRole(), success.effectiveDate(),
+                    events.fireSync(new LeaseTerminationScheduledEvent(region, success.landlord(),
+                            Party.playerUuidOf(success.tenant()).orElse(null), success.terminatedByRole(), success.effectiveDate(),
                             success.charged()));
                 }
                 case RealtyPaperApi.TerminateResult.NoLeaseholdContract ignored ->
@@ -126,6 +134,11 @@ public record TerminateCommand(
                         sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_ERROR,
                                 Placeholder.unparsed("error", error.message())));
             }
+        }).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_ERROR,
+                    Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
+            return null;
         });
     }
 
@@ -142,13 +155,15 @@ public record TerminateCommand(
         }
         boolean bypass = sender.hasPermission("realty.command.terminate.others");
         String regionId = region.region().getId();
-        api.cancelTermination(regionId, region.world().getUID(), sender.getUniqueId(), bypass)
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.cancelTermination(regionId, region.world().getUID(), actor),
+                        executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_CANCEL_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
-                            events.fireSync(new LeaseTerminationCancelledEvent(region, success.landlordId(),
+                            events.fireSync(new LeaseTerminationCancelledEvent(region, success.landlord(),
                                     success.tenantId(), success.terminatedByRole()));
                         }
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.NoLeaseholdContract ignored ->

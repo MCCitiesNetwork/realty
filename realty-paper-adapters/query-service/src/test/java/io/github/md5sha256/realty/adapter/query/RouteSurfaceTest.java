@@ -12,7 +12,7 @@ class RouteSurfaceTest {
 
     /** The routes registered for POST; everything else in ROUTES is a GET. */
     private static final Set<String> POST_ROUTES = Set.of(
-            "/players/names", "/players/uuids", "/regions/{worldId}/dimensions");
+            "/players/names", "/players/uuids", "/accounts/names", "/regions/{worldId}/dimensions");
 
     private static Request.Builder auth(Request.Builder req) {
         return req.header(QueryServiceServer.SECRET_HEADER, TestServers.SECRET);

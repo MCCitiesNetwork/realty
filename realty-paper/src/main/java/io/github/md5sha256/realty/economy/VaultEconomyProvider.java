@@ -1,10 +1,12 @@
 package io.github.md5sha256.realty.economy;
 
+import io.github.md5sha256.realty.api.Party;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
@@ -12,6 +14,7 @@ import java.util.UUID;
  * Economy provider backed by Vault. Used when Treasury is not present.
  * Ledger messages are discarded (Vault has no per-transaction metadata support).
  * Tax collection is not available without Treasury.
+ * Vault holds only player balances, so account and group parties cannot pay or be paid.
  */
 public final class VaultEconomyProvider implements EconomyProvider {
 
@@ -22,19 +25,25 @@ public final class VaultEconomyProvider implements EconomyProvider {
     }
 
     @Override
-    public double getBalance(@NotNull UUID playerId) {
-        return economy.getBalance(Bukkit.getOfflinePlayer(playerId));
+    public double getBalance(@NotNull Party party) {
+        if (!(party instanceof Party.Personal personal)) {
+            return 0.0;
+        }
+        return economy.getBalance(Bukkit.getOfflinePlayer(personal.playerUuid()));
     }
 
     @Override
-    public @NotNull PaymentResult transfer(@NotNull UUID fromId, @NotNull UUID toId,
-                                            double amount, @NotNull String ledgerMessage) {
-        OfflinePlayer payer = Bukkit.getOfflinePlayer(fromId);
+    public @NotNull PaymentResult transfer(@NotNull Party from, @NotNull Party to, double amount,
+                                           @NotNull String ledgerMessage, @Nullable UUID initiator) {
+        if (!(from instanceof Party.Personal fromPlayer) || !(to instanceof Party.Personal toPlayer)) {
+            return new PaymentResult.Failure("Account and group parties require Treasury");
+        }
+        OfflinePlayer payer = Bukkit.getOfflinePlayer(fromPlayer.playerUuid());
         EconomyResponse withdraw = economy.withdrawPlayer(payer, amount);
         if (!withdraw.transactionSuccess()) {
             return new PaymentResult.Failure(withdraw.errorMessage);
         }
-        OfflinePlayer recipient = Bukkit.getOfflinePlayer(toId);
+        OfflinePlayer recipient = Bukkit.getOfflinePlayer(toPlayer.playerUuid());
         EconomyResponse deposit = economy.depositPlayer(recipient, amount);
         if (!deposit.transactionSuccess()) {
             // Rollback: return money to payer

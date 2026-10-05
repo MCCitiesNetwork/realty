@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.javalin.testtools.JavalinTest;
 import io.javalin.testtools.Response;
@@ -20,7 +22,7 @@ class RegionHistoryEndpointTest {
     @Test
     void discriminatesAFreeholdEntryByKind() {
         HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
-                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, AUTHORITY, 21500.0);
+                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, Party.personal(AUTHORITY), 21500.0);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of(BUYER, "Alice"));
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             Response response = client.get(URL);
@@ -35,9 +37,67 @@ class RegionHistoryEndpointTest {
     }
 
     @Test
+    void leavesOutTheBuyerOfAFreeholdEntryThatHasNone() {
+        HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
+                "SET_PRICE", LocalDateTime.of(2026, 8, 30, 14, 2, 11), null, Party.personal(AUTHORITY), 900.0);
+        RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of());
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            Response response = client.get(URL);
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertFalse(body.contains("\"buyer\""), body);
+            Assertions.assertTrue(body.contains("\"authority\""), body);
+        });
+    }
+
+    @Test
+    void anAccountAuthorityIsServedWithItsKind() {
+        HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
+                "SET_PRICE", LocalDateTime.of(2026, 8, 30, 14, 2, 11), null,
+                Party.account(42, AccountKind.GOVERNMENT), 900.0);
+        RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of());
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            Response response = client.get(URL);
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains(
+                    "\"authority\":{\"kind\":\"government\",\"id\":\"42\",\"name\":null}"), body);
+            Assertions.assertFalse(body.contains("\"buyer\""), body);
+        });
+    }
+
+    @Test
+    void aGroupLandlordIsServedWithItsKind_andAMissingTenantIsLeftOut() {
+        HistoryEntry.Leasehold entry = new HistoryEntry.Leasehold(
+                "SET_PRICE", LocalDateTime.of(2026, 8, 12, 9, 40), null,
+                Party.group("police", 7, AccountKind.GOVERNMENT), 800.0, null, null);
+        RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of());
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            Response response = client.get(URL);
+            Assertions.assertEquals(200, response.code());
+            String body = response.body().string();
+            Assertions.assertTrue(body.contains(
+                    "\"landlord\":{\"kind\":\"group\",\"id\":\"police\",\"name\":\"police\"}"), body);
+            Assertions.assertFalse(body.contains("\"tenant\""), body);
+        });
+    }
+
+    @Test
+    void aPlayerBuyerIsAPersonalRef() {
+        HistoryEntry.Freehold entry = new HistoryEntry.Freehold(
+                "BUY", LocalDateTime.of(2026, 8, 30, 14, 2, 11), BUYER, Party.personal(AUTHORITY), 21500.0);
+        RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of(BUYER, "Alice"));
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            String body = client.get(URL).body().string();
+            Assertions.assertTrue(body.contains(
+                    "\"buyer\":{\"kind\":\"personal\",\"id\":\"" + BUYER + "\",\"name\":\"Alice\"}"), body);
+        });
+    }
+
+    @Test
     void discriminatesALeaseholdEntryByKind() {
         HistoryEntry.Leasehold entry = new HistoryEntry.Leasehold(
-                "RENT", LocalDateTime.of(2026, 8, 12, 9, 40), BUYER, AUTHORITY,
+                "RENT", LocalDateTime.of(2026, 8, 12, 9, 40), BUYER, Party.personal(AUTHORITY),
                 800.0, 604800L, 3);
         RealtyRestServer server = TestServers.withHistory(List.of(entry), 1, Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {

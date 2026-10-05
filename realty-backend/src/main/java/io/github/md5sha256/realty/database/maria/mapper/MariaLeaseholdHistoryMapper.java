@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database.maria.mapper;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.mapper.LeaseholdHistoryMapper;
 import org.apache.ibatis.annotations.Select;
@@ -21,16 +22,16 @@ public interface MariaLeaseholdHistoryMapper extends LeaseholdHistoryMapper {
 
     @Override
     @Insert("""
-            INSERT INTO LeaseholdHistory (worldGuardRegionId, worldId, eventType, tenantId, landlordId,
+            INSERT INTO LeaseholdHistory (worldGuardRegionId, worldId, eventType, tenantId, landlordPartyId,
                                           price, durationSeconds, extensionsRemaining)
-            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{tenantId}, #{landlordId},
+            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{tenantId}, #{landlordPartyId},
                     #{price}, #{durationSeconds}, #{extensionsRemaining})
             """)
     int insert(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                @Param("worldId") @NotNull UUID worldId,
                @Param("eventType") @NotNull String eventType,
-               @Param("tenantId") @NotNull UUID tenantId,
-               @Param("landlordId") @NotNull UUID landlordId,
+               @Param("tenantId") @Nullable UUID tenantId,
+               @Param("landlordPartyId") int landlordPartyId,
                @Param("price") @Nullable Double price,
                @Param("durationSeconds") @Nullable Long durationSeconds,
                @Param("extensionsRemaining") @Nullable Integer extensionsRemaining);
@@ -39,9 +40,9 @@ public interface MariaLeaseholdHistoryMapper extends LeaseholdHistoryMapper {
     // A select, because it answers with a row, and one that is declared to write. See
     // MariaFreeholdHistoryMapper#insertReturningId.
     @Select(value = """
-            INSERT INTO LeaseholdHistory (worldGuardRegionId, worldId, eventType, tenantId, landlordId,
+            INSERT INTO LeaseholdHistory (worldGuardRegionId, worldId, eventType, tenantId, landlordPartyId,
                                           price, durationSeconds, extensionsRemaining)
-            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{tenantId}, #{landlordId},
+            VALUES (#{worldGuardRegionId}, #{worldId}, #{eventType}, #{tenantId}, #{landlordPartyId},
                     #{price}, #{durationSeconds}, #{extensionsRemaining})
             RETURNING historyId
             """, affectData = true)
@@ -49,8 +50,8 @@ public interface MariaLeaseholdHistoryMapper extends LeaseholdHistoryMapper {
     int insertReturningId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                           @Param("worldId") @NotNull UUID worldId,
                           @Param("eventType") @NotNull String eventType,
-                          @Param("tenantId") @NotNull UUID tenantId,
-                          @Param("landlordId") @NotNull UUID landlordId,
+                          @Param("tenantId") @Nullable UUID tenantId,
+                          @Param("landlordPartyId") int landlordPartyId,
                           @Param("price") @Nullable Double price,
                           @Param("durationSeconds") @Nullable Long durationSeconds,
                           @Param("extensionsRemaining") @Nullable Integer extensionsRemaining);
@@ -70,7 +71,7 @@ public interface MariaLeaseholdHistoryMapper extends LeaseholdHistoryMapper {
             @Arg(column = "worldId", javaType = UUID.class),
             @Arg(column = "eventType", javaType = String.class),
             @Arg(column = "tenantId", javaType = UUID.class),
-            @Arg(column = "landlordId", javaType = UUID.class),
+            @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "landlord_", javaType = Party.class),
             @Arg(column = "price", javaType = Double.class),
             @Arg(column = "durationSeconds", javaType = Long.class),
             @Arg(column = "extensionsRemaining", javaType = Integer.class),

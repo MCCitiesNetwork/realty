@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.economy;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.Party;
 import net.democracycraft.treasury.api.TreasuryApi;
 import net.democracycraft.treasury.model.economy.Account;
 import net.democracycraft.treasury.model.economy.AccountType;
@@ -12,11 +14,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -31,11 +35,11 @@ class TreasuryEconomyProviderTest {
     private TreasuryEconomyProvider provider;
 
     private final UUID payer = UUID.randomUUID();
-    private final UUID recipient = UUID.randomUUID();
+    private final Party.Account government = Party.account(42, AccountKind.GOVERNMENT);
 
     @BeforeEach
     void setUp() {
-        provider = new TreasuryEconomyProvider(treasuryApi);
+        provider = new TreasuryEconomyProvider(treasuryApi, new PartyWallets(treasuryApi));
     }
 
     private Account account(int id, AccountType type, UUID owner) {
@@ -46,159 +50,121 @@ class TreasuryEconomyProviderTest {
         return a;
     }
 
-    private int capturedDestination(UUID recipient) {
-        Account payerPersonal = account(1, AccountType.PERSONAL, payer);
-        when(treasuryApi.getAccountsByOwner(payer)).thenReturn(List.of(payerPersonal));
+    /** Stubs a payment from {@link #payer}'s PERSONAL account (1) into GOVERNMENT account 42. */
+    private TransferRequest pay(double amount, UUID initiator) {
+        when(treasuryApi.resolveOrCreatePersonal(payer)).thenReturn(account(1, AccountType.PERSONAL, payer));
+        when(treasuryApi.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, UUID.randomUUID()));
         when(treasuryApi.transfer(any())).thenReturn(99L);
 
-        PaymentResult result = provider.transfer(payer, recipient, 50.0, "Rental Payment: REGION");
+        PaymentResult result = provider.transfer(Party.personal(payer), government, amount,
+                "Rental Payment: REGION", initiator);
         assertInstanceOf(PaymentResult.Success.class, result);
 
         ArgumentCaptor<TransferRequest> req = ArgumentCaptor.forClass(TransferRequest.class);
         verify(treasuryApi).transfer(req.capture());
-        assertEquals(payerPersonal.getAccountId(), req.getValue().fromAccountId());
+        return req.getValue();
+    }
+
+    @Test
+    void transfer_playerToAccount_movesBetweenTheRightAccounts() {
+        TransferRequest request = pay(50.0, payer);
+
+        assertEquals(1, request.fromAccountId());
+        assertEquals(42, request.toAccountId());
         // amount() is normalised to scale 2; compareTo is scale-insensitive.
-        assertEquals(0, new BigDecimal("50.00").compareTo(req.getValue().amount()));
-        return req.getValue().toAccountId();
+        assertEquals(0, new BigDecimal("50.00").compareTo(request.amount()));
+        assertEquals("Rental Payment: REGION", request.message());
+        assertEquals("realty", request.pluginSystem());
     }
 
     @Test
-    void landlordWithFirm_routesToPersonalNotBusiness() {
-        UUID landlord = UUID.randomUUID();
-        // Landlord is a firm proprietor: owns both their PERSONAL account and a
-        // firm BUSINESS account (which is owned by their own UUID).
-        when(treasuryApi.getAccountsByOwner(landlord)).thenReturn(List.of(
-                account(500, AccountType.BUSINESS, landlord),
-                account(42, AccountType.PERSONAL, landlord)));
+    void transfer_passesTheInitiator() {
+        UUID initiator = UUID.randomUUID();
+        TransferRequest request = pay(50.0, initiator);
 
-        assertEquals(42, capturedDestination(landlord),
-                "rent must land in the landlord's personal account, not their firm");
+        assertEquals(initiator, request.initiator());
+        assertNull(request.authorizer());
     }
 
     @Test
-    void legacyGovernment_withPersonalAndGovernmentAccount_routesToGovernment() {
-        UUID government = UUID.randomUUID();
-        // Legacy DCGovernment-style entity: a real Minecraft UUID that owns both
-        // a personal account (the original player) and the government account.
-        // Leasehold income must route to the government account, not personal.
-        when(treasuryApi.getAccountsByOwner(government)).thenReturn(List.of(
-                account(13, AccountType.PERSONAL, government),
-                account(9, AccountType.GOVERNMENT, government)));
+    void transfer_withoutInitiator_sendsTheSystemInitiator() {
+        // Treasury's ledger cannot store a null initiator, so a scheduled payment names Realty itself.
+        TransferRequest request = pay(50.0, null);
 
-        assertEquals(9, capturedDestination(government),
-                "government landlord income must route to the government account, not personal");
+        assertEquals(TreasuryEconomyProvider.SYSTEM_INITIATOR, request.initiator());
+        assertEquals(UUID.nameUUIDFromBytes("realty:system".getBytes(StandardCharsets.UTF_8)),
+                request.initiator());
     }
 
     @Test
-    void authorityUuid_withOnlyGovernmentAccount_routesToGovernment() {
-        UUID authority = UUID.randomUUID();
-        // Synthetic authority/government entity: no personal account exists.
-        when(treasuryApi.getAccountsByOwner(authority)).thenReturn(List.of(
-                account(7, AccountType.GOVERNMENT, authority)));
+    void transfer_toUnavailableAccount_failsAndMovesNothing() {
+        Account archived = account(42, AccountType.GOVERNMENT, UUID.randomUUID());
+        archived.setArchived(true);
+        when(treasuryApi.resolveOrCreatePersonal(payer)).thenReturn(account(1, AccountType.PERSONAL, payer));
+        when(treasuryApi.getAccountById(42)).thenReturn(archived);
 
-        assertEquals(7, capturedDestination(authority),
-                "authority payments must still route to the government account");
+        PaymentResult result = provider.transfer(Party.personal(payer), government, 50.0,
+                "Rental Payment: REGION", payer);
+
+        assertEquals(new PaymentResult.Failure("Account #42 is archived"), result);
+        verify(treasuryApi, never()).transfer(any());
     }
 
     @Test
-    void recipientWithNoAccounts_resolvesOrCreatesPersonal() {
-        UUID newOwner = UUID.randomUUID();
-        when(treasuryApi.getAccountsByOwner(newOwner)).thenReturn(List.of());
-        when(treasuryApi.resolveOrCreatePersonal(newOwner))
-                .thenReturn(account(88, AccountType.PERSONAL, newOwner));
+    void transfer_fromUnavailableAccount_failsAndMovesNothing() {
+        // A refund out of an account that Treasury has since deleted.
+        when(treasuryApi.getAccountById(42)).thenReturn(null);
 
-        assertEquals(88, capturedDestination(newOwner));
-    }
+        PaymentResult result = provider.transfer(government, Party.personal(payer), 50.0,
+                "Early Lease Termination Refund: REGION", payer);
 
-    private int capturedSource(UUID payerUuid) {
-        Account recipientPersonal = account(2, AccountType.PERSONAL, recipient);
-        when(treasuryApi.getAccountsByOwner(recipient)).thenReturn(List.of(recipientPersonal));
-        when(treasuryApi.transfer(any())).thenReturn(99L);
-
-        PaymentResult result = provider.transfer(payerUuid, recipient, 50.0, "Lease Termination Refund: REGION");
-        assertInstanceOf(PaymentResult.Success.class, result);
-
-        ArgumentCaptor<TransferRequest> req = ArgumentCaptor.forClass(TransferRequest.class);
-        verify(treasuryApi).transfer(req.capture());
-        assertEquals(recipientPersonal.getAccountId(), req.getValue().toAccountId());
-        return req.getValue().fromAccountId();
+        assertEquals(new PaymentResult.Failure("Account #42 no longer exists"), result);
+        verify(treasuryApi, never()).transfer(any());
     }
 
     @Test
-    void governmentPayer_refundIsDebitedFromGovernmentNotPersonal() {
-        UUID government = UUID.randomUUID();
-        // The mirror of legacyGovernment_withPersonalAndGovernmentAccount_routesToGovernment:
-        // a refund from a government landlord must leave the same account the rent
-        // was paid into, not the entity's personal balance.
-        when(treasuryApi.getAccountsByOwner(government)).thenReturn(List.of(
-                account(13, AccountType.PERSONAL, government),
-                account(9, AccountType.GOVERNMENT, government)));
+    void transfer_roundsToTwoDecimals() {
+        // Pro-rata refunds (price * remaining / total) can carry more than 2 decimals,
+        // which Treasury rejects.
+        TransferRequest request = pay(10.005, payer);
 
-        assertEquals(9, capturedSource(government),
-                "a government landlord's refund must be debited from the government account");
+        assertEquals(new BigDecimal("10.01"), request.amount());
     }
 
     @Test
-    void firmProprietorPayer_paysFromPersonalNotBusiness() {
-        UUID proprietor = UUID.randomUUID();
-        when(treasuryApi.getAccountsByOwner(proprietor)).thenReturn(List.of(
-                account(500, AccountType.BUSINESS, proprietor),
-                account(42, AccountType.PERSONAL, proprietor)));
+    void balance_readsTheAccountTheTransferWouldUse() {
+        when(treasuryApi.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, payer));
+        when(treasuryApi.getBalanceByAccountId(42)).thenReturn(new BigDecimal("250.00"));
+        when(treasuryApi.getAccountsByTypeAndOwner(AccountType.PERSONAL, payer))
+                .thenReturn(List.of(account(13, AccountType.PERSONAL, payer)));
+        when(treasuryApi.getBalanceByAccountId(13)).thenReturn(new BigDecimal("10.50"));
 
-        assertEquals(42, capturedSource(proprietor),
-                "an ordinary payer must pay from their personal account, not a firm they own");
+        assertEquals(250.0, provider.getBalance(government));
+        // The player also owns account 42, but as a Personal party only the PERSONAL account counts.
+        assertEquals(10.50, provider.getBalance(Party.personal(payer)));
     }
 
     @Test
-    void payerWithNoAccounts_resolvesOrCreatesPersonal() {
-        UUID newPayer = UUID.randomUUID();
-        when(treasuryApi.getAccountsByOwner(newPayer)).thenReturn(List.of());
-        when(treasuryApi.resolveOrCreatePersonal(newPayer))
-                .thenReturn(account(88, AccountType.PERSONAL, newPayer));
+    void balanceOfPlayerWithNoAccount_isZeroAndCreatesNothing() {
+        when(treasuryApi.getAccountsByTypeAndOwner(AccountType.PERSONAL, payer)).thenReturn(List.of());
 
-        assertEquals(88, capturedSource(newPayer));
+        assertEquals(0.0, provider.getBalance(Party.personal(payer)));
+        verify(treasuryApi, never()).resolveOrCreatePersonal(any());
     }
 
     @Test
-    void governmentBalance_readsTheGovernmentAccountNotPersonal() {
-        UUID government = UUID.randomUUID();
-        when(treasuryApi.getAccountsByOwner(government)).thenReturn(List.of(
-                account(13, AccountType.PERSONAL, government),
-                account(9, AccountType.GOVERNMENT, government)));
-        when(treasuryApi.getBalanceByAccountId(9)).thenReturn(new BigDecimal("250.00"));
+    void balanceOfUnavailableAccount_isZero() {
+        when(treasuryApi.getAccountById(42)).thenReturn(null);
 
-        assertEquals(250.0, provider.getBalance(government),
-                "a government entity's balance must be read from the account it transacts with");
-    }
-
-    @Test
-    void firmProprietorBalance_readsPersonalNotBusiness() {
-        UUID proprietor = UUID.randomUUID();
-        when(treasuryApi.getAccountsByOwner(proprietor)).thenReturn(List.of(
-                account(500, AccountType.BUSINESS, proprietor),
-                account(42, AccountType.PERSONAL, proprietor)));
-        when(treasuryApi.getBalanceByAccountId(42)).thenReturn(new BigDecimal("10.50"));
-
-        assertEquals(10.50, provider.getBalance(proprietor));
-    }
-
-    @Test
-    void balanceWithNoAccounts_isZeroAndCreatesNothing() {
-        UUID stranger = UUID.randomUUID();
-        when(treasuryApi.getAccountsByOwner(stranger)).thenReturn(List.of());
-
-        assertEquals(0.0, provider.getBalance(stranger));
-        // A balance read must never have the side effect of opening an account.
-        verify(treasuryApi, never()).resolveOrCreatePersonal(stranger);
+        assertEquals(0.0, provider.getBalance(government));
     }
 
     @Test
     void balanceOfNull_isZero() {
-        UUID owner = UUID.randomUUID();
-        when(treasuryApi.getAccountsByOwner(owner)).thenReturn(List.of(
-                account(42, AccountType.PERSONAL, owner)));
-        when(treasuryApi.getBalanceByAccountId(42)).thenReturn(null);
+        when(treasuryApi.getAccountsByTypeAndOwner(AccountType.PERSONAL, payer))
+                .thenReturn(List.of(account(13, AccountType.PERSONAL, payer)));
+        when(treasuryApi.getBalanceByAccountId(13)).thenReturn(null);
 
-        assertEquals(0.0, provider.getBalance(owner));
+        assertEquals(0.0, provider.getBalance(Party.personal(payer)));
     }
 }

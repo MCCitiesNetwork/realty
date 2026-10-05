@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.HandlerList;
@@ -26,6 +27,16 @@ public class TitleTransferEvent extends RealtyRegionEvent implements Cancellable
     /**
      * The new title holder, or {@code null} if the title is being cleared.
      */
+    public @Nullable Party getNewTitleHolder() {
+        return this.newTitleHolderId == null ? null : Party.personal(this.newTitleHolderId);
+    }
+
+    /**
+     * The new title holder, or {@code null} if the title is being cleared.
+     *
+     * @deprecated use {@link #getNewTitleHolder()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @Nullable UUID getNewTitleHolderId() {
         return this.newTitleHolderId;
     }

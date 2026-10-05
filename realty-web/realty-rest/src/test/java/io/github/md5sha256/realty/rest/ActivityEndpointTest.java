@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.ActivityRow;
 import io.javalin.testtools.JavalinTest;
 import io.javalin.testtools.Response;
@@ -19,7 +21,7 @@ class ActivityEndpointTest {
 
     private static ActivityRow freehold(String region, String eventType) {
         return new ActivityRow("freehold", region, WORLD_ID, eventType,
-                LocalDateTime.of(2026, 8, 30, 14, 2, 11), ALICE, BOB, 21500.0, null, null);
+                LocalDateTime.of(2026, 8, 30, 14, 2, 11), ALICE, Party.personal(BOB), 21500.0, null, null);
     }
 
     @Test
@@ -43,9 +45,9 @@ class ActivityEndpointTest {
     @Test
     void carriesTheLeaseholdAndAgentShapesToo() {
         ActivityRow lease = new ActivityRow("leasehold", "plot_b", WORLD_ID, "RENT",
-                LocalDateTime.of(2026, 8, 12, 9, 40), ALICE, BOB, 800.0, 604800L, 3);
+                LocalDateTime.of(2026, 8, 12, 9, 40), ALICE, Party.personal(BOB), 800.0, 604800L, 3);
         ActivityRow agent = new ActivityRow("agent", "plot_c", WORLD_ID, "AGENT_ADD",
-                LocalDateTime.of(2026, 8, 1, 18, 0), ALICE, BOB, null, null, null);
+                LocalDateTime.of(2026, 8, 1, 18, 0), ALICE, Party.personal(BOB), null, null, null);
         RealtyRestServer server = TestServers.withActivity(List.of(lease, agent), 2, Map.of());
         JavalinTest.test(server.javalin(), (jsonServer, client) -> {
             String body = client.get("/v1/activity").body().string();
@@ -53,6 +55,21 @@ class ActivityEndpointTest {
             Assertions.assertTrue(body.contains("\"durationSeconds\":604800"), body);
             Assertions.assertTrue(body.contains("\"kind\":\"agent\""), body);
             Assertions.assertTrue(body.contains("\"agent\""), body);
+        });
+    }
+
+    @Test
+    void anAccountLandlordIsServedWithItsKind() {
+        ActivityRow lease = new ActivityRow("leasehold", "plot_b", WORLD_ID, "RENT",
+                LocalDateTime.of(2026, 8, 12, 9, 40), ALICE, Party.account(42, AccountKind.GOVERNMENT),
+                800.0, 604800L, 3);
+        RealtyRestServer server = TestServers.withActivity(List.of(lease), 1, Map.of(ALICE, "Alice"));
+        JavalinTest.test(server.javalin(), (jsonServer, client) -> {
+            String body = client.get("/v1/activity").body().string();
+            Assertions.assertTrue(body.contains(
+                    "\"landlord\":{\"kind\":\"government\",\"id\":\"42\",\"name\":null}"), body);
+            Assertions.assertTrue(body.contains(
+                    "\"tenant\":{\"kind\":\"personal\",\"id\":\"" + ALICE + "\",\"name\":\"Alice\"}"), body);
         });
     }
 

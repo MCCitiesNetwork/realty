@@ -174,9 +174,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -227,10 +231,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -372,10 +379,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -461,9 +471,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -529,9 +543,13 @@ paths:
         - name: page
           in: query
           required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -581,10 +599,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -984,10 +1005,13 @@ paths:
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -1027,18 +1051,21 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /v1/players/regions:
     get:
-      summary: List a player's owned, landlorded and rented regions
+      summary: List the regions a player holds, is authority of, lets and rents
       operationId: listPlayerRegions
       description: >-
         The HTTP form of the in-game `/realty list` command. When `category` is
-        `all` (the default), the three category lists -- owned, landlord and
-        rented -- are paged against **one shared offset**, exactly as `/realty
-        list` does in-game: the page boundary can fall inside a category rather
-        than starting each category's own list at 1, so `owned`, `landlord` and
-        `rented` on a given page are the slice of the combined, concatenated
-        sequence that lands on that page, not independently-paged lists of their
-        own length. When `category` is `owned` or `rented`, that single category
-        is paged normally and returned under `regions` instead.
+        `all` (the default), the four category lists -- owned, authority,
+        landlord and rented, in that order -- are paged against **one shared
+        offset**, exactly as `/realty list` does in-game: the page boundary can
+        fall inside a category rather than starting each category's own list at
+        1, so `owned`, `authority`, `landlord` and `rented` on a given page are
+        the slice of the combined, concatenated sequence that lands on that page,
+        not independently-paged lists of their own length. When `category` is
+        `owned`, `authority`, `landlord` or `rented`, that single category is
+        paged normally and returned under `regions` instead. Before 2.0.0,
+        `landlord` held the freeholds the player is authority of; those are now
+        in `authority`, and `landlord` holds the leaseholds the player lets.
       parameters:
         - name: player
           in: query
@@ -1057,18 +1084,23 @@ paths:
         - name: category
           in: query
           required: false
-          description: One of `all` (default), `owned`, or `rented`.
+          description: >-
+            One of `all` (default), `owned`, `authority`, `landlord` or `rented`.
+            See `PlayerRegionsResponse` for what each category holds.
           schema:
             type: string
-            enum: [ all, owned, rented ]
+            enum: [ all, owned, authority, landlord, rented ]
             default: all
         - name: page
           in: query
           required: false
-          description: 1-based page number. Defaults to 1.
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
           schema:
             type: integer
             minimum: 1
+            maximum: 21474836
             default: 1
         - name: pageSize
           in: query
@@ -1094,7 +1126,7 @@ paths:
             a UUID-shaped `player` does not parse; `INVALID_PAGE` or
             `INVALID_PAGE_SIZE` for a non-integer or out-of-range `page`/`pageSize`;
             `INVALID_CATEGORY` when `category` is present but not one of `all`,
-            `owned`, `rented`.
+            `owned`, `authority`, `landlord`, `rented`.
           content:
             application/json:
               schema:
@@ -1182,6 +1214,109 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/parties/{kind}/{id}/regions:
+    get:
+      summary: List the regions of any party
+      operationId: listPartyRegions
+      description: >-
+        The same listing as `/v1/players/regions`, for any party: a player, a
+        Treasury account or a permission group, addressed by kind and id. The
+        query parameters and the response are the same, and so is the paging: with
+        `category=all` the four lists share one offset. For `personal` the
+        lists are the ones `/v1/players/regions?player=<uuid>` returns. For any
+        other party `owned` and `rented` are empty, because only a player holds a
+        title or rents; `authority` lists the freeholds the party is the
+        authority of, and `landlord` lists the leaseholds it lets. In the response the field is still called `player`, so the
+        shape of the player route does not change; here it holds the party's
+        `PartyRef`. An account that no contract names answers with empty lists
+        rather than 404, because this API cannot ask Treasury whether it exists;
+        an account that is stored under another kind is 404.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          description: >-
+            The party's kind, in lower case. Any other value, including upper
+            case, is rejected.
+          schema:
+            type: string
+            enum: [ personal, business, government, system, group ]
+        - name: id
+          in: path
+          required: true
+          description: >-
+            A player UUID when `kind` is `personal`, an account id when it is
+            `business`, `government` or `system`, and a group name when it is
+            `group`. A group name is matched without regard to case.
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          description: >-
+            One of `all` (default), `owned`, `authority`, `landlord` or `rented`.
+            See `PlayerRegionsResponse` for what each category holds.
+          schema:
+            type: string
+            enum: [ all, owned, authority, landlord, rented ]
+            default: all
+        - name: page
+          in: query
+          required: false
+          description: >-
+            1-based page number, at most 21474836. Defaults to 1. A larger page is
+            refused with `INVALID_PAGE`.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 21474836
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: >-
+            Page size, clamped to the server's configured maximum, which is itself
+            capped at 100. Defaults to 10 (or the configured maximum if it is
+            lower). A larger value is clamped rather than rejected.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: The requested page of the party's regions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerRegionsResponse"
+        "400":
+          description: >-
+            `INVALID_PARTY_KIND` when `kind` is not one of the five values;
+            `MALFORMED_UUID` when `kind` is `personal` and `id` is not a UUID;
+            `INVALID_ACCOUNT_ID` when `kind` is an account kind and `id` is not a
+            positive integer; `INVALID_PAGE` or `INVALID_PAGE_SIZE` for a
+            non-integer or out-of-range `page`/`pageSize`; `INVALID_CATEGORY` when
+            `category` is present but not one of `all`, `owned`, `authority`,
+            `landlord`, `rented`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: >-
+            `PARTY_NOT_FOUND` -- `kind` is `group` and no group is mapped under that
+            name, or `kind` is an account kind and that account id is stored under
+            another kind.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "`INTERNAL_ERROR` -- a generic message only, never the underlying exception."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/players/lookup:
     get:
       summary: Resolve a player name to a UUID
@@ -1210,7 +1345,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PlayerRef"
+                $ref: "#/components/schemas/PartyRef"
         "400":
           description: "`MISSING_PARAMETER` -- `playerName` was absent or blank."
           content:
@@ -1290,27 +1425,39 @@ components:
           type: string
           nullable: true
       required: [ id ]
-    PlayerRef:
+    PartyRef:
       type: object
-      description: A player identity. `id` is always present.
+      description: >-
+        A party: a player, a Treasury account, or a permission group. `kind` and
+        `id` are always present.
       properties:
+        kind:
+          type: string
+          enum: [ personal, business, government, system, group ]
         id:
           type: string
-          format: uuid
+          description: >-
+            A UUID when kind is personal, the account id when kind is business,
+            government or system, and the group name when kind is group.
         name:
           type: string
           nullable: true
-          description: From the query-service module; null when it is disabled or unreachable.
-      required: [ id ]
+          description: >-
+            Text, returned as it is. For a player or an account it comes from the
+            query-service module and is null when the module is disabled or
+            unreachable, or cannot name it. For a group it is the group name.
+      required: [ kind, id ]
     PlayerSummaryResponse:
       type: object
       properties:
         player:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         titleHeld:
           type: integer
+          description: How many freeholds the player holds the title of, as titleholder.
         landlordOf:
           type: integer
+          description: How many leaseholds the player lets as their landlord.
         occupiedLandlordOf:
           type: integer
           description: >-
@@ -1318,8 +1465,10 @@ components:
             show let versus vacant without a second call.
         renting:
           type: integer
+          description: How many leaseholds the player rents, as tenant.
         authorityOver:
           type: integer
+          description: How many freeholds the player is the freehold authority of.
       required: [ player, titleHeld, landlordOf, occupiedLandlordOf, renting, authorityOver ]
     HistoryResponse:
       type: object
@@ -1345,6 +1494,7 @@ components:
         "this kind has no such field" for "this field happened to be empty".
         Switch on `kind`: freehold carries buyer, authority and price; leasehold
         carries tenant, landlord and the lease terms; agent carries agent and actor.
+        `buyer` and `tenant` are left out when the event had none.
       properties:
         kind:
           type: string
@@ -1355,17 +1505,17 @@ components:
           type: string
           format: date-time
         buyer:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         authority:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         tenant:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         landlord:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         agent:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         actor:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         price:
           type: number
         durationSeconds:
@@ -1396,7 +1546,8 @@ components:
         The same polymorphic shape as HistoryResponse_Entry, with the region and world
         added since a server-wide feed must say where each event happened. `kind`
         decides which party and detail fields are present; the others are omitted
-        rather than sent as null.
+        rather than sent as null. `buyer` and `tenant` are left out when the event
+        had none.
       properties:
         kind:
           type: string
@@ -1411,17 +1562,17 @@ components:
         world:
           $ref: "#/components/schemas/WorldRef"
         buyer:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         authority:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         tenant:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         landlord:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         agent:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         actor:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         price:
           type: number
         durationSeconds:
@@ -1454,7 +1605,7 @@ components:
         world:
           $ref: "#/components/schemas/WorldRef"
         auctioneer:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         startDate:
           type: string
           format: date-time
@@ -1485,7 +1636,7 @@ components:
       type: object
       properties:
         bidder:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         amount:
           type: number
         bidTime:
@@ -1518,7 +1669,7 @@ components:
             The row's 1-based position across the whole leaderboard, not within the
             page, so page 2 at pageSize 10 starts at 11.
         player:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         plotCount:
           type: integer
       required: [ rank, player, plotCount ]
@@ -1685,9 +1836,9 @@ components:
         titleHolder:
           nullable: true
           allOf:
-            - $ref: "#/components/schemas/PlayerRef"
+            - $ref: "#/components/schemas/PartyRef"
         authority:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         price:
           type: number
           nullable: true
@@ -1703,11 +1854,11 @@ components:
       type: object
       properties:
         landlord:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         tenant:
           nullable: true
           allOf:
-            - $ref: "#/components/schemas/PlayerRef"
+            - $ref: "#/components/schemas/PartyRef"
         price:
           type: number
         durationSeconds:
@@ -1755,7 +1906,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/RegionResponse_Bid"
         auctioneer:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         startDate:
           type: string
           format: date-time
@@ -1779,7 +1930,7 @@ components:
       type: object
       properties:
         bidder:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         amount:
           type: number
       required: [ bidder, amount ]
@@ -1823,15 +1974,17 @@ components:
     PlayerRegionsResponse:
       type: object
       description: >-
-        The response for GET /v1/players/regions. When category=owned or
-        category=rented was requested, `regions` carries that category's entries
-        and `owned`/`landlord`/`rented` are omitted (not serialised as null).
-        When category=all (the default), `owned`, `landlord` and `rented` are
-        populated instead and `regions` is omitted. See the endpoint description
+        The response for GET /v1/players/regions and GET /v1/parties/{kind}/{id}/regions,
+        where `player` holds the party. When a single category (owned,
+        authority, landlord or rented) was requested, `regions` carries that
+        category's entries and `owned`/`authority`/`landlord`/`rented` are
+        omitted (not serialised as null). When category=all (the default),
+        `owned`, `authority`, `landlord` and `rented` are populated instead and
+        `regions` is omitted. See the endpoint description
         for the shared-offset paging behaviour of category=all.
       properties:
         player:
-          $ref: "#/components/schemas/PlayerRef"
+          $ref: "#/components/schemas/PartyRef"
         page:
           type: integer
         pageSize:
@@ -1842,22 +1995,32 @@ components:
           type: integer
         owned:
           type: array
+          description: The freeholds whose title the party holds, as titleholder.
+          items:
+            $ref: "#/components/schemas/PlayerRegionsResponse_RegionRef"
+        authority:
+          type: array
+          description: The freeholds whose freehold authority the party is.
           items:
             $ref: "#/components/schemas/PlayerRegionsResponse_RegionRef"
         landlord:
           type: array
+          description: >-
+            The leaseholds the party lets as their landlord, with or without a
+            tenant; before 2.0.0 this field held the freeholds now in `authority`.
           items:
             $ref: "#/components/schemas/PlayerRegionsResponse_RegionRef"
         rented:
           type: array
+          description: The leaseholds the party rents, as tenant.
           items:
             $ref: "#/components/schemas/PlayerRegionsResponse_RentedRef"
         regions:
           type: array
           description: >-
-            Present only for a single-category request (category=owned or
-            category=rented); its entries are RegionRef or RentedRef shaped
-            per that category.
+            Present only for a single-category request (category=owned,
+            authority, landlord or rented); its entries are RentedRef shaped
+            for category=rented and RegionRef shaped otherwise.
           items: {}
       required: [ player, page, pageSize, totalCount, totalPages ]
     PlayerRegionsResponse_RegionRef:
@@ -2012,12 +2175,12 @@ components:
           type: array
           description: UUID entries, with a name where the module could supply one.
           items:
-            $ref: "#/components/schemas/PlayerRef"
+            $ref: "#/components/schemas/PartyRef"
         playerNames:
           type: array
           description: >-
             Legacy name entries, which carry no UUID and so cannot be a
-            PlayerRef. WorldGuard lower-cases these on the way in and they are
+            PartyRef. WorldGuard lower-cases these on the way in and they are
             reported as it holds them.
           items:
             type: string

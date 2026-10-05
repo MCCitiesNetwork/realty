@@ -34,26 +34,26 @@ public record HistoryResponse(
             @NotNull String kind,
             @NotNull String eventType,
             @NotNull String eventTime,
-            @Nullable PlayerRef buyer,
-            @Nullable PlayerRef authority,
-            @Nullable PlayerRef tenant,
-            @Nullable PlayerRef landlord,
-            @Nullable PlayerRef agent,
-            @Nullable PlayerRef actor,
+            @Nullable PartyRef buyer,
+            @Nullable PartyRef authority,
+            @Nullable PartyRef tenant,
+            @Nullable PartyRef landlord,
+            @Nullable PartyRef agent,
+            @Nullable PartyRef actor,
             @Nullable Double price,
             @Nullable Long durationSeconds,
             @Nullable Integer extensionsRemaining
     ) {
 
         public static @NotNull Entry freehold(@NotNull String eventType, @NotNull String eventTime,
-                                              @NotNull PlayerRef buyer, @NotNull PlayerRef authority,
+                                              @Nullable PartyRef buyer, @NotNull PartyRef authority,
                                               double price) {
             return new Entry("freehold", eventType, eventTime, buyer, authority,
                     null, null, null, null, price, null, null);
         }
 
         public static @NotNull Entry leasehold(@NotNull String eventType, @NotNull String eventTime,
-                                               @NotNull PlayerRef tenant, @NotNull PlayerRef landlord,
+                                               @Nullable PartyRef tenant, @NotNull PartyRef landlord,
                                                @Nullable Double price, @Nullable Long durationSeconds,
                                                @Nullable Integer extensionsRemaining) {
             return new Entry("leasehold", eventType, eventTime, null, null, tenant, landlord,
@@ -61,7 +61,7 @@ public record HistoryResponse(
         }
 
         public static @NotNull Entry agent(@NotNull String eventType, @NotNull String eventTime,
-                                           @NotNull PlayerRef agent, @NotNull PlayerRef actor) {
+                                           @NotNull PartyRef agent, @NotNull PartyRef actor) {
             return new Entry("agent", eventType, eventTime, null, null, null, null, agent, actor,
                     null, null, null);
         }

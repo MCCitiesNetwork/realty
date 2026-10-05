@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +38,17 @@ public class OfferPlacedEvent extends RealtyRegionEvent {
      * The current title holder who received the offer, or {@code null} if the
      * region is held only by an authority.
      */
+    public @Nullable Party getTitleHolder() {
+        return this.titleHolderId == null ? null : Party.personal(this.titleHolderId);
+    }
+
+    /**
+     * The current title holder who received the offer, or {@code null} if the
+     * region is held only by an authority.
+     *
+     * @deprecated use {@link #getTitleHolder()}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
     public @Nullable UUID getTitleHolderId() {
         return this.titleHolderId;
     }

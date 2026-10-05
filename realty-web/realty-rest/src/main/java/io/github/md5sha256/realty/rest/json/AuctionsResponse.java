@@ -31,7 +31,7 @@ public record AuctionsResponse(
     public record Entry(
             @NotNull String worldGuardRegionId,
             @NotNull WorldRef world,
-            @NotNull PlayerRef auctioneer,
+            @NotNull PartyRef auctioneer,
             @NotNull String startDate,
             @NotNull String endDate,
             double minBid,
@@ -43,7 +43,7 @@ public record AuctionsResponse(
     ) {
     }
 
-    public record Bid(@NotNull PlayerRef bidder, double amount, @NotNull String bidTime) {
+    public record Bid(@NotNull PartyRef bidder, double amount, @NotNull String bidTime) {
     }
 
 }

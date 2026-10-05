@@ -20,7 +20,7 @@ class PlayerLookupEndpointTest {
             Response response = client.get("/v1/players/lookup?playerName=Notch");
             Assertions.assertEquals(200, response.code());
             Assertions.assertEquals(
-                    "{\"id\":\"" + NOTCH + "\",\"name\":\"Notch\"}",
+                    "{\"kind\":\"personal\",\"id\":\"" + NOTCH + "\",\"name\":\"Notch\"}",
                     response.body().string().trim());
         });
     }

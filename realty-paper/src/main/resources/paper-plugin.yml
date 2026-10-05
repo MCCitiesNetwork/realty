@@ -58,6 +58,9 @@ permissions:
   realty.command.remove.others:
     description: Allows removing players/groups from regions you don't own
     default: op
+  realty.command.group:
+    description: Allows using /realty group map, unmap and list, which give permission groups accounts
+    default: op
   realty.command.help:
     description: Allows using /realty help
     default: true
@@ -170,10 +173,7 @@ permissions:
     description: Allows using /realty set landlord on regions you don't own
     default: op
   realty.command.set.authority:
-    description: Allows using /realty set authority on own regions
-    default: op
-  realty.command.set.authority.others:
-    description: Allows using /realty set authority on regions you don't own
+    description: Allows using /realty set authority on any region
     default: op
   realty.command.set.titleholder:
     description: Allows using /realty set titleholder on own regions
@@ -309,4 +309,7 @@ permissions:
     default: op
   realty.command.rentable.others:
     description: Bypasses ownership/agent check for /realty rentable
+    default: op
+  realty.bypass.conflict-of-interest:
+    description: Allows buying, bidding on, offering on and being agent for land whose authority you manage
     default: op

@@ -10,7 +10,9 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.schematic.CaptureCooldown;
 import io.github.md5sha256.realty.schematic.CaptureRegistry;
 import io.github.md5sha256.realty.schematic.Occlusion;
@@ -43,6 +45,7 @@ import io.github.md5sha256.realty.command.CreateCommand;
 import io.github.md5sha256.realty.command.CustomCommandBean;
 import io.github.md5sha256.realty.command.DeleteCommand;
 import io.github.md5sha256.realty.command.ExtendCommand;
+import io.github.md5sha256.realty.command.GroupCommandGroup;
 import io.github.md5sha256.realty.command.HelpCommand;
 import io.github.md5sha256.realty.command.HistoryCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
@@ -68,6 +71,8 @@ import io.github.md5sha256.realty.command.TransferCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
+import io.github.md5sha256.realty.command.util.PartyFlags;
+import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
@@ -85,6 +90,7 @@ import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
+import io.github.md5sha256.realty.settings.DefaultParties;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
 import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.RegionProfile;
@@ -93,11 +99,16 @@ import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
 import io.github.md5sha256.realty.util.SquirrelIdPlayerNameService;
+import io.github.md5sha256.realty.util.TreasuryAccountNameService;
+import io.github.md5sha256.realty.notify.PartyRecipients;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.util.SquirrelIdUsernameResolver;
 import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.PartyWallets;
+import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.economy.TreasuryEconomyProvider;
 import io.github.md5sha256.realty.economy.VaultEconomyProvider;
 import net.milkbowl.vault.economy.Economy;
@@ -113,6 +124,7 @@ import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
 import org.incendo.cloud.paper.util.sender.PaperSimpleSenderMapper;
 import org.incendo.cloud.paper.util.sender.Source;
+import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.configurate.ConfigurationNode;
@@ -130,6 +142,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.HashMap;
 import java.time.Instant;
@@ -138,6 +151,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -149,12 +163,18 @@ public final class Realty extends JavaPlugin {
 
     private final MessageContainer messageContainer = new MessageContainer();
     private final AtomicReference<Settings> settings = new AtomicReference<>();
+    private final AtomicReference<DefaultParties> defaultParties = new AtomicReference<>(DefaultParties.unresolved());
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
     private final AtomicReference<TaxSettings> taxSettings = new AtomicReference<>();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
     private EconomyProvider economyProvider;
+    /** Treasury's API when Treasury provides the economy, else {@code null}. */
+    private @Nullable net.democracycraft.treasury.api.TreasuryApi treasury;
+    private ActorContexts actorContexts;
+    private PartyResolver partyResolver;
+    private PartyNames partyNames;
     private SquirrelIdUsernameResolver nameResolver;
     private PlayerNameService playerNameService;
     private ExecutorState executorState;
@@ -191,6 +211,10 @@ public final class Realty extends JavaPlugin {
 
     public Settings settings() {
         return this.settings.get();
+    }
+
+    public DefaultParties defaultParties() {
+        return this.defaultParties.get();
     }
 
     public ExecutorState executorState() {
@@ -290,8 +314,12 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        // A player resolves to their username, any other party through PartyNames, which is built
+        // once the economy is known.
         this.logic = new RealtyBackendImpl(mariaDatabase,
-                this.nameResolver::getUsername,
+                party -> party instanceof Party.Personal personal
+                        ? this.nameResolver.getUsername(personal.playerUuid())
+                        : CompletableFuture.completedFuture(this.partyNames.display(party)),
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
         EconomyProvider economyProvider = resolveEconomyProvider();
@@ -301,6 +329,10 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        this.actorContexts = new ActorContexts(this.treasury, resolveVaultPermission(), this.settings, this.logic);
+        this.partyResolver = new PartyResolver(getServer(), this.treasury, this.logic);
+        this.partyNames = new PartyNames(getServer(), this.treasury, Clock.systemUTC());
+        resolveDefaultParties();
         SafeLocationFinder safeLocationFinder = new SafeLocationFinder();
         this.signTextApplicator = new SignTextApplicator(
                 this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
@@ -322,7 +354,9 @@ public final class Realty extends JavaPlugin {
                 this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
                 () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
-                this.playerNameService);
+                this.playerNameService,
+                new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
+                this.actorContexts);
         this.eventDispatch = new RealtyEventDispatch(
                 getServer(),
                 this.executorState.mainThreadExec(),
@@ -411,7 +445,9 @@ public final class Realty extends JavaPlugin {
                     .getRegistration(net.democracycraft.treasury.api.TreasuryApi.class);
             if (registration != null) {
                 getLogger().info("Detected Treasury, using Treasury as the economy provider (full ledger support)");
-                return new TreasuryEconomyProvider(registration.getProvider());
+                var treasury = registration.getProvider();
+                this.treasury = treasury;
+                return new TreasuryEconomyProvider(treasury, new PartyWallets(treasury));
             }
             getLogger().warning("Treasury plugin is loaded but TreasuryApi service is not registered; falling back to Vault");
         }
@@ -421,6 +457,24 @@ public final class Realty extends JavaPlugin {
             return new VaultEconomyProvider(registration.getProvider());
         }
         return null;
+    }
+
+    /**
+     * Vault's permission service, which tells which players are in a group party. It may be absent,
+     * and then no group party is managed by anyone.
+     */
+    private @Nullable net.milkbowl.vault.permission.Permission resolveVaultPermission() {
+        if (!getServer().getPluginManager().isPluginEnabled("Vault")) {
+            getLogger().warning("Vault is not installed; no player can act for a group party");
+            return null;
+        }
+        var registration = getServer().getServicesManager()
+                .getRegistration(net.milkbowl.vault.permission.Permission.class);
+        if (registration == null) {
+            getLogger().warning("Vault has no permission service; no player can act for a group party");
+            return null;
+        }
+        return registration.getProvider();
     }
 
     private void scheduleTasks() {
@@ -518,7 +572,7 @@ public final class Realty extends JavaPlugin {
                                                     Map.of()));
                                     // Post-event; RegionNotificationListener notifies tenant + landlord.
                                     this.eventDispatch.fireSync(new LeaseExpiredEvent(
-                                            wgRegion, expired.tenantId(), expired.landlordId()));
+                                            wgRegion, expired.tenantId(), expired.landlord()));
                                 }
                             }
                         }
@@ -538,8 +592,20 @@ public final class Realty extends JavaPlugin {
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.TerminatedLeasehold terminated : terminatedLeaseholds) {
                         if (terminated.refund() > 0 && this.economyProvider != null) {
-                            this.economyProvider.transfer(terminated.landlordId(), terminated.tenantId(),
-                                    terminated.refund(), "Lease Termination Refund: " + terminated.worldGuardRegionId());
+                            // No player caused this payment, so it has no initiator.
+                            PaymentResult refund = this.economyProvider.transfer(terminated.landlord(),
+                                    Party.personal(terminated.tenantId()), terminated.refund(),
+                                    "Lease Termination Refund: " + terminated.worldGuardRegionId(), null);
+                            if (refund instanceof PaymentResult.Failure failure) {
+                                // Everything an admin needs to repay the tenant by hand. The
+                                // landlord is shown by its ids, not its name, which would need
+                                // a Treasury read on the main thread.
+                                getLogger().warning("Lease termination refund for region "
+                                        + terminated.worldGuardRegionId() + " failed: " + failure.errorMessage()
+                                        + ". Tenant " + terminated.tenantId()
+                                        + " was not paid " + CurrencyFormatter.format(terminated.refund())
+                                        + " by landlord " + terminated.landlord() + ".");
+                            }
                         }
                         World world = getServer().getWorld(terminated.worldId());
                         if (world != null) {
@@ -556,7 +622,7 @@ public final class Realty extends JavaPlugin {
                                             terminatedPlaceholders.getOrDefault(terminated.worldGuardRegionId(),
                                                     Map.of()));
                                     this.eventDispatch.fireSync(new LeaseTerminatedEvent(wgRegion,
-                                            terminated.tenantId(), terminated.landlordId(),
+                                            terminated.tenantId(), terminated.landlord(),
                                             terminated.refund(), terminated.terminatedByRole()));
                                 }
                             }
@@ -606,7 +672,43 @@ public final class Realty extends JavaPlugin {
 
     private Settings loadSettings() throws IOException {
         ConfigurationNode settingsRoot = copyDefaultsYaml("settings");
+        warnRemovedUuidKeys(settingsRoot);
         return settingsRoot.get(Settings.class);
+    }
+
+    /**
+     * The {@code default-*-uuid} keys are no longer read; an upgraded file still holds them, and
+     * the operator would otherwise believe they still apply.
+     */
+    private void warnRemovedUuidKeys(@NotNull ConfigurationNode settingsRoot) {
+        for (Object key : settingsRoot.childrenMap().keySet()) {
+            String name = String.valueOf(key);
+            if (name.startsWith("default-") && name.endsWith("-uuid")) {
+                getLogger().warning("settings.yml still has '" + name + "', which is no longer read. "
+                        + "Use default-freehold-authority, default-leasehold-landlord and "
+                        + "default-freehold-titleholder instead, and delete '" + name + "'.");
+            }
+        }
+    }
+
+    /**
+     * Resolves the default parties in the background, because a name or an account is looked up
+     * in Treasury and the database. Until it finishes, the commands that need a default refuse.
+     */
+    private void resolveDefaultParties() {
+        Settings current = this.settings.get();
+        PartyResolver resolver = this.partyResolver;
+        this.executorState.dbExec().execute(() -> {
+            DefaultParties resolved;
+            try {
+                resolved = DefaultParties.resolve(current, resolver);
+            } catch (RuntimeException ex) {
+                getLogger().log(Level.SEVERE, "Failed to resolve the default parties", ex);
+                resolved = DefaultParties.unresolved();
+            }
+            this.defaultParties.set(resolved);
+            resolved.errors().forEach(error -> getLogger().severe(error));
+        });
     }
 
     private DatabaseSettings loadDatabaseSettings() throws IOException {
@@ -724,6 +826,7 @@ public final class Realty extends JavaPlugin {
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         this.taxSettings.set(loadTaxSettings());
+        resolveDefaultParties();
         reloadMessages();
         warnOrphanedTags();
         reloadModules();
@@ -828,37 +931,56 @@ public final class Realty extends JavaPlugin {
                 new SubregionWandListener(this, subregionWand, subregionWandManager,
                         messageContainer), this);
         pluginManager.registerEvents(
-                new RegionNotificationListener(this.eventDispatch, messageContainer), this);
+                new RegionNotificationListener(this.eventDispatch, messageContainer, this.partyNames,
+                        new PartyRecipients(getServer(), this.treasury, resolveVaultPermission(), this.settings),
+                        executorState, getLogger()), this);
 
+        SuggestionProvider<Source> partySuggestions =
+                PartyFlags.suggestions(this.treasury, this.logic, executorState.dbExec());
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
                 new AddCommand(messageContainer),
-                new AgentInviteCommand(paperApi, messageContainer, this.eventDispatch),
-                new AgentInviteAcceptCommand(paperApi, messageContainer, this.eventDispatch),
+                new AgentInviteCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch, this.partyNames),
+                new AgentInviteAcceptCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch),
                 new AgentInviteRejectCommand(paperApi, messageContainer, this.eventDispatch),
-                new AgentInviteWithdrawCommand(paperApi, messageContainer, this.eventDispatch),
-                new AgentRemoveCommand(paperApi, messageContainer, this.eventDispatch),
+                new AgentInviteWithdrawCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
+                new AgentRemoveCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
                 new AuctionCommandGroup(paperApi,
+                        this.actorContexts,
+                        executorState,
                         this.settings,
                         messageContainer,
-                        this.eventDispatch),
-                new BuyCommand(paperApi, messageContainer, this.eventDispatch),
-                new CreateCommand(paperApi, this.settings, messageContainer, this.eventDispatch),
-                new RegisterCommand(paperApi, this.settings, messageContainer, this.eventDispatch),
+                        this.eventDispatch,
+                        this.partyNames),
+                new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
+                new CreateCommand(paperApi, this.defaultParties, this.partyResolver, partySuggestions,
+                        executorState, messageContainer, this.eventDispatch),
+                new RegisterCommand(paperApi, this.defaultParties, this.partyResolver, partySuggestions,
+                        executorState, messageContainer, this.eventDispatch),
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
-                new HistoryCommand(paperApi, this.settings, messageContainer),
+                new GroupCommandGroup(paperApi, this.partyResolver,
+                        PartyFlags.groupSuggestions(this.logic, executorState.dbExec()),
+                        PartyFlags.accountSuggestions(this.treasury, executorState.dbExec()),
+                        executorState, messageContainer, this.partyNames),
+                new HistoryCommand(paperApi, this.settings, messageContainer, this.partyNames),
                 new InfoCommand(paperApi,
                         this.settings,
                         this.database,
                         this.realtyTags,
-                        messageContainer),
-                new ListCommand(paperApi, messageContainer),
+                        messageContainer,
+                        this.partyNames),
+                new ListCommand(paperApi, this.partyResolver, partySuggestions, executorState,
+                        messageContainer, this.partyNames),
                 new OfferCommandGroup(paperApi,
+                        this.actorContexts,
+                        executorState,
                         messageContainer,
                         this.eventDispatch),
                 new ExtendCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentCommand(paperApi, messageContainer, this.eventDispatch),
-                new RentableCommand(paperApi, messageContainer),
+                new RentableCommand(paperApi, this.actorContexts, executorState, messageContainer),
                 new UnrentCommand(paperApi, messageContainer, this.eventDispatch),
                 new SchematicCommandGroup(this.logic,
                         this.executorState,
@@ -868,10 +990,14 @@ public final class Realty extends JavaPlugin {
                         this.settings,
                         messageContainer,
                         getLogger()),
-                new SetCommandGroup(paperApi, messageContainer, this.eventDispatch),
-                new ModifyCommandGroup(paperApi, messageContainer, this.eventDispatch),
-                new TerminateCommand(paperApi, messageContainer, this.eventDispatch),
-                new TransferCommand(paperApi, messageContainer, this.eventDispatch),
+                new SetCommandGroup(paperApi, this.actorContexts, this.partyResolver, partySuggestions,
+                        executorState, messageContainer,
+                        this.eventDispatch, this.partyNames),
+                new ModifyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch, this.partyNames),
+                new TerminateCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch),
+                new TransferCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
                 new UnsetCommandGroup(paperApi, messageContainer),
                 new ModuleCommandGroup(this.moduleManager, executorState, messageContainer),
                 new ReloadCommand(executorState, () -> {
@@ -879,7 +1005,7 @@ public final class Realty extends JavaPlugin {
                     return null;
                 }, messageContainer),
                 new RemoveCommand(messageContainer),
-                new SignCommand(paperApi, executorState, messageContainer),
+                new SignCommand(paperApi, this.actorContexts, executorState, messageContainer),
                 new TeleportCommand(getLogger(), paperApi, this.settings, messageContainer, safeLocationFinder),
                 new SubregionCommandGroup(subregionWand, subregionWandManager, subregionDialog,
                         messageContainer),

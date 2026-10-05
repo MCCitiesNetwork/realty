@@ -2,11 +2,13 @@ package io.github.md5sha256.realty.api;
 
 import com.sk89q.worldedit.regions.Region;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.GroupMapping;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.block.Block;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -14,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
@@ -36,6 +39,35 @@ public interface RealtyPaperApi {
      */
     @NotNull PlayerNameService playerNameService();
 
+    /**
+     * Display names of Treasury accounts, for modules that cannot reach Treasury themselves.
+     * Every name is empty on a server without Treasury.
+     */
+    @NotNull AccountNameService accountNameService();
+
+    /**
+     * Builds the context of a player acting on {@code region}: which parties the player may act
+     * for, and which of them the player may hand to another party. Every method of this API that
+     * takes an {@link ActorContext} should be given one built here. Use it rather than
+     * {@link ActorContext#player}, which knows no account and no group, so that a manager of an
+     * account or group landlord is refused as a stranger and the conflict-of-interest rule is
+     * not applied to an authority the player acts for.
+     *
+     * <p>The parties tested are the region's landlord and authority, plus {@code extra}: pass
+     * the party the player is about to assign, if any. Treasury and the permission plugin are
+     * asked on Realty's database thread, and the future completes there.</p>
+     *
+     * @param player the acting player
+     * @param bypass whether the player holds the admin permission of the action, which lets
+     *               them act for any party
+     * @param region the region the action concerns
+     * @param extra  further parties to test, such as a new landlord being assigned
+     */
+    @NotNull CompletableFuture<ActorContext> actorContext(@NotNull OfflinePlayer player,
+                                                          boolean bypass,
+                                                          @NotNull WorldGuardRegion region,
+                                                          @NotNull Party... extra);
+
     // ═══════════════════════════════════════════════════
     // COMPLEX OPERATIONS (economy + WG + signs/flags)
     // ═══════════════════════════════════════════════════
@@ -44,7 +76,7 @@ public interface RealtyPaperApi {
 
     sealed interface BuyResult {
         record Success(double price, @NotNull String regionId,
-                       @Nullable UUID previousTitleHolderId) implements BuyResult {}
+                       @Nullable Party previousTitleHolder) implements BuyResult {}
         record NoFreeholdContract(@NotNull String regionId) implements BuyResult {}
         record NotForSale(@NotNull String regionId) implements BuyResult {}
         record IsAuthority() implements BuyResult {}
@@ -55,14 +87,22 @@ public interface RealtyPaperApi {
         record Error(@NotNull String message) implements BuyResult {}
     }
 
+    /**
+     * Buys the region at its asking price. See {@link RealtyBackend#executeBuy} for the
+     * conflict-of-interest rule.
+     *
+     * @param buyer          the buying player and the parties they act for
+     * @param bypassConflict whether the buyer holds {@code realty.bypass.conflict-of-interest}
+     */
     @NotNull CompletableFuture<BuyResult> buy(@NotNull WorldGuardRegion region,
-                                               @NotNull UUID buyerId);
+                                               @NotNull ActorContext buyer,
+                                               boolean bypassConflict);
 
     // --- Rent ---
 
     sealed interface RentResult {
         record Success(double price, long durationSeconds, @NotNull String regionId,
-                       @NotNull UUID landlordId) implements RentResult {}
+                       @NotNull Party landlord) implements RentResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements RentResult {}
         record AlreadyOccupied(@NotNull String regionId) implements RentResult {}
         record NotAcceptingTenants(@NotNull String regionId) implements RentResult {}
@@ -79,7 +119,7 @@ public interface RealtyPaperApi {
 
     sealed interface UnrentResult {
         record Success(double refund, @NotNull String regionId,
-                       @NotNull UUID landlordId) implements UnrentResult {}
+                       @NotNull Party landlord) implements UnrentResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements UnrentResult {}
         /** The lease is scheduled for termination and can only end on the effective date. */
         record Terminating(@NotNull String regionId) implements UnrentResult {}
@@ -112,7 +152,7 @@ public interface RealtyPaperApi {
     sealed interface TerminateResult {
         /** {@code charged} is any forced-extension rent the tenant paid to cover the notice period. */
         record Success(@NotNull String regionId, @NotNull LocalDateTime effectiveDate, double charged,
-                       @NotNull UUID landlordId, @NotNull UUID tenantId,
+                       @NotNull Party landlord, @NotNull Party tenant,
                        @NotNull String terminatedByRole) implements TerminateResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements TerminateResult {}
         record NotOccupied(@NotNull String regionId) implements TerminateResult {}
@@ -126,14 +166,13 @@ public interface RealtyPaperApi {
 
     /**
      * Schedules an early termination of {@code region}'s lease, honouring the configured minimum notice.
-     * The initiating role is derived from {@code actorId} (landlord, tenant, or admin via {@code bypassAuth}
-     * acting as landlord); a tenant pays for any whole extensions needed to cover the notice, a landlord
+     * The initiating role is derived from {@code ctx}: the tenant first, then a manager of the landlord
+     * (or an admin, who acts as the landlord); a tenant pays for any whole extensions needed to cover the notice, a landlord
      * does not. When {@code immediate} is true the notice is skipped (the lease ends at once and the tenant
      * is refunded all remaining prepaid time) — a staff power, gated by the caller.
      */
     @NotNull CompletableFuture<TerminateResult> terminate(@NotNull WorldGuardRegion region,
-                                                          @NotNull UUID actorId,
-                                                          boolean bypassAuth,
+                                                          @NotNull ActorContext ctx,
                                                           boolean immediate);
 
     // --- PayBid ---
@@ -142,7 +181,7 @@ public interface RealtyPaperApi {
         record Success(double amount, double newTotal, double remaining,
                        @NotNull String regionId) implements PayBidResult {}
         record FullyPaid(double amount, @NotNull String regionId,
-                         @Nullable UUID previousTitleHolderId) implements PayBidResult {}
+                         @Nullable Party previousTitleHolder) implements PayBidResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayBidResult {}
         record PaymentExpired(@NotNull String regionId) implements PayBidResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
@@ -163,7 +202,7 @@ public interface RealtyPaperApi {
         record Success(double amount, double newTotal, double remaining,
                        @NotNull String regionId) implements PayOfferResult {}
         record FullyPaid(double amount, @NotNull String regionId,
-                         @Nullable UUID previousTitleHolderId) implements PayOfferResult {}
+                         @Nullable Party previousTitleHolder) implements PayOfferResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayOfferResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
                                  @NotNull String regionId) implements PayOfferResult {}
@@ -180,46 +219,99 @@ public interface RealtyPaperApi {
     // --- SetTitleHolder ---
 
     sealed interface SetTitleHolderResult {
-        record Success(@Nullable UUID previousTitleHolder,
+        record Success(@Nullable Party previousTitleHolder,
                        @NotNull String regionId) implements SetTitleHolderResult {}
         record NoFreeholdContract(@NotNull String regionId) implements SetTitleHolderResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTitleHolderResult {}
         record Error(@NotNull String message) implements SetTitleHolderResult {}
     }
 
+    /**
+     * Sets the title holder, or clears it when {@code titleHolder} is {@code null}. Only a player
+     * can hold a title in this version: any other party fails the future with an
+     * {@link IllegalArgumentException}.
+     */
     @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
-            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId);
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder);
+
+    /**
+     * @deprecated use {@link #setTitleHolder(WorldGuardRegion, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
+            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
+        return setTitleHolder(region, titleHolderId == null ? null : Party.personal(titleHolderId));
+    }
 
     // --- TransferTitleHolder (sets title holder and clears price) ---
 
+    /**
+     * Sets the title holder and clears the asking price. Only a player can hold a title in this
+     * version: any other party fails the future with an {@link IllegalArgumentException}.
+     */
     @NotNull CompletableFuture<SetTitleHolderResult> transferTitleHolder(
-            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId);
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder);
+
+    /**
+     * @deprecated use {@link #transferTitleHolder(WorldGuardRegion, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<SetTitleHolderResult> transferTitleHolder(
+            @NotNull WorldGuardRegion region, @Nullable UUID titleHolderId) {
+        return transferTitleHolder(region, titleHolderId == null ? null : Party.personal(titleHolderId));
+    }
 
     // --- SetTenant ---
 
     sealed interface SetTenantResult {
-        record Success(@Nullable UUID previousTenant, @NotNull UUID landlordId,
+        record Success(@Nullable Party previousTenant, @NotNull Party landlord,
                        @NotNull String regionId) implements SetTenantResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements SetTenantResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTenantResult {}
         record Error(@NotNull String message) implements SetTenantResult {}
     }
 
+    /**
+     * Sets the tenant, or clears it when {@code tenant} is {@code null}. Only a player can rent
+     * in this version: any other party fails the future with an {@link IllegalArgumentException}.
+     */
     @NotNull CompletableFuture<SetTenantResult> setTenant(
-            @NotNull WorldGuardRegion region, @Nullable UUID tenantId);
+            @NotNull WorldGuardRegion region, @Nullable Party tenant);
+
+    /**
+     * @deprecated use {@link #setTenant(WorldGuardRegion, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<SetTenantResult> setTenant(
+            @NotNull WorldGuardRegion region, @Nullable UUID tenantId) {
+        return setTenant(region, tenantId == null ? null : Party.personal(tenantId));
+    }
 
     // --- SetLandlord ---
 
     sealed interface SetLandlordResult {
-        record Success(@NotNull UUID previousLandlord,
+        record Success(@NotNull Party previousLandlord,
                        @NotNull String regionId) implements SetLandlordResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements SetLandlordResult {}
         record UpdateFailed(@NotNull String regionId) implements SetLandlordResult {}
+        /** The actor may not hand the current landlord's role to another party. */
+        record NotAllowedToReassign(@NotNull Party current) implements SetLandlordResult {}
+        /** The actor does not manage the party the role would go to. */
+        record NotAllowedToAssign(@NotNull Party requested) implements SetLandlordResult {}
         record Error(@NotNull String message) implements SetLandlordResult {}
     }
 
+    /**
+     * Sets the landlord as the console does: the assignment rules are bypassed.
+     */
     @NotNull CompletableFuture<SetLandlordResult> setLandlord(
-            @NotNull WorldGuardRegion region, @NotNull UUID landlordId);
+            @NotNull WorldGuardRegion region, @NotNull Party landlord);
+
+    /**
+     * Sets the landlord on behalf of {@code ctx}. See {@link RealtyBackend#setLandlord} for the rules.
+     */
+    @NotNull CompletableFuture<SetLandlordResult> setLandlord(
+            @NotNull WorldGuardRegion region, @NotNull Party landlord, @NotNull ActorContext ctx);
 
     // --- Delete ---
 
@@ -241,17 +333,50 @@ public interface RealtyPaperApi {
         record Error(@NotNull String message) implements CreateFreeholdResult {}
     }
 
+    /**
+     * Creates a freehold, held by {@code titleHolder} or by nobody when it is {@code null}. Only
+     * a player can hold a title in this version: any other party fails the future with an
+     * {@link IllegalArgumentException}.
+     */
     @NotNull CompletableFuture<CreateFreeholdResult> createFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
-            @NotNull UUID authority,
-            @Nullable UUID titleHolder);
+            @NotNull Party authority,
+            @Nullable Party titleHolder);
 
+    /**
+     * @deprecated use {@link #createFreehold(WorldGuardRegion, Double, Party, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<CreateFreeholdResult> createFreehold(
+            @NotNull WorldGuardRegion region,
+            @Nullable Double price,
+            @NotNull Party authority,
+            @Nullable UUID titleHolder) {
+        return createFreehold(region, price, authority, titleHolder == null ? null : Party.personal(titleHolder));
+    }
+
+    /**
+     * Registers an existing WorldGuard region as a freehold. See
+     * {@link #createFreehold(WorldGuardRegion, Double, Party, Party)} for the title holder.
+     */
     @NotNull CompletableFuture<CreateFreeholdResult> registerFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
-            @NotNull UUID authority,
-            @Nullable UUID titleHolder);
+            @NotNull Party authority,
+            @Nullable Party titleHolder);
+
+    /**
+     * @deprecated use {@link #registerFreehold(WorldGuardRegion, Double, Party, Party)}. Removed in 3.0.0.
+     */
+    @Deprecated(forRemoval = true)
+    default @NotNull CompletableFuture<CreateFreeholdResult> registerFreehold(
+            @NotNull WorldGuardRegion region,
+            @Nullable Double price,
+            @NotNull Party authority,
+            @Nullable UUID titleHolder) {
+        return registerFreehold(region, price, authority, titleHolder == null ? null : Party.personal(titleHolder));
+    }
 
     // --- Create/Register Leasehold ---
 
@@ -264,12 +389,12 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<CreateLeaseholdResult> createLeasehold(
             @NotNull WorldGuardRegion region,
             double price, long durationSeconds,
-            int maxRenewals, @NotNull UUID landlordId);
+            int maxRenewals, @NotNull Party landlord);
 
     @NotNull CompletableFuture<CreateLeaseholdResult> registerLeasehold(
             @NotNull WorldGuardRegion region,
             double price, long durationSeconds,
-            int maxRenewals, @NotNull UUID landlordId);
+            int maxRenewals, @NotNull Party landlord);
 
     // --- Subregion QuickCreate ---
 
@@ -324,10 +449,11 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.InviteAgentResult> inviteAgent(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID inviterId, @NotNull UUID inviteeId);
+            @NotNull UUID inviterId, @NotNull ActorContext invitee, boolean bypassConflict);
 
     @NotNull CompletableFuture<RealtyBackend.AcceptAgentInviteResult> acceptAgentInvite(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID inviteeId);
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull ActorContext invitee, boolean bypassConflict);
 
     @NotNull CompletableFuture<RealtyBackend.WithdrawAgentInviteResult> withdrawAgentInvite(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID inviteeId);
@@ -343,7 +469,7 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.CreateAuctionResult> createAuction(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID auctioneerId, long biddingDurationSeconds,
+            @NotNull ActorContext ctx, long biddingDurationSeconds,
             long paymentDurationSeconds, double minBid, double minBidStep);
 
     @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
@@ -351,17 +477,17 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.BidResult> performBid(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID bidderId, double bidAmount);
+            @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict);
 
     // --- Offer ---
 
     @NotNull CompletableFuture<RealtyBackend.OfferResult> placeOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID offererId, double price);
+            @NotNull ActorContext offerer, double price, boolean bypassConflict);
 
     @NotNull CompletableFuture<RealtyBackend.AcceptOfferResult> acceptOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, @NotNull UUID offererId);
+            @NotNull ActorContext ctx, @NotNull UUID offererId);
 
     @NotNull CompletableFuture<RealtyBackend.WithdrawOfferResult> withdrawOffer(
             @NotNull String regionId, @NotNull UUID worldId,
@@ -369,15 +495,15 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.RejectOfferResult> rejectOffer(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, @NotNull UUID offererId);
+            @NotNull ActorContext ctx, @NotNull UUID offererId);
 
     @NotNull CompletableFuture<RealtyBackend.RejectAllOffersResult> rejectAllOffers(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId);
+            @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<RealtyBackend.ToggleOffersResult> toggleOffers(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID callerId, boolean accepting, boolean bypassAuth);
+            @NotNull ActorContext ctx, boolean accepting);
 
     @NotNull CompletableFuture<List<OutboundOfferView>> listOutboundOffers(@NotNull UUID offererId);
 
@@ -386,7 +512,7 @@ public interface RealtyPaperApi {
     // --- Property Config ---
 
     @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID authorityId);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull Party authority);
 
     @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
             @NotNull String regionId, @NotNull UUID worldId, double price);
@@ -402,29 +528,39 @@ public interface RealtyPaperApi {
 
     @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID actorId, boolean bypassAuth, boolean accepting);
+            @NotNull ActorContext ctx, boolean accepting);
+
+    // --- Group mapping ---
+
+    @NotNull CompletableFuture<RealtyBackend.MapGroupResult> mapGroup(
+            @NotNull String groupName, @NotNull Party.Account account);
+
+    @NotNull CompletableFuture<RealtyBackend.UnmapGroupResult> unmapGroup(@NotNull String groupName);
+
+    @NotNull CompletableFuture<List<GroupMapping>> listGroupMappings();
 
     // --- Leasehold Modifications ---
 
     @NotNull CompletableFuture<RealtyBackend.ProposeModificationResult> proposeModification(
             @NotNull String regionId, @NotNull UUID worldId,
-            @NotNull UUID actorId, boolean bypassAuth,
+            @NotNull ActorContext ctx,
             @Nullable Double newPrice, @Nullable Long newDurationSeconds, @Nullable Integer newMaxExtensions);
 
     @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> acceptModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> rejectModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> withdrawModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
     @NotNull CompletableFuture<RealtyBackend.CancelTerminationResult> cancelTermination(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull UUID actorId, boolean bypassAuth);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
+    /** Tenant proposals awaiting any of the given landlords, such as every party a player manages. */
     @NotNull CompletableFuture<List<LeaseholdModificationView>> listModificationsAwaitingLandlord(
-            @NotNull UUID landlordId);
+            @NotNull Set<Party> landlords);
 
     @NotNull CompletableFuture<List<LeaseholdModificationView>> listPendingModificationsByProposer(
             @NotNull UUID proposerId);
@@ -440,14 +576,48 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<@Nullable LeaseholdContractEntity> getLeaseholdContract(
             @NotNull String regionId, @NotNull UUID worldId);
 
+    /** See {@link RealtyBackend#listRegions(Party, int, int)}. */
     @NotNull CompletableFuture<RealtyBackend.ListResult> listRegions(
-            @NotNull UUID targetId, int limit, int offset);
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.ListResult> listRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listRegions(Party.personal(targetId), limit, offset);
+    }
 
     @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listOwnedRegions(
-            @NotNull UUID targetId, int limit, int offset);
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listOwnedRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listOwnedRegions(Party.personal(targetId), limit, offset);
+    }
+
+    /** See {@link RealtyBackend#listAuthorityRegions(Party, int, int)}. */
+    @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listAuthorityRegions(
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listAuthorityRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listAuthorityRegions(Party.personal(targetId), limit, offset);
+    }
+
+    /** See {@link RealtyBackend#listLandlordRegions(Party, int, int)}. */
+    @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listLandlordRegions(
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listLandlordRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listLandlordRegions(Party.personal(targetId), limit, offset);
+    }
 
     @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
-            @NotNull UUID targetId, int limit, int offset);
+            @NotNull Party target, int limit, int offset);
+
+    default @NotNull CompletableFuture<RealtyBackend.SingleCategoryResult> listRentedRegions(
+            @NotNull UUID targetId, int limit, int offset) {
+        return listRentedRegions(Party.personal(targetId), limit, offset);
+    }
 
     @NotNull CompletableFuture<RealtyBackend.HistoryResult> searchHistory(
             @NotNull String regionId, @NotNull UUID worldId,

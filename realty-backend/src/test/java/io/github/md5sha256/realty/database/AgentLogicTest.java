@@ -1,5 +1,8 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.ActorContext;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptAgentInviteResult;
 import io.github.md5sha256.realty.api.RealtyBackend.InviteAgentResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RejectAgentInviteResult;
@@ -10,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,6 +25,8 @@ class AgentLogicTest extends AbstractDatabaseTest {
     private static final UUID PLAYER_A = UUID.randomUUID();
     private static final UUID PLAYER_B = UUID.randomUUID();
 
+    private static final Party GOV = Party.account(42, AccountKind.GOVERNMENT);
+
     private static final AtomicInteger REGION_COUNTER = new AtomicInteger();
 
     private static String uniqueRegionId() {
@@ -28,14 +34,20 @@ class AgentLogicTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId) {
-        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, AUTHORITY, TITLE_HOLDER);
+        boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, Party.personal(AUTHORITY), TITLE_HOLDER);
         Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 
+    private static String governmentFreehold() {
+        String regionId = uniqueRegionId();
+        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0, GOV, TITLE_HOLDER));
+        return regionId;
+    }
+
     private static void inviteAndAcceptAgent(String regionId, UUID inviteeId) {
-        InviteAgentResult invite = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, inviteeId);
+        InviteAgentResult invite = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(inviteeId, false), false);
         Assertions.assertInstanceOf(InviteAgentResult.Success.class, invite);
-        AcceptAgentInviteResult accept = logic.acceptAgentInvite(regionId, WORLD_ID, inviteeId);
+        AcceptAgentInviteResult accept = logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(inviteeId, false), false);
         Assertions.assertInstanceOf(AcceptAgentInviteResult.Success.class, accept);
     }
 
@@ -51,14 +63,14 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.Success.class, result);
         }
 
         @Test
         @DisplayName("returns NoFreeholdContract when region has no freehold")
         void noFreeholdContract() {
-            InviteAgentResult result = logic.inviteAgent("nonexistent", WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            InviteAgentResult result = logic.inviteAgent("nonexistent", WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.NoFreeholdContract.class, result);
         }
 
@@ -68,7 +80,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, PLAYER_A, PLAYER_B);
+            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, PLAYER_A, ActorContext.player(PLAYER_B, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.NotTitleHolder.class, result);
         }
 
@@ -78,7 +90,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, TITLE_HOLDER);
+            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(TITLE_HOLDER, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.IsTitleHolder.class, result);
         }
 
@@ -88,7 +100,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, AUTHORITY);
+            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(AUTHORITY, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.IsAuthority.class, result);
         }
 
@@ -99,7 +111,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId);
             inviteAndAcceptAgent(regionId, PLAYER_A);
 
-            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.AlreadyAgent.class, result);
         }
 
@@ -109,8 +121,8 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
-            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
+            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.AlreadyInvited.class, result);
         }
 
@@ -120,10 +132,38 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            InviteAgentResult resultA = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
-            InviteAgentResult resultB = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_B);
+            InviteAgentResult resultA = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
+            InviteAgentResult resultB = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_B, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.Success.class, resultA);
             Assertions.assertInstanceOf(InviteAgentResult.Success.class, resultB);
+        }
+
+        @Test
+        @DisplayName("returns IsAuthority when the invitee manages the authority")
+        void managerOfTheAuthority_cannotBeInvited() {
+            String regionId = governmentFreehold();
+            ActorContext manager = new ActorContext(PLAYER_A, Set.of(GOV), Set.of(), false);
+
+            Assertions.assertInstanceOf(InviteAgentResult.IsAuthority.class,
+                    logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, manager, false));
+        }
+
+        @Test
+        @DisplayName("an invitee whose groups were unknown at invite time is refused on accept")
+        void inviteeWhoseGroupWasUnknown_isRefusedOnAccept() {
+            String regionId = governmentFreehold();
+            // The invitee was offline, so the invite saw a context that manages nothing.
+            Assertions.assertInstanceOf(InviteAgentResult.Success.class,
+                    logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false));
+
+            ActorContext manager = new ActorContext(PLAYER_A, Set.of(GOV), Set.of(), false);
+            Assertions.assertInstanceOf(AcceptAgentInviteResult.IsAuthority.class,
+                    logic.acceptAgentInvite(regionId, WORLD_ID, manager, false));
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                Assertions.assertFalse(wrapper.freeholdContractSanctionedAuctioneerMapper()
+                                .existsByRegionAndAuctioneer(regionId, WORLD_ID, PLAYER_A),
+                        "A refused accept must not make the invitee an agent");
+            }
         }
     }
 
@@ -138,9 +178,9 @@ class AgentLogicTest extends AbstractDatabaseTest {
         void succeeds() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
-            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
 
-            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(AcceptAgentInviteResult.Success.class, result);
             AcceptAgentInviteResult.Success success = (AcceptAgentInviteResult.Success) result;
             Assertions.assertEquals(TITLE_HOLDER, success.inviterId());
@@ -152,7 +192,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
 
-            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(AcceptAgentInviteResult.NotFound.class, result);
         }
 
@@ -171,7 +211,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
                 session.commit();
             }
 
-            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(AcceptAgentInviteResult.AlreadyAgent.class, result);
         }
 
@@ -180,11 +220,11 @@ class AgentLogicTest extends AbstractDatabaseTest {
         void removesInvite() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
-            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
-            logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
+            logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
 
             // Accepting again should find no invite
-            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(AcceptAgentInviteResult.NotFound.class, result);
         }
     }
@@ -200,7 +240,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
         void succeeds() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
-            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
 
             WithdrawAgentInviteResult result = logic.withdrawAgentInvite(regionId, WORLD_ID, PLAYER_A);
             Assertions.assertInstanceOf(WithdrawAgentInviteResult.Success.class, result);
@@ -221,10 +261,10 @@ class AgentLogicTest extends AbstractDatabaseTest {
         void preventsAcceptance() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
-            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             logic.withdrawAgentInvite(regionId, WORLD_ID, PLAYER_A);
 
-            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(AcceptAgentInviteResult.NotFound.class, result);
         }
     }
@@ -240,7 +280,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
         void succeeds() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
-            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
 
             RejectAgentInviteResult result = logic.rejectAgentInvite(regionId, WORLD_ID, PLAYER_A);
             Assertions.assertInstanceOf(RejectAgentInviteResult.Success.class, result);
@@ -263,10 +303,10 @@ class AgentLogicTest extends AbstractDatabaseTest {
         void preventsAcceptance() {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId);
-            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             logic.rejectAgentInvite(regionId, WORLD_ID, PLAYER_A);
 
-            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            AcceptAgentInviteResult result = logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(AcceptAgentInviteResult.NotFound.class, result);
         }
     }
@@ -307,7 +347,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
 
             logic.removeSanctionedAuctioneer(regionId, WORLD_ID, PLAYER_A, TITLE_HOLDER);
 
-            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            InviteAgentResult result = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.Success.class, result);
         }
 
@@ -338,15 +378,15 @@ class AgentLogicTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId);
 
             // Invite
-            InviteAgentResult invite = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            InviteAgentResult invite = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.Success.class, invite);
 
             // Accept
-            AcceptAgentInviteResult accept = logic.acceptAgentInvite(regionId, WORLD_ID, PLAYER_A);
+            AcceptAgentInviteResult accept = logic.acceptAgentInvite(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(AcceptAgentInviteResult.Success.class, accept);
 
             // Cannot invite again (already agent)
-            InviteAgentResult duplicate = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            InviteAgentResult duplicate = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.AlreadyAgent.class, duplicate);
 
             // Remove
@@ -354,7 +394,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
             Assertions.assertEquals(1, rows);
 
             // Can invite again after removal
-            InviteAgentResult reInvite = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, PLAYER_A);
+            InviteAgentResult reInvite = logic.inviteAgent(regionId, WORLD_ID, TITLE_HOLDER, ActorContext.player(PLAYER_A, false), false);
             Assertions.assertInstanceOf(InviteAgentResult.Success.class, reInvite);
         }
 

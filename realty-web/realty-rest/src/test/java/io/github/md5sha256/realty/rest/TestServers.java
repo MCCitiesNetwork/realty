@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.database.Database;
@@ -432,7 +433,7 @@ final class TestServers {
     static @NotNull RealtyRestServer withForSaleRegion() {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), "world"));
         FreeholdContractEntity freehold = new FreeholdContractEntity(
-                1, UUID.randomUUID(), null, 25000.0, true);
+                1, Party.personal(UUID.randomUUID()), null, 25000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds, false, List.of()), defaultSettings());
@@ -448,7 +449,7 @@ final class TestServers {
      */
     static @NotNull RealtyRestServer withModule(@NotNull ModuleClient module) {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(WORLD_ID, "world"));
-        FreeholdContractEntity freehold = new FreeholdContractEntity(1, AUTHORITY, null, 25000.0, true);
+        FreeholdContractEntity freehold = new FreeholdContractEntity(1, Party.personal(AUTHORITY), null, 25000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds), defaultSettings(), module);
@@ -469,6 +470,13 @@ final class TestServers {
     static @NotNull ModuleClient stubModule(@NotNull Map<UUID, String> names,
                                             @NotNull Map<String, RegionResponse.Dimensions> dimensionsByRegionId,
                                             @NotNull Map<String, UUID> uuidsByName) {
+        return stubModule(names, Map.of(), dimensionsByRegionId, uuidsByName);
+    }
+
+    static @NotNull ModuleClient stubModule(@NotNull Map<UUID, String> names,
+                                            @NotNull Map<Integer, String> accountNames,
+                                            @NotNull Map<String, RegionResponse.Dimensions> dimensionsByRegionId,
+                                            @NotNull Map<String, UUID> uuidsByName) {
         return new ModuleClient() {
             @Override
             public @NotNull Optional<RegionResponse.Dimensions> dimensions(@NotNull UUID worldId,
@@ -482,6 +490,17 @@ final class TestServers {
                 for (UUID id : ids) {
                     if (names.containsKey(id)) {
                         resolved.put(id, names.get(id));
+                    }
+                }
+                return resolved;
+            }
+
+            @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
+                Map<Integer, String> resolved = new LinkedHashMap<>();
+                for (Integer id : accountIds) {
+                    if (accountNames.containsKey(id)) {
+                        resolved.put(id, accountNames.get(id));
                     }
                 }
                 return resolved;
@@ -550,6 +569,12 @@ final class TestServers {
             }
 
             @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
+                stall();
+                return Map.of();
+            }
+
+            @Override
             public @NotNull NameLookup uuidOf(@NotNull String name) {
                 return new NameLookup.Unavailable();
             }
@@ -606,6 +631,11 @@ final class TestServers {
             }
 
             @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
+                return Map.of();
+            }
+
+            @Override
             public @NotNull NameLookup uuidOf(@NotNull String name) {
                 return new NameLookup.Unavailable();
             }
@@ -647,7 +677,7 @@ final class TestServers {
     static @NotNull RealtyRestServer withRegionInWorldNamedMyWorld() {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), "My World"));
         FreeholdContractEntity freehold = new FreeholdContractEntity(
-                1, UUID.randomUUID(), null, 1000.0, true);
+                1, Party.personal(UUID.randomUUID()), null, 1000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds, false, List.of()), defaultSettings());
@@ -661,7 +691,7 @@ final class TestServers {
     static @NotNull RealtyRestServer withRegionInWorldNamed(@NotNull String worldName) {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(UUID.randomUUID(), worldName));
         FreeholdContractEntity freehold = new FreeholdContractEntity(
-                1, UUID.randomUUID(), null, 1000.0, true);
+                1, Party.personal(UUID.randomUUID()), null, 1000.0, true);
         RealtyBackend.RegionInfo info = new RealtyBackend.RegionInfo(freehold, null, null, null, null);
         return new RealtyRestServer(regionBackend(info, RegionState.FOR_SALE),
                 new StubDatabase(false, worlds, false, List.of()), defaultSettings());
@@ -716,19 +746,17 @@ final class TestServers {
         List<RealtyWorldEntity> worlds = List.of(new RealtyWorldEntity(worldId, "world"));
 
         RealtyRegionEntity owned = new RealtyRegionEntity(1, "owned_plot", worldId);
-        RealtyRegionEntity landlord = new RealtyRegionEntity(2, "landlord_plot", worldId);
+        RealtyRegionEntity authority = new RealtyRegionEntity(2, "authority_plot", worldId);
+        RealtyRegionEntity landlord = new RealtyRegionEntity(3, "let_plot", worldId);
         RentedRegionView rented = new RentedRegionView("rented_plot", worldId, LocalDateTime.now().plusDays(1));
 
-        RealtyBackend.ListResult listResult =
-                new RealtyBackend.ListResult(1, 1, 1, List.of(owned), List.of(landlord), List.of());
-        RealtyBackend.SingleCategoryResult ownedResult =
-                new RealtyBackend.SingleCategoryResult(1, List.of(owned));
-        RealtyBackend.SingleCategoryResult rentedResult =
-                new RealtyBackend.SingleCategoryResult(1, List.of());
+        // The rented regions come from the database, with their end dates.
+        RealtyBackend.ListResult listResult = new RealtyBackend.ListResult(1, 1, 1, 1,
+                List.of(owned), List.of(authority), List.of(landlord), List.of());
 
         RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, 0, null);
         return new RealtyRestServer(
-                playerBackend(listResult, ownedResult, rentedResult),
+                playerBackend(listResult),
                 new StubDatabase(false, worlds, false, List.of(), List.of(rented)),
                 settings, module);
     }
@@ -744,52 +772,117 @@ final class TestServers {
         UUID missingWorldId = UUID.randomUUID();
         RealtyRegionEntity owned = new RealtyRegionEntity(1, "orphaned_plot", missingWorldId);
 
-        RealtyBackend.ListResult listResult =
-                new RealtyBackend.ListResult(1, 1, 0, List.of(owned), List.of(), List.of());
-        RealtyBackend.SingleCategoryResult ownedResult =
-                new RealtyBackend.SingleCategoryResult(1, List.of(owned));
-        RealtyBackend.SingleCategoryResult empty = new RealtyBackend.SingleCategoryResult(0, List.of());
+        RealtyBackend.ListResult listResult = new RealtyBackend.ListResult(1, 0, 0, 0,
+                List.of(owned), List.of(), List.of(), List.of());
 
         return new RealtyRestServer(
-                playerBackend(listResult, ownedResult, empty),
+                playerBackend(listResult),
                 new StubDatabase(false, List.of(), false, List.of()),
                 defaultSettings());
     }
 
     /**
-     * A player who owns, is landlord of, and rents nothing -- the zero-total path.
+     * A player who owns, is authority or landlord of, and rents nothing -- the zero-total path.
      */
     static @NotNull RealtyRestServer withEmptyPlayerHoldings() {
         List<RealtyWorldEntity> worlds = List.of();
-        RealtyBackend.ListResult listResult =
-                new RealtyBackend.ListResult(0, 0, 0, List.of(), List.of(), List.of());
-        RealtyBackend.SingleCategoryResult empty = new RealtyBackend.SingleCategoryResult(0, List.of());
         return new RealtyRestServer(
-                playerBackend(listResult, empty, empty),
+                playerBackend(EMPTY_LIST),
                 new StubDatabase(false, worlds, false, List.of(), List.of()),
                 defaultSettings());
     }
 
-    private static @NotNull RealtyBackend playerBackend(@NotNull RealtyBackend.ListResult listResult,
-                                                          @NotNull RealtyBackend.SingleCategoryResult ownedResult,
-                                                          @NotNull RealtyBackend.SingleCategoryResult rentedResult) {
+    static final int ACCOUNT_ID = 42;
+
+    /**
+     * What {@code withPartyHoldings} lists for every party it is asked about, so a test
+     * can tell a party's own lists from the empty ones.
+     */
+    static final class PartyStub {
+
+        final Map<Party, RealtyBackend.ListResult> lists = new java.util.HashMap<>();
+        final Map<String, Party.Group> groups = new java.util.HashMap<>();
+        /** The stored account of each account id; an id not here is one no contract names. */
+        final Map<Integer, Party.Account> accounts = new java.util.HashMap<>();
+        /** The parties the backend was asked to list, in order. */
+        final List<Party> asked = new java.util.ArrayList<>();
+    }
+
+    /**
+     * A server whose backend answers {@code listRegions} and its four siblings from
+     * {@code stub}, and {@code findGroupParty} by lower-cased name. A party the stub does
+     * not know lists nothing. The database offers one rented region to every player, in a
+     * world named {@code world}.
+     */
+    static @NotNull RealtyRestServer withPartyHoldings(@NotNull PartyStub stub, int maxPageSize) {
+        return withPartyHoldings(stub, maxPageSize, ModuleClient.disabled());
+    }
+
+    /** As {@link #withPartyHoldings(PartyStub, int)}, wired to the given module. */
+    static @NotNull RealtyRestServer withPartyHoldings(@NotNull PartyStub stub, int maxPageSize,
+                                                       @NotNull ModuleClient module) {
         InvocationHandler handler = (proxy, method, args) -> {
-            if ("listRegions".equals(method.getName())) {
-                return listResult;
+            switch (method.getName()) {
+                case "findGroupParty" -> {
+                    return stub.groups.get(((String) args[0]).toLowerCase(java.util.Locale.ROOT));
+                }
+                case "findAccountParty" -> {
+                    return stub.accounts.get((Integer) args[0]);
+                }
+                case "listRegions", "listOwnedRegions", "listAuthorityRegions", "listLandlordRegions",
+                     "listRentedRegions" -> {
+                    Party party = args[0] instanceof UUID id ? Party.personal(id) : (Party) args[0];
+                    stub.asked.add(party);
+                    return answerListing(method.getName(), stub.lists.getOrDefault(party, EMPTY_LIST));
+                }
+                default -> throw new UnsupportedOperationException(
+                        "RealtyBackend#" + method.getName() + " is not stubbed for this test");
             }
-            if ("listOwnedRegions".equals(method.getName())) {
-                return ownedResult;
+        };
+        RealtyBackend backend = (RealtyBackend) Proxy.newProxyInstance(
+                RealtyBackend.class.getClassLoader(), new Class<?>[]{RealtyBackend.class}, handler);
+        UUID worldId = UUID.randomUUID();
+        RentedRegionView rented = new RentedRegionView("rented_plot", worldId, LocalDateTime.now().plusDays(1));
+        RestSettings settings = new RestSettings("localhost", 0, maxPageSize, List.of(), null, null, 1500, 0, null);
+        return new RealtyRestServer(backend,
+                new StubDatabase(false, List.of(new RealtyWorldEntity(worldId, "world")), false, List.of(), List.of(rented)),
+                settings, module);
+    }
+
+    private static @NotNull RealtyBackend playerBackend(@NotNull RealtyBackend.ListResult listResult) {
+        InvocationHandler handler = (proxy, method, args) -> {
+            Object answer = answerListing(method.getName(), listResult);
+            if (answer == null) {
+                throw new UnsupportedOperationException(
+                        "RealtyBackend#" + method.getName() + " is not stubbed for this test");
             }
-            if ("listRentedRegions".equals(method.getName())) {
-                return rentedResult;
-            }
-            throw new UnsupportedOperationException(
-                    "RealtyBackend#" + method.getName() + " is not stubbed for this test");
+            return answer;
         };
         return (RealtyBackend) Proxy.newProxyInstance(
                 RealtyBackend.class.getClassLoader(),
                 new Class<?>[]{RealtyBackend.class},
                 handler);
+    }
+
+    private static final RealtyBackend.ListResult EMPTY_LIST =
+            new RealtyBackend.ListResult(0, 0, 0, 0, List.of(), List.of(), List.of(), List.of());
+
+    /**
+     * What the listing method {@code methodName} answers for a party whose whole listing is
+     * {@code result}: the listing itself, or one of its parts. {@code null} for any other method.
+     */
+    private static @Nullable Object answerListing(@NotNull String methodName,
+                                                  @NotNull RealtyBackend.ListResult result) {
+        return switch (methodName) {
+            case "listRegions" -> result;
+            case "listOwnedRegions" -> new RealtyBackend.SingleCategoryResult(result.ownedCount(), result.owned());
+            case "listAuthorityRegions" ->
+                    new RealtyBackend.SingleCategoryResult(result.authorityCount(), result.authority());
+            case "listLandlordRegions" ->
+                    new RealtyBackend.SingleCategoryResult(result.landlordCount(), result.landlord());
+            case "listRentedRegions" -> new RealtyBackend.SingleCategoryResult(result.rentedCount(), result.rented());
+            default -> null;
+        };
     }
 
     /**
@@ -988,6 +1081,11 @@ final class TestServers {
                     }
                 }
                 return resolved;
+            }
+
+            @Override
+            public @NotNull Map<Integer, String> accountNames(@NotNull Collection<Integer> accountIds) {
+                return Map.of();
             }
 
             @Override

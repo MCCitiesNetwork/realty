@@ -1,6 +1,9 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.ProposeModificationResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RenewLeaseholdResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RentResult;
@@ -11,6 +14,7 @@ import io.github.md5sha256.realty.database.entity.LeaseholdModificationEntity;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,8 +39,24 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     private static String regionToLet() {
         String regionId = "failed_tenancy_" + REGION_COUNTER.incrementAndGet();
         Assertions.assertTrue(logic.createLeasehold(
-                regionId, WORLD_ID, RENT, PERIOD_SECONDS, MAX_EXTENSIONS, LANDLORD));
+                regionId, WORLD_ID, RENT, PERIOD_SECONDS, MAX_EXTENSIONS, Party.personal(LANDLORD)));
         return regionId;
+    }
+
+    private static String regionToLetBy(Party landlord) {
+        String regionId = "failed_tenancy_" + REGION_COUNTER.incrementAndGet();
+        Assertions.assertTrue(logic.createLeasehold(
+                regionId, WORLD_ID, RENT, PERIOD_SECONDS, MAX_EXTENSIONS, landlord));
+        return regionId;
+    }
+
+    /** A group is mapped by a command, not by the backend, so its row is written directly. */
+    private static Party.Group mappedGroup(String groupName, int accountId, AccountKind accountKind)
+            throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true)) {
+            TestParties.insertGroup(wrapper.session().getConnection(), groupName, accountId, accountKind);
+        }
+        return Party.group(groupName, accountId, accountKind);
     }
 
     private static RentResult.Success let(String regionId, UUID tenant) {
@@ -100,13 +120,25 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void unpaidLetting_byAnAccountLandlord_leavesNothingBehind() {
+        Party government = Party.account(42, AccountKind.GOVERNMENT);
+        String regionId = regionToLetBy(government);
+
+        logic.rollbackRent(regionId, WORLD_ID, TENANT, let(regionId, TENANT));
+
+        Assertions.assertNull(lease(regionId).tenantId());
+        Assertions.assertEquals(List.of(), recorded(regionId, HistoryEventType.RENT));
+        Assertions.assertEquals(government, lease(regionId).landlord());
+    }
+
+    @Test
     void aLettingIsRecordedWithTheTenantOnItsTerms() {
         String regionId = regionLet();
 
         List<LeaseholdHistoryEntity> lettings = recorded(regionId, HistoryEventType.RENT);
         Assertions.assertEquals(1, lettings.size());
         Assertions.assertEquals(TENANT, lettings.getFirst().tenantId());
-        Assertions.assertEquals(LANDLORD, lettings.getFirst().landlordId());
+        Assertions.assertEquals(Party.personal(LANDLORD), lettings.getFirst().landlord());
         Assertions.assertEquals(RENT, lettings.getFirst().price());
         Assertions.assertEquals(PERIOD_SECONDS, lettings.getFirst().durationSeconds());
     }
@@ -208,7 +240,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
         // one, and refunded at the new rent when they left.
         String regionId = regionLet();
         Assertions.assertInstanceOf(ProposeModificationResult.Success.class,
-                logic.proposeModification(regionId, WORLD_ID, LANDLORD, false, 1000.0, 172800L, 2));
+                logic.proposeModification(regionId, WORLD_ID, ActorContext.player(LANDLORD, false), 1000.0, 172800L, 2));
         LeaseholdContractEntity before = lease(regionId);
 
         tryToRenewAndFailToPay(regionId);
@@ -224,7 +256,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     @Test
     void aChangeOfTermsThatWasTakenBackIsPendingAgain() {
         String regionId = regionLet();
-        logic.proposeModification(regionId, WORLD_ID, LANDLORD, false, 1000.0, null, null);
+        logic.proposeModification(regionId, WORLD_ID, ActorContext.player(LANDLORD, false), 1000.0, null, null);
         int proposed = pendingChange(regionId).modificationId();
 
         tryToRenewAndFailToPay(regionId);
@@ -239,7 +271,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     @Test
     void aChangeOfTermsTakenBackIsAppliedByTheNextRenewalThatIsPaidFor() {
         String regionId = regionLet();
-        logic.proposeModification(regionId, WORLD_ID, LANDLORD, false, 1000.0, null, null);
+        logic.proposeModification(regionId, WORLD_ID, ActorContext.player(LANDLORD, false), 1000.0, null, null);
         tryToRenewAndFailToPay(regionId);
 
         RenewLeaseholdResult.Success paid = renew(regionId);
@@ -256,9 +288,9 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
         // undone the landlord proposed a longer period. The rise was left marked as
         // applied, was never charged, and the record said it had taken effect.
         String regionId = regionLet();
-        logic.proposeModification(regionId, WORLD_ID, LANDLORD, false, 1000.0, null, null);
+        logic.proposeModification(regionId, WORLD_ID, ActorContext.player(LANDLORD, false), 1000.0, null, null);
         RenewLeaseholdResult.Success reserved = renew(regionId);
-        logic.proposeModification(regionId, WORLD_ID, LANDLORD, false, null, 172800L, null);
+        logic.proposeModification(regionId, WORLD_ID, ActorContext.player(LANDLORD, false), null, 172800L, null);
 
         logic.rollbackRenewLeasehold(regionId, WORLD_ID, TENANT, reserved);
 
@@ -277,9 +309,9 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
         // The landlord's rise was applied, and before it was undone the tenant proposed
         // terms of their own. A proposal from the other side supersedes and takes nothing.
         String regionId = regionLet();
-        logic.proposeModification(regionId, WORLD_ID, LANDLORD, false, 1000.0, null, null);
+        logic.proposeModification(regionId, WORLD_ID, ActorContext.player(LANDLORD, false), 1000.0, null, null);
         RenewLeaseholdResult.Success reserved = renew(regionId);
-        logic.proposeModification(regionId, WORLD_ID, TENANT, false, null, 43200L, null);
+        logic.proposeModification(regionId, WORLD_ID, ActorContext.player(TENANT, false), null, 43200L, null);
 
         logic.rollbackRenewLeasehold(regionId, WORLD_ID, TENANT, reserved);
 
@@ -292,8 +324,8 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     @Test
     void aChangeOfTermsAcceptedFromTheTenantIsTakenBackToo() {
         String regionId = regionLet();
-        logic.proposeModification(regionId, WORLD_ID, TENANT, false, 150.0, null, null);
-        logic.acceptModification(regionId, WORLD_ID, LANDLORD, false);
+        logic.proposeModification(regionId, WORLD_ID, ActorContext.player(TENANT, false), 150.0, null, null);
+        logic.acceptModification(regionId, WORLD_ID, ActorContext.player(LANDLORD, false));
 
         tryToRenewAndFailToPay(regionId);
 
@@ -307,7 +339,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
         String regionId = regionLet();
         double refundBefore = end(regionId).refund();
         String second = regionLet();
-        logic.proposeModification(second, WORLD_ID, LANDLORD, false, 1000.0, 172800L, null);
+        logic.proposeModification(second, WORLD_ID, ActorContext.player(LANDLORD, false), 1000.0, 172800L, null);
         tryToRenewAndFailToPay(second);
 
         double refundAfter = end(second).refund();
@@ -325,6 +357,25 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
         tryToUnrentAndFailToRefund(regionId);
 
         Assertions.assertEquals(List.of(), recorded(regionId, HistoryEventType.UNRENT));
+    }
+
+    @Test
+    void unrefundedEnding_byAGroupLandlord_leavesNothingBehind() throws SQLException {
+        // The refund comes out of the group's account, which Treasury refused to pay from.
+        Party.Group police = mappedGroup("police", 42, AccountKind.GOVERNMENT);
+        String regionId = regionToLetBy(police);
+        let(regionId, TENANT);
+        LeaseholdContractEntity before = lease(regionId);
+
+        tryToUnrentAndFailToRefund(regionId);
+
+        LeaseholdContractEntity after = lease(regionId);
+        Assertions.assertEquals(List.of(), recorded(regionId, HistoryEventType.UNRENT));
+        Assertions.assertEquals(1, recorded(regionId, HistoryEventType.RENT).size());
+        Assertions.assertEquals(TENANT, after.tenantId());
+        Assertions.assertEquals(before.startDate(), after.startDate());
+        Assertions.assertEquals(before.endDate(), after.endDate());
+        Assertions.assertEquals(police, after.landlord());
     }
 
     @Test
@@ -361,7 +412,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
         // The landlord closed the region to new tenants. This is not a new tenant. Let
         // again, they were refused, and lost the tenancy with no refund.
         String regionId = regionLet();
-        logic.setRentable(regionId, WORLD_ID, LANDLORD, false, false);
+        logic.setRentable(regionId, WORLD_ID, ActorContext.player(LANDLORD, false), false);
 
         tryToUnrentAndFailToRefund(regionId);
 
@@ -390,7 +441,7 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     void aLeaseWithNoCapIsPutBackWithNoCountOfExtensions() {
         // A count beside no cap is a row the database refuses.
         String regionId = "failed_tenancy_" + REGION_COUNTER.incrementAndGet();
-        Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, RENT, PERIOD_SECONDS, -1, LANDLORD));
+        Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, RENT, PERIOD_SECONDS, -1, Party.personal(LANDLORD)));
         let(regionId, TENANT);
         Assertions.assertNull(lease(regionId).maxExtensions(), "this test needs a lease with no cap");
         renew(regionId);
@@ -410,10 +461,10 @@ class FailedTenancyPaymentTest extends AbstractDatabaseTest {
     @Test
     void aChangeOfTermsThatCappedALeaseLeavesItWithoutACapWhenTakenBack() {
         String regionId = "failed_tenancy_" + REGION_COUNTER.incrementAndGet();
-        Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, RENT, PERIOD_SECONDS, -1, LANDLORD));
+        Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, RENT, PERIOD_SECONDS, -1, Party.personal(LANDLORD)));
         let(regionId, TENANT);
         Assertions.assertNull(lease(regionId).maxExtensions(), "this test needs a lease with no cap");
-        logic.proposeModification(regionId, WORLD_ID, LANDLORD, false, null, null, 3);
+        logic.proposeModification(regionId, WORLD_ID, ActorContext.player(LANDLORD, false), null, null, 3);
 
         tryToRenewAndFailToPay(regionId);
 

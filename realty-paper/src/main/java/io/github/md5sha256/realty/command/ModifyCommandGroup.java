@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
@@ -14,11 +16,10 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -31,6 +32,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Groups the rental modification subcommands under {@code /realty modify}. Changes proposed here take
@@ -50,8 +52,11 @@ import java.util.UUID;
  */
 public record ModifyCommandGroup(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
-        @NotNull RealtyEventDispatch events
+        @NotNull RealtyEventDispatch events,
+        @NotNull PartyNames partyNames
 ) implements CustomCommandBean {
 
     @Override
@@ -109,20 +114,28 @@ public record ModifyCommandGroup(
             ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
-        api.listModificationsAwaitingLandlord(sender.getUniqueId()).thenAccept(views -> {
-            if (views.isEmpty()) {
-                sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_INBOX_NONE));
-                return;
-            }
-            Component output = messages.messageFor(MessageKeys.MODIFY_INBOX_HEADER);
-            for (LeaseholdModificationView view : views) {
-                output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_INBOX_ENTRY,
-                        Placeholder.unparsed("region", view.worldGuardRegionId()),
-                        Placeholder.unparsed("player", resolveName(view.proposerId())),
-                        Placeholder.component("changes", describeChanges(view))));
-            }
-            sender.sendMessage(output);
-        });
+        // The inbox gathers the proposals of every landlord the player acts for: themself, and each
+        // account or group they manage. Finding those asks Treasury and Vault, so it runs off the main thread.
+        CompletableFuture.supplyAsync(() -> actors.forEveryParty(sender), executorState.dbExec())
+                .thenCompose(actor -> api.listModificationsAwaitingLandlord(actor.manages()))
+                .thenAccept(views -> {
+                    if (views.isEmpty()) {
+                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_INBOX_NONE));
+                        return;
+                    }
+                    Component output = messages.messageFor(MessageKeys.MODIFY_INBOX_HEADER);
+                    for (LeaseholdModificationView view : views) {
+                        output = output.appendNewline().append(messages.messageFor(MessageKeys.MODIFY_INBOX_ENTRY,
+                                Placeholder.unparsed("region", view.worldGuardRegionId()),
+                                Placeholder.unparsed("player", partyNames.display(view.proposerId())),
+                                Placeholder.component("changes", describeChanges(view))));
+                    }
+                    sender.sendMessage(output);
+                }).exceptionally(ex -> {
+                    sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_ERROR,
+                            Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
+                    return null;
+                });
     }
 
     private void executeOutbox(@NotNull CommandContext<Source> ctx) {
@@ -152,12 +165,6 @@ public record ModifyCommandGroup(
     private @NotNull Component describeChanges(@NotNull LeaseholdModificationView view) {
         return LeaseholdChangeSummary.render(messages,
                 view.newPrice(), view.newDurationSeconds(), view.newMaxExtensions());
-    }
-
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
-        String name = player.getName();
-        return name != null ? name : uuid.toString();
     }
 
     /** The three ways to resolve a pending proposal, each carrying its success message and resolution name. */
@@ -194,8 +201,10 @@ public record ModifyCommandGroup(
         }
         boolean bypass = sender.hasPermission("realty.command.modify.others");
         String regionId = region.region().getId();
-        api.proposeModification(regionId, region.world().getUID(), sender.getUniqueId(), bypass,
-                price, durationSeconds, maxExtensions).thenAccept(result -> {
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.proposeModification(regionId, region.world().getUID(), actor,
+                        price, durationSeconds, maxExtensions), executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.ProposeModificationResult.Success success -> {
                     String key = success.active()
@@ -203,7 +212,7 @@ public record ModifyCommandGroup(
                             : MessageKeys.MODIFY_PROPOSE_SUCCESS_TENANT;
                     sender.sendMessage(messages.messageFor(key, Placeholder.unparsed("region", regionId)));
                     events.fireSync(new LeaseModificationProposedEvent(region, success.proposerRole(),
-                            sender.getUniqueId(), success.landlordId(), success.tenantId(), success.active()));
+                            sender.getUniqueId(), success.landlord(), success.tenantId(), success.active()));
                 }
                 case RealtyBackend.ProposeModificationResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NO_LEASEHOLD_CONTRACT,
@@ -242,19 +251,19 @@ public record ModifyCommandGroup(
         boolean bypass = sender.hasPermission("realty.command.modify.others");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        UUID actorId = sender.getUniqueId();
-        var future = switch (action) {
-            case ACCEPT -> api.acceptModification(regionId, worldId, actorId, bypass);
-            case REJECT -> api.rejectModification(regionId, worldId, actorId, bypass);
-            case WITHDRAW -> api.withdrawModification(regionId, worldId, actorId, bypass);
-        };
-        future.thenAccept(result -> {
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
+                .thenComposeAsync(actor -> switch (action) {
+                    case ACCEPT -> api.acceptModification(regionId, worldId, actor);
+                    case REJECT -> api.rejectModification(regionId, worldId, actor);
+                    case WITHDRAW -> api.withdrawModification(regionId, worldId, actor);
+                }, executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.ResolveModificationResult.Success success -> {
                     sender.sendMessage(messages.messageFor(action.successKey,
                             Placeholder.unparsed("region", regionId)));
                     events.fireSync(new LeaseModificationResolvedEvent(region, action.resolution,
-                            success.proposerRole(), success.landlordId(), success.tenantId()));
+                            success.proposerRole(), success.landlord(), success.tenantId()));
                 }
                 case RealtyBackend.ResolveModificationResult.NoLeaseholdContract ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NO_LEASEHOLD_CONTRACT,

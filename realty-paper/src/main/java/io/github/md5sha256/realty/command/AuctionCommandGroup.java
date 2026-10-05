@@ -1,6 +1,9 @@
 package io.github.md5sha256.realty.command;
 
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
+import io.github.md5sha256.realty.api.Party;
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -20,12 +23,12 @@ import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -39,6 +42,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Groups all auction-related subcommands under {@code /realty auction}.
@@ -52,9 +56,12 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public record AuctionCommandGroup(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull AtomicReference<Settings> settings,
         @NotNull MessageContainer messages,
-        @NotNull RealtyEventDispatch events
+        @NotNull RealtyEventDispatch events,
+        @NotNull PartyNames partyNames
 ) implements CustomCommandBean {
 
     @Override
@@ -124,13 +131,13 @@ public record AuctionCommandGroup(
                         Placeholder.unparsed("region", regionId)));
                 FreeholdContractBid highestBid = regionInfo.highestBid();
                 String highestBidAmount = highestBid != null ? CurrencyFormatter.format(highestBid.bidAmount()) : "N/A";
-                String highestBidPlayer = highestBid != null ? resolveName(highestBid.bidderId()) : "N/A";
+                String highestBidPlayer = highestBid != null ? partyNames.display(highestBid.bidderId()) : "N/A";
                 LocalDateTime lastActivity = highestBid != null ? highestBid.bidTime() : auction.startDate();
                 LocalDateTime biddingEndDate = lastActivity.plusSeconds(auction.biddingDurationSeconds());
 
                 textBuilder.appendNewline()
                         .append(messages.messageFor(MessageKeys.AUCTION_INFO_DETAILS,
-                                Placeholder.unparsed("auctioneer", resolveName(auction.auctioneerId())),
+                                Placeholder.unparsed("auctioneer", partyNames.display(auction.auctioneerId())),
                                 Placeholder.unparsed("start_date", DateFormatter.format(settings.get().dateFormat(), auction.startDate())),
                                 Placeholder.unparsed("duration",
                                         DurationFormatter.format(Duration.ofSeconds(auction.biddingDurationSeconds()))),
@@ -146,11 +153,6 @@ public record AuctionCommandGroup(
                         Placeholder.unparsed("error", ex.getMessage())));
             }
         });
-    }
-
-    private static @NotNull String resolveName(@NotNull UUID uuid) {
-        String name = Bukkit.getOfflinePlayer(uuid).getName();
-        return name != null ? name : uuid.toString();
     }
 
     // ── /realty auction <bidDuration> <paymentDuration> <minBid> <minBidStep> <region> ──
@@ -177,15 +179,17 @@ public record AuctionCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.createAuction(
-                regionId,
-                region.world().getUID(),
-                player.getUniqueId(),
-                bidDuration.toSeconds(),
-                paymentDuration.toSeconds(),
-                minBid,
-                minBidStep
-        ).thenAccept(result -> {
+        CompletableFuture.supplyAsync(() -> actors.forRegion(player, false, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.createAuction(
+                        regionId,
+                        region.world().getUID(),
+                        actor,
+                        bidDuration.toSeconds(),
+                        paymentDuration.toSeconds(),
+                        minBid,
+                        minBidStep
+                ), executorState.mainThreadExec())
+                .thenAccept(result -> {
             switch (result) {
                 case RealtyBackend.CreateAuctionResult.Success ignored -> {
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_SUCCESS,
@@ -264,7 +268,10 @@ public record AuctionCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.performBid(regionId, region.world().getUID(), sender.getUniqueId(), bidAmount)
+        boolean bypassConflict = sender.hasPermission("realty.bypass.conflict-of-interest");
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, false, region), executorState.dbExec())
+                .thenComposeAsync(bidder -> api.performBid(regionId, region.world().getUID(), bidder,
+                        bidAmount, bypassConflict), executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.BidResult.Success success -> {
@@ -326,15 +333,16 @@ public record AuctionCommandGroup(
                 case RealtyPaperApi.PayBidResult.FullyPaid fullyPaid -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
-                    if (fullyPaid.previousTitleHolderId() != null) {
-                        events.fireSync(new RealtyNotificationEvent(List.of(fullyPaid.previousTitleHolderId()),
+                    UUID previousTitleHolderId = Party.playerUuidOf(fullyPaid.previousTitleHolder()).orElse(null);
+                    if (previousTitleHolderId != null) {
+                        events.fireSync(new RealtyNotificationEvent(List.of(previousTitleHolderId),
                                 MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("region", fullyPaid.regionId())), region));
                     }
                     events.fireSync(new AuctionWonPurchaseEvent(region, sender.getUniqueId(),
-                            fullyPaid.previousTitleHolderId(), fullyPaid.amount()));
+                            previousTitleHolderId, fullyPaid.amount()));
                 }
                 case RealtyPaperApi.PayBidResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_NO_PAYMENT_RECORD,

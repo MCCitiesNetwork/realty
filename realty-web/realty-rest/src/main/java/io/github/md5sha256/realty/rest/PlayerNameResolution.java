@@ -1,19 +1,18 @@
 package io.github.md5sha256.realty.rest;
 
-import io.github.md5sha256.realty.rest.json.PlayerRef;
+import io.github.md5sha256.realty.rest.json.PartyRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
 import io.github.md5sha256.realty.rest.module.NameLookup;
-import io.github.md5sha256.realty.rest.module.PlayerNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Turning the {@code player} query parameter -- a UUID or a name -- into a {@link PlayerRef}.
+ * Turning the {@code player} query parameter -- a UUID or a name -- into a {@link PartyRef}
+ * of kind {@code personal}.
  *
  * <p>Shared so that every route accepting a player answers a failure the same way: an
  * unknown name is the caller's mistake (404), an unreachable module is not (502). The
@@ -35,7 +34,7 @@ final class PlayerNameResolution {
      * @return the resolved player, or {@code null} only when {@code required} is false
      *         and the parameter was not given
      */
-    static @Nullable PlayerRef fromRequest(@NotNull Context ctx,
+    static @Nullable PartyRef fromRequest(@NotNull Context ctx,
                                            @NotNull ModuleClient moduleClient,
                                            boolean required) {
         String param = QueryParams.optional(ctx, "player");
@@ -59,7 +58,7 @@ final class PlayerNameResolution {
      * a Floodgate name (a {@code .} prefix on an Xbox gamertag) can reach that shape, so
      * the two are never actually ambiguous.</p>
      */
-    static @NotNull PlayerRef byUuidOrName(@NotNull ModuleClient moduleClient,
+    static @NotNull PartyRef byUuidOrName(@NotNull ModuleClient moduleClient,
                                            @NotNull String param,
                                            @NotNull String parameterName) {
         if (isUuidShaped(param)) {
@@ -70,8 +69,7 @@ final class PlayerNameResolution {
                 throw ApiException.badRequest("MALFORMED_UUID",
                         "Query parameter '" + parameterName + "' is not a valid UUID");
             }
-            return Objects.requireNonNull(
-                    PlayerNames.ref(id, PlayerNames.resolve(moduleClient, List.of(id))));
+            return PartyRef.personal(id, moduleClient.names(List.of(id)).get(id));
         }
         return byName(moduleClient, param, parameterName);
     }
@@ -84,11 +82,11 @@ final class PlayerNameResolution {
                 && value.charAt(23) == '-';
     }
 
-    static @NotNull PlayerRef byName(@NotNull ModuleClient moduleClient,
+    static @NotNull PartyRef byName(@NotNull ModuleClient moduleClient,
                                      @NotNull String name,
                                      @NotNull String parameterName) {
         return switch (moduleClient.uuidOf(name)) {
-            case NameLookup.Resolved resolved -> new PlayerRef(resolved.id().toString(), resolved.name());
+            case NameLookup.Resolved resolved -> PartyRef.personal(resolved.id(), resolved.name());
             case NameLookup.Unknown unknown -> throw ApiException.notFound("PLAYER_NOT_FOUND",
                     "No player named '" + name + "'");
             case NameLookup.Unavailable unavailable -> throw ApiException.badGateway(

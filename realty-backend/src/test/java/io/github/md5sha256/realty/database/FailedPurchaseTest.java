@@ -1,6 +1,9 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptOfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.BuyResult;
 import io.github.md5sha256.realty.api.RealtyBackend.OfferResult;
@@ -40,14 +43,14 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
     /** A region for sale at the asking price, held by the title holder. */
     private static String regionForSale() {
         String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
-        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, AUTHORITY, TITLE_HOLDER));
+        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, Party.personal(AUTHORITY), TITLE_HOLDER));
         return regionId;
     }
 
     /** The first step of a purchase. One that is paid for has no second step. */
     private static BuyResult.Success reserve(String regionId, UUID buyer) {
         return Assertions.assertInstanceOf(BuyResult.Success.class,
-                logic.executeBuy(regionId, WORLD_ID, buyer));
+                logic.executeBuy(regionId, WORLD_ID, ActorContext.player(buyer, false), false));
     }
 
     /** What a buyer who cannot pay does to a region: a reservation, then its undoing. */
@@ -91,7 +94,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
 
     private static void placeOffer(String regionId, UUID offerer, double price) {
         Assertions.assertInstanceOf(OfferResult.Success.class,
-                logic.placeOffer(regionId, WORLD_ID, offerer, price));
+                logic.placeOffer(regionId, WORLD_ID, ActorContext.player(offerer, false), price, false));
     }
 
     // --- A purchase that was not paid for ---
@@ -158,7 +161,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         tryToBuyAndFailToPay(regionId, BUYER);
 
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
-                logic.acceptOffer(regionId, WORLD_ID, AUTHORITY, OFFERER));
+                logic.acceptOffer(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), OFFERER));
     }
 
     @Test
@@ -237,13 +240,33 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
     void aRegionHeldByNobodyGoesBackToNobody() {
         // Held by its authority, with no title holder of its own.
         String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
-        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, AUTHORITY, null));
+        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, Party.personal(AUTHORITY), null));
 
         tryToBuyAndFailToPay(regionId, BUYER);
 
         Assertions.assertNull(titleHolderOf(regionId));
         Assertions.assertEquals(ASKING_PRICE, logic.getRegionInfo(regionId, WORLD_ID).freehold().price());
         Assertions.assertEquals(List.of(), salesRecorded(regionId));
+    }
+
+    @Test
+    void unpaidPurchase_fromAnAccountAuthority_leavesNothingBehind() {
+        // Held by an account authority, which the buyer pays. Treasury refused the
+        // payment, for example because the account was archived since.
+        Party government = Party.account(42, AccountKind.GOVERNMENT);
+        String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
+        Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, government, null));
+        placeOffer(regionId, OFFERER, 500.0);
+
+        tryToBuyAndFailToPay(regionId, BUYER);
+
+        RegionInfo info = logic.getRegionInfo(regionId, WORLD_ID);
+        Assertions.assertNull(info.freehold().titleHolderId());
+        Assertions.assertEquals(ASKING_PRICE, info.freehold().price());
+        Assertions.assertEquals(government, info.freehold().authority());
+        Assertions.assertEquals(List.of(), salesRecorded(regionId));
+        Assertions.assertEquals(1, offersOn(regionId).size());
+        Assertions.assertNull(info.lastSoldPrice());
     }
 
     // --- The record that is removed is the one that was written ---
@@ -319,7 +342,8 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
 
         try (SqlSessionWrapper wrapper = database.openSession()) {
             wrapper.freeholdHistoryMapper().insertReturningId(
-                    regionId, WORLD_ID, HistoryEventType.BUY.name(), BUYER, AUTHORITY, ASKING_PRICE);
+                    regionId, WORLD_ID, HistoryEventType.BUY.name(), BUYER,
+                    wrapper.partyMapper().findOrInsert(Party.personal(AUTHORITY)), ASKING_PRICE);
             // No commit: whatever was to follow failed.
         }
 
@@ -340,7 +364,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         List<FreeholdHistoryEntity> sales = salesRecorded(regionId);
         Assertions.assertEquals(1, sales.size());
         Assertions.assertEquals(BUYER, sales.getFirst().buyerId());
-        Assertions.assertEquals(AUTHORITY, sales.getFirst().authorityId());
+        Assertions.assertEquals(Party.personal(AUTHORITY), sales.getFirst().authority());
         Assertions.assertEquals(ASKING_PRICE, sales.getFirst().price());
         Assertions.assertEquals(ASKING_PRICE, logic.getRegionInfo(regionId, WORLD_ID).lastSoldPrice());
     }
@@ -383,10 +407,10 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         String regionId = regionForSale();
         placeOffer(regionId, OFFERER, 500.0);
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
-                logic.acceptOffer(regionId, WORLD_ID, AUTHORITY, OFFERER));
+                logic.acceptOffer(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), OFFERER));
 
         Assertions.assertInstanceOf(BuyResult.NotForFreehold.class,
-                logic.executeBuy(regionId, WORLD_ID, BUYER));
+                logic.executeBuy(regionId, WORLD_ID, ActorContext.player(BUYER, false), false));
 
         Assertions.assertEquals(TITLE_HOLDER, titleHolderOf(regionId));
         Assertions.assertEquals(List.of(), salesRecorded(regionId));
@@ -396,8 +420,8 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
     @Test
     void aRegionWithAWinningBidBeingPaidForIsNotForSale() {
         String regionId = regionForSale();
-        logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0);
-        logic.performBid(regionId, WORLD_ID, OFFERER, 200.0);
+        logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
+        logic.performBid(regionId, WORLD_ID, ActorContext.player(OFFERER, false), 200.0, false);
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             wrapper.freeholdContractBidPaymentMapper().insertPayment(
@@ -406,7 +430,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         }
 
         Assertions.assertInstanceOf(BuyResult.NotForFreehold.class,
-                logic.executeBuy(regionId, WORLD_ID, BUYER));
+                logic.executeBuy(regionId, WORLD_ID, ActorContext.player(BUYER, false), false));
 
         Assertions.assertEquals(TITLE_HOLDER, titleHolderOf(regionId));
         Assertions.assertEquals(List.of(), salesRecorded(regionId));

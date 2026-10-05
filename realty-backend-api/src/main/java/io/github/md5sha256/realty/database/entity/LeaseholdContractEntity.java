@@ -1,16 +1,18 @@
 package io.github.md5sha256.realty.database.entity;
 
+import io.github.md5sha256.realty.api.Party;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Internal entity record mapping to the {@code LeaseholdContract} DDL table.
  *
  * @param leaseholdContractId  Auto-increment primary key
- * @param landlordId           UUID of the landlord (authority over the leasehold)
+ * @param landlord             The landlord (authority over the leasehold)
  * @param tenantId             UUID of the tenant, or {@code null} if the region is for rent
  * @param price                Rental price (must be &gt; 0)
  * @param durationSeconds      Leasehold duration in seconds (must be &gt; 0)
@@ -25,7 +27,7 @@ import java.util.UUID;
  */
 public record LeaseholdContractEntity(
         int leaseholdContractId,
-        @NotNull UUID landlordId,
+        @NotNull Party landlord,
         @Nullable UUID tenantId,
         double price,
         long durationSeconds,
@@ -37,4 +39,11 @@ public record LeaseholdContractEntity(
         @Nullable String terminatedByRole,
         boolean acceptingTenants
 ) {
+
+    /**
+     * @return the tenant as a party, if the region is let
+     */
+    public @NotNull Optional<Party> tenant() {
+        return Optional.ofNullable(tenantId).map(Party::personal);
+    }
 }

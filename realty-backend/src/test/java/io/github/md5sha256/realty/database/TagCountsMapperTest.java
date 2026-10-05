@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.TagCountEntity;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
@@ -24,8 +25,8 @@ class TagCountsMapperTest extends AbstractDatabaseTest {
 
     @Test
     void reportsEveryTagInUseWithItsCount() {
-        Assertions.assertTrue(logic.createFreehold("tags_a", WORLD_ID, 100.0, AUTHORITY, null));
-        Assertions.assertTrue(logic.createFreehold("tags_b", WORLD_ID, 100.0, AUTHORITY, null));
+        Assertions.assertTrue(logic.createFreehold("tags_a", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
+        Assertions.assertTrue(logic.createFreehold("tags_b", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             wrapper.regionTagMapper().insert("commercial", "tags_a");
@@ -43,7 +44,7 @@ class TagCountsMapperTest extends AbstractDatabaseTest {
 
     @Test
     void agreesWithCountingEachTagSeparately() {
-        Assertions.assertTrue(logic.createFreehold("tags_c", WORLD_ID, 100.0, AUTHORITY, null));
+        Assertions.assertTrue(logic.createFreehold("tags_c", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             wrapper.regionTagMapper().insert("island", "tags_c");

@@ -22,6 +22,13 @@ import java.util.List;
  */
 public final class QueryParams {
 
+    /**
+     * The largest {@code page} a request may ask for. The offset is computed as
+     * {@code (page - 1) * pageSize} in {@code int}, and a page size is at most
+     * {@link RestSettings#MAX_PAGE_SIZE_LIMIT}, so no larger page can overflow it.
+     */
+    public static final int MAX_PAGE = Integer.MAX_VALUE / RestSettings.MAX_PAGE_SIZE_LIMIT;
+
     private QueryParams() {
     }
 
@@ -88,7 +95,7 @@ public final class QueryParams {
     /**
      * Reads the shared 1-based {@code page} parameter, defaulting to 1.
      *
-     * @throws ApiException {@code INVALID_PAGE} when it is not an integer >= 1.
+     * @throws ApiException {@code INVALID_PAGE} when it is not an integer from 1 to {@link #MAX_PAGE}.
      */
     public static int page(@NotNull Context ctx) {
         String raw = optional(ctx, "page");
@@ -103,6 +110,10 @@ public final class QueryParams {
         }
         if (page < 1) {
             throw ApiException.badRequest("INVALID_PAGE", "Query parameter 'page' must be >= 1");
+        }
+        // A larger page would overflow the offset into a negative number that the database refuses.
+        if (page > MAX_PAGE) {
+            throw ApiException.badRequest("INVALID_PAGE", "Query parameter 'page' must be <= " + MAX_PAGE);
         }
         return page;
     }

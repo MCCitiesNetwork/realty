@@ -13,8 +13,8 @@ public interface FreeholdHistoryMapper {
     int insert(@NotNull String worldGuardRegionId,
                @NotNull UUID worldId,
                @NotNull String eventType,
-               @NotNull UUID buyerId,
-               @NotNull UUID authorityId,
+               @Nullable UUID buyerId,
+               int authorityPartyId,
                double price);
 
     /**
@@ -24,8 +24,8 @@ public interface FreeholdHistoryMapper {
     int insertReturningId(@NotNull String worldGuardRegionId,
                           @NotNull UUID worldId,
                           @NotNull String eventType,
-                          @NotNull UUID buyerId,
-                          @NotNull UUID authorityId,
+                          @Nullable UUID buyerId,
+                          int authorityPartyId,
                           double price);
 
     /** Removes one record. For taking back a record of something that was then undone. */

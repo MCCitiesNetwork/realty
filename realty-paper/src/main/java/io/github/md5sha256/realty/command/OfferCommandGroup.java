@@ -1,5 +1,8 @@
 package io.github.md5sha256.realty.command;
 
+import io.github.md5sha256.realty.api.Party;
+import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -53,6 +56,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public record OfferCommandGroup(
         @NotNull RealtyPaperApi api,
+        @NotNull ActorContexts actors,
+        @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events
 ) implements CustomCommandBean {
@@ -141,7 +146,10 @@ public record OfferCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.placeOffer(regionId, region.world().getUID(), sender.getUniqueId(), price)
+        boolean bypassConflict = sender.hasPermission("realty.bypass.conflict-of-interest");
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, false, region), executorState.dbExec())
+                .thenComposeAsync(offerer -> api.placeOffer(regionId, region.world().getUID(), offerer,
+                        price, bypassConflict), executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.OfferResult.Success success -> {
@@ -297,7 +305,9 @@ public record OfferCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             return;
         }
-        api.acceptOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, false, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.acceptOffer(regionId, region.world().getUID(), actor,
+                        target.getUniqueId()), executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.AcceptOfferResult.Success ignored -> {
@@ -361,15 +371,16 @@ public record OfferCommandGroup(
                 case RealtyPaperApi.PayOfferResult.FullyPaid fullyPaid -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                             Placeholder.unparsed("region", fullyPaid.regionId())));
-                    if (fullyPaid.previousTitleHolderId() != null) {
-                        events.fireSync(new RealtyNotificationEvent(List.of(fullyPaid.previousTitleHolderId()),
+                    UUID previousTitleHolderId = Party.playerUuidOf(fullyPaid.previousTitleHolder()).orElse(null);
+                    if (previousTitleHolderId != null) {
+                        events.fireSync(new RealtyNotificationEvent(List.of(previousTitleHolderId),
                                 MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                 messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                                         Placeholder.unparsed("player", sender.getName()),
                                         Placeholder.unparsed("region", fullyPaid.regionId())), region));
                     }
                     events.fireSync(new OfferPurchaseCompletedEvent(region, sender.getUniqueId(),
-                            fullyPaid.previousTitleHolderId(), fullyPaid.amount()));
+                            previousTitleHolderId, fullyPaid.amount()));
                 }
                 case RealtyPaperApi.PayOfferResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,
@@ -459,7 +470,9 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.rejectOffer(regionId, region.world().getUID(), sender.getUniqueId(), target.getUniqueId())
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, false, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.rejectOffer(regionId, region.world().getUID(), actor,
+                        target.getUniqueId()), executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.RejectOfferResult.Success ignored -> {
@@ -505,7 +518,9 @@ public record OfferCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.rejectAllOffers(regionId, region.world().getUID(), sender.getUniqueId())
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, false, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.rejectAllOffers(regionId, region.world().getUID(), actor),
+                        executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.RejectAllOffersResult.Success success -> {
@@ -555,7 +570,9 @@ public record OfferCommandGroup(
         }
         String regionId = region.region().getId();
         boolean bypass = sender.hasPermission("realty.command.offer.toggle.bypass");
-        api.toggleOffers(regionId, region.world().getUID(), sender.getUniqueId(), accepting, bypass)
+        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
+                .thenComposeAsync(actor -> api.toggleOffers(regionId, region.world().getUID(), actor, accepting),
+                        executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case RealtyBackend.ToggleOffersResult.Success success ->

@@ -1,15 +1,16 @@
 package io.github.md5sha256.realty.rest;
 
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.ActivityRow;
 import io.github.md5sha256.realty.database.mapper.ActivityMapper;
 import io.github.md5sha256.realty.rest.json.ActivityResponse;
-import io.github.md5sha256.realty.rest.json.PlayerRef;
+import io.github.md5sha256.realty.rest.json.PartyRef;
 import io.github.md5sha256.realty.rest.json.WorldRef;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
-import io.github.md5sha256.realty.rest.module.PlayerNames;
+import io.github.md5sha256.realty.rest.module.PartyNames;
 import io.javalin.http.Context;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -20,7 +21,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -77,14 +77,16 @@ final class ActivityHandler {
             rows = mapper.selectPage(eventTypes, worldId, since, pageSize, offset);
         }
 
-        List<UUID> playerIds = new ArrayList<>();
+        List<Party> parties = new ArrayList<>();
         Set<UUID> worldIds = new HashSet<>();
         for (ActivityRow row : rows) {
-            playerIds.add(row.firstPlayerId());
-            playerIds.add(row.secondPlayerId());
+            if (row.firstPlayerId() != null) {
+                parties.add(Party.personal(row.firstPlayerId()));
+            }
+            parties.add(row.secondParty());
             worldIds.add(row.worldId());
         }
-        Map<UUID, String> names = PlayerNames.resolve(this.moduleClient, playerIds);
+        PartyNames.Resolved names = PartyNames.resolve(this.moduleClient, parties);
         Map<UUID, WorldRef> worlds = this.worldLookup.refsFor(worldIds);
 
         List<ActivityResponse.Event> events = new ArrayList<>(rows.size());
@@ -142,9 +144,11 @@ final class ActivityHandler {
      */
     private static @NotNull ActivityResponse.Event toEvent(@NotNull ActivityRow row,
                                                            @NotNull Map<UUID, WorldRef> worlds,
-                                                           @NotNull Map<UUID, String> names) {
-        PlayerRef first = ref(row.firstPlayerId(), names);
-        PlayerRef second = ref(row.secondPlayerId(), names);
+                                                           @NotNull PartyNames.Resolved names) {
+        // The first may be absent: a leasehold event recorded while the region had no tenant
+        // has no first player.
+        PartyRef first = names.ref(row.firstPlayerId());
+        PartyRef second = names.ref(row.secondParty());
         WorldRef world = worlds.get(row.worldId());
         String eventTime = IsoDates.format(row.eventTime());
         return switch (row.kind()) {
@@ -161,10 +165,6 @@ final class ActivityHandler {
             default -> throw new IllegalStateException(
                     "Unknown activity row kind: " + row.kind());
         };
-    }
-
-    private static @NotNull PlayerRef ref(@NotNull UUID id, @NotNull Map<UUID, String> names) {
-        return Objects.requireNonNull(PlayerNames.ref(id, names));
     }
 
     private static int totalPages(int totalCount, int pageSize) {

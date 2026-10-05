@@ -77,6 +77,7 @@ public final class RealtyRestServer {
             "/v1/auctions",
             "/v1/activity",
             "/v1/players/regions",
+            "/v1/parties/{kind}/{id}/regions",
             "/v1/players/lookup",
             "/v1/players/summary",
             "/v1/openapi.yaml",
@@ -244,9 +245,15 @@ public final class RealtyRestServer {
         SearchHandler searchHandler = new SearchHandler(this.database, this.worldLookup, this.settings);
         routes.get("/v1/regions/search", searchHandler::handle);
 
-        PlayerRegionsHandler playerRegionsHandler = new PlayerRegionsHandler(
-                this.backend, this.database, this.worldLookup, this.settings, this.moduleClient);
+        PartyRegionsListing regionsListing = new PartyRegionsListing(
+                this.backend, this.database, this.worldLookup, this.settings);
+        PlayerRegionsHandler playerRegionsHandler =
+                new PlayerRegionsHandler(regionsListing, this.moduleClient);
         routes.get("/v1/players/regions", playerRegionsHandler::handle);
+
+        PartyRegionsHandler partyRegionsHandler =
+                new PartyRegionsHandler(this.backend, regionsListing, this.moduleClient);
+        routes.get("/v1/parties/{kind}/{id}/regions", partyRegionsHandler::handle);
 
         PlayerLookupHandler playerLookupHandler = new PlayerLookupHandler(this.moduleClient);
         routes.get("/v1/players/lookup", playerLookupHandler::handle);
@@ -310,7 +317,8 @@ public final class RealtyRestServer {
 
         routes.exception(Exception.class, (ex, ctx) -> {
             ctx.attribute(HANDLED_ATTRIBUTE, true);
-            LOGGER.log(Level.SEVERE, "Unhandled failure serving " + ctx.path(), ex);
+            // The route pattern, not the request path: a path parameter is text from the network.
+            LOGGER.log(Level.SEVERE, "Unhandled failure serving " + ctx.endpoint().path, ex);
             ctx.status(500).json(new ErrorResponse("INTERNAL_ERROR",
                     "An unexpected error occurred"));
         });

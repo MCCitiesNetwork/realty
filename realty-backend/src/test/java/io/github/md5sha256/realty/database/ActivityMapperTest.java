@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.ActivityRow;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,12 +32,13 @@ class ActivityMapperTest extends AbstractDatabaseTest {
     @BeforeEach
     void seed() {
         try (SqlSessionWrapper session = database.openSession(true)) {
-            session.freeholdHistoryMapper().insert("plot_a", WORLD_ID, "BUY", ALICE, BOB, 21500.0);
-            session.leaseholdHistoryMapper().insert("plot_b", WORLD_ID, "RENT", ALICE, BOB,
+            int bobPartyId = session.partyMapper().findOrInsert(Party.personal(BOB));
+            session.freeholdHistoryMapper().insert("plot_a", WORLD_ID, "BUY", ALICE, bobPartyId, 21500.0);
+            session.leaseholdHistoryMapper().insert("plot_b", WORLD_ID, "RENT", ALICE, bobPartyId,
                     800.0, 604800L, 3);
             session.agentHistoryMapper().insert("plot_c", WORLD_ID, "AGENT_ADD", ALICE, BOB);
-            session.freeholdHistoryMapper().insert("plot_d", WORLD_ID, "SET_PRICE", ALICE, BOB, 100.0);
-            session.freeholdHistoryMapper().insert("plot_e", OTHER_WORLD, "BUY", ALICE, BOB, 50.0);
+            session.freeholdHistoryMapper().insert("plot_d", WORLD_ID, "SET_PRICE", ALICE, bobPartyId, 100.0);
+            session.freeholdHistoryMapper().insert("plot_e", OTHER_WORLD, "BUY", ALICE, bobPartyId, 50.0);
         }
     }
 
@@ -114,7 +116,7 @@ class ActivityMapperTest extends AbstractDatabaseTest {
         for (String regionId : List.of("plot_a", "plot_b", "plot_c")) {
             ActivityRow row = rowFor(rows, regionId);
             Assertions.assertEquals(ALICE, row.firstPlayerId(), regionId);
-            Assertions.assertEquals(BOB, row.secondPlayerId(), regionId);
+            Assertions.assertEquals(Party.personal(BOB), row.secondParty(), regionId);
         }
     }
 
@@ -163,5 +165,33 @@ class ActivityMapperTest extends AbstractDatabaseTest {
                 "one row at a time must walk the same feed the full page reports");
         Assertions.assertEquals(whole.size(), paged.stream().distinct().count(),
                 "three separately-paged tables would repeat rows here");
+    }
+
+    @Test
+    void keepsTwoIdenticalEventsApart() {
+        try (SqlSessionWrapper session = database.openSession(true)) {
+            int landlordPartyId = session.partyMapper().findOrInsert(Party.personal(BOB));
+            for (int i = 0; i < 2; i++) {
+                session.leaseholdHistoryMapper().insert("plot_twice", WORLD_ID, "RENT", ALICE,
+                        landlordPartyId, 800.0, 604800L, 3);
+            }
+        }
+        List<String> rentals = ids(page(List.of("RENT"), null, null, 50, 0));
+        Assertions.assertEquals(2, rentals.stream().filter("plot_twice"::equals).count(),
+                "two events alike in every column but their id are still two events");
+    }
+
+    @Test
+    void keepsTwoIdenticalFreeholdEventsApart() {
+        try (SqlSessionWrapper session = database.openSession(true)) {
+            int authorityPartyId = session.partyMapper().findOrInsert(Party.personal(BOB));
+            for (int i = 0; i < 2; i++) {
+                session.freeholdHistoryMapper().insert("plot_sold_twice", WORLD_ID, "BUY", ALICE,
+                        authorityPartyId, 900.0);
+            }
+        }
+        List<String> sales = ids(page(List.of("BUY"), null, null, 50, 0));
+        Assertions.assertEquals(2, sales.stream().filter("plot_sold_twice"::equals).count(),
+                "two sales alike in every column but their id are still two sales");
     }
 }

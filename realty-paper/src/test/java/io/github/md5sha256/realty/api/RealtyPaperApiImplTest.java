@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.api;
 
+import io.github.md5sha256.realty.api.Party;
+import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -8,11 +10,18 @@ import com.sk89q.worldguard.internal.platform.WorldGuardPlatform;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
+import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
+import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
+import io.github.md5sha256.realty.settings.AccountManagers;
+import io.github.md5sha256.realty.settings.Settings;
+import net.democracycraft.treasury.api.TreasuryApi;
+import net.democracycraft.treasury.model.economy.AccountMember;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -26,15 +35,19 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -61,6 +74,8 @@ class RealtyPaperApiImplTest {
     private SignTextApplicator signTextApplicator;
     @Mock
     private World world;
+    @Mock
+    private TreasuryApi treasury;
 
     private SignCache signCache;
     private RealtyPaperApiImpl api;
@@ -74,25 +89,31 @@ class RealtyPaperApiImplTest {
     private static final String REGION_ID = "test_region";
     private static final UUID WORLD_ID = UUID.randomUUID();
     private static final UUID BUYER_ID = UUID.randomUUID();
+    private static final ActorContext BUYER_CTX = ActorContext.player(BUYER_ID, false);
     private static final UUID AUTHORITY_ID = UUID.randomUUID();
     private static final UUID TITLE_HOLDER_ID = UUID.randomUUID();
     private static final UUID LANDLORD_ID = UUID.randomUUID();
     private static final UUID TENANT_ID = UUID.randomUUID();
+    private static final Party.Personal BUYER = Party.personal(BUYER_ID);
+    private static final Party.Personal TITLE_HOLDER = Party.personal(TITLE_HOLDER_ID);
+    private static final Party.Personal LANDLORD = Party.personal(LANDLORD_ID);
+    private static final Party.Personal TENANT = Party.personal(TENANT_ID);
+    private static final Party.Account GOVERNMENT = Party.account(42, AccountKind.GOVERNMENT);
     private static final RealtyBackend.RentResult.Success LET =
-            new RealtyBackend.RentResult.Success(500.0, 3600, LANDLORD_ID, 7);
+            new RealtyBackend.RentResult.Success(500.0, 3600, Party.personal(LANDLORD_ID), 7);
     /** A renewal at 200 that applied a landlord's change of terms on the way. */
     private static final RealtyBackend.RenewLeaseholdResult.Success RENEWED =
-            new RealtyBackend.RenewLeaseholdResult.Success(200.0, LANDLORD_ID,
+            new RealtyBackend.RenewLeaseholdResult.Success(200.0, Party.personal(LANDLORD_ID),
                     new RealtyBackend.RenewUndo(8,
                             new RealtyBackend.AppliedTerms(3, 9, 150.0, 3600, 5, 1)));
     private static final RealtyBackend.UnrentResult.Success ENDED =
-            new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, LANDLORD_ID,
+            new RealtyBackend.UnrentResult.Success(100.0, TENANT_ID, Party.personal(LANDLORD_ID),
                     new RealtyBackend.Tenancy(
                             LocalDateTime.of(2026, 9, 1, 12, 0), LocalDateTime.of(2026, 10, 1, 12, 0), 3),
                     10);
     /** A reservation at 1000 that withdrew one offer, which a rollback has to put back. */
     private static final RealtyBackend.BuyResult.Success RESERVED = new RealtyBackend.BuyResult.Success(
-            1000.0, AUTHORITY_ID, TITLE_HOLDER_ID,
+            1000.0, Party.personal(AUTHORITY_ID), TITLE_HOLDER_ID,
             new RealtyBackend.BuyUndo(42,
                     List.of(new RealtyBackend.WithdrawnOffer(
                             UUID.randomUUID(), 500.0, LocalDateTime.of(2026, 8, 1, 12, 0))),
@@ -102,9 +123,16 @@ class RealtyPaperApiImplTest {
     void setUp() {
         signCache = new SignCache();
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
+        lenient().when(treasury.getMembers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
+        lenient().when(treasury.getAuthorizers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
+        ActorContexts actorContexts = new ActorContexts(treasury, null,
+                new AtomicReference<>(new Settings(null, null, null, new SimpleDateFormat("yyyy"),
+                        0, 0, 0, 0, List.of(), null, 0, 0, 0, 0, AccountManagers.MEMBERS)),
+                realtyApi);
         api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
-                new SafeLocationFinder(), stubPlayerNameService());
+                new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()),
+                actorContexts);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
 
@@ -192,16 +220,65 @@ class RealtyPaperApiImplTest {
     // ═══════════════════════════════════════════════════
 
     @Nested
+    @DisplayName("actorContext")
+    class ActorContextFactory {
+
+        @Test
+        @DisplayName("a player who authorizes the region's account authority manages it")
+        void authorizerOfTheAuthority_managesIt() {
+            when(realtyApi.getFreeholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(new FreeholdContractEntity(1, GOVERNMENT, TITLE_HOLDER_ID, 1000.0, true));
+            when(treasury.getAuthorizers(42))
+                    .thenReturn(List.of(new AccountMember(0, BUYER_ID, TITLE_HOLDER_ID, Instant.EPOCH)));
+            OfflinePlayer buyer = org.mockito.Mockito.mock(OfflinePlayer.class);
+            when(buyer.getUniqueId()).thenReturn(BUYER_ID);
+
+            ActorContext ctx = api.actorContext(buyer, false, wgRegion).join();
+
+            Assertions.assertEquals(BUYER_ID, ctx.player());
+            Assertions.assertTrue(ctx.mayManage(GOVERNMENT));
+            Assertions.assertTrue(ctx.mayReassign(GOVERNMENT));
+            Assertions.assertFalse(ctx.bypass());
+        }
+
+        @Test
+        @DisplayName("an extra party is tested too")
+        void extraParty_isTested() {
+            Party.Account business = Party.account(7, AccountKind.BUSINESS);
+            when(treasury.getMembers(7))
+                    .thenReturn(List.of(new AccountMember(0, BUYER_ID, TITLE_HOLDER_ID, Instant.EPOCH)));
+            OfflinePlayer buyer = org.mockito.Mockito.mock(OfflinePlayer.class);
+            when(buyer.getUniqueId()).thenReturn(BUYER_ID);
+
+            ActorContext ctx = api.actorContext(buyer, true, wgRegion, business).join();
+
+            Assertions.assertTrue(ctx.manages().contains(business));
+            Assertions.assertFalse(ctx.reassigns().contains(business));
+            Assertions.assertTrue(ctx.bypass());
+        }
+    }
+
+    @Nested
     @DisplayName("buy")
     class Buy {
 
         @Test
+        @DisplayName("a context with no player fails the future and does not throw at the call")
+        void contextWithoutAPlayer_failsTheFuture() {
+            CompletableFuture<RealtyPaperApi.BuyResult> future =
+                    Assertions.assertDoesNotThrow(() -> api.buy(wgRegion, ActorContext.console(), false));
+
+            Assertions.assertTrue(future.isCompletedExceptionally());
+            verify(realtyApi, never()).executeBuy(any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
         @DisplayName("returns NoFreeholdContract when no contract exists")
         void noFreeholdContract() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false))
                     .thenReturn(new RealtyBackend.BuyResult.NoFreeholdContract());
 
-            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.NoFreeholdContract.class, result);
         }
@@ -209,10 +286,10 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns NotForSale when region is not for sale")
         void notForSale() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false))
                     .thenReturn(new RealtyBackend.BuyResult.NotForFreehold());
 
-            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.NotForSale.class, result);
         }
@@ -220,10 +297,10 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns IsAuthority when buyer is the authority")
         void isAuthority() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false))
                     .thenReturn(new RealtyBackend.BuyResult.IsAuthority());
 
-            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.IsAuthority.class, result);
         }
@@ -231,10 +308,10 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns IsTitleHolder when buyer already owns")
         void isTitleHolder() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false))
                     .thenReturn(new RealtyBackend.BuyResult.IsTitleHolder());
 
-            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.IsTitleHolder.class, result);
         }
@@ -242,13 +319,13 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns InsufficientFunds and rolls back DB when balance is too low")
         void insufficientFunds() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false))
                     .thenReturn(RESERVED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economyProvider.getBalance(BUYER_ID)).thenReturn(500.0);
+            when(economyProvider.getBalance(BUYER)).thenReturn(500.0);
 
-            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.InsufficientFunds.class, result);
             RealtyPaperApi.BuyResult.InsufficientFunds insufficient =
@@ -262,15 +339,15 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns PaymentFailed and rolls back DB when economy withdraw fails")
         void paymentFailed() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false))
                     .thenReturn(RESERVED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economyProvider.getBalance(BUYER_ID)).thenReturn(2000.0);
-            when(economyProvider.transfer(eq(BUYER_ID), any(UUID.class), eq(1000.0), any()))
+            when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Failure("Bank error"));
 
-            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.PaymentFailed.class, result);
             // Handed the reservation itself, so it can put back everything that was taken.
@@ -280,20 +357,21 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success transfers ownership and applies flags")
         void success() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false))
                     .thenReturn(RESERVED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of("price", "1000"));
-            when(economyProvider.getBalance(BUYER_ID)).thenReturn(2000.0);
-            when(economyProvider.transfer(eq(BUYER_ID), any(UUID.class), eq(1000.0), any()))
+            when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
 
-            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.Success.class, result);
             RealtyPaperApi.BuyResult.Success success = (RealtyPaperApi.BuyResult.Success) result;
             Assertions.assertEquals(1000.0, success.price());
             Assertions.assertEquals(REGION_ID, success.regionId());
+            Assertions.assertEquals(TITLE_HOLDER, success.previousTitleHolder());
 
             // Verify region ownership updated
             Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
@@ -310,11 +388,11 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("a failed purchase leaves the region's owners and signs alone")
         void failedPurchaseTouchesNothingInTheWorld() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(RESERVED);
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(RESERVED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
-            when(economyProvider.getBalance(BUYER_ID)).thenReturn(500.0);
+            when(economyProvider.getBalance(BUYER)).thenReturn(500.0);
 
-            api.buy(wgRegion, BUYER_ID).join();
+            api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
             verify(regionProfileService, never()).applyFlags(any(), any(), any());
@@ -326,18 +404,18 @@ class RealtyPaperApiImplTest {
         void nothingBetweenPaymentAndOwnership() {
             // A database call there is a call that can fail, and the buyer has been
             // charged. They would hold the title and be unable to build.
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(RESERVED);
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(RESERVED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
-            when(economyProvider.getBalance(BUYER_ID)).thenReturn(2000.0);
-            when(economyProvider.transfer(eq(BUYER_ID), any(UUID.class), eq(1000.0), any()))
+            when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
 
-            api.buy(wgRegion, BUYER_ID).join();
+            api.buy(wgRegion, BUYER_CTX, false).join();
 
             InOrder order = inOrder(realtyApi, economyProvider);
-            order.verify(realtyApi).executeBuy(REGION_ID, WORLD_ID, BUYER_ID);
+            order.verify(realtyApi).executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false);
             order.verify(realtyApi).getRegionPlaceholders(REGION_ID, WORLD_ID);
-            order.verify(economyProvider).transfer(eq(BUYER_ID), any(UUID.class), eq(1000.0), any());
+            order.verify(economyProvider).transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID));
             order.verifyNoMoreInteractions();
             Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
         }
@@ -345,12 +423,30 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns TransferFailed when atomic buy fails")
         void transferFailedOnAtomicBuyFailure() {
-            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false))
                     .thenReturn(new RealtyBackend.BuyResult.UpdateFailed());
 
-            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_ID).join();
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.TransferFailed.class, result);
+        }
+
+        @Test
+        @DisplayName("a plot with no titleholder pays its account authority")
+        void buy_fromAccountAuthority_paysTheAccount() {
+            RealtyBackend.BuyResult.Success fromAuthority = new RealtyBackend.BuyResult.Success(
+                    1000.0, GOVERNMENT, null, RESERVED.undo());
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(fromAuthority);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(GOVERNMENT), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.Success.class, result);
+            verify(economyProvider).transfer(eq(BUYER), eq(GOVERNMENT), eq(1000.0), any(), eq(BUYER_ID));
+            verify(realtyApi, never()).rollbackBuy(any(), any(), any(), any());
         }
     }
 
@@ -391,7 +487,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(LET);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economyProvider.getBalance(TENANT_ID)).thenReturn(100.0);
+            when(economyProvider.getBalance(TENANT)).thenReturn(100.0);
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
 
@@ -405,8 +501,8 @@ class RealtyPaperApiImplTest {
         void paymentFailed() {
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(LET);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
-            when(economyProvider.getBalance(TENANT_ID)).thenReturn(1000.0);
-            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(500.0), any()))
+            when(economyProvider.getBalance(TENANT)).thenReturn(1000.0);
+            when(economyProvider.transfer(eq(TENANT), eq(LANDLORD), eq(500.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Failure("Bank error"));
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
@@ -423,8 +519,8 @@ class RealtyPaperApiImplTest {
                     .thenReturn(LET);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economyProvider.getBalance(TENANT_ID)).thenReturn(1000.0);
-            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(500.0), any()))
+            when(economyProvider.getBalance(TENANT)).thenReturn(1000.0);
+            when(economyProvider.transfer(eq(TENANT), eq(LANDLORD), eq(500.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Success());
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
@@ -438,14 +534,31 @@ class RealtyPaperApiImplTest {
         @DisplayName("skips payment when price is zero")
         void zeroPriceSkipsPayment() {
             when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.RentResult.Success(0.0, 3600, LANDLORD_ID, 7));
+                    .thenReturn(new RealtyBackend.RentResult.Success(0.0, 3600, Party.personal(LANDLORD_ID), 7));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.RentResult.Success.class, result);
-            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any());
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+        }
+
+        @Test
+        @DisplayName("rent is paid into the account a landlord party names")
+        void rent_toAccountLandlord_paysTheAccount() {
+            RealtyBackend.RentResult.Success let = new RealtyBackend.RentResult.Success(500.0, 3600, GOVERNMENT, 7);
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(let);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.getBalance(TENANT)).thenReturn(1000.0);
+            when(economyProvider.transfer(eq(TENANT), eq(GOVERNMENT), eq(500.0), any(), eq(TENANT_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.RentResult result = api.rent(wgRegion, TENANT_ID).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RentResult.Success.class, result);
+            verify(economyProvider).transfer(eq(TENANT), eq(GOVERNMENT), eq(500.0), any(), eq(TENANT_ID));
+            verify(realtyApi, never()).rollbackRent(any(), any(), any(), any());
         }
 
         @Test
@@ -501,7 +614,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(ENDED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economyProvider.transfer(eq(LANDLORD_ID), eq(TENANT_ID), eq(100.0), any()))
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(100.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Success());
 
             protectedRegion.getOwners().addPlayer(TENANT_ID);
@@ -521,7 +634,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(ENDED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economyProvider.transfer(eq(LANDLORD_ID), eq(TENANT_ID), eq(100.0), any()))
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(100.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Failure("Insufficient funds"));
             protectedRegion.getOwners().addPlayer(TENANT_ID);
 
@@ -534,6 +647,43 @@ class RealtyPaperApiImplTest {
             verify(realtyApi, never()).rentRegion(any(), any(), any());
             Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID),
                     "the tenancy goes on, so the tenant keeps the region");
+        }
+
+        @Test
+        @DisplayName("a refund out of an account landlord names the tenant who ended the lease")
+        void unrent_refundFromAccountLandlord_namesTheTenantAsInitiator() {
+            RealtyBackend.UnrentResult.Success ended = new RealtyBackend.UnrentResult.Success(
+                    100.0, TENANT_ID, GOVERNMENT, ENDED.previous(), ENDED.historyId());
+            when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(ended);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.transfer(eq(GOVERNMENT), eq(TENANT), eq(100.0), any(), eq(TENANT_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.UnrentResult result = api.unrent(wgRegion, TENANT_ID).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.UnrentResult.Success.class, result);
+            verify(economyProvider).transfer(eq(GOVERNMENT), eq(TENANT), eq(100.0), any(), eq(TENANT_ID));
+            verify(realtyApi, never()).rollbackUnrent(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a refund the landlord's account cannot make puts the tenancy back")
+        void unrent_refundFails_rollsBack() {
+            RealtyBackend.UnrentResult.Success ended = new RealtyBackend.UnrentResult.Success(
+                    100.0, TENANT_ID, GOVERNMENT, ENDED.previous(), ENDED.historyId());
+            when(realtyApi.unrentRegion(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(ended);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.transfer(eq(GOVERNMENT), eq(TENANT), eq(100.0), any(), eq(TENANT_ID)))
+                    .thenReturn(new PaymentResult.Failure("Account #42 is archived"));
+            protectedRegion.getOwners().addPlayer(TENANT_ID);
+
+            RealtyPaperApi.UnrentResult result = api.unrent(wgRegion, TENANT_ID).join();
+
+            RealtyPaperApi.UnrentResult.RefundFailed failed =
+                    Assertions.assertInstanceOf(RealtyPaperApi.UnrentResult.RefundFailed.class, result);
+            Assertions.assertEquals("Account #42 is archived", failed.error());
+            verify(realtyApi).rollbackUnrent(REGION_ID, WORLD_ID, TENANT_ID, ended);
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID));
         }
     }
 
@@ -574,7 +724,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(RENEWED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economyProvider.getBalance(TENANT_ID)).thenReturn(50.0);
+            when(economyProvider.getBalance(TENANT)).thenReturn(50.0);
 
             RealtyPaperApi.ExtendResult result = api.extend(wgRegion, TENANT_ID).join();
 
@@ -587,8 +737,8 @@ class RealtyPaperApiImplTest {
         void paymentFailed() {
             when(realtyApi.renewLeasehold(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(RENEWED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
-            when(economyProvider.getBalance(TENANT_ID)).thenReturn(500.0);
-            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any()))
+            when(economyProvider.getBalance(TENANT)).thenReturn(500.0);
+            when(economyProvider.transfer(eq(TENANT), eq(LANDLORD), eq(200.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Failure("Bank error"));
 
             RealtyPaperApi.ExtendResult result = api.extend(wgRegion, TENANT_ID).join();
@@ -604,8 +754,8 @@ class RealtyPaperApiImplTest {
                     .thenReturn(RENEWED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
-            when(economyProvider.getBalance(TENANT_ID)).thenReturn(500.0);
-            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any()))
+            when(economyProvider.getBalance(TENANT)).thenReturn(500.0);
+            when(economyProvider.transfer(eq(TENANT), eq(LANDLORD), eq(200.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Success());
 
             RealtyPaperApi.ExtendResult result = api.extend(wgRegion, TENANT_ID).join();
@@ -627,7 +777,7 @@ class RealtyPaperApiImplTest {
     class Terminate {
 
         private LeaseholdContractEntity lease(LocalDateTime endDate, LocalDateTime terminationDate) {
-            return new LeaseholdContractEntity(1, LANDLORD_ID, TENANT_ID, 200.0, 604800L,
+            return new LeaseholdContractEntity(1, Party.personal(LANDLORD_ID), TENANT_ID, 200.0, 604800L,
                     LocalDateTime.now().minusSeconds(1), endDate, null, null, terminationDate, null, true);
         }
 
@@ -638,7 +788,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(lease(LocalDateTime.now().plusDays(30), null));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, UUID.randomUUID(), false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(UUID.randomUUID(), false), false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.NotAuthorized.class, result);
             verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
@@ -651,7 +801,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(lease(LocalDateTime.now().plusDays(30), LocalDateTime.now().plusDays(7)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, LANDLORD_ID, false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(LANDLORD_ID, false), false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.AlreadyTerminating.class, result);
         }
@@ -662,16 +812,61 @@ class RealtyPaperApiImplTest {
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(lease(LocalDateTime.now().plusDays(30), null));
             when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
-                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, LANDLORD_ID, false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(LANDLORD_ID, false), false).join();
 
             RealtyPaperApi.TerminateResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
             Assertions.assertEquals(0.0, success.charged());
             Assertions.assertEquals("landlord", success.terminatedByRole());
-            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any());
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a manager of an account landlord terminates as the landlord; a stranger may not")
+        void managerOfAccountLandlordTerminatesAsLandlord() {
+            Party gov = Party.account(42, AccountKind.GOVERNMENT);
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(new LeaseholdContractEntity(1, gov, TENANT_ID, 200.0, 604800L,
+                            LocalDateTime.now().minusSeconds(1), LocalDateTime.now().plusDays(30),
+                            null, null, null, null, true));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, gov));
+
+            Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.NotAuthorized.class,
+                    api.terminate(wgRegion, ActorContext.player(LANDLORD_ID, false), false).join());
+            ActorContext manager = new ActorContext(LANDLORD_ID, Set.of(gov), Set.of(), false);
+            RealtyPaperApi.TerminateResult.Success success = Assertions.assertInstanceOf(
+                    RealtyPaperApi.TerminateResult.Success.class,
+                    api.terminate(wgRegion, manager, false).join());
+            Assertions.assertEquals("landlord", success.terminatedByRole());
+        }
+
+        @Test
+        @DisplayName("a tenant who also manages the landlord terminates as the tenant, and pays the notice")
+        void tenantWhoManagesTheLandlord_terminatesAsTheTenant() {
+            Party gov = Party.account(42, AccountKind.GOVERNMENT);
+            // endDate ~now, notice 7 days, duration 7 days: a tenant owes one extension.
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(new LeaseholdContractEntity(1, gov, TENANT_ID, 200.0, 604800L,
+                            LocalDateTime.now().minusSeconds(1), LocalDateTime.now(),
+                            null, null, null, null, true));
+            when(economyProvider.getBalance(TENANT)).thenReturn(1000.0);
+            when(economyProvider.transfer(eq(TENANT), eq(gov), eq(200.0), any(), eq(TENANT_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("tenant")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, gov));
+
+            ActorContext tenantAndManager = new ActorContext(TENANT_ID, Set.of(gov), Set.of(), false);
+            RealtyPaperApi.TerminateResult.Success success = Assertions.assertInstanceOf(
+                    RealtyPaperApi.TerminateResult.Success.class,
+                    api.terminate(wgRegion, tenantAndManager, false).join());
+
+            Assertions.assertEquals("tenant", success.terminatedByRole());
+            Assertions.assertEquals(200.0, success.charged());
+            verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), eq("landlord"));
         }
 
         @Test
@@ -680,19 +875,19 @@ class RealtyPaperApiImplTest {
             // endDate ~now, notice 7 days, duration 7 days → exactly one extension owed.
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(lease(LocalDateTime.now(), null));
-            when(economyProvider.getBalance(TENANT_ID)).thenReturn(1000.0);
-            when(economyProvider.transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any()))
+            when(economyProvider.getBalance(TENANT)).thenReturn(1000.0);
+            when(economyProvider.transfer(eq(TENANT), eq(LANDLORD), eq(200.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Success());
             when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("tenant")))
-                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, TENANT_ID, false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(TENANT_ID, false), false).join();
 
             RealtyPaperApi.TerminateResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
             Assertions.assertEquals(200.0, success.charged());
-            verify(economyProvider).transfer(eq(TENANT_ID), eq(LANDLORD_ID), eq(200.0), any());
+            verify(economyProvider).transfer(eq(TENANT), eq(LANDLORD), eq(200.0), any(), eq(TENANT_ID));
         }
 
         @Test
@@ -702,15 +897,15 @@ class RealtyPaperApiImplTest {
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(lease(LocalDateTime.now(), null));
             when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("tenant")))
-                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD_ID));
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, TENANT_ID, false, true).join();
+                    api.terminate(wgRegion, ActorContext.player(TENANT_ID, false), true).join();
 
             RealtyPaperApi.TerminateResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.Success.class, result);
             Assertions.assertEquals(0.0, success.charged());
-            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any());
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
         }
 
         @Test
@@ -718,10 +913,10 @@ class RealtyPaperApiImplTest {
         void tenantInsufficientFunds() {
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(lease(LocalDateTime.now(), null));
-            when(economyProvider.getBalance(TENANT_ID)).thenReturn(50.0);
+            when(economyProvider.getBalance(TENANT)).thenReturn(50.0);
 
             RealtyPaperApi.TerminateResult result =
-                    api.terminate(wgRegion, TENANT_ID, false, false).join();
+                    api.terminate(wgRegion, ActorContext.player(TENANT_ID, false), false).join();
 
             Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.InsufficientFunds.class, result);
             verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
@@ -732,9 +927,42 @@ class RealtyPaperApiImplTest {
     // setTitleHolder()
     // ═══════════════════════════════════════════════════
 
+    private static void assertOnlyPlayersRefusal(CompletableFuture<?> future) {
+        java.util.concurrent.CompletionException thrown =
+                Assertions.assertThrows(java.util.concurrent.CompletionException.class, future::join);
+        IllegalArgumentException cause = Assertions.assertInstanceOf(IllegalArgumentException.class, thrown.getCause());
+        Assertions.assertEquals("only a player can be tenant or titleholder in this version", cause.getMessage());
+    }
+
     @Nested
     @DisplayName("setTitleHolder")
     class SetTitleHolder {
+
+        @Test
+        @DisplayName("a title holder that is not a player fails the future and changes nothing")
+        void accountTitleHolder_isRefused() {
+            assertOnlyPlayersRefusal(api.setTitleHolder(wgRegion, GOVERNMENT));
+            assertOnlyPlayersRefusal(api.transferTitleHolder(wgRegion, GOVERNMENT));
+            assertOnlyPlayersRefusal(api.createFreehold(wgRegion, 1000.0, GOVERNMENT, GOVERNMENT));
+            assertOnlyPlayersRefusal(api.registerFreehold(wgRegion, 1000.0, GOVERNMENT, GOVERNMENT));
+            verify(realtyApi, never()).setTitleHolder(any(), any(), any());
+            verify(realtyApi, never()).transferTitleHolder(any(), any(), any());
+            verify(realtyApi, never()).createFreehold(any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("the previous title holder is given as a player party")
+        void previousTitleHolder_isAPlayerParty() {
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID))
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.Success(TITLE_HOLDER_ID));
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+
+            RealtyPaperApi.SetTitleHolderResult.Success success = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetTitleHolderResult.Success.class,
+                    api.setTitleHolder(wgRegion, BUYER).join());
+
+            Assertions.assertEquals(TITLE_HOLDER, success.previousTitleHolder());
+        }
 
         @Test
         @DisplayName("returns NoFreeholdContract when no contract exists")
@@ -743,7 +971,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.SetTitleHolderResult.NoFreeholdContract());
 
             RealtyPaperApi.SetTitleHolderResult result =
-                    api.setTitleHolder(wgRegion, BUYER_ID).join();
+                    api.setTitleHolder(wgRegion, BUYER).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract.class, result);
@@ -758,7 +986,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.SetTitleHolderResult result =
-                    api.setTitleHolder(wgRegion, BUYER_ID).join();
+                    api.setTitleHolder(wgRegion, BUYER).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTitleHolderResult.Success.class, result);
@@ -777,7 +1005,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(Map.of());
 
             RealtyPaperApi.SetTitleHolderResult result =
-                    api.setTitleHolder(wgRegion, null).join();
+                    api.setTitleHolder(wgRegion, (Party) null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTitleHolderResult.Success.class, result);
@@ -798,12 +1026,12 @@ class RealtyPaperApiImplTest {
         @DisplayName("success with tenant sets owner and applies LEASED")
         void successWithTenant() {
             when(realtyApi.setTenant(REGION_ID, WORLD_ID, TENANT_ID))
-                    .thenReturn(new RealtyBackend.SetTenantResult.Success(null, LANDLORD_ID));
+                    .thenReturn(new RealtyBackend.SetTenantResult.Success(null, Party.personal(LANDLORD_ID)));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.SetTenantResult result =
-                    api.setTenant(wgRegion, TENANT_ID).join();
+                    api.setTenant(wgRegion, TENANT).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTenantResult.Success.class, result);
@@ -817,17 +1045,27 @@ class RealtyPaperApiImplTest {
             protectedRegion.getOwners().addPlayer(TENANT_ID);
 
             when(realtyApi.setTenant(REGION_ID, WORLD_ID, null))
-                    .thenReturn(new RealtyBackend.SetTenantResult.Success(TENANT_ID, LANDLORD_ID));
+                    .thenReturn(new RealtyBackend.SetTenantResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.SetTenantResult result =
-                    api.setTenant(wgRegion, null).join();
+                    api.setTenant(wgRegion, (Party) null).join();
 
-            Assertions.assertInstanceOf(
+            RealtyPaperApi.SetTenantResult.Success success = Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTenantResult.Success.class, result);
+            Assertions.assertEquals(TENANT, success.previousTenant());
             Assertions.assertEquals(0, protectedRegion.getOwners().size());
             verify(regionProfileService).applyFlags(eq(wgRegion), eq(RegionState.FOR_LEASE), any());
+        }
+
+        @Test
+        @DisplayName("a tenant that is not a player fails the future and changes nothing")
+        void accountTenant_isRefused() {
+            CompletableFuture<RealtyPaperApi.SetTenantResult> future = api.setTenant(wgRegion, GOVERNMENT);
+
+            assertOnlyPlayersRefusal(future);
+            verify(realtyApi, never()).setTenant(any(), any(), any());
         }
 
         @Test
@@ -837,7 +1075,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.SetTenantResult.NoLeaseholdContract());
 
             RealtyPaperApi.SetTenantResult result =
-                    api.setTenant(wgRegion, TENANT_ID).join();
+                    api.setTenant(wgRegion, TENANT).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTenantResult.NoLeaseholdContract.class, result);
@@ -857,11 +1095,11 @@ class RealtyPaperApiImplTest {
         void success() {
             protectedRegion.getMembers().addPlayer(UUID.randomUUID());
 
-            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, LANDLORD_ID))
-                    .thenReturn(new RealtyBackend.SetLandlordResult.Success(UUID.randomUUID()));
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console()))
+                    .thenReturn(new RealtyBackend.SetLandlordResult.Success(Party.personal(UUID.randomUUID())));
 
             RealtyPaperApi.SetLandlordResult result =
-                    api.setLandlord(wgRegion, LANDLORD_ID).join();
+                    api.setLandlord(wgRegion, Party.personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetLandlordResult.Success.class, result);
@@ -871,11 +1109,11 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns NoLeaseholdContract when no contract exists")
         void noLeaseholdContract() {
-            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, LANDLORD_ID))
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console()))
                     .thenReturn(new RealtyBackend.SetLandlordResult.NoLeaseholdContract());
 
             RealtyPaperApi.SetLandlordResult result =
-                    api.setLandlord(wgRegion, LANDLORD_ID).join();
+                    api.setLandlord(wgRegion, Party.personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetLandlordResult.NoLeaseholdContract.class, result);
@@ -893,13 +1131,13 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success adds authority as member and applies flags")
         void success() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, AUTHORITY_ID, null))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, Party.personal(AUTHORITY_ID), null))
                     .thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, AUTHORITY_ID, null).join();
+                    api.createFreehold(wgRegion, 1000.0, Party.personal(AUTHORITY_ID), (Party) null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.Success.class, result);
@@ -910,13 +1148,13 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success with title holder applies SOLD state")
         void successWithTitleHolder() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, AUTHORITY_ID, TITLE_HOLDER_ID))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, Party.personal(AUTHORITY_ID), TITLE_HOLDER_ID))
                     .thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, AUTHORITY_ID, TITLE_HOLDER_ID).join();
+                    api.createFreehold(wgRegion, 1000.0, Party.personal(AUTHORITY_ID), TITLE_HOLDER).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.Success.class, result);
@@ -926,11 +1164,11 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns AlreadyRegistered when region exists")
         void alreadyRegistered() {
-            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, AUTHORITY_ID, null))
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 1000.0, Party.personal(AUTHORITY_ID), null))
                     .thenReturn(false);
 
             RealtyPaperApi.CreateFreeholdResult result =
-                    api.createFreehold(wgRegion, 1000.0, AUTHORITY_ID, null).join();
+                    api.createFreehold(wgRegion, 1000.0, Party.personal(AUTHORITY_ID), (Party) null).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateFreeholdResult.AlreadyRegistered.class, result);
@@ -948,13 +1186,13 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success applies FOR_LEASE flags")
         void success() {
-            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 500.0, 3600, 3, LANDLORD_ID))
+            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 500.0, 3600, 3, Party.personal(LANDLORD_ID)))
                     .thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
 
             RealtyPaperApi.CreateLeaseholdResult result =
-                    api.createLeasehold(wgRegion, 500.0, 3600, 3, LANDLORD_ID).join();
+                    api.createLeasehold(wgRegion, 500.0, 3600, 3, Party.personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateLeaseholdResult.Success.class, result);
@@ -964,11 +1202,11 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns AlreadyRegistered when region exists")
         void alreadyRegistered() {
-            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 500.0, 3600, 3, LANDLORD_ID))
+            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 500.0, 3600, 3, Party.personal(LANDLORD_ID)))
                     .thenReturn(false);
 
             RealtyPaperApi.CreateLeaseholdResult result =
-                    api.createLeasehold(wgRegion, 500.0, 3600, 3, LANDLORD_ID).join();
+                    api.createLeasehold(wgRegion, 500.0, 3600, 3, Party.personal(LANDLORD_ID)).join();
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateLeaseholdResult.AlreadyRegistered.class, result);

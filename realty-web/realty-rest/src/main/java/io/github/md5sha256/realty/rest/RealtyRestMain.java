@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.rest.module.HttpModuleClient;
 import io.github.md5sha256.realty.rest.module.ModuleClient;
+import io.github.md5sha256.realty.rest.module.PartyNames;
 import io.javalin.http.staticfiles.Location;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -61,7 +62,9 @@ public final class RealtyRestMain {
         Database database = new MariaDatabase(config.database(), LOGGER);
         RealtyBackend backend = new RealtyBackendImpl(
                 database,
-                uuid -> CompletableFuture.completedFuture(uuid.toString()),
+                // This service renders no signs, so a party's name is never shown from here: a
+                // player resolves to their UUID, as before, and any other party to its API id.
+                party -> CompletableFuture.completedFuture(PartyNames.id(party)),
                 IsoDates::format,
                 () -> 0L);
 

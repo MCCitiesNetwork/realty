@@ -1,5 +1,8 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.AccountKind;
+import io.github.md5sha256.realty.api.ActorContext;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyBackend.BuyResult;
 import io.github.md5sha256.realty.api.RealtyBackend.CreateAuctionResult;
@@ -14,9 +17,15 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.Test;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,14 +45,14 @@ class ConcurrencyTest extends AbstractDatabaseTest {
     }
 
     private static void createFreeholdRegion(String regionId, UUID worldId, UUID authority, UUID titleHolder) {
-        boolean created = logic.createFreehold(regionId, worldId, 1000.0, authority, titleHolder);
+        boolean created = logic.createFreehold(regionId, worldId, 1000.0, Party.personal(authority), titleHolder);
         Assertions.assertTrue(created, "Expected freehold region to be created");
     }
 
     private static void placeAndAcceptOffer(String regionId, UUID worldId, UUID offererId, double price) {
-        OfferResult offerResult = logic.placeOffer(regionId, worldId, offererId, price);
+        OfferResult offerResult = logic.placeOffer(regionId, worldId, ActorContext.player(offererId, false), price, false);
         Assertions.assertInstanceOf(OfferResult.Success.class, offerResult);
-        AcceptOfferResult acceptResult = logic.acceptOffer(regionId, worldId, AUTHORITY, offererId);
+        AcceptOfferResult acceptResult = logic.acceptOffer(regionId, worldId, ActorContext.player(AUTHORITY, false), offererId);
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class, acceptResult);
     }
 
@@ -130,8 +139,8 @@ class ConcurrencyTest extends AbstractDatabaseTest {
             logic.setPrice(regionId, WORLD_ID, 1000.0);
 
             List<RaceOutcome<BuyResult>> outcomes = racePair(
-                    () -> logic.executeBuy(regionId, WORLD_ID, PLAYER_A),
-                    () -> logic.executeBuy(regionId, WORLD_ID, PLAYER_B)
+                    () -> logic.executeBuy(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false),
+                    () -> logic.executeBuy(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), false)
             );
 
             long successes = countValues(outcomes, r -> r instanceof BuyResult.Success);
@@ -159,7 +168,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         @DisplayName("only one of two concurrent renters succeeds")
         void onlyOneSucceeds() throws Exception {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, AUTHORITY);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, Party.personal(AUTHORITY));
 
             List<RaceOutcome<RentResult>> outcomes = racePair(
                     () -> logic.rentRegion(regionId, WORLD_ID, PLAYER_A),
@@ -191,7 +200,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         void onlyOneSucceedsOnLastExtension() throws Exception {
             String regionId = uniqueRegionId();
             // maxRenewals=1 means only one extension possible
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 1, AUTHORITY);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 1, Party.personal(AUTHORITY));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             List<RaceOutcome<RenewLeaseholdResult>> outcomes = racePair(
@@ -223,7 +232,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         @DisplayName("only one of two concurrent unrent calls succeeds")
         void onlyOneSucceeds() throws Exception {
             String regionId = uniqueRegionId();
-            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, AUTHORITY);
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, Party.personal(AUTHORITY));
             logic.rentRegion(regionId, WORLD_ID, PLAYER_A);
 
             List<RaceOutcome<RealtyBackend.UnrentResult>> outcomes = racePair(
@@ -377,9 +386,9 @@ class ConcurrencyTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
             List<RaceOutcome<Boolean>> outcomes = racePair(
-                    () -> logic.placeOffer(regionId, WORLD_ID, PLAYER_B, 500.0)
+                    () -> logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false)
                             instanceof OfferResult.Success,
-                    () -> logic.createAuction(regionId, WORLD_ID, AUTHORITY, 3600, 3600, 100.0, 10.0)
+                    () -> logic.createAuction(regionId, WORLD_ID, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0)
                             instanceof CreateAuctionResult.Success);
 
             long succeeded = countValues(outcomes, Boolean::booleanValue);
@@ -401,14 +410,119 @@ class ConcurrencyTest extends AbstractDatabaseTest {
         }
     }
 
+    // ═══════════════════════════════════════════════════
+    // A new party named by many callers at once
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("first use of a new party")
+    class NewParty {
+
+        private static final int THREADS = 8;
+        private static final int ROUNDS = 10;
+
+        /**
+         * Every caller creates its own region and names the same party that no row
+         * exists for yet. The party's row must be created once and shared, and no
+         * caller may fail because another created the row a moment earlier.
+         */
+        private static void nameOneNewPartyAtOnce(Party landlord, String countQuery) throws Exception {
+            CyclicBarrier barrier = new CyclicBarrier(THREADS);
+            ConcurrentLinkedQueue<Object> failures = new ConcurrentLinkedQueue<>();
+            List<Thread> threads = new ArrayList<>();
+            for (int i = 0; i < THREADS; i++) {
+                String regionId = uniqueRegionId();
+                threads.add(Thread.ofVirtual().start(() -> {
+                    try {
+                        barrier.await();
+                        if (!logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, landlord)) {
+                            failures.add("createLeasehold returned false for " + regionId);
+                        }
+                    } catch (Exception ex) {
+                        failures.add(ex);
+                    }
+                }));
+            }
+            for (Thread thread : threads) {
+                thread.join(10_000);
+            }
+            Assertions.assertEquals(List.of(), List.copyOf(failures));
+            Assertions.assertEquals(1, queryInt(countQuery));
+            Assertions.assertEquals(queryInt("SELECT COUNT(*) FROM Party"),
+                    queryInt("SELECT (SELECT COUNT(*) FROM PersonalParty) + (SELECT COUNT(*) FROM AccountParty) + (SELECT COUNT(*) FROM GroupParty)"),
+                    "no base row without its kind row survives a race");
+            Assertions.assertEquals(THREADS, queryInt(
+                    "SELECT COUNT(*) FROM LeaseholdContract WHERE landlordPartyId IN ("
+                            + countQuery.replace("COUNT(*)", "partyId") + ")"));
+        }
+
+        @Test
+        @DisplayName("many callers naming one new account all succeed and share one party")
+        void manyCallersNamingOneNewAccount_allSucceedAndShareOneParty() throws Exception {
+            for (int round = 0; round < ROUNDS; round++) {
+                int accountId = 4200 + round;
+                nameOneNewPartyAtOnce(Party.account(accountId, AccountKind.GOVERNMENT),
+                        "SELECT COUNT(*) FROM AccountParty WHERE accountId = " + accountId);
+            }
+        }
+
+        @Test
+        @DisplayName("many callers naming one new player all succeed and share one party")
+        void manyCallersNamingOneNewPlayer_allSucceedAndShareOneParty() throws Exception {
+            for (int round = 0; round < ROUNDS; round++) {
+                UUID player = UUID.randomUUID();
+                nameOneNewPartyAtOnce(Party.personal(player), "SELECT COUNT(*) FROM PersonalParty WHERE playerUuid = '" + player + "'");
+            }
+        }
+
+        /**
+         * A history row names the landlord the lease already has, so writing it must
+         * neither add a party row nor use up a party id.
+         */
+        @Test
+        @DisplayName("history writes do not use up party ids")
+        void historyWrites_doNotUseUpPartyIds() throws Exception {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 25,
+                    Party.personal(AUTHORITY)));
+            int rowsBefore = queryInt("SELECT COUNT(*) FROM Party");
+            long nextIdBefore = nextPartyId();
+
+            Assertions.assertInstanceOf(RentResult.Success.class, logic.rentRegion(regionId, WORLD_ID, PLAYER_A));
+            for (int i = 0; i < 20; i++) {
+                Assertions.assertInstanceOf(RenewLeaseholdResult.Success.class,
+                        logic.renewLeasehold(regionId, WORLD_ID, PLAYER_A));
+            }
+
+            Assertions.assertEquals(rowsBefore, queryInt("SELECT COUNT(*) FROM Party"));
+            Assertions.assertEquals(nextIdBefore, nextPartyId(), "a history write used up a party id");
+        }
+
+        private static long nextPartyId() throws SQLException {
+            return queryInt("""
+                    SELECT AUTO_INCREMENT FROM information_schema.TABLES
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Party'
+                    """);
+        }
+    }
+
+    private static int queryInt(String sql) throws SQLException {
+        try (SqlSessionWrapper wrapper = database.openSession(true);
+             Statement statement = wrapper.session().getConnection().createStatement();
+             ResultSet resultSet = statement.executeQuery(sql)) {
+            resultSet.next();
+            return resultSet.getInt(1);
+        }
+    }
+
     /**
      * Creates an auction, places a bid, and sets up a bid payment record
      * with a future deadline so the payment is not expired.
      */
     private static void createAuctionAndBidPayment(String regionId, UUID worldId,
                                                     UUID bidderId, double bidAmount) {
-        logic.createAuction(regionId, worldId, AUTHORITY, 3600, 3600, 100.0, 10.0);
-        logic.performBid(regionId, worldId, bidderId, bidAmount);
+        logic.createAuction(regionId, worldId, ActorContext.player(AUTHORITY, false), 3600, 3600, 100.0, 10.0);
+        logic.performBid(regionId, worldId, ActorContext.player(bidderId, false), bidAmount, false);
         // Replace the auction-generated payment deadline with a future one
         // since the auction bidding period may expire during test
         try (SqlSessionWrapper wrapper = database.openSession();

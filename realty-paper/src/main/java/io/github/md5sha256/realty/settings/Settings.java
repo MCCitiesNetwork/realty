@@ -10,13 +10,12 @@ import org.spongepowered.configurate.objectmapping.meta.Setting;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @ConfigSerializable
 public record Settings(
-        @Setting("default-freehold-authority-uuid") @Required @NotNull UUID defaultFreeholdAuthority,
-        @Setting("default-freehold-titleholder-uuid") @Nullable UUID defaultFreeholdTitleholder,
-        @Setting("default-leasehold-authority-uuid") @Required @NotNull UUID defaultLeaseholdAuthority,
+        @Setting("default-freehold-authority") @Nullable PartySetting defaultFreeholdAuthority,
+        @Setting("default-leasehold-landlord") @Nullable PartySetting defaultLeaseholdLandlord,
+        @Setting("default-freehold-titleholder") @Nullable PartySetting defaultFreeholdTitleholder,
         @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat,
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
         @Setting("subregion-min-volume") int subregionMinVolume,
@@ -27,10 +26,14 @@ public record Settings(
         @Setting("teleportation-starting-height") int teleportStartHeight,
         @Setting("schematic-capture-cooldown-seconds") long schematicCaptureCooldownSeconds,
         @Setting("schematic-max-volume") long schematicMaxVolume,
-        @Setting("schematic-capture-blocks-per-tick") int schematicCaptureBlocksPerTick
+        @Setting("schematic-capture-blocks-per-tick") int schematicCaptureBlocksPerTick,
+        @Setting("account-managers") @NotNull AccountManagers accountManagers
 ) {
 
     public Settings {
+        defaultFreeholdAuthority = PartySetting.nullIfEmpty(defaultFreeholdAuthority);
+        defaultLeaseholdLandlord = PartySetting.nullIfEmpty(defaultLeaseholdLandlord);
+        defaultFreeholdTitleholder = PartySetting.nullIfEmpty(defaultFreeholdTitleholder);
         if (profileReapplyPerTick <= 0) {
             profileReapplyPerTick = 10;
         }
@@ -61,6 +64,9 @@ public record Settings(
         // above this is corrected the way profileReapplyPerTick is.
         if (schematicCaptureBlocksPerTick <= 0) {
             schematicCaptureBlocksPerTick = 20_000;
+        }
+        if (accountManagers == null) {
+            accountManagers = AccountManagers.MEMBERS;
         }
     }
 }

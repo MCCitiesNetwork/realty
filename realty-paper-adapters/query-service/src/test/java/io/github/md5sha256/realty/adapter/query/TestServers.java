@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.adapter.query;
 import io.github.md5sha256.realty.adapter.query.json.ResourcePackAttribution;
 import io.github.md5sha256.realty.adapter.query.json.ResourcePackEntry;
 import io.github.md5sha256.realty.adapter.query.json.ResourcePackResponse;
+import io.github.md5sha256.realty.api.AccountNameService;
 import io.github.md5sha256.realty.api.PlayerNameService;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,23 +30,23 @@ final class TestServers {
     static @NotNull QueryServiceServer withResourcePack(@NotNull String url,
                                                         @NotNull String hash,
                                                         boolean required) {
-        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(),
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(), twoAccounts(),
                 () -> new ResourcePackResponse(List.of(new ResourcePackEntry(url, List.of())), hash, required));
     }
 
     static @NotNull QueryServiceServer withResourcePackAttribution(
             @NotNull String url, @NotNull List<ResourcePackAttribution> attribution) {
-        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(),
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(), twoAccounts(),
                 () -> new ResourcePackResponse(List.of(new ResourcePackEntry(url, attribution)), null, false));
     }
 
     static @NotNull QueryServiceServer withResourcePacks(@NotNull List<ResourcePackEntry> packs) {
-        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(),
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(), twoAccounts(),
                 () -> new ResourcePackResponse(packs, null, false));
     }
 
     static @NotNull QueryServiceServer withoutResourcePack() {
-        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(),
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(), twoAccounts(),
                 noPack());
     }
     static final UUID WORLD = UUID.fromString("8f4d0000-0000-0000-0000-000000000001");
@@ -159,12 +160,18 @@ final class TestServers {
         };
     }
 
+    /** Knows account 42 as {@code GovSecurity} and account 5 under a name that needs JSON escaping. */
+    static @NotNull AccountNameService twoAccounts() {
+        Map<Integer, String> names = Map.of(42, "GovSecurity", 5, "Bob \"the\" <b>Builder</b>");
+        return accountId -> CompletableFuture.completedFuture(Optional.ofNullable(names.get(accountId)));
+    }
+
     static @NotNull QueryServiceServer standard() {
-        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(), noPack());
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), twoPlayers(), twoAccounts(), noPack());
     }
 
     static @NotNull QueryServiceServer withStalledMainThread(@NotNull Duration timeout) {
-        return new QueryServiceServer(SECRET, timeout, stalledMainThread(), twoPlayers(), noPack());
+        return new QueryServiceServer(SECRET, timeout, stalledMainThread(), twoPlayers(), twoAccounts(), noPack());
     }
 
     /** A name service that never answers, standing in for a wedged resolver. */
@@ -183,7 +190,7 @@ final class TestServers {
     }
 
     static @NotNull QueryServiceServer withStalledNames(@NotNull Duration timeout) {
-        return new QueryServiceServer(SECRET, timeout, twoRegions(), stalledNames(), noPack());
+        return new QueryServiceServer(SECRET, timeout, twoRegions(), stalledNames(), twoAccounts(), noPack());
     }
 
     /** Answers every id and name as unknown; enough to exercise batch-size limits. */
@@ -202,6 +209,6 @@ final class TestServers {
     }
 
     static @NotNull QueryServiceServer withNoPlayers() {
-        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), noPlayers(), noPack());
+        return new QueryServiceServer(SECRET, Duration.ofSeconds(5), twoRegions(), noPlayers(), twoAccounts(), noPack());
     }
 }

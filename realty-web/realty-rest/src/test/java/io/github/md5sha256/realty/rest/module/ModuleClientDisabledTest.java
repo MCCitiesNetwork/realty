@@ -14,6 +14,7 @@ class ModuleClientDisabledTest {
         ModuleClient client = ModuleClient.disabled();
         Assertions.assertEquals(Optional.empty(), client.dimensions(UUID.randomUUID(), "plot"));
         Assertions.assertTrue(client.names(List.of(UUID.randomUUID())).isEmpty());
+        Assertions.assertTrue(client.accountNames(List.of(42)).isEmpty());
         Assertions.assertInstanceOf(NameLookup.Unavailable.class, client.uuidOf("Notch"));
         Assertions.assertEquals(ModuleClient.Status.DISABLED, client.status());
     }

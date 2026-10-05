@@ -19,7 +19,7 @@ import org.jetbrains.annotations.NotNull;
  *                           second call
  */
 public record PlayerSummaryResponse(
-        @NotNull PlayerRef player,
+        @NotNull PartyRef player,
         int titleHeld,
         int landlordOf,
         int occupiedLandlordOf,

@@ -2,16 +2,18 @@ package io.github.md5sha256.realty.importer;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.HistoryEventType;
+import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.entity.ContractEntity;
 import io.github.md5sha256.realty.database.mapper.ContractMapper;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
+import io.github.md5sha256.realty.database.mapper.PartyMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import io.github.md5sha256.realty.database.mapper.RealtySignMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdHistoryMapper;
-import io.github.md5sha256.realty.settings.Settings;
+import io.github.md5sha256.realty.settings.DefaultParties;
 import me.wiefferink.areashop.AreaShop;
 import me.wiefferink.areashop.features.signs.RegionSign;
 import me.wiefferink.areashop.features.signs.SignsFeature;
@@ -60,6 +62,7 @@ public class ImportJob {
             ContractMapper contractMapper = wrapper.contractMapper();
             FreeholdHistoryMapper freeholdHistoryMapper = wrapper.freeholdHistoryMapper();
             RealtySignMapper signMapper = wrapper.realtySignMapper();
+            PartyMapper partyMapper = wrapper.partyMapper();
             for (FreeholdDto freehold : freeholds) {
                 try {
                     if (regionMapper.selectByWorldGuardRegion(freehold.worldGuardRegionId(),
@@ -68,9 +71,10 @@ public class ImportJob {
                     } else {
                         int regionId = regionMapper.registerWorldGuardRegion(freehold.worldGuardRegionId(),
                                 freehold.worldId());
+                        int authorityPartyId = partyMapper.findOrInsert(freehold.authority());
                         int freeholdContractId = freeholdMapper.insertFreehold(regionId,
                                 freehold.price(),
-                                freehold.authority(),
+                                authorityPartyId,
                                 freehold.titleHolder());
                         contractMapper.insert(new ContractEntity(freeholdContractId, "freehold", regionId));
                         if (freehold.lastSoldPrice() != null && freehold.titleHolder() != null) {
@@ -78,7 +82,7 @@ public class ImportJob {
                                     freehold.worldId(),
                                     HistoryEventType.BUY.name(),
                                     freehold.titleHolder(),
-                                    freehold.authority(),
+                                    authorityPartyId,
                                     freehold.lastSoldPrice());
                         }
                         imported++;
@@ -107,7 +111,7 @@ public class ImportJob {
                                 lease.price(),
                                 lease.durationSeconds(),
                                 lease.maxRenewals(),
-                                lease.landlordId(),
+                                partyMapper.findOrInsert(lease.landlord()),
                                 lease.tenantId());
                         contractMapper.insert(new ContractEntity(leaseholdContractId,
                                 "leasehold",
@@ -158,7 +162,7 @@ public class ImportJob {
 
     @NotNull
     public static CompletableFuture<ImportResult> performImport(@NotNull Database database,
-                                                                @NotNull Settings settings,
+                                                                @NotNull DefaultParties defaults,
                                                                 @NotNull Executor executor,
                                                                 @NotNull Audience audience) {
         IFileManager fileManager = AreaShop.getInstance().getFileManager();
@@ -170,8 +174,20 @@ public class ImportJob {
                         audience.sendMessage(Component.text("Skipping invalid buy region " + region.getName()));
                         return null;
                     }
-                    UUID landlord = Objects.requireNonNullElse(region.getLandlord(), settings.defaultFreeholdAuthority());
+                    UUID areaShopLandlord = region.getLandlord();
+                    Party landlord = areaShopLandlord != null
+                            ? Party.personal(areaShopLandlord) : defaults.freeholdAuthority();
+                    if (landlord == null) {
+                        audience.sendMessage(Component.text("Skipping buy region " + region.getName()
+                                + ": it has no landlord and the default freehold authority did not resolve"));
+                        return null;
+                    }
                     UUID owner = region.getOwner();
+                    if (owner == null && defaults.freeholdTitleholderUnresolved()) {
+                        audience.sendMessage(Component.text("Skipping buy region " + region.getName()
+                                + ": it has no owner and the default freehold titleholder did not resolve"));
+                        return null;
+                    }
                     boolean forFreehold = region.getState() == GeneralRegion.RegionState.FORSALE;
                     Double price = forFreehold ? region.getPrice() : null;
                     Double lastSoldPrice = !forFreehold ? region.getPrice() : null;
@@ -180,7 +196,7 @@ public class ImportJob {
                             price,
                             lastSoldPrice,
                             landlord,
-                            owner != null ? owner : settings.defaultFreeholdTitleholder());
+                            owner != null ? owner : defaults.freeholdTitleholder());
                 })
                 .filter(Objects::nonNull)
                 .toList();
@@ -193,7 +209,14 @@ public class ImportJob {
                         return null;
                     }
 
-                    UUID authorityId = Objects.requireNonNullElse(region.getLandlord(), settings.defaultLeaseholdAuthority());
+                    UUID areaShopLandlord = region.getLandlord();
+                    Party landlord = areaShopLandlord != null
+                            ? Party.personal(areaShopLandlord) : defaults.leaseholdLandlord();
+                    if (landlord == null) {
+                        audience.sendMessage(Component.text("Skipping rent region " + region.getName()
+                                + ": it has no landlord and the default leasehold landlord did not resolve"));
+                        return null;
+                    }
                     UUID tenantId = region.getRenter();
                     return new LeaseholdDto(protectedRegion.getId(),
                             world.getUID(),
@@ -201,7 +224,7 @@ public class ImportJob {
                             TimeUnit.MILLISECONDS.toSeconds(region.getDuration()),
                             region.getMaxExtends(),
                             region.getTimesExtended(),
-                            authorityId,
+                            landlord,
                             tenantId
                     );
                 }).filter(Objects::nonNull)
@@ -231,7 +254,7 @@ public class ImportJob {
                            @NotNull UUID worldId,
                            @Nullable Double price,
                            @Nullable Double lastSoldPrice,
-                           @NotNull UUID authority,
+                           @NotNull Party authority,
                            @Nullable UUID titleHolder) {
     }
 
@@ -241,7 +264,7 @@ public class ImportJob {
                             long durationSeconds,
                             int maxRenewals,
                             int currentRenewals,
-                            @NotNull UUID landlordId,
+                            @NotNull Party landlord,
                             @Nullable UUID tenantId) {
     }
 
