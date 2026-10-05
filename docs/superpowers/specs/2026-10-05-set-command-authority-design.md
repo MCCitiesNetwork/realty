@@ -1,7 +1,7 @@
 # Set Command Authority — Design
 
 Date: 2026-10-05
-Status: Revised for the party model, pending review
+Status: Approved, pending implementation
 
 Companion spec: `2026-09-29-treasury-parties-design.md`. That work made
 landlords and authorities parties and introduced `ActorContext`. This design
