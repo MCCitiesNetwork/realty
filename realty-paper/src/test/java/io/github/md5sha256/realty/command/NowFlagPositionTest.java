@@ -20,8 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Where {@code --now} may stand in {@code /realty set price <price> [region] [--now]} and
- * {@code /realty set maxextensions <count> [region] [--now]}. The region argument is a
+ * Where {@code --now} may stand in {@code /realty set price <price> [region] [--now]},
+ * {@code /realty set maxextensions <count> [region] [--now]} and
+ * {@code /realty set landlord <name> [region] [--now]}. The region argument is a
  * {@link RegionOrFlagParser} around a stand-in that takes any word as a region, and the flag is the one
  * {@link SetCommandGroup} registers.
  */

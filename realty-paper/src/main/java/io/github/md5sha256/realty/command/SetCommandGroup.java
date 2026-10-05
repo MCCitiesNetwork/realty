@@ -92,8 +92,8 @@ public record SetCommandGroup(
 ) implements CustomCommandBean {
 
     /**
-     * {@code --now} applies a term change to a rented region at once instead of at the next renewal;
-     * gated by {@code realty.command.set.now}.
+     * {@code --now} applies a term or holder change to a rented region at once instead of at the next
+     * renewal, and is also used by {@link UnsetCommandGroup}; gated by {@code realty.command.set.now}.
      */
     static final CommandFlag<Void> NOW_FLAG = CommandFlag.<Source>builder("now").build();
 

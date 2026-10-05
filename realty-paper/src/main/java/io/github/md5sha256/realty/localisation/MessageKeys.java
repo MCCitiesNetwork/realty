@@ -518,7 +518,6 @@ public final class MessageKeys {
     public static final String MODIFY_PROPOSE_SUCCESS_LANDLORD = "modify.propose-success-landlord";
     public static final String MODIFY_PROPOSE_SUCCESS_TENANT = "modify.propose-success-tenant";
     public static final String MODIFY_NO_LEASEHOLD_CONTRACT = "modify.no-leasehold-contract";
-    public static final String MODIFY_NOT_OCCUPIED = "modify.not-occupied";
     public static final String MODIFY_TERMINATING = "modify.terminating";
     public static final String MODIFY_NOT_AUTHORIZED = "modify.not-authorized";
     public static final String MODIFY_NOT_LANDLORD = "modify.not-landlord";
@@ -564,8 +563,6 @@ public final class MessageKeys {
 
     // set (leasehold authorization)
     public static final String SET_NOT_LANDLORD = "set.not-landlord";
-    public static final String SET_OCCUPIED_USE_MODIFY = "set.occupied-use-modify";
-    public static final String SET_LEASEHOLD_NO_PERMISSION = "set.leasehold-no-permission";
 
     // search
     public static final String SEARCH_HEADER = "search.header";

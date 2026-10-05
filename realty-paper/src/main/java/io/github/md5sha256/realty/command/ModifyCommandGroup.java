@@ -6,12 +6,8 @@ import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
-import io.github.md5sha256.realty.api.event.LeaseModificationProposedEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
-import io.github.md5sha256.realty.api.event.LeaseModifyProposeEvent;
-import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.LeaseholdChangeSummary;
-import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
@@ -24,22 +20,17 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.paper.util.sender.Source;
-import org.incendo.cloud.parser.standard.DoubleParser;
-import org.incendo.cloud.parser.standard.IntegerParser;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Groups the rental modification subcommands under {@code /realty modify}. Changes proposed here take
- * effect on the tenant's next renewal rather than instantly:
+ * Groups the proposal inbox subcommands under {@code /realty modify}. Terms are proposed with
+ * {@code /realty set price|duration|maxextensions}; the subcommands here resolve and list those proposals:
  *
  * <ul>
- *   <li>{@code /realty modify price|duration|maxextensions <value> [region]} — propose new terms</li>
  *   <li>{@code /realty modify accept|reject [region]} — landlord resolves a tenant's proposal</li>
  *   <li>{@code /realty modify withdraw [region]} — proposer withdraws their pending proposal</li>
  *   <li>{@code /realty modify inbox} — tenant proposals awaiting you (as landlord)</li>
@@ -63,26 +54,6 @@ public record ModifyCommandGroup(
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
         var base = builder.literal("modify");
         return List.of(
-                base.literal("price")
-                        .permission("realty.command.modify.price")
-                        .required("price", DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
-                                Double.MAX_VALUE))
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
-                        .handler(ctx -> executePropose(ctx, ctx.get("price"), null, null))
-                        .build(),
-                base.literal("duration")
-                        .permission("realty.command.modify.duration")
-                        .required("duration", DurationParser.duration())
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
-                        .handler(ctx -> executePropose(ctx, null,
-                                ((Duration) ctx.get("duration")).toSeconds(), null))
-                        .build(),
-                base.literal("maxextensions")
-                        .permission("realty.command.modify.maxextensions")
-                        .required("maxextensions", IntegerParser.integerParser(0))
-                        .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
-                        .handler(ctx -> executePropose(ctx, null, null, ctx.<Integer>get("maxextensions")))
-                        .build(),
                 base.literal("accept")
                         .permission("realty.command.modify.accept")
                         .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
@@ -180,61 +151,6 @@ public record ModifyCommandGroup(
             this.successKey = successKey;
             this.resolution = resolution;
         }
-    }
-
-    private void executePropose(@NotNull CommandContext<Source> ctx,
-                                @Nullable Double price, @Nullable Long durationSeconds,
-                                @Nullable Integer maxExtensions) {
-        if (!(ctx.sender().source() instanceof Player sender)) {
-            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
-            return;
-        }
-        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
-                .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
-        if (region == null) {
-            sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
-            return;
-        }
-        if (!events.fireSync(new LeaseModifyProposeEvent(region, sender.getUniqueId()))) {
-            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
-            return;
-        }
-        boolean bypass = sender.hasPermission("realty.command.modify.others");
-        String regionId = region.region().getId();
-        CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
-                .thenComposeAsync(actor -> api.proposeModification(regionId, region.world().getUID(), actor,
-                        price, durationSeconds, maxExtensions), executorState.mainThreadExec())
-                .thenAccept(result -> {
-            switch (result) {
-                case RealtyBackend.ProposeModificationResult.Success success -> {
-                    String key = success.active()
-                            ? MessageKeys.MODIFY_PROPOSE_SUCCESS_LANDLORD
-                            : MessageKeys.MODIFY_PROPOSE_SUCCESS_TENANT;
-                    sender.sendMessage(messages.messageFor(key, Placeholder.unparsed("region", regionId)));
-                    events.fireSync(new LeaseModificationProposedEvent(region, success.proposerRole(),
-                            sender.getUniqueId(), success.landlord(), success.tenantId(), success.active()));
-                }
-                case RealtyBackend.ProposeModificationResult.NoLeaseholdContract ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NO_LEASEHOLD_CONTRACT,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyBackend.ProposeModificationResult.NotOccupied ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NOT_OCCUPIED,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyBackend.ProposeModificationResult.Terminating ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_TERMINATING,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyBackend.ProposeModificationResult.NotAuthorized ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_NOT_AUTHORIZED,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyBackend.ProposeModificationResult.UpdateFailed ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_UPDATE_FAILED,
-                                Placeholder.unparsed("region", regionId)));
-            }
-        }).exceptionally(ex -> {
-            sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_ERROR,
-                    Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
-            return null;
-        });
     }
 
     private void executeResolve(@NotNull CommandContext<Source> ctx, @NotNull ResolveAction action) {

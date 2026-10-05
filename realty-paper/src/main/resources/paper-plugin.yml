@@ -156,21 +156,21 @@ permissions:
     default: op
   realty.command.set.price:
     description: Allows using /realty set price on own regions
-    default: op
+    default: true
   realty.command.set.price.others:
-    description: Allows using /realty set price on regions you don't own
+    description: Allows using /realty set price on regions you do not hold
     default: op
   realty.command.set.duration:
     description: Allows using /realty set duration on own regions
-    default: op
+    default: true
   realty.command.set.duration.others:
-    description: Allows using /realty set duration on regions you don't own
+    description: Allows using /realty set duration on regions you do not hold
     default: op
   realty.command.set.landlord:
     description: Allows using /realty set landlord on own regions
     default: op
   realty.command.set.landlord.others:
-    description: Allows using /realty set landlord on regions you don't own
+    description: Allows using /realty set landlord on regions you do not hold
     default: op
   realty.command.set.authority:
     description: Allows using /realty set authority on any region
@@ -179,7 +179,7 @@ permissions:
     description: Allows using /realty set titleholder on own regions
     default: op
   realty.command.set.titleholder.others:
-    description: Allows using /realty set titleholder on regions you don't own
+    description: Allows using /realty set titleholder on regions you do not hold
     default: op
   realty.command.transfer:
     description: Allows using /realty transfer on own regions
@@ -191,31 +191,34 @@ permissions:
     description: Allows using /realty set tenant on own regions
     default: op
   realty.command.set.tenant.others:
-    description: Allows using /realty set tenant on regions you don't own
+    description: Allows using /realty set tenant on regions you do not hold
     default: op
   realty.command.set.maxextensions:
     description: Allows using /realty set maxextensions on own regions
-    default: op
+    default: true
   realty.command.set.maxextensions.others:
-    description: Allows using /realty set maxextensions on regions you don't own
+    description: Allows using /realty set maxextensions on regions you do not hold
+    default: op
+  realty.command.set.now:
+    description: Allows --now on /realty set and /realty unset, changing a rented region immediately
     default: op
   realty.command.unset.price:
     description: Allows using /realty unset price on own regions
-    default: op
+    default: true
   realty.command.unset.price.others:
-    description: Allows using /realty unset price on regions you don't own
+    description: Allows using /realty unset price on regions you do not hold
     default: op
   realty.command.unset.titleholder:
     description: Allows using /realty unset titleholder on own regions
     default: op
   realty.command.unset.titleholder.others:
-    description: Allows using /realty unset titleholder on regions you don't own
+    description: Allows using /realty unset titleholder on regions you do not hold
     default: op
   realty.command.unset.tenant:
     description: Allows using /realty unset tenant on own regions
     default: op
   realty.command.unset.tenant.others:
-    description: Allows using /realty unset tenant on regions you don't own
+    description: Allows using /realty unset tenant on regions you do not hold
     default: op
   realty.command.reload:
     description: Allows using /realty reload
@@ -268,15 +271,6 @@ permissions:
   realty.command.sign.list:
     description: Allows using /realty sign list
     default: op
-  realty.command.modify.price:
-    description: Allows using /realty modify price
-    default: true
-  realty.command.modify.duration:
-    description: Allows using /realty modify duration
-    default: true
-  realty.command.modify.maxextensions:
-    description: Allows using /realty modify maxextensions
-    default: true
   realty.command.modify.accept:
     description: Allows using /realty modify accept
     default: true
@@ -298,9 +292,6 @@ permissions:
   realty.command.terminate:
     description: Allows using /realty terminate
     default: true
-  realty.command.set.now:
-    description: Allows --now on /realty set price, duration and maxextensions, applying the change to a rented region at once
-    default: op
   realty.command.terminate.now:
     description: Allows --now on /realty terminate, skipping the notice period
     default: op

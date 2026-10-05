@@ -8,7 +8,9 @@ import org.jetbrains.annotations.NotNull;
 import java.util.UUID;
 
 /**
- * Called before the price of a region is set.
+ * Called before a price is set, before a price change is scheduled for a lease's next renewal, and
+ * before a tenant's request for a new price is sent to the landlord. A listener must not assume the
+ * price changes at once.
  */
 public class PriceSetEvent extends RealtyRegionEvent implements Cancellable {
 
