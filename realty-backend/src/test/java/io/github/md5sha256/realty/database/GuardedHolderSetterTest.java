@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.SetLandlordResult;
 import io.github.md5sha256.realty.api.RealtyBackend.SetTenantResult;
 import io.github.md5sha256.realty.api.RealtyBackend.SetTitleHolderResult;
+import io.github.md5sha256.realty.database.RealtyBackendImpl.WriteRefusal;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import org.junit.jupiter.api.Assertions;
@@ -251,5 +252,121 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
         Assertions.assertInstanceOf(SetTitleHolderResult.Success.class,
                 logic.setTitleHolder(freehold, WORLD_ID, PLAYER_B));
         Assertions.assertEquals(PLAYER_B, freeholdContract(freehold).titleHolderId());
+    }
+
+    // --- The holder condition in the SQL: a second session changes the holder after the first read ---
+
+    @Test
+    void landlordChangedAfterTheFirstReadStopsSetTenant() {
+        String id = vacantLease();
+        try (SqlSessionWrapper first = database.openSession()) {
+            Assertions.assertEquals(Party.personal(PLAYER_A),
+                    first.leaseholdContractMapper().selectByRegion(id, WORLD_ID).landlord());
+            int landlordPartyId = first.partyMapper().findId(Party.personal(PLAYER_A));
+            logic.setLandlord(id, WORLD_ID, Party.personal(PLAYER_C), ActorContext.console());
+            first.session().rollback(true); // the setters end their read-only transaction before writing
+            Assertions.assertEquals(0, first.leaseholdContractMapper()
+                    .updateTenantByRegion(id, WORLD_ID, PLAYER_B, landlordPartyId, false));
+            Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
+                    RealtyBackendImpl.diagnoseLeaseholdRefusal(first, id, WORLD_ID, landlordPartyId, false));
+        }
+        Assertions.assertNull(lease(id).tenantId());
+        Assertions.assertEquals(Party.personal(PLAYER_C), lease(id).landlord());
+    }
+
+    @Test
+    void landlordChangedAfterTheFirstReadStopsSetLandlord() {
+        String id = vacantLease();
+        try (SqlSessionWrapper first = database.openSession()) {
+            Assertions.assertEquals(Party.personal(PLAYER_A),
+                    first.leaseholdContractMapper().selectByRegion(id, WORLD_ID).landlord());
+            int landlordPartyId = first.partyMapper().findId(Party.personal(PLAYER_A));
+            int newPartyId = first.partyMapper().findOrInsert(Party.personal(PLAYER_B));
+            logic.setLandlord(id, WORLD_ID, Party.personal(PLAYER_C), ActorContext.console());
+            first.session().rollback(true); // the setters end their read-only transaction before writing
+            Assertions.assertEquals(0, first.leaseholdContractMapper()
+                    .updateLandlordByRegion(id, WORLD_ID, newPartyId, landlordPartyId, false));
+            Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
+                    RealtyBackendImpl.diagnoseLeaseholdRefusal(first, id, WORLD_ID, landlordPartyId, false));
+        }
+        Assertions.assertEquals(Party.personal(PLAYER_C), lease(id).landlord());
+    }
+
+    @Test
+    void titleHolderChangedAfterTheFirstReadStopsSetTitleHolder() {
+        String id = freehold();
+        try (SqlSessionWrapper first = database.openSession()) {
+            Assertions.assertEquals(PLAYER_A, first.freeholdContractMapper().selectByRegion(id, WORLD_ID).titleHolderId());
+            logic.setTitleHolder(id, WORLD_ID, PLAYER_B);
+            first.session().rollback(true); // the setters end their read-only transaction before writing
+            Assertions.assertEquals(0, first.freeholdContractMapper()
+                    .updateTitleHolderByRegion(id, WORLD_ID, PLAYER_C, true, PLAYER_A, null));
+            Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
+                    RealtyBackendImpl.diagnoseFreeholdRefusal(first, id, WORLD_ID, true, PLAYER_A, null));
+        }
+        Assertions.assertEquals(PLAYER_B, freeholdContract(id).titleHolderId());
+    }
+
+    @Test
+    void titleAssignedAfterTheFirstReadStopsSetTitleHolderOnAnUnsoldFreehold() {
+        String id = unsoldFreehold();
+        try (SqlSessionWrapper first = database.openSession()) {
+            Assertions.assertNull(first.freeholdContractMapper().selectByRegion(id, WORLD_ID).titleHolderId());
+            logic.setTitleHolder(id, WORLD_ID, PLAYER_B);
+            first.session().rollback(true); // the setters end their read-only transaction before writing
+            Assertions.assertEquals(0, first.freeholdContractMapper()
+                    .updateTitleHolderByRegion(id, WORLD_ID, PLAYER_C, true, null, null));
+            Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
+                    RealtyBackendImpl.diagnoseFreeholdRefusal(first, id, WORLD_ID, true, null, null));
+        }
+        Assertions.assertEquals(PLAYER_B, freeholdContract(id).titleHolderId());
+    }
+
+    @Test
+    void authorityChangedAfterTheFirstReadStopsSetTitleHolderOnAnUnsoldFreehold() {
+        String id = unsoldFreehold();
+        try (SqlSessionWrapper first = database.openSession()) {
+            Assertions.assertEquals(Party.personal(AUTHORITY),
+                    first.freeholdContractMapper().selectByRegion(id, WORLD_ID).authority());
+            int authorityPartyId = first.partyMapper().findId(Party.personal(AUTHORITY));
+            logic.setAuthority(id, WORLD_ID, Party.personal(PLAYER_C));
+            first.session().rollback(true); // the setters end their read-only transaction before writing
+            Assertions.assertEquals(0, first.freeholdContractMapper()
+                    .updateTitleHolderByRegion(id, WORLD_ID, PLAYER_B, true, null, authorityPartyId));
+            Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
+                    RealtyBackendImpl.diagnoseFreeholdRefusal(first, id, WORLD_ID, true, null, authorityPartyId));
+        }
+        Assertions.assertNull(freeholdContract(id).titleHolderId());
+        Assertions.assertEquals(Party.personal(PLAYER_C), freeholdContract(id).authority());
+    }
+
+    @Test
+    void authorityChangedAfterTheFirstReadStopsSetPriceOnAnUnsoldFreehold() {
+        String id = unsoldFreehold();
+        try (SqlSessionWrapper first = database.openSession()) {
+            Assertions.assertEquals(Party.personal(AUTHORITY),
+                    first.freeholdContractMapper().selectByRegion(id, WORLD_ID).authority());
+            int authorityPartyId = first.partyMapper().findId(Party.personal(AUTHORITY));
+            logic.setAuthority(id, WORLD_ID, Party.personal(PLAYER_C));
+            first.session().rollback(true); // the setters end their read-only transaction before writing
+            Assertions.assertEquals(0, first.freeholdContractMapper()
+                    .updatePriceByRegion(id, WORLD_ID, 1.0, true, null, authorityPartyId));
+            Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
+                    RealtyBackendImpl.diagnoseFreeholdRefusal(first, id, WORLD_ID, true, null, authorityPartyId));
+        }
+        Assertions.assertEquals(500.0, freeholdContract(id).price());
+        Assertions.assertEquals(Party.personal(PLAYER_C), freeholdContract(id).authority());
+    }
+
+    @Test
+    void managerOfTheCurrentAuthorityStillAssignsAnUnsoldFreehold() {
+        String id = unsoldFreehold();
+        logic.setAuthority(id, WORLD_ID, Party.personal(PLAYER_C));
+        Assertions.assertInstanceOf(SetTitleHolderResult.NotAuthorized.class,
+                logic.setTitleHolder(id, WORLD_ID, PLAYER_B, AS_AUTHORITY));
+        Assertions.assertNull(freeholdContract(id).titleHolderId());
+        Assertions.assertInstanceOf(SetTitleHolderResult.Success.class,
+                logic.setTitleHolder(id, WORLD_ID, PLAYER_B, AS_C));
+        Assertions.assertEquals(PLAYER_B, freeholdContract(id).titleHolderId());
     }
 }

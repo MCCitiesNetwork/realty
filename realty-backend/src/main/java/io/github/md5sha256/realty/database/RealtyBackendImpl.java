@@ -440,17 +440,24 @@ public class RealtyBackendImpl implements RealtyBackend {
      *
      * @param holderConditionApplied whether the write required a title holder at all
      * @param expectedTitleHolderId  the title holder the write required; {@code null} means none
+     * @param expectedAuthorityPartyId the authority's party id that the write required, or
+     *                               {@code null} when it had no authority condition
      */
     static @NotNull WriteRefusal diagnoseFreeholdRefusal(@NotNull SqlSessionWrapper wrapper,
                                                          @NotNull String worldGuardRegionId,
                                                          @NotNull UUID worldId,
                                                          boolean holderConditionApplied,
-                                                         @Nullable UUID expectedTitleHolderId) {
+                                                         @Nullable UUID expectedTitleHolderId,
+                                                         @Nullable Integer expectedAuthorityPartyId) {
         endRead(wrapper);
         FreeholdContractEntity current = wrapper.freeholdContractMapper()
                 .selectByRegion(worldGuardRegionId, worldId);
         if (current != null && holderConditionApplied
                 && !Objects.equals(expectedTitleHolderId, current.titleHolderId())) {
+            return WriteRefusal.HOLDER_DIFFERS;
+        }
+        if (current != null && expectedAuthorityPartyId != null
+                && expectedAuthorityPartyId != namedPartyId(wrapper, current.authority())) {
             return WriteRefusal.HOLDER_DIFFERS;
         }
         return WriteRefusal.OTHER;
@@ -460,6 +467,18 @@ public class RealtyBackendImpl implements RealtyBackend {
     private static @NotNull Party freeholdHolder(@NotNull FreeholdContractEntity freehold) {
         UUID titleHolderId = freehold.titleHolderId();
         return titleHolderId != null ? Party.personal(titleHolderId) : freehold.authority();
+    }
+
+    /**
+     * The authority condition for a guarded freehold write: while the freehold has no title holder
+     * the authority is the one who acts for it, so it must still be the authority that was checked.
+     * A title holder's authority to act does not depend on the authority, and a bypassing actor
+     * is held to nothing.
+     */
+    private static @Nullable Integer requiredAuthorityPartyId(@NotNull ActorContext ctx,
+                                                              @NotNull FreeholdContractEntity freehold,
+                                                              int authorityPartyId) {
+        return !ctx.bypass() && freehold.titleHolderId() == null ? authorityPartyId : null;
     }
 
     // --- Set Price ---
@@ -488,12 +507,14 @@ public class RealtyBackendImpl implements RealtyBackend {
                 }
                 int authorityPartyId = namedPartyId(wrapper, freehold.authority());
                 boolean guardTitleHolder = !ctx.bypass();
+                Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
                 endRead(wrapper);
                 int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price,
-                        guardTitleHolder, freehold.titleHolderId());
+                        guardTitleHolder, freehold.titleHolderId(), requiredAuthorityPartyId);
                 if (updated == 0) {
                     if (diagnoseFreeholdRefusal(wrapper, worldGuardRegionId, worldId,
-                            guardTitleHolder, freehold.titleHolderId()) == WriteRefusal.HOLDER_DIFFERS) {
+                            guardTitleHolder, freehold.titleHolderId(),
+                            requiredAuthorityPartyId) == WriteRefusal.HOLDER_DIFFERS) {
                         return new SetPriceResult.NotAuthorized();
                     }
                     return new SetPriceResult.UpdateFailed();
@@ -560,12 +581,14 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
             boolean guardTitleHolder = !ctx.bypass();
+            Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
             endRead(wrapper);
             int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null,
-                    guardTitleHolder, freehold.titleHolderId());
+                    guardTitleHolder, freehold.titleHolderId(), requiredAuthorityPartyId);
             if (updated == 0) {
                 if (diagnoseFreeholdRefusal(wrapper, worldGuardRegionId, worldId,
-                        guardTitleHolder, freehold.titleHolderId()) == WriteRefusal.HOLDER_DIFFERS) {
+                        guardTitleHolder, freehold.titleHolderId(),
+                        requiredAuthorityPartyId) == WriteRefusal.HOLDER_DIFFERS) {
                     return new UnsetPriceResult.NotAuthorized();
                 }
                 return new UnsetPriceResult.UpdateFailed();
@@ -702,6 +725,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                         requiredLandlordPartyId, vacantOnly);
                 if (refusal == WriteRefusal.HOLDER_DIFFERS) {
                     LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+                    if (current == null) {
+                        return new SetLandlordResult.UpdateFailed();
+                    }
                     return new SetLandlordResult.NotAllowedToReassign(current.landlord());
                 }
                 if (refusal == WriteRefusal.OCCUPIED) {
@@ -760,12 +786,14 @@ public class RealtyBackendImpl implements RealtyBackend {
             UUID previousTitleHolder = freehold.titleHolderId();
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
             boolean guardTitleHolder = !ctx.bypass();
+            Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
             wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
-                    guardTitleHolder, previousTitleHolder);
+                    guardTitleHolder, previousTitleHolder, requiredAuthorityPartyId);
             if (updated == 0) {
                 if (diagnoseFreeholdRefusal(wrapper, worldGuardRegionId, worldId,
-                        guardTitleHolder, previousTitleHolder) == WriteRefusal.HOLDER_DIFFERS) {
+                        guardTitleHolder, previousTitleHolder,
+                        requiredAuthorityPartyId) == WriteRefusal.HOLDER_DIFFERS) {
                     return new SetTitleHolderResult.NotAuthorized();
                 }
                 return new SetTitleHolderResult.UpdateFailed();
@@ -799,11 +827,11 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             UUID previousTitleHolder = freehold.titleHolderId();
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
-                    false, null);
+                    false, null, null);
             if (updated == 0) {
                 return new SetTitleHolderResult.UpdateFailed();
             }
-            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null);
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             double historyPrice = freehold.price() != null ? freehold.price() : 0;
             if (titleHolderId != null) {
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
@@ -2265,7 +2293,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return;
             }
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
-            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null);
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
@@ -2354,7 +2382,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
-            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null);
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),

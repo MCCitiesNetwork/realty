@@ -323,10 +323,10 @@ class GuardedTermSetterTest extends AbstractDatabaseTest {
             logic.setTitleHolder(id, WORLD_ID, PLAYER_B);
             RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             int updated = first.freeholdContractMapper()
-                    .updatePriceByRegion(id, WORLD_ID, 1.0, true, PLAYER_A);
+                    .updatePriceByRegion(id, WORLD_ID, 1.0, true, PLAYER_A, null);
             Assertions.assertEquals(0, updated);
             Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
-                    RealtyBackendImpl.diagnoseFreeholdRefusal(first, id, WORLD_ID, true, PLAYER_A));
+                    RealtyBackendImpl.diagnoseFreeholdRefusal(first, id, WORLD_ID, true, PLAYER_A, null));
         }
         Assertions.assertEquals(500.0, freeholdContract(id).price());
         Assertions.assertEquals(PLAYER_B, freeholdContract(id).titleHolderId());
