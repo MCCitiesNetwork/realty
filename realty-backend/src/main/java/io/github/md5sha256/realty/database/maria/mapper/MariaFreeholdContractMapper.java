@@ -158,10 +158,13 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             SET fc.titleHolderId = #{titleHolder}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND (#{guardTitleHolder} = FALSE OR fc.titleHolderId <=> #{requiredTitleHolderId})
             """)
     int updateTitleHolderByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                   @Param("worldId") @NotNull UUID worldId,
-                                  @Param("titleHolder") @Nullable UUID titleHolder);
+                                  @Param("titleHolder") @Nullable UUID titleHolder,
+                                  @Param("guardTitleHolder") boolean guardTitleHolder,
+                                  @Param("requiredTitleHolderId") @Nullable UUID requiredTitleHolderId);
 
     @Override
     @Update("""

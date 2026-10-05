@@ -777,7 +777,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
-            @NotNull WorldGuardRegion region, @Nullable Party titleHolder) {
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder, @NotNull ActorContext ctx) {
         if (!isPlayerOrNobody(titleHolder)) {
             return CompletableFuture.failedFuture(new IllegalArgumentException(ONLY_PLAYERS));
         }
@@ -785,7 +785,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> {
-            RealtyBackend.SetTitleHolderResult result = realtyApi.setTitleHolder(regionId, worldId, titleHolderId);
+            RealtyBackend.SetTitleHolderResult result = realtyApi.setTitleHolder(regionId, worldId, titleHolderId, ctx);
             if (result instanceof RealtyBackend.SetTitleHolderResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
                 return Map.entry(result, placeholders);
@@ -812,6 +812,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             }
             case RealtyBackend.SetTitleHolderResult.NoFreeholdContract ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NoFreeholdContract(regionId);
+            case RealtyBackend.SetTitleHolderResult.NotAuthorized ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.NotAuthorized(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -857,6 +859,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             }
             case RealtyBackend.SetTitleHolderResult.NoFreeholdContract ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NoFreeholdContract(regionId);
+            case RealtyBackend.SetTitleHolderResult.NotAuthorized ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.NotAuthorized(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -867,7 +871,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<SetTenantResult> setTenant(
-            @NotNull WorldGuardRegion region, @Nullable Party tenant) {
+            @NotNull WorldGuardRegion region, @Nullable Party tenant,
+            @NotNull ActorContext ctx, boolean vacantOnly) {
         if (!isPlayerOrNobody(tenant)) {
             return CompletableFuture.failedFuture(new IllegalArgumentException(ONLY_PLAYERS));
         }
@@ -875,7 +880,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> {
-            RealtyBackend.SetTenantResult result = realtyApi.setTenant(regionId, worldId, tenantId);
+            RealtyBackend.SetTenantResult result = realtyApi.setTenant(regionId, worldId, tenantId, ctx, vacantOnly);
             if (result instanceof RealtyBackend.SetTenantResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
                 return Map.entry(result, placeholders);
@@ -901,6 +906,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             }
             case RealtyBackend.SetTenantResult.NoLeaseholdContract ignored ->
                     (SetTenantResult) new SetTenantResult.NoLeaseholdContract(regionId);
+            case RealtyBackend.SetTenantResult.NotAuthorized ignored ->
+                    (SetTenantResult) new SetTenantResult.NotAuthorized(regionId);
+            case RealtyBackend.SetTenantResult.Occupied ignored ->
+                    (SetTenantResult) new SetTenantResult.Occupied(regionId);
             case RealtyBackend.SetTenantResult.UpdateFailed ignored ->
                     (SetTenantResult) new SetTenantResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -911,17 +920,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<SetLandlordResult> setLandlord(
-            @NotNull WorldGuardRegion region, @NotNull Party landlord) {
-        return setLandlord(region, landlord, ActorContext.console());
-    }
-
-    @Override
-    public @NotNull CompletableFuture<SetLandlordResult> setLandlord(
-            @NotNull WorldGuardRegion region, @NotNull Party landlord, @NotNull ActorContext ctx) {
+            @NotNull WorldGuardRegion region, @NotNull Party landlord,
+            @NotNull ActorContext ctx, boolean vacantOnly) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setLandlord(regionId, worldId, landlord, ctx),
+                () -> realtyApi.setLandlord(regionId, worldId, landlord, ctx, vacantOnly),
                 executorState.dbExec()
         ).thenApplyAsync(result -> switch (result) {
             case RealtyBackend.SetLandlordResult.Success success -> {
@@ -931,6 +935,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             }
             case RealtyBackend.SetLandlordResult.NoLeaseholdContract ignored ->
                     (SetLandlordResult) new SetLandlordResult.NoLeaseholdContract(regionId);
+            case RealtyBackend.SetLandlordResult.Occupied ignored ->
+                    (SetLandlordResult) new SetLandlordResult.Occupied(regionId);
             case RealtyBackend.SetLandlordResult.UpdateFailed ignored ->
                     (SetLandlordResult) new SetLandlordResult.UpdateFailed(regionId);
             case RealtyBackend.SetLandlordResult.NotAllowedToReassign refused ->
@@ -1358,33 +1364,37 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
-            @NotNull String regionId, @NotNull UUID worldId, double price) {
+            @NotNull String regionId, @NotNull UUID worldId, double price,
+            @NotNull ActorContext ctx, boolean vacantOnly) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setPrice(regionId, worldId, price),
+                () -> realtyApi.setPrice(regionId, worldId, price, ctx, vacantOnly),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
-            @NotNull String regionId, @NotNull UUID worldId) {
+            @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull ActorContext ctx) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.unsetPrice(regionId, worldId),
+                () -> realtyApi.unsetPrice(regionId, worldId, ctx),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SetDurationResult> setDuration(
-            @NotNull String regionId, @NotNull UUID worldId, long durationSeconds) {
+            @NotNull String regionId, @NotNull UUID worldId, long durationSeconds,
+            @NotNull ActorContext ctx, boolean vacantOnly) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setDuration(regionId, worldId, durationSeconds),
+                () -> realtyApi.setDuration(regionId, worldId, durationSeconds, ctx, vacantOnly),
                 executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
-            @NotNull String regionId, @NotNull UUID worldId, int maxRenewals) {
+            @NotNull String regionId, @NotNull UUID worldId, int maxRenewals,
+            @NotNull ActorContext ctx, boolean vacantOnly) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.setMaxRenewals(regionId, worldId, maxRenewals),
+                () -> realtyApi.setMaxRenewals(regionId, worldId, maxRenewals, ctx, vacantOnly),
                 executorState.dbExec());
     }
 

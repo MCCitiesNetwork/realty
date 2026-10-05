@@ -635,7 +635,7 @@ class MapperTest extends AbstractDatabaseTest {
                  SqlSession session = wrapper.session()) {
                 int partyId = wrapper.partyMapper().findOrInsert(Party.personal(PLAYER_A));
                 int updated = wrapper.leaseholdContractMapper()
-                        .updateLandlordByRegion(regionId, WORLD_ID, partyId);
+                        .updateLandlordByRegion(regionId, WORLD_ID, partyId, null, false);
                 session.commit();
                 Assertions.assertEquals(1, updated);
 
@@ -652,7 +652,7 @@ class MapperTest extends AbstractDatabaseTest {
                  SqlSession session = wrapper.session()) {
                 int partyId = wrapper.partyMapper().findOrInsert(Party.personal(PLAYER_A));
                 int updated = wrapper.leaseholdContractMapper()
-                        .updateLandlordByRegion("nonexistent", WORLD_ID, partyId);
+                        .updateLandlordByRegion("nonexistent", WORLD_ID, partyId, null, false);
                 session.commit();
                 Assertions.assertEquals(0, updated);
             }

@@ -377,10 +377,14 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             SET lc.landlordPartyId = #{landlordPartyId}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR lc.landlordPartyId = #{requiredLandlordPartyId})
+            AND (#{vacantOnly} = FALSE OR lc.tenantId IS NULL)
             """)
     int updateLandlordByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                @Param("worldId") @NotNull UUID worldId,
-                               @Param("landlordPartyId") int landlordPartyId);
+                               @Param("landlordPartyId") int landlordPartyId,
+                               @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId,
+                               @Param("vacantOnly") boolean vacantOnly);
 
     @Override
     @Update("""
@@ -396,10 +400,14 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
                 END
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR lc.landlordPartyId = #{requiredLandlordPartyId})
+            AND (#{vacantOnly} = FALSE OR lc.tenantId IS NULL)
             """)
     int updateTenantByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                              @Param("worldId") @NotNull UUID worldId,
-                             @Param("tenantId") @Nullable UUID tenantId);
+                             @Param("tenantId") @Nullable UUID tenantId,
+                             @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId,
+                             @Param("vacantOnly") boolean vacantOnly);
 
     @Override
     @Update("""

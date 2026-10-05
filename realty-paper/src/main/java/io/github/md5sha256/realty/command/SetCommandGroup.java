@@ -345,6 +345,9 @@ public record SetCommandGroup(
                 case RealtyPaperApi.SetLandlordResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));
+                case RealtyPaperApi.SetLandlordResult.Occupied occupied ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
+                                Placeholder.unparsed("region", occupied.regionId())));
                 case RealtyPaperApi.SetLandlordResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));
@@ -393,6 +396,8 @@ public record SetCommandGroup(
                 case RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));
+                case RealtyPaperApi.SetTitleHolderResult.NotAuthorized ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
                 case RealtyPaperApi.SetTitleHolderResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));
@@ -427,6 +432,11 @@ public record SetCommandGroup(
                 case RealtyPaperApi.SetTenantResult.NoLeaseholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_NO_LEASEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));
+                case RealtyPaperApi.SetTenantResult.NotAuthorized ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_NO_PERMISSION));
+                case RealtyPaperApi.SetTenantResult.Occupied occupied ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
+                                Placeholder.unparsed("region", occupied.regionId())));
                 case RealtyPaperApi.SetTenantResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));

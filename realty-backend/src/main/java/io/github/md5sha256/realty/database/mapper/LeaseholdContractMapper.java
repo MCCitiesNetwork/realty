@@ -113,13 +113,19 @@ public interface LeaseholdContractMapper {
                             @Nullable Integer requiredLandlordPartyId,
                             boolean vacantOnly);
 
+    /** Takes the same two guards as the updates above; pass {@code null} and {@code false} for none. */
     int updateLandlordByRegion(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
-                               int landlordPartyId);
+                               int landlordPartyId,
+                               @Nullable Integer requiredLandlordPartyId,
+                               boolean vacantOnly);
 
+    /** Takes the same two guards as the updates above; pass {@code null} and {@code false} for none. */
     int updateTenantByRegion(@NotNull String worldGuardRegionId,
                              @NotNull UUID worldId,
-                             @Nullable UUID tenantId);
+                             @Nullable UUID tenantId,
+                             @Nullable Integer requiredLandlordPartyId,
+                             boolean vacantOnly);
 
     int updateMaxRenewalsByRegion(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,

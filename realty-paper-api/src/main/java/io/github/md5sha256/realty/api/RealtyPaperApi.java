@@ -222,17 +222,32 @@ public interface RealtyPaperApi {
         record Success(@Nullable Party previousTitleHolder,
                        @NotNull String regionId) implements SetTitleHolderResult {}
         record NoFreeholdContract(@NotNull String regionId) implements SetTitleHolderResult {}
+        /** The actor does not manage the region's current holder. */
+        record NotAuthorized(@NotNull String regionId) implements SetTitleHolderResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTitleHolderResult {}
         record Error(@NotNull String message) implements SetTitleHolderResult {}
+    }
+
+    /**
+     * Sets the title holder, or clears it when {@code titleHolder} is {@code null}, as the console
+     * does: no check of who is acting.
+     */
+    default @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder) {
+        return setTitleHolder(region, titleHolder, ActorContext.console());
     }
 
     /**
      * Sets the title holder, or clears it when {@code titleHolder} is {@code null}. Only a player
      * can hold a title in this version: any other party fails the future with an
      * {@link IllegalArgumentException}.
+     *
+     * @param ctx who is acting; they must manage the current holder (the title holder, or the
+     *            authority while there is none) unless they bypass the check. A refusal gives
+     *            {@link SetTitleHolderResult.NotAuthorized} and changes nothing.
      */
     @NotNull CompletableFuture<SetTitleHolderResult> setTitleHolder(
-            @NotNull WorldGuardRegion region, @Nullable Party titleHolder);
+            @NotNull WorldGuardRegion region, @Nullable Party titleHolder, @NotNull ActorContext ctx);
 
     /**
      * @deprecated use {@link #setTitleHolder(WorldGuardRegion, Party)}. Removed in 3.0.0.
@@ -267,16 +282,35 @@ public interface RealtyPaperApi {
         record Success(@Nullable Party previousTenant, @NotNull Party landlord,
                        @NotNull String regionId) implements SetTenantResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements SetTenantResult {}
+        /** The actor does not manage the lease's landlord. */
+        record NotAuthorized(@NotNull String regionId) implements SetTenantResult {}
+        /** The lease has a tenant and the change was asked for only while it has none. */
+        record Occupied(@NotNull String regionId) implements SetTenantResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTenantResult {}
         record Error(@NotNull String message) implements SetTenantResult {}
     }
 
     /**
+     * Sets the tenant, or clears it when {@code tenant} is {@code null}, as the console does: no
+     * check of who is acting and no tenancy condition.
+     */
+    default @NotNull CompletableFuture<SetTenantResult> setTenant(
+            @NotNull WorldGuardRegion region, @Nullable Party tenant) {
+        return setTenant(region, tenant, ActorContext.console(), false);
+    }
+
+    /**
      * Sets the tenant, or clears it when {@code tenant} is {@code null}. Only a player can rent
      * in this version: any other party fails the future with an {@link IllegalArgumentException}.
+     *
+     * @param ctx        who is acting; they must manage the landlord unless they bypass the check.
+     *                   A refusal gives {@link SetTenantResult.NotAuthorized} and changes nothing.
+     * @param vacantOnly whether a lease that has a tenant refuses the change
+     *                   ({@link SetTenantResult.Occupied}), even for a bypassing actor
      */
     @NotNull CompletableFuture<SetTenantResult> setTenant(
-            @NotNull WorldGuardRegion region, @Nullable Party tenant);
+            @NotNull WorldGuardRegion region, @Nullable Party tenant,
+            @NotNull ActorContext ctx, boolean vacantOnly);
 
     /**
      * @deprecated use {@link #setTenant(WorldGuardRegion, Party)}. Removed in 3.0.0.
@@ -293,6 +327,8 @@ public interface RealtyPaperApi {
         record Success(@NotNull Party previousLandlord,
                        @NotNull String regionId) implements SetLandlordResult {}
         record NoLeaseholdContract(@NotNull String regionId) implements SetLandlordResult {}
+        /** The lease has a tenant and the change was asked for only while it has none. */
+        record Occupied(@NotNull String regionId) implements SetLandlordResult {}
         record UpdateFailed(@NotNull String regionId) implements SetLandlordResult {}
         /** The actor may not hand the current landlord's role to another party. */
         record NotAllowedToReassign(@NotNull Party current) implements SetLandlordResult {}
@@ -304,14 +340,30 @@ public interface RealtyPaperApi {
     /**
      * Sets the landlord as the console does: the assignment rules are bypassed.
      */
-    @NotNull CompletableFuture<SetLandlordResult> setLandlord(
-            @NotNull WorldGuardRegion region, @NotNull Party landlord);
+    default @NotNull CompletableFuture<SetLandlordResult> setLandlord(
+            @NotNull WorldGuardRegion region, @NotNull Party landlord) {
+        return setLandlord(region, landlord, ActorContext.console(), false);
+    }
+
+    /**
+     * Sets the landlord on behalf of {@code ctx}, with no tenancy condition. See
+     * {@link RealtyBackend#setLandlord} for the rules.
+     */
+    default @NotNull CompletableFuture<SetLandlordResult> setLandlord(
+            @NotNull WorldGuardRegion region, @NotNull Party landlord, @NotNull ActorContext ctx) {
+        return setLandlord(region, landlord, ctx, false);
+    }
 
     /**
      * Sets the landlord on behalf of {@code ctx}. See {@link RealtyBackend#setLandlord} for the rules.
+     *
+     * @param ctx        who is acting; the rules are bypassed when it bypasses
+     * @param vacantOnly whether a lease that has a tenant refuses the change
+     *                   ({@link SetLandlordResult.Occupied}), even for a bypassing actor
      */
     @NotNull CompletableFuture<SetLandlordResult> setLandlord(
-            @NotNull WorldGuardRegion region, @NotNull Party landlord, @NotNull ActorContext ctx);
+            @NotNull WorldGuardRegion region, @NotNull Party landlord,
+            @NotNull ActorContext ctx, boolean vacantOnly);
 
     // --- Delete ---
 
@@ -514,17 +566,71 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull Party authority);
 
+    /** Sets the price as the console does: no check of who is acting and no tenancy condition. */
+    default @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
+            @NotNull String regionId, @NotNull UUID worldId, double price) {
+        return setPrice(regionId, worldId, price, ActorContext.console(), false);
+    }
+
+    /**
+     * Sets the price of a freehold or a leasehold.
+     *
+     * @param ctx        who is acting; they must manage the region's holder unless they bypass
+     *                   the check
+     * @param vacantOnly whether a lease that has a tenant refuses the change, even for a
+     *                   bypassing actor
+     */
     @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
-            @NotNull String regionId, @NotNull UUID worldId, double price);
+            @NotNull String regionId, @NotNull UUID worldId, double price,
+            @NotNull ActorContext ctx, boolean vacantOnly);
 
+    /** Clears the price as the console does: no check of who is acting. */
+    default @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
+            @NotNull String regionId, @NotNull UUID worldId) {
+        return unsetPrice(regionId, worldId, ActorContext.console());
+    }
+
+    /**
+     * Clears a freehold's price.
+     *
+     * @param ctx who is acting; they must manage the freehold's holder unless they bypass the check
+     */
     @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
-            @NotNull String regionId, @NotNull UUID worldId);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
 
+    /** Sets the duration as the console does: no check of who is acting and no tenancy condition. */
+    default @NotNull CompletableFuture<RealtyBackend.SetDurationResult> setDuration(
+            @NotNull String regionId, @NotNull UUID worldId, long durationSeconds) {
+        return setDuration(regionId, worldId, durationSeconds, ActorContext.console(), false);
+    }
+
+    /**
+     * Sets a leasehold's duration.
+     *
+     * @param ctx        who is acting; they must manage the landlord unless they bypass the check
+     * @param vacantOnly whether a lease that has a tenant refuses the change, even for a
+     *                   bypassing actor
+     */
     @NotNull CompletableFuture<RealtyBackend.SetDurationResult> setDuration(
-            @NotNull String regionId, @NotNull UUID worldId, long durationSeconds);
+            @NotNull String regionId, @NotNull UUID worldId, long durationSeconds,
+            @NotNull ActorContext ctx, boolean vacantOnly);
 
+    /** Sets the renewal limit as the console does: no check of who is acting and no tenancy condition. */
+    default @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
+            @NotNull String regionId, @NotNull UUID worldId, int maxRenewals) {
+        return setMaxRenewals(regionId, worldId, maxRenewals, ActorContext.console(), false);
+    }
+
+    /**
+     * Sets a leasehold's renewal limit.
+     *
+     * @param ctx        who is acting; they must manage the landlord unless they bypass the check
+     * @param vacantOnly whether a lease that has a tenant refuses the change, even for a
+     *                   bypassing actor
+     */
     @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
-            @NotNull String regionId, @NotNull UUID worldId, int maxRenewals);
+            @NotNull String regionId, @NotNull UUID worldId, int maxRenewals,
+            @NotNull ActorContext ctx, boolean vacantOnly);
 
     @NotNull CompletableFuture<RealtyBackend.SetRentableResult> setRentable(
             @NotNull String regionId, @NotNull UUID worldId,
