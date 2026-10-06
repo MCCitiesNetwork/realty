@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
+import io.github.md5sha256.realty.command.util.PartyNameParser;
 import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
@@ -58,7 +59,7 @@ public record GroupCommandGroup(
                 // The type flag goes last: flags are read only after the arguments.
                 PartyFlags.addTo(base.literal("map")
                                 .required("group", StringParser.stringParser(), groupSuggestions)
-                                .required("account", StringParser.stringParser(), accountSuggestions))
+                                .required("account", PartyNameParser.partyName(), accountSuggestions))
                         .handler(this::executeMap)
                         .build(),
                 base.literal("unmap")

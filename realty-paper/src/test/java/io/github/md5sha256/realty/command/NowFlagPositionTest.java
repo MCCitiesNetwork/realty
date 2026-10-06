@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.command.util.PartyFlags;
+import io.github.md5sha256.realty.command.util.PartyNameParser;
 import io.github.md5sha256.realty.command.util.RegionOrFlagParser;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
@@ -55,7 +56,7 @@ class NowFlagPositionTest {
                 .handler(last::set));
         // The same shape as /realty set landlord: type flags and --now share the flag position.
         manager.command(PartyFlags.addTo(manager.commandBuilder("set").literal("landlord")
-                .required("landlord", StringParser.<Object>stringParser())
+                .required("landlord", PartyNameParser.<Object>partyName())
                 .optional("region", RegionOrFlagParser.of(StringParser.<Object>stringParser())))
                 .flag(SetCommandGroup.NOW_FLAG)
                 .handler(last::set));

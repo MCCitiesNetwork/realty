@@ -47,7 +47,7 @@ class PartyFlagPositionTest {
         manager.settings().set(ManagerSetting.LIBERAL_FLAG_PARSING, liberalFlagParsing);
         manager.command(PartyFlags.addTo(manager.commandBuilder("set")
                         .literal("landlord")
-                        .required("landlord", StringParser.stringParser())
+                        .required("landlord", PartyNameParser.partyName())
                         .optional("region", RegionOrFlagParser.of(StringParser.<Object>stringParser())))
                 .handler(last::set));
         // Shaped like /realty register leasehold, whose max-extensions argument accepts -1.
@@ -61,7 +61,7 @@ class PartyFlagPositionTest {
         var list = manager.commandBuilder("list");
         for (String category : List.of("", "owned", "authority", "landlord", "rented")) {
             manager.command(PartyFlags.addTo((category.isEmpty() ? list : list.literal(category))
-                            .optional("name", RegionOrFlagParser.of(StringParser.<Object>stringParser()))
+                            .optional("name", RegionOrFlagParser.of(PartyNameParser.<Object>partyName()))
                             .flag(CommandFlag.builder("page").withComponent(IntegerParser.integerParser(1))))
                     .handler(ctx -> {
                         listCategory.set(category);
