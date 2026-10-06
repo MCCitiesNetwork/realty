@@ -384,10 +384,31 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     /**
-     * Explains why a guarded leasehold write changed no row. The transaction is ended first: the
-     * caller read the contract before writing, so under REPEATABLE READ a plain re-read would
-     * return that older snapshot and miss a rent or landlord change committed in between.
-     * Nothing is pending when this is called, so the rollback discards nothing.
+     * Ends the transaction that the caller's reads opened, so that the next statement starts a
+     * new one. Call it only while the session has changed no row.
+     * <p>
+     * A setter reads the contract, checks who may change it, and then runs an {@code UPDATE} whose
+     * {@code WHERE} clause repeats that check against the stored row. The first read opens a
+     * transaction and fixes its view of the database. If another transaction then commits a change
+     * to the same contract (a tenant rents, the landlord changes), MariaDB 11.7 does not run the
+     * {@code UPDATE} against the changed row: it fails the statement with "Record has changed
+     * since last read". Once the transaction is ended, the {@code UPDATE} sees the committed row
+     * and changes none, and the setter can answer that the caller no longer holds the region or
+     * that it is now occupied. A read that follows such a refusal needs the same, because inside
+     * the old transaction it would return the row as it was first read.
+     * <p>
+     * The rollback undoes nothing, because nothing has been written: it is only the way to end
+     * the transaction. It is forced ({@code true}) because MyBatis sends no rollback for a session
+     * that has changed no row.
+     */
+    static void endRead(@NotNull SqlSessionWrapper wrapper) {
+        wrapper.session().rollback(true);
+    }
+
+    /**
+     * Explains why a guarded leasehold write changed no row. It ends the read first
+     * ({@link #endRead}), so that it sees a rent or landlord change committed since the caller
+     * read the contract.
      *
      * @param expectedLandlordPartyId the landlord's party id that the write required, or
      *                                {@code null} when the write had no landlord condition
@@ -398,7 +419,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                                           @NotNull UUID worldId,
                                                           @Nullable Integer expectedLandlordPartyId,
                                                           boolean vacantOnly) {
-        wrapper.session().rollback(true);
+        endRead(wrapper);
         LeaseholdContractEntity current = wrapper.leaseholdContractMapper()
                 .selectByRegion(worldGuardRegionId, worldId);
         if (current == null) {
@@ -425,7 +446,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                                          @NotNull UUID worldId,
                                                          boolean holderConditionApplied,
                                                          @Nullable UUID expectedTitleHolderId) {
-        wrapper.session().rollback(true);
+        endRead(wrapper);
         FreeholdContractEntity current = wrapper.freeholdContractMapper()
                 .selectByRegion(worldGuardRegionId, worldId);
         if (current != null && holderConditionApplied
@@ -467,7 +488,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 }
                 int authorityPartyId = namedPartyId(wrapper, freehold.authority());
                 boolean guardTitleHolder = !ctx.bypass();
-                wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
+                endRead(wrapper);
                 int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price,
                         guardTitleHolder, freehold.titleHolderId());
                 if (updated == 0) {
@@ -493,7 +514,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             int landlordPartyId = namedPartyId(wrapper, lease.landlord());
             Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
-            wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
+            endRead(wrapper);
             int updated = leaseholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price,
                     requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {
@@ -539,7 +560,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
             boolean guardTitleHolder = !ctx.bypass();
-            wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
+            endRead(wrapper);
             int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null,
                     guardTitleHolder, freehold.titleHolderId());
             if (updated == 0) {
@@ -577,7 +598,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             int landlordPartyId = namedPartyId(wrapper, lease.landlord());
             Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
-            wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
+            endRead(wrapper);
             int updated = leaseholdMapper.updateDurationByRegion(worldGuardRegionId, worldId, durationSeconds,
                     requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {
@@ -624,7 +645,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             int landlordPartyId = namedPartyId(wrapper, lease.landlord());
             Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
-            wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
+            endRead(wrapper);
             int updated = leaseholdMapper.updateMaxRenewalsByRegion(worldGuardRegionId, worldId, maxRenewals,
                     requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {

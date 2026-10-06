@@ -286,7 +286,7 @@ class GuardedTermSetterTest extends AbstractDatabaseTest {
             Assertions.assertNull(first.leaseholdContractMapper().selectByRegion(id, WORLD_ID).tenantId());
             int landlordPartyId = first.partyMapper().findId(Party.personal(PLAYER_A));
             logic.rentRegion(id, WORLD_ID, PLAYER_B);
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             int updated = first.leaseholdContractMapper()
                     .updatePriceByRegion(id, WORLD_ID, 300.0, landlordPartyId, true);
             Assertions.assertEquals(0, updated);
@@ -304,7 +304,7 @@ class GuardedTermSetterTest extends AbstractDatabaseTest {
                     first.leaseholdContractMapper().selectByRegion(id, WORLD_ID).landlord());
             int landlordPartyId = first.partyMapper().findId(Party.personal(PLAYER_A));
             logic.setLandlord(id, WORLD_ID, Party.personal(PLAYER_C), ActorContext.console());
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             int updated = first.leaseholdContractMapper()
                     .updatePriceByRegion(id, WORLD_ID, 300.0, landlordPartyId, true);
             Assertions.assertEquals(0, updated);
@@ -321,7 +321,7 @@ class GuardedTermSetterTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper first = database.openSession()) {
             Assertions.assertEquals(PLAYER_A, first.freeholdContractMapper().selectByRegion(id, WORLD_ID).titleHolderId());
             logic.setTitleHolder(id, WORLD_ID, PLAYER_B);
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             int updated = first.freeholdContractMapper()
                     .updatePriceByRegion(id, WORLD_ID, 1.0, true, PLAYER_A);
             Assertions.assertEquals(0, updated);
