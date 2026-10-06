@@ -717,7 +717,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             int previousLandlordPartyId = namedPartyId(wrapper, previousLandlord);
             Integer requiredLandlordPartyId = ctx.bypass() ? null : previousLandlordPartyId;
-            wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
+            endRead(wrapper);
             int updated = leaseholdMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordPartyId,
                     requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {
@@ -787,7 +787,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
             boolean guardTitleHolder = !ctx.bypass();
             Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
-            wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
+            endRead(wrapper);
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
                     guardTitleHolder, previousTitleHolder, requiredAuthorityPartyId);
             if (updated == 0) {
@@ -887,7 +887,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             UUID previousTenant = lease.tenantId();
             int landlordPartyId = namedPartyId(wrapper, lease.landlord());
             Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
-            wrapper.session().rollback(true); // only reads so far; drop the snapshot so the guard sees committed rows
+            endRead(wrapper);
             int updated = leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId,
                     requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {

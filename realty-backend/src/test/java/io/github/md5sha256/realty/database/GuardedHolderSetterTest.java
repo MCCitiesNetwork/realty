@@ -264,7 +264,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
                     first.leaseholdContractMapper().selectByRegion(id, WORLD_ID).landlord());
             int landlordPartyId = first.partyMapper().findId(Party.personal(PLAYER_A));
             logic.setLandlord(id, WORLD_ID, Party.personal(PLAYER_C), ActorContext.console());
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             Assertions.assertEquals(0, first.leaseholdContractMapper()
                     .updateTenantByRegion(id, WORLD_ID, PLAYER_B, landlordPartyId, false));
             Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
@@ -283,7 +283,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
             int landlordPartyId = first.partyMapper().findId(Party.personal(PLAYER_A));
             int newPartyId = first.partyMapper().findOrInsert(Party.personal(PLAYER_B));
             logic.setLandlord(id, WORLD_ID, Party.personal(PLAYER_C), ActorContext.console());
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             Assertions.assertEquals(0, first.leaseholdContractMapper()
                     .updateLandlordByRegion(id, WORLD_ID, newPartyId, landlordPartyId, false));
             Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
@@ -298,7 +298,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper first = database.openSession()) {
             Assertions.assertEquals(PLAYER_A, first.freeholdContractMapper().selectByRegion(id, WORLD_ID).titleHolderId());
             logic.setTitleHolder(id, WORLD_ID, PLAYER_B);
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             Assertions.assertEquals(0, first.freeholdContractMapper()
                     .updateTitleHolderByRegion(id, WORLD_ID, PLAYER_C, true, PLAYER_A, null));
             Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
@@ -313,7 +313,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper first = database.openSession()) {
             Assertions.assertNull(first.freeholdContractMapper().selectByRegion(id, WORLD_ID).titleHolderId());
             logic.setTitleHolder(id, WORLD_ID, PLAYER_B);
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             Assertions.assertEquals(0, first.freeholdContractMapper()
                     .updateTitleHolderByRegion(id, WORLD_ID, PLAYER_C, true, null, null));
             Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
@@ -330,7 +330,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
                     first.freeholdContractMapper().selectByRegion(id, WORLD_ID).authority());
             int authorityPartyId = first.partyMapper().findId(Party.personal(AUTHORITY));
             logic.setAuthority(id, WORLD_ID, Party.personal(PLAYER_C));
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             Assertions.assertEquals(0, first.freeholdContractMapper()
                     .updateTitleHolderByRegion(id, WORLD_ID, PLAYER_B, true, null, authorityPartyId));
             Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
@@ -348,7 +348,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
                     first.freeholdContractMapper().selectByRegion(id, WORLD_ID).authority());
             int authorityPartyId = first.partyMapper().findId(Party.personal(AUTHORITY));
             logic.setAuthority(id, WORLD_ID, Party.personal(PLAYER_C));
-            first.session().rollback(true); // the setters end their read-only transaction before writing
+            RealtyBackendImpl.endRead(first); // as the setters do between their reads and their write
             Assertions.assertEquals(0, first.freeholdContractMapper()
                     .updatePriceByRegion(id, WORLD_ID, 1.0, true, null, authorityPartyId));
             Assertions.assertEquals(WriteRefusal.HOLDER_DIFFERS,
