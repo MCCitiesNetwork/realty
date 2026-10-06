@@ -112,11 +112,21 @@ public interface FreeholdContractMapper {
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region
      * @param price              the new freehold price (must be &gt; 0), or {@code null} to unset
-     * @return number of rows updated (1 on success, 0 if no matching contract)
+     * @param guardTitleHolder   whether the write applies only while the title holder is
+     *                           {@code requiredTitleHolderId}; {@code false} makes it unconditional
+     * @param requiredTitleHolderId the title holder the write requires, compared null-safely, so
+     *                           {@code null} requires that there is still no title holder;
+     *                           ignored when {@code guardTitleHolder} is {@code false}
+     * @param requiredAuthorityPartyId the party id the authority must still be, or {@code null}
+     *                           for no authority condition; used while there is no title holder
+     * @return number of rows updated (1 on success, 0 if no matching contract or the guard fails)
      */
     int updatePriceByRegion(@NotNull String worldGuardRegionId,
                             @NotNull UUID worldId,
-                            @Nullable Double price);
+                            @Nullable Double price,
+                            boolean guardTitleHolder,
+                            @Nullable UUID requiredTitleHolderId,
+                            @Nullable Integer requiredAuthorityPartyId);
 
     /**
      * Updates only the title holder on the freehold contract associated with a WorldGuard region.
@@ -124,11 +134,20 @@ public interface FreeholdContractMapper {
      * @param worldGuardRegionId the WorldGuard region identifier
      * @param worldId            UUID of the world containing the region
      * @param titleHolder        UUID of the new title holder, or {@code null} to clear
-     * @return number of rows updated (1 on success, 0 if no matching contract)
+     * @param guardTitleHolder   whether the write applies only while the title holder is
+     *                           {@code requiredTitleHolderId}; {@code false} makes it unconditional
+     * @param requiredTitleHolderId the title holder the write requires, compared null-safely;
+     *                           ignored when {@code guardTitleHolder} is {@code false}
+     * @param requiredAuthorityPartyId the party id the authority must still be, or {@code null}
+     *                           for no authority condition; used while there is no title holder
+     * @return number of rows updated (1 on success, 0 if no matching contract or the guard fails)
      */
     int updateTitleHolderByRegion(@NotNull String worldGuardRegionId,
                                   @NotNull UUID worldId,
-                                  @Nullable UUID titleHolder);
+                                  @Nullable UUID titleHolder,
+                                  boolean guardTitleHolder,
+                                  @Nullable UUID requiredTitleHolderId,
+                                  @Nullable Integer requiredAuthorityPartyId);
 
     /**
      * Updates only the accepting-offers flag on the freehold contract associated with a WorldGuard region.

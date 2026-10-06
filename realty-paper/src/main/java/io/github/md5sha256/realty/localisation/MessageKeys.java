@@ -354,6 +354,12 @@ public final class MessageKeys {
     // set (shared)
     public static final String SET_NO_PERMISSION = "set.no-permission";
     public static final String SET_CHECK_PERMISSIONS_ERROR = "set.check-permissions-error";
+    public static final String SET_RENTED_NEEDS_NOW = "set.rented-needs-now";
+    public static final String SET_RENTED_NO_NOW_PERMISSION = "set.rented-no-now-permission";
+    public static final String SET_UNLIMITED_NEEDS_NOW = "set.unlimited-needs-now";
+    public static final String SET_CONSOLE_NEEDS_NOW = "set.console-needs-now";
+    public static final String SET_JUST_RENTED = "set.just-rented";
+    public static final String SET_JUST_VACATED = "set.just-vacated";
 
     // set-duration
     public static final String SET_DURATION_SUCCESS = "set-duration.success";
@@ -512,7 +518,6 @@ public final class MessageKeys {
     public static final String MODIFY_PROPOSE_SUCCESS_LANDLORD = "modify.propose-success-landlord";
     public static final String MODIFY_PROPOSE_SUCCESS_TENANT = "modify.propose-success-tenant";
     public static final String MODIFY_NO_LEASEHOLD_CONTRACT = "modify.no-leasehold-contract";
-    public static final String MODIFY_NOT_OCCUPIED = "modify.not-occupied";
     public static final String MODIFY_TERMINATING = "modify.terminating";
     public static final String MODIFY_NOT_AUTHORIZED = "modify.not-authorized";
     public static final String MODIFY_NOT_LANDLORD = "modify.not-landlord";
@@ -558,8 +563,6 @@ public final class MessageKeys {
 
     // set (leasehold authorization)
     public static final String SET_NOT_LANDLORD = "set.not-landlord";
-    public static final String SET_OCCUPIED_USE_MODIFY = "set.occupied-use-modify";
-    public static final String SET_LEASEHOLD_NO_PERMISSION = "set.leasehold-no-permission";
 
     // search
     public static final String SEARCH_HEADER = "search.header";

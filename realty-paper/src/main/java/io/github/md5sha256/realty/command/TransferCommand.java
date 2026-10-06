@@ -81,6 +81,8 @@ public record TransferCommand(
                 case RealtyPaperApi.SetTitleHolderResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_NO_FREEHOLD_CONTRACT,
                                 Placeholder.unparsed("region", noContract.regionId())));
+                case RealtyPaperApi.SetTitleHolderResult.NotAuthorized ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_NO_PERMISSION));
                 case RealtyPaperApi.SetTitleHolderResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));

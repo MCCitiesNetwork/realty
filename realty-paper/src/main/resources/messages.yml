@@ -342,19 +342,19 @@ help:
         or --group, makes the name an account or a group instead of a player. It goes last.</grey>
     management:
     - <prefix> Management Commands
-    - <blue>/realty set price <price> <region></blue> <gray>- Set freehold or leasehold
-        price</gray>
+    - <blue>/realty set price <price> <region> [--now]</blue> <gray>- Set freehold or lease
+        price; a rented lease changes at the next renewal</gray>
     - <blue>/realty unset price <region></blue> <gray>- Remove region freehold price</gray>
-    - <blue>/realty set duration <duration> <region></blue> <gray>- Set lease duration</gray>
-    - <blue>/realty set landlord <name> [region] [type flag]</blue> <gray>- Set lease landlord</gray>
+    - <blue>/realty set duration <duration> <region> [--now]</blue> <gray>- Set lease duration</gray>
+    - <blue>/realty set maxextensions <count> <region> [--now]</blue> <gray>- Set lease
+        extension limit (-1 for unlimited)</gray>
+    - <blue>/realty set landlord <name> [region] [--now] [type flag]</blue> <gray>- Set lease landlord</gray>
     - <blue>/realty set titleholder <player> <region></blue> <gray>- Set freehold
         title holder</gray>
     - <blue>/realty unset titleholder <region></blue> <gray>- Clear freehold title
         holder</gray>
-    - <blue>/realty set tenant <player> <region></blue> <gray>- Set lease tenant</gray>
-    - <blue>/realty unset tenant <region></blue> <gray>- Clear lease tenant</gray>
-    - <blue>/realty modify price|duration|maxextensions <value> <region></blue> <gray>-
-        Propose new lease terms for the next cycle</gray>
+    - <blue>/realty set tenant <player> <region> [--now]</blue> <gray>- Set lease tenant</gray>
+    - <blue>/realty unset tenant <region> [--now]</blue> <gray>- Clear lease tenant</gray>
     - <blue>/realty modify accept|reject <region></blue> <gray>- Resolve a tenant's
         proposal</gray>
     - <blue>/realty modify withdraw <region></blue> <gray>- Withdraw your pending proposal</gray>
@@ -684,11 +684,19 @@ set:
     no-permission: <prefix> You do not have permission to modify this region.
     check-permissions-error: '<prefix> Failed to check permissions: <error>'
     not-landlord: <prefix> You are not the landlord of region <yellow><region>.</yellow>
-    occupied-use-modify: <prefix> Region <yellow><region></yellow> is currently rented.
-        Use <green>/realty modify</green> to change its terms for the next cycle, or
-        have an admin force the change.
-    leasehold-no-permission: <prefix> Leasehold terms cannot be set instantly. Use <green>/realty
-        modify</green> to change region <yellow><region></yellow> from the next cycle.
+    rented-needs-now: <prefix> Region <yellow><region></yellow> is currently rented. Add
+        <green>--now</green> to change this immediately.
+    rented-no-now-permission: <prefix> Region <yellow><region></yellow> is currently rented,
+        and you do not have permission to change this while it is rented.
+    unlimited-needs-now: <prefix> Unlimited extensions cannot wait for a renewal on region
+        <yellow><region>.</yellow> Choose a number instead.
+    console-needs-now: <prefix> Region <yellow><region></yellow> is rented and its landlord
+        is not a player, so the console cannot schedule this. Add <green>--now</green> to
+        change it immediately.
+    just-rented: <prefix> Region <yellow><region></yellow> was just rented, so nothing was
+        changed. Run the command again.
+    just-vacated: <prefix> Region <yellow><region></yellow> was just vacated, so nothing was
+        changed. Run the command again.
 modify:
     propose-success-landlord: <prefix> You have <green>proposed new terms</green> for
         region <yellow><region></yellow>. They take effect the next time the tenant
@@ -697,8 +705,6 @@ modify:
         region <yellow><region></yellow>. The landlord must accept before they take
         effect.
     no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not a leasehold.
-    not-occupied: <prefix> Region <yellow><region></yellow> has no tenant, so there
-        is nothing to modify. Use <green>/realty set</green> while it is vacant.
     terminating: <prefix> Region <yellow><region></yellow> is scheduled for termination
         and cannot be modified.
     not-authorized: <prefix> You are not the landlord or tenant of region <yellow><region>.</yellow>

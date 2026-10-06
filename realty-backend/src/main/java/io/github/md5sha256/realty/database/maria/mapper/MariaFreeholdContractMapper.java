@@ -142,10 +142,15 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             SET fc.price = #{price}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND (#{guardTitleHolder} = FALSE OR fc.titleHolderId <=> #{requiredTitleHolderId})
+            AND (#{requiredAuthorityPartyId} IS NULL OR fc.authorityPartyId = #{requiredAuthorityPartyId})
             """)
     int updatePriceByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                             @Param("worldId") @NotNull UUID worldId,
-                            @Param("price") @Nullable Double price);
+                            @Param("price") @Nullable Double price,
+                            @Param("guardTitleHolder") boolean guardTitleHolder,
+                            @Param("requiredTitleHolderId") @Nullable UUID requiredTitleHolderId,
+                            @Param("requiredAuthorityPartyId") @Nullable Integer requiredAuthorityPartyId);
 
     @Override
     @Update("""
@@ -155,10 +160,15 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             SET fc.titleHolderId = #{titleHolder}
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND (#{guardTitleHolder} = FALSE OR fc.titleHolderId <=> #{requiredTitleHolderId})
+            AND (#{requiredAuthorityPartyId} IS NULL OR fc.authorityPartyId = #{requiredAuthorityPartyId})
             """)
     int updateTitleHolderByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                   @Param("worldId") @NotNull UUID worldId,
-                                  @Param("titleHolder") @Nullable UUID titleHolder);
+                                  @Param("titleHolder") @Nullable UUID titleHolder,
+                                  @Param("guardTitleHolder") boolean guardTitleHolder,
+                                  @Param("requiredTitleHolderId") @Nullable UUID requiredTitleHolderId,
+                                  @Param("requiredAuthorityPartyId") @Nullable Integer requiredAuthorityPartyId);
 
     @Override
     @Update("""

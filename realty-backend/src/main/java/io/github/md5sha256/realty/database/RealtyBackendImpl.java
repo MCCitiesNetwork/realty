@@ -54,6 +54,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -375,17 +376,126 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
-    // --- Set Price ---
+    /** Why a guarded term write changed no row. */
+    enum WriteRefusal {
+        HOLDER_DIFFERS,
+        OCCUPIED,
+        OTHER
+    }
 
+    /**
+     * Ends the transaction that the caller's reads opened, so that the next statement starts a
+     * new one. Call it only while the session has changed no row.
+     * <p>
+     * A setter reads the contract, checks who may change it, and then runs an {@code UPDATE} whose
+     * {@code WHERE} clause repeats that check against the stored row. The first read opens a
+     * transaction and fixes its view of the database. If another transaction then commits a change
+     * to the same contract (a tenant rents, the landlord changes), MariaDB 11.7 does not run the
+     * {@code UPDATE} against the changed row: it fails the statement with "Record has changed
+     * since last read". Once the transaction is ended, the {@code UPDATE} sees the committed row
+     * and changes none, and the setter can answer that the caller no longer holds the region or
+     * that it is now occupied. A read that follows such a refusal needs the same, because inside
+     * the old transaction it would return the row as it was first read.
+     * <p>
+     * The rollback undoes nothing, because nothing has been written: it is only the way to end
+     * the transaction. It is forced ({@code true}) because MyBatis sends no rollback for a session
+     * that has changed no row.
+     */
+    static void endRead(@NotNull SqlSessionWrapper wrapper) {
+        wrapper.session().rollback(true);
+    }
+
+    /**
+     * Explains why a guarded leasehold write changed no row. It ends the read first
+     * ({@link #endRead}), so that it sees a rent or landlord change committed since the caller
+     * read the contract.
+     *
+     * @param expectedLandlordPartyId the landlord's party id that the write required, or
+     *                                {@code null} when the write had no landlord condition
+     * @param vacantOnly              whether the write required that there be no tenant
+     */
+    static @NotNull WriteRefusal diagnoseLeaseholdRefusal(@NotNull SqlSessionWrapper wrapper,
+                                                          @NotNull String worldGuardRegionId,
+                                                          @NotNull UUID worldId,
+                                                          @Nullable Integer expectedLandlordPartyId,
+                                                          boolean vacantOnly) {
+        endRead(wrapper);
+        LeaseholdContractEntity current = wrapper.leaseholdContractMapper()
+                .selectByRegion(worldGuardRegionId, worldId);
+        if (current == null) {
+            return WriteRefusal.OTHER;
+        }
+        if (expectedLandlordPartyId != null
+                && expectedLandlordPartyId != namedPartyId(wrapper, current.landlord())) {
+            return WriteRefusal.HOLDER_DIFFERS;
+        }
+        if (vacantOnly && current.tenantId() != null) {
+            return WriteRefusal.OCCUPIED;
+        }
+        return WriteRefusal.OTHER;
+    }
+
+    /**
+     * Freehold counterpart of {@link #diagnoseLeaseholdRefusal}; there is no tenancy to check.
+     *
+     * @param holderConditionApplied whether the write required a title holder at all
+     * @param expectedTitleHolderId  the title holder the write required; {@code null} means none
+     * @param expectedAuthorityPartyId the authority's party id that the write required, or
+     *                               {@code null} when it had no authority condition
+     */
+    static @NotNull WriteRefusal diagnoseFreeholdRefusal(@NotNull SqlSessionWrapper wrapper,
+                                                         @NotNull String worldGuardRegionId,
+                                                         @NotNull UUID worldId,
+                                                         boolean holderConditionApplied,
+                                                         @Nullable UUID expectedTitleHolderId,
+                                                         @Nullable Integer expectedAuthorityPartyId) {
+        endRead(wrapper);
+        FreeholdContractEntity current = wrapper.freeholdContractMapper()
+                .selectByRegion(worldGuardRegionId, worldId);
+        if (current != null && holderConditionApplied
+                && !Objects.equals(expectedTitleHolderId, current.titleHolderId())) {
+            return WriteRefusal.HOLDER_DIFFERS;
+        }
+        if (current != null && expectedAuthorityPartyId != null
+                && expectedAuthorityPartyId != namedPartyId(wrapper, current.authority())) {
+            return WriteRefusal.HOLDER_DIFFERS;
+        }
+        return WriteRefusal.OTHER;
+    }
+
+    /** Who acts for a freehold: its title holder, or its authority while it has none. */
+    private static @NotNull Party freeholdHolder(@NotNull FreeholdContractEntity freehold) {
+        UUID titleHolderId = freehold.titleHolderId();
+        return titleHolderId != null ? Party.personal(titleHolderId) : freehold.authority();
+    }
+
+    /**
+     * The authority condition for a guarded freehold write: while the freehold has no title holder
+     * the authority is the one who acts for it, so it must still be the authority that was checked.
+     * A title holder's authority to act does not depend on the authority, and a bypassing actor
+     * is held to nothing.
+     */
+    private static @Nullable Integer requiredAuthorityPartyId(@NotNull ActorContext ctx,
+                                                              @NotNull FreeholdContractEntity freehold,
+                                                              int authorityPartyId) {
+        return !ctx.bypass() && freehold.titleHolderId() == null ? authorityPartyId : null;
+    }
+
+    // --- Set Price ---
 
     @Override
     public @NotNull SetPriceResult setPrice(@NotNull String worldGuardRegionId,
                                              @NotNull UUID worldId,
-                                             double price) {
+                                             double price,
+                                             @NotNull ActorContext ctx,
+                                             boolean vacantOnly) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (freehold != null) {
+                if (!ctx.mayManage(freeholdHolder(freehold))) {
+                    return new SetPriceResult.NotAuthorized();
+                }
                 if (wrapper.freeholdContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)) {
                     return new SetPriceResult.AuctionExists();
                 }
@@ -395,14 +505,23 @@ public class RealtyBackendImpl implements RealtyBackend {
                 if (wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                     return new SetPriceResult.BidPaymentInProgress();
                 }
-                int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price);
+                int authorityPartyId = namedPartyId(wrapper, freehold.authority());
+                boolean guardTitleHolder = !ctx.bypass();
+                Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
+                endRead(wrapper);
+                int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price,
+                        guardTitleHolder, freehold.titleHolderId(), requiredAuthorityPartyId);
                 if (updated == 0) {
+                    if (diagnoseFreeholdRefusal(wrapper, worldGuardRegionId, worldId,
+                            guardTitleHolder, freehold.titleHolderId(),
+                            requiredAuthorityPartyId) == WriteRefusal.HOLDER_DIFFERS) {
+                        return new SetPriceResult.NotAuthorized();
+                    }
                     return new SetPriceResult.UpdateFailed();
                 }
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.SET_PRICE.name(),
-                        freehold.titleHolderId(),
-                        namedPartyId(wrapper, freehold.authority()), price);
+                        freehold.titleHolderId(), authorityPartyId, price);
                 wrapper.session().commit();
                 return new SetPriceResult.Success();
             }
@@ -411,13 +530,28 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (lease == null) {
                 return new SetPriceResult.NoContract();
             }
-            int updated = leaseholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price);
+            if (!ctx.mayManage(lease.landlord())) {
+                return new SetPriceResult.NotAuthorized();
+            }
+            int landlordPartyId = namedPartyId(wrapper, lease.landlord());
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
+            endRead(wrapper);
+            int updated = leaseholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, price,
+                    requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {
+                WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        requiredLandlordPartyId, vacantOnly);
+                if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                    return new SetPriceResult.NotAuthorized();
+                }
+                if (refusal == WriteRefusal.OCCUPIED) {
+                    return new SetPriceResult.Occupied();
+                }
                 return new SetPriceResult.UpdateFailed();
             }
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.SET_PRICE.name(),
-                    lease.tenantId(), namedPartyId(wrapper, lease.landlord()),
+                    lease.tenantId(), landlordPartyId,
                     price, lease.durationSeconds(), null);
             wrapper.session().commit();
             return new SetPriceResult.Success();
@@ -426,15 +560,18 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     // --- Unset Price ---
 
-
     @Override
     public @NotNull UnsetPriceResult unsetPrice(@NotNull String worldGuardRegionId,
-                                                  @NotNull UUID worldId) {
+                                                  @NotNull UUID worldId,
+                                                  @NotNull ActorContext ctx) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new UnsetPriceResult.NoFreeholdContract();
+            }
+            if (!ctx.mayManage(freeholdHolder(freehold))) {
+                return new UnsetPriceResult.NotAuthorized();
             }
             if (wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new UnsetPriceResult.OfferPaymentInProgress();
@@ -442,15 +579,24 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new UnsetPriceResult.BidPaymentInProgress();
             }
-            int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            int authorityPartyId = namedPartyId(wrapper, freehold.authority());
+            boolean guardTitleHolder = !ctx.bypass();
+            Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
+            endRead(wrapper);
+            int updated = freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null,
+                    guardTitleHolder, freehold.titleHolderId(), requiredAuthorityPartyId);
             if (updated == 0) {
+                if (diagnoseFreeholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        guardTitleHolder, freehold.titleHolderId(),
+                        requiredAuthorityPartyId) == WriteRefusal.HOLDER_DIFFERS) {
+                    return new UnsetPriceResult.NotAuthorized();
+                }
                 return new UnsetPriceResult.UpdateFailed();
             }
             double previousPrice = freehold.price() != null ? freehold.price() : 0;
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.UNSET_PRICE.name(),
-                    freehold.titleHolderId(),
-                    namedPartyId(wrapper, freehold.authority()), previousPrice);
+                    freehold.titleHolderId(), authorityPartyId, previousPrice);
             wrapper.session().commit();
             return new UnsetPriceResult.Success();
         }
@@ -458,24 +604,40 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     // --- Set Duration ---
 
-
     @Override
     public @NotNull SetDurationResult setDuration(@NotNull String worldGuardRegionId,
                                                     @NotNull UUID worldId,
-                                                    long durationSeconds) {
+                                                    long durationSeconds,
+                                                    @NotNull ActorContext ctx,
+                                                    boolean vacantOnly) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new SetDurationResult.NoLeaseholdContract();
             }
-            int updated = leaseholdMapper.updateDurationByRegion(worldGuardRegionId, worldId, durationSeconds);
+            if (!ctx.mayManage(lease.landlord())) {
+                return new SetDurationResult.NotAuthorized();
+            }
+            int landlordPartyId = namedPartyId(wrapper, lease.landlord());
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
+            endRead(wrapper);
+            int updated = leaseholdMapper.updateDurationByRegion(worldGuardRegionId, worldId, durationSeconds,
+                    requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {
+                WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        requiredLandlordPartyId, vacantOnly);
+                if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                    return new SetDurationResult.NotAuthorized();
+                }
+                if (refusal == WriteRefusal.OCCUPIED) {
+                    return new SetDurationResult.Occupied();
+                }
                 return new SetDurationResult.UpdateFailed();
             }
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.SET_DURATION.name(),
-                    lease.tenantId(), namedPartyId(wrapper, lease.landlord()),
+                    lease.tenantId(), landlordPartyId,
                     lease.price(), durationSeconds, null);
             wrapper.session().commit();
             return new SetDurationResult.Success();
@@ -484,29 +646,45 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     // --- Set Max Renewals ---
 
-
     @Override
     public @NotNull SetMaxRenewalsResult setMaxRenewals(@NotNull String worldGuardRegionId,
                                                           @NotNull UUID worldId,
-                                                          int maxRenewals) {
+                                                          int maxRenewals,
+                                                          @NotNull ActorContext ctx,
+                                                          boolean vacantOnly) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new SetMaxRenewalsResult.NoLeaseholdContract();
             }
+            if (!ctx.mayManage(lease.landlord())) {
+                return new SetMaxRenewalsResult.NotAuthorized();
+            }
             if (maxRenewals >= 0 && lease.tenantId() != null
                     && lease.currentMaxExtensions() != null
                     && maxRenewals < lease.currentMaxExtensions()) {
                 return new SetMaxRenewalsResult.BelowCurrentExtensions(lease.currentMaxExtensions());
             }
-            int updated = leaseholdMapper.updateMaxRenewalsByRegion(worldGuardRegionId, worldId, maxRenewals);
+            int landlordPartyId = namedPartyId(wrapper, lease.landlord());
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
+            endRead(wrapper);
+            int updated = leaseholdMapper.updateMaxRenewalsByRegion(worldGuardRegionId, worldId, maxRenewals,
+                    requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {
+                WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        requiredLandlordPartyId, vacantOnly);
+                if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                    return new SetMaxRenewalsResult.NotAuthorized();
+                }
+                if (refusal == WriteRefusal.OCCUPIED) {
+                    return new SetMaxRenewalsResult.Occupied();
+                }
                 return new SetMaxRenewalsResult.UpdateFailed();
             }
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     HistoryEventType.SET_MAX_EXTENSIONS.name(),
-                    lease.tenantId(), namedPartyId(wrapper, lease.landlord()),
+                    lease.tenantId(), landlordPartyId,
                     lease.price(), lease.durationSeconds(),
                     maxRenewals < 0 ? null : maxRenewals);
             wrapper.session().commit();
@@ -521,7 +699,8 @@ public class RealtyBackendImpl implements RealtyBackend {
     public @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
                                                     @NotNull UUID worldId,
                                                     @NotNull Party newLandlord,
-                                                    @NotNull ActorContext ctx) {
+                                                    @NotNull ActorContext ctx,
+                                                    boolean vacantOnly) {
         int landlordPartyId = partyIdCreatingIfAbsent(newLandlord);
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
@@ -536,8 +715,24 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!ctx.mayManage(newLandlord)) {
                 return new SetLandlordResult.NotAllowedToAssign(newLandlord);
             }
-            int updated = leaseholdMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordPartyId);
+            int previousLandlordPartyId = namedPartyId(wrapper, previousLandlord);
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : previousLandlordPartyId;
+            endRead(wrapper);
+            int updated = leaseholdMapper.updateLandlordByRegion(worldGuardRegionId, worldId, landlordPartyId,
+                    requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {
+                WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        requiredLandlordPartyId, vacantOnly);
+                if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                    LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+                    if (current == null) {
+                        return new SetLandlordResult.UpdateFailed();
+                    }
+                    return new SetLandlordResult.NotAllowedToReassign(current.landlord());
+                }
+                if (refusal == WriteRefusal.OCCUPIED) {
+                    return new SetLandlordResult.Occupied();
+                }
                 return new SetLandlordResult.UpdateFailed();
             }
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
@@ -577,27 +772,41 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull SetTitleHolderResult setTitleHolder(@NotNull String worldGuardRegionId,
                                                          @NotNull UUID worldId,
-                                                         @Nullable UUID titleHolderId) {
+                                                         @Nullable UUID titleHolderId,
+                                                         @NotNull ActorContext ctx) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new SetTitleHolderResult.NoFreeholdContract();
             }
+            if (!ctx.mayManage(freeholdHolder(freehold))) {
+                return new SetTitleHolderResult.NotAuthorized();
+            }
             UUID previousTitleHolder = freehold.titleHolderId();
-            int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId);
+            int authorityPartyId = namedPartyId(wrapper, freehold.authority());
+            boolean guardTitleHolder = !ctx.bypass();
+            Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
+            endRead(wrapper);
+            int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
+                    guardTitleHolder, previousTitleHolder, requiredAuthorityPartyId);
             if (updated == 0) {
+                if (diagnoseFreeholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        guardTitleHolder, previousTitleHolder,
+                        requiredAuthorityPartyId) == WriteRefusal.HOLDER_DIFFERS) {
+                    return new SetTitleHolderResult.NotAuthorized();
+                }
                 return new SetTitleHolderResult.UpdateFailed();
             }
             double historyPrice = freehold.price() != null ? freehold.price() : 0;
             if (titleHolderId != null) {
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.SET_TITLEHOLDER.name(),
-                        titleHolderId, namedPartyId(wrapper, freehold.authority()), historyPrice);
+                        titleHolderId, authorityPartyId, historyPrice);
             } else {
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.UNSET_TITLEHOLDER.name(),
-                        previousTitleHolder, namedPartyId(wrapper, freehold.authority()), historyPrice);
+                        previousTitleHolder, authorityPartyId, historyPrice);
             }
             wrapper.session().commit();
             return new SetTitleHolderResult.Success(previousTitleHolder);
@@ -617,11 +826,12 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetTitleHolderResult.NoFreeholdContract();
             }
             UUID previousTitleHolder = freehold.titleHolderId();
-            int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId);
+            int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
+                    false, null, null);
             if (updated == 0) {
                 return new SetTitleHolderResult.UpdateFailed();
             }
-            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             double historyPrice = freehold.price() != null ? freehold.price() : 0;
             if (titleHolderId != null) {
                 wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId,
@@ -650,7 +860,7 @@ public class RealtyBackendImpl implements RealtyBackend {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             for (String childRegionId : childRegionIds) {
-                leaseholdMapper.updateLandlordByRegion(childRegionId, worldId, landlordPartyId);
+                leaseholdMapper.updateLandlordByRegion(childRegionId, worldId, landlordPartyId, null, false);
             }
             wrapper.session().commit();
         }
@@ -662,27 +872,44 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull SetTenantResult setTenant(@NotNull String worldGuardRegionId,
                                                 @NotNull UUID worldId,
-                                                @Nullable UUID tenantId) {
+                                                @Nullable UUID tenantId,
+                                                @NotNull ActorContext ctx,
+                                                boolean vacantOnly) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
             LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (lease == null) {
                 return new SetTenantResult.NoLeaseholdContract();
             }
+            if (!ctx.mayManage(lease.landlord())) {
+                return new SetTenantResult.NotAuthorized();
+            }
             UUID previousTenant = lease.tenantId();
-            int updated = leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId);
+            int landlordPartyId = namedPartyId(wrapper, lease.landlord());
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
+            endRead(wrapper);
+            int updated = leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, tenantId,
+                    requiredLandlordPartyId, vacantOnly);
             if (updated == 0) {
+                WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        requiredLandlordPartyId, vacantOnly);
+                if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                    return new SetTenantResult.NotAuthorized();
+                }
+                if (refusal == WriteRefusal.OCCUPIED) {
+                    return new SetTenantResult.Occupied();
+                }
                 return new SetTenantResult.UpdateFailed();
             }
             if (tenantId != null) {
                 wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.SET_TENANT.name(),
-                        tenantId, namedPartyId(wrapper, lease.landlord()),
+                        tenantId, landlordPartyId,
                         lease.price(), lease.durationSeconds(), null);
             } else {
                 wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.UNSET_TENANT.name(),
-                        previousTenant, namedPartyId(wrapper, lease.landlord()),
+                        previousTenant, landlordPartyId,
                         lease.price(), lease.durationSeconds(), null);
             }
             wrapper.session().commit();
@@ -910,7 +1137,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // Only this tenant's reservation. If the region has been let to somebody else
             // since, clearing the tenant would evict them.
             if (lease != null && tenantId.equals(lease.tenantId())) {
-                leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, null);
+                leaseholdMapper.updateTenantByRegion(worldGuardRegionId, worldId, null, null, false);
             }
             // The record went in with the tenant, so it comes out here. Left behind, it
             // said the region had been let.
@@ -2066,7 +2293,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return;
             }
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
-            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
@@ -2155,7 +2382,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
-            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null);
+            freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),

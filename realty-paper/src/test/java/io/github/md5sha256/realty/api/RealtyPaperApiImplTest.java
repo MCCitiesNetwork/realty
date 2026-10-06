@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.settings.AccountManagers;
@@ -447,6 +448,209 @@ class RealtyPaperApiImplTest {
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.Success.class, result);
             verify(economyProvider).transfer(eq(BUYER), eq(GOVERNMENT), eq(1000.0), any(), eq(BUYER_ID));
             verify(realtyApi, never()).rollbackBuy(any(), any(), any(), any());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // a region is held until its payment settles
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("a region is held until its payment settles")
+    class HeldUntilPaymentSettles {
+
+        private static final String OTHER_REGION_ID = "other_region";
+        private static final ActorContext SECOND_BUYER_CTX = ActorContext.player(UUID.randomUUID(), false);
+
+        /** What waits for the main thread. It runs when the test says so. */
+        private final java.util.ArrayDeque<Runnable> mainThread = new java.util.ArrayDeque<>();
+        private RealtyPaperApiImpl held;
+
+        @BeforeEach
+        void holdTheMainThread() {
+            ExecutorState controlled = new ExecutorState(mainThread::add,
+                    sameThreadExecutorService(), sameThreadExecutorService());
+            held = new RealtyPaperApiImpl(realtyApi, economyProvider,
+                    controlled, database, regionProfileService, signTextApplicator, signCache,
+                    () -> 604800, new SafeLocationFinder(), stubPlayerNameService(),
+                    accountId -> CompletableFuture.completedFuture(Optional.empty()),
+                    new ActorContexts(treasury, null,
+                            new AtomicReference<>(new Settings(null, null, null,
+                                    new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
+                                    0, 0, 0, 0, AccountManagers.MEMBERS)),
+                            realtyApi));
+        }
+
+        private void runMainThread() {
+            Runnable next;
+            while ((next = mainThread.poll()) != null) {
+                next.run();
+            }
+        }
+
+        /** A purchase that is reserved in the database and whose payment has not run yet. */
+        private CompletableFuture<RealtyPaperApi.BuyResult> reservedPurchase() {
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(RESERVED);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = held.buy(wgRegion, BUYER_CTX, false);
+            Assertions.assertFalse(purchase.isDone());
+            Assertions.assertEquals(1, mainThread.size());
+            return purchase;
+        }
+
+        /** A tenancy that is reserved in the database and whose payment has not run yet. */
+        private CompletableFuture<RealtyPaperApi.RentResult> reservedTenancy() {
+            when(realtyApi.rentRegion(REGION_ID, WORLD_ID, TENANT_ID)).thenReturn(LET);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            CompletableFuture<RealtyPaperApi.RentResult> tenancy = held.rent(wgRegion, TENANT_ID);
+            Assertions.assertFalse(tenancy.isDone());
+            Assertions.assertEquals(1, mainThread.size());
+            return tenancy;
+        }
+
+        @Test
+        @DisplayName("setPrice waits for a purchase of the region and runs once it is rolled back")
+        void setPriceWaitsForThePurchase() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(economyProvider.getBalance(BUYER)).thenReturn(500.0);
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+
+            CompletableFuture<RealtyBackend.SetPriceResult> price =
+                    held.setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+
+            // The unpaid buyer is the stored titleholder here, so the write must not start.
+            verify(realtyApi, never()).setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+            Assertions.assertFalse(price.isDone());
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.InsufficientFunds.class, purchase.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, RESERVED);
+            order.verify(realtyApi).setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, price.join());
+        }
+
+        @Test
+        @DisplayName("a second purchase of the region waits for the first to settle")
+        void secondPurchaseWaitsForTheFirst() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(economyProvider.getBalance(BUYER)).thenReturn(500.0);
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, SECOND_BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.BuyResult.NotForFreehold());
+
+            CompletableFuture<RealtyPaperApi.BuyResult> second = held.buy(wgRegion, SECOND_BUYER_CTX, false);
+
+            verify(realtyApi, never()).executeBuy(REGION_ID, WORLD_ID, SECOND_BUYER_CTX, false);
+            Assertions.assertFalse(second.isDone());
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.InsufficientFunds.class, purchase.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, RESERVED);
+            order.verify(realtyApi).executeBuy(REGION_ID, WORLD_ID, SECOND_BUYER_CTX, false);
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.NotForSale.class, second.join());
+        }
+
+        @Test
+        @DisplayName("setPrice on another region does not wait for the purchase")
+        void setPriceElsewhereIsNotHeld() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(realtyApi.setPrice(OTHER_REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.NotAuthorized());
+
+            held.setPrice(OTHER_REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+
+            verify(realtyApi).setPrice(OTHER_REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+            Assertions.assertFalse(purchase.isDone());
+        }
+
+        @Test
+        @DisplayName("a purchase whose payment step throws still lets go of the region")
+        void paymentThatThrowsLetsGo() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(economyProvider.getBalance(BUYER)).thenThrow(new IllegalStateException("economy down"));
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.NotAuthorized());
+
+            CompletableFuture<RealtyBackend.SetPriceResult> price =
+                    held.setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+
+            verify(realtyApi, never()).setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.Error.class, purchase.join());
+            verify(realtyApi).setPrice(REGION_ID, WORLD_ID, 0.01, BUYER_CTX, true);
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.NotAuthorized.class, price.join());
+        }
+
+        @Test
+        @DisplayName("setTitleHolder waits for a purchase of the region")
+        void setTitleHolderWaitsForThePurchase() {
+            CompletableFuture<RealtyPaperApi.BuyResult> purchase = reservedPurchase();
+            when(economyProvider.getBalance(BUYER)).thenReturn(500.0);
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, TENANT_ID, BUYER_CTX))
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.NotAuthorized());
+
+            CompletableFuture<RealtyPaperApi.SetTitleHolderResult> title =
+                    held.setTitleHolder(wgRegion, TENANT, BUYER_CTX);
+
+            verify(realtyApi, never()).setTitleHolder(REGION_ID, WORLD_ID, TENANT_ID, BUYER_CTX);
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.InsufficientFunds.class, purchase.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, RESERVED);
+            order.verify(realtyApi).setTitleHolder(REGION_ID, WORLD_ID, TENANT_ID, BUYER_CTX);
+            Assertions.assertInstanceOf(RealtyPaperApi.SetTitleHolderResult.NotAuthorized.class, title.join());
+        }
+
+        @Test
+        @DisplayName("setTenant waits for a tenancy of the region that is being paid for")
+        void setTenantWaitsForTheTenancy() {
+            CompletableFuture<RealtyPaperApi.RentResult> tenancy = reservedTenancy();
+            when(economyProvider.getBalance(TENANT)).thenReturn(0.0);
+            when(realtyApi.setTenant(REGION_ID, WORLD_ID, null, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.SetTenantResult.NotAuthorized());
+
+            CompletableFuture<RealtyPaperApi.SetTenantResult> cleared =
+                    held.setTenant(wgRegion, null, BUYER_CTX, false);
+
+            verify(realtyApi, never()).setTenant(REGION_ID, WORLD_ID, null, BUYER_CTX, false);
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RentResult.InsufficientFunds.class, tenancy.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackRent(REGION_ID, WORLD_ID, TENANT_ID, LET);
+            order.verify(realtyApi).setTenant(REGION_ID, WORLD_ID, null, BUYER_CTX, false);
+            Assertions.assertInstanceOf(RealtyPaperApi.SetTenantResult.NotAuthorized.class, cleared.join());
+        }
+
+        @Test
+        @DisplayName("setLandlord waits for a tenancy of the region that is being paid for")
+        void setLandlordWaitsForTheTenancy() {
+            CompletableFuture<RealtyPaperApi.RentResult> tenancy = reservedTenancy();
+            when(economyProvider.getBalance(TENANT)).thenReturn(0.0);
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, BUYER, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetLandlordResult.Occupied());
+
+            CompletableFuture<RealtyPaperApi.SetLandlordResult> landlord =
+                    held.setLandlord(wgRegion, BUYER, BUYER_CTX, true);
+
+            verify(realtyApi, never()).setLandlord(REGION_ID, WORLD_ID, BUYER, BUYER_CTX, true);
+
+            runMainThread();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RentResult.InsufficientFunds.class, tenancy.join());
+            InOrder order = inOrder(realtyApi);
+            order.verify(realtyApi).rollbackRent(REGION_ID, WORLD_ID, TENANT_ID, LET);
+            order.verify(realtyApi).setLandlord(REGION_ID, WORLD_ID, BUYER, BUYER_CTX, true);
+            Assertions.assertInstanceOf(RealtyPaperApi.SetLandlordResult.Occupied.class, landlord.join());
         }
     }
 
@@ -945,7 +1149,7 @@ class RealtyPaperApiImplTest {
             assertOnlyPlayersRefusal(api.transferTitleHolder(wgRegion, GOVERNMENT));
             assertOnlyPlayersRefusal(api.createFreehold(wgRegion, 1000.0, GOVERNMENT, GOVERNMENT));
             assertOnlyPlayersRefusal(api.registerFreehold(wgRegion, 1000.0, GOVERNMENT, GOVERNMENT));
-            verify(realtyApi, never()).setTitleHolder(any(), any(), any());
+            verify(realtyApi, never()).setTitleHolder(any(), any(), any(), any());
             verify(realtyApi, never()).transferTitleHolder(any(), any(), any());
             verify(realtyApi, never()).createFreehold(any(), any(), any(), any(), any());
         }
@@ -953,7 +1157,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("the previous title holder is given as a player party")
         void previousTitleHolder_isAPlayerParty() {
-            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID, ActorContext.console()))
                     .thenReturn(new RealtyBackend.SetTitleHolderResult.Success(TITLE_HOLDER_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
 
@@ -967,7 +1171,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns NoFreeholdContract when no contract exists")
         void noFreeholdContract() {
-            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID, ActorContext.console()))
                     .thenReturn(new RealtyBackend.SetTitleHolderResult.NoFreeholdContract());
 
             RealtyPaperApi.SetTitleHolderResult result =
@@ -980,7 +1184,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success with holder sets owner and applies SOLD")
         void successWithHolder() {
-            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID))
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID, ActorContext.console()))
                     .thenReturn(new RealtyBackend.SetTitleHolderResult.Success(TITLE_HOLDER_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
@@ -999,7 +1203,7 @@ class RealtyPaperApiImplTest {
         void successWithNull() {
             protectedRegion.getOwners().addPlayer(TITLE_HOLDER_ID);
 
-            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, null))
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, null, ActorContext.console()))
                     .thenReturn(new RealtyBackend.SetTitleHolderResult.Success(TITLE_HOLDER_ID));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
@@ -1011,6 +1215,289 @@ class RealtyPaperApiImplTest {
                     RealtyPaperApi.SetTitleHolderResult.Success.class, result);
             Assertions.assertEquals(0, protectedRegion.getOwners().size());
             verify(regionProfileService).applyFlags(eq(wgRegion), eq(RegionState.FOR_SALE), any());
+        }
+
+        @Test
+        @DisplayName("NotAuthorized leaves owners, flags and signs untouched")
+        void notAuthorized() {
+            protectedRegion.getOwners().addPlayer(TITLE_HOLDER_ID);
+            ActorContext stranger = ActorContext.player(LANDLORD_ID, false);
+
+            when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, BUYER_ID, stranger))
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.NotAuthorized());
+
+            RealtyPaperApi.SetTitleHolderResult result =
+                    api.setTitleHolder(wgRegion, BUYER, stranger).join();
+
+            RealtyPaperApi.SetTitleHolderResult.NotAuthorized refused = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetTitleHolderResult.NotAuthorized.class, result);
+            Assertions.assertEquals(REGION_ID, refused.regionId());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TITLE_HOLDER_ID));
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // setPrice() / unsetPrice() / setDuration() / setMaxRenewals()
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("term setters")
+    class TermSetters {
+
+        private static final Map<String, String> NEW_TERMS = Map.of("price", "5000");
+
+        private void regionIs(RegionState state) {
+            bukkitMock.when(() -> Bukkit.getWorld(WORLD_ID)).thenReturn(world);
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
+                    .thenReturn(new RealtyBackend.RegionWithState(
+                            new RealtyRegionEntity(1, REGION_ID, WORLD_ID), state, NEW_TERMS));
+        }
+
+        private void assertNothingTouched() {
+            verify(realtyApi, never()).getRegionWithState(any(), any());
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("setPrice success updates loaded signs and leaves the flags alone")
+        void setPriceSuccess() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("the old setPrice signature updates loaded signs too")
+        void setPriceOldSignature() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, ActorContext.console(), false))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+
+            api.setPrice(REGION_ID, WORLD_ID, 5000.0).join();
+
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
+        }
+
+        @Test
+        @DisplayName("setPrice on a rented lease redraws the sign as leased, not for lease")
+        void setPriceRentedLease() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.LEASED);
+
+            api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, false).join();
+
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.LEASED, NEW_TERMS);
+            verify(signTextApplicator, never())
+                    .updateLoadedSigns(any(), any(), eq(RegionState.FOR_LEASE), any());
+        }
+
+        @Test
+        @DisplayName("setPrice NotAuthorized touches nothing")
+        void setPriceNotAuthorized() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.NotAuthorized());
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.NotAuthorized.class, result);
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("setPrice Occupied touches nothing")
+        void setPriceOccupied() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Occupied());
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Occupied.class, result);
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("an unreadable state skips the redraw and still returns the result")
+        void unreadableState() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(null);
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a world that is not loaded skips the redraw and still returns the result")
+        void unloadedWorld() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            bukkitMock.when(() -> Bukkit.getWorld(WORLD_ID)).thenReturn(null);
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
+                    .thenReturn(new RealtyBackend.RegionWithState(
+                            new RealtyRegionEntity(1, REGION_ID, WORLD_ID), RegionState.SOLD, NEW_TERMS));
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a failed state read after the write still returns the result")
+        void stateReadFails() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
+                    .thenThrow(new IllegalStateException("database gone"));
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a failed sign update after the write still returns the result")
+        void signUpdateFails() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+            org.mockito.Mockito.doThrow(new IllegalStateException("sign gone"))
+                    .when(signTextApplicator).updateLoadedSigns(any(), any(), any(), any());
+
+            RealtyBackend.SetPriceResult result =
+                    api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("the sign is redrawn and the future completes only when the main thread runs")
+        void completesOnTheMainThread() {
+            java.util.ArrayDeque<Runnable> mainThread = new java.util.ArrayDeque<>();
+            ExecutorState controlled = new ExecutorState(mainThread::add,
+                    sameThreadExecutorService(), sameThreadExecutorService());
+            RealtyPaperApiImpl onControlled = new RealtyPaperApiImpl(realtyApi, economyProvider,
+                    controlled, database, regionProfileService, signTextApplicator, signCache,
+                    () -> 604800, new SafeLocationFinder(), stubPlayerNameService(),
+                    accountId -> CompletableFuture.completedFuture(Optional.empty()),
+                    new ActorContexts(treasury, null,
+                            new AtomicReference<>(new Settings(null, null, null,
+                                    new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
+                                    0, 0, 0, 0, AccountManagers.MEMBERS)),
+                            realtyApi));
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+
+            CompletableFuture<RealtyBackend.SetPriceResult> future =
+                    onControlled.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true);
+
+            Assertions.assertFalse(future.isDone());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+            Assertions.assertEquals(1, mainThread.size());
+
+            mainThread.poll().run();
+
+            Assertions.assertTrue(future.isDone());
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
+        }
+
+        @Test
+        @DisplayName("unsetPrice success updates loaded signs")
+        void unsetPriceSuccess() {
+            when(realtyApi.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX))
+                    .thenReturn(new RealtyBackend.UnsetPriceResult.Success());
+            regionIs(RegionState.SOLD);
+
+            RealtyBackend.UnsetPriceResult result =
+                    api.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.UnsetPriceResult.Success.class, result);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, NEW_TERMS);
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("unsetPrice NotAuthorized touches nothing")
+        void unsetPriceNotAuthorized() {
+            when(realtyApi.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX))
+                    .thenReturn(new RealtyBackend.UnsetPriceResult.NotAuthorized());
+
+            api.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX).join();
+
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("setDuration success updates loaded signs")
+        void setDurationSuccess() {
+            when(realtyApi.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetDurationResult.Success());
+            regionIs(RegionState.FOR_LEASE);
+
+            RealtyBackend.SetDurationResult result =
+                    api.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetDurationResult.Success.class, result);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_LEASE, NEW_TERMS);
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("setDuration Occupied touches nothing")
+        void setDurationOccupied() {
+            when(realtyApi.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetDurationResult.Occupied());
+
+            api.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true).join();
+
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("setMaxRenewals success updates loaded signs")
+        void setMaxRenewalsSuccess() {
+            when(realtyApi.setMaxRenewals(REGION_ID, WORLD_ID, 4, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.SetMaxRenewalsResult.Success());
+            regionIs(RegionState.LEASED);
+
+            RealtyBackend.SetMaxRenewalsResult result =
+                    api.setMaxRenewals(REGION_ID, WORLD_ID, 4, BUYER_CTX, false).join();
+
+            Assertions.assertInstanceOf(RealtyBackend.SetMaxRenewalsResult.Success.class, result);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.LEASED, NEW_TERMS);
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("setMaxRenewals BelowCurrentExtensions touches nothing")
+        void setMaxRenewalsBelowCurrent() {
+            when(realtyApi.setMaxRenewals(REGION_ID, WORLD_ID, 1, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.SetMaxRenewalsResult.BelowCurrentExtensions(3));
+
+            api.setMaxRenewals(REGION_ID, WORLD_ID, 1, BUYER_CTX, false).join();
+
+            assertNothingTouched();
         }
     }
 
@@ -1025,7 +1512,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("success with tenant sets owner and applies LEASED")
         void successWithTenant() {
-            when(realtyApi.setTenant(REGION_ID, WORLD_ID, TENANT_ID))
+            when(realtyApi.setTenant(REGION_ID, WORLD_ID, TENANT_ID, ActorContext.console(), false))
                     .thenReturn(new RealtyBackend.SetTenantResult.Success(null, Party.personal(LANDLORD_ID)));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
@@ -1044,7 +1531,7 @@ class RealtyPaperApiImplTest {
         void successWithNull() {
             protectedRegion.getOwners().addPlayer(TENANT_ID);
 
-            when(realtyApi.setTenant(REGION_ID, WORLD_ID, null))
+            when(realtyApi.setTenant(REGION_ID, WORLD_ID, null, ActorContext.console(), false))
                     .thenReturn(new RealtyBackend.SetTenantResult.Success(TENANT_ID, Party.personal(LANDLORD_ID)));
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
                     .thenReturn(Map.of());
@@ -1065,13 +1552,13 @@ class RealtyPaperApiImplTest {
             CompletableFuture<RealtyPaperApi.SetTenantResult> future = api.setTenant(wgRegion, GOVERNMENT);
 
             assertOnlyPlayersRefusal(future);
-            verify(realtyApi, never()).setTenant(any(), any(), any());
+            verify(realtyApi, never()).setTenant(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
         }
 
         @Test
         @DisplayName("returns NoLeaseholdContract when no contract exists")
         void noLeaseholdContract() {
-            when(realtyApi.setTenant(REGION_ID, WORLD_ID, TENANT_ID))
+            when(realtyApi.setTenant(REGION_ID, WORLD_ID, TENANT_ID, ActorContext.console(), false))
                     .thenReturn(new RealtyBackend.SetTenantResult.NoLeaseholdContract());
 
             RealtyPaperApi.SetTenantResult result =
@@ -1079,6 +1566,47 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetTenantResult.NoLeaseholdContract.class, result);
+        }
+
+        @Test
+        @DisplayName("NotAuthorized leaves owners, flags and signs untouched")
+        void notAuthorized() {
+            protectedRegion.getOwners().addPlayer(TENANT_ID);
+            ActorContext stranger = ActorContext.player(BUYER_ID, false);
+
+            when(realtyApi.setTenant(REGION_ID, WORLD_ID, null, stranger, false))
+                    .thenReturn(new RealtyBackend.SetTenantResult.NotAuthorized());
+
+            RealtyPaperApi.SetTenantResult result =
+                    api.setTenant(wgRegion, (Party) null, stranger, false).join();
+
+            RealtyPaperApi.SetTenantResult.NotAuthorized refused = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetTenantResult.NotAuthorized.class, result);
+            Assertions.assertEquals(REGION_ID, refused.regionId());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID));
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Occupied leaves owners, flags and signs untouched")
+        void occupied() {
+            protectedRegion.getOwners().addPlayer(TENANT_ID);
+            ActorContext landlord = ActorContext.player(LANDLORD_ID, false);
+
+            when(realtyApi.setTenant(REGION_ID, WORLD_ID, BUYER_ID, landlord, true))
+                    .thenReturn(new RealtyBackend.SetTenantResult.Occupied());
+
+            RealtyPaperApi.SetTenantResult result =
+                    api.setTenant(wgRegion, BUYER, landlord, true).join();
+
+            RealtyPaperApi.SetTenantResult.Occupied occupied = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetTenantResult.Occupied.class, result);
+            Assertions.assertEquals(REGION_ID, occupied.regionId());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID));
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
         }
     }
 
@@ -1095,7 +1623,7 @@ class RealtyPaperApiImplTest {
         void success() {
             protectedRegion.getMembers().addPlayer(UUID.randomUUID());
 
-            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console()))
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console(), false))
                     .thenReturn(new RealtyBackend.SetLandlordResult.Success(Party.personal(UUID.randomUUID())));
 
             RealtyPaperApi.SetLandlordResult result =
@@ -1109,7 +1637,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("returns NoLeaseholdContract when no contract exists")
         void noLeaseholdContract() {
-            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console()))
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console(), false))
                     .thenReturn(new RealtyBackend.SetLandlordResult.NoLeaseholdContract());
 
             RealtyPaperApi.SetLandlordResult result =
@@ -1117,6 +1645,25 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetLandlordResult.NoLeaseholdContract.class, result);
+        }
+
+        @Test
+        @DisplayName("Occupied keeps the members")
+        void occupied() {
+            UUID member = UUID.randomUUID();
+            protectedRegion.getMembers().addPlayer(member);
+            ActorContext landlord = ActorContext.player(LANDLORD_ID, false);
+
+            when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(BUYER_ID), landlord, true))
+                    .thenReturn(new RealtyBackend.SetLandlordResult.Occupied());
+
+            RealtyPaperApi.SetLandlordResult result =
+                    api.setLandlord(wgRegion, Party.personal(BUYER_ID), landlord, true).join();
+
+            RealtyPaperApi.SetLandlordResult.Occupied occupied = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetLandlordResult.Occupied.class, result);
+            Assertions.assertEquals(REGION_ID, occupied.regionId());
+            Assertions.assertTrue(protectedRegion.getMembers().contains(member));
         }
     }
 

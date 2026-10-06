@@ -154,12 +154,35 @@ public interface RealtyBackend {
         record AuctionExists() implements SetPriceResult {}
         record OfferPaymentInProgress() implements SetPriceResult {}
         record BidPaymentInProgress() implements SetPriceResult {}
+        record NotAuthorized() implements SetPriceResult {}
+        record Occupied() implements SetPriceResult {}
         record UpdateFailed() implements SetPriceResult {}
     }
 
+    /**
+     * Sets the price of a freehold or a leasehold, with no check of who is acting and no
+     * tenancy condition.
+     */
+    default @NotNull SetPriceResult setPrice(@NotNull String worldGuardRegionId,
+                                             @NotNull UUID worldId,
+                                             double price) {
+        return setPrice(worldGuardRegionId, worldId, price, ActorContext.console(), false);
+    }
+
+    /**
+     * Sets the price of a freehold or a leasehold. Only a manager of the holder (the lease's
+     * landlord, the freehold's title holder, or its authority while it has no title holder) may,
+     * and the write is refused if the holder changes between the check and the write.
+     *
+     * @param ctx        who is acting; a bypassing actor is not held to the holder check
+     * @param vacantOnly whether a leased region with a tenant refuses the change ({@code Occupied});
+     *                   a freehold ignores it
+     */
     @NotNull SetPriceResult setPrice(@NotNull String worldGuardRegionId,
                                      @NotNull UUID worldId,
-                                     double price);
+                                     double price,
+                                     @NotNull ActorContext ctx,
+                                     boolean vacantOnly);
 
     // --- Unset Price ---
 
@@ -168,23 +191,56 @@ public interface RealtyBackend {
         record NoFreeholdContract() implements UnsetPriceResult {}
         record OfferPaymentInProgress() implements UnsetPriceResult {}
         record BidPaymentInProgress() implements UnsetPriceResult {}
+        record NotAuthorized() implements UnsetPriceResult {}
         record UpdateFailed() implements UnsetPriceResult {}
     }
 
+    /** Unsets a freehold's price with no check of who is acting. */
+    default @NotNull UnsetPriceResult unsetPrice(@NotNull String worldGuardRegionId,
+                                                 @NotNull UUID worldId) {
+        return unsetPrice(worldGuardRegionId, worldId, ActorContext.console());
+    }
+
+    /**
+     * Unsets a freehold's price. Only a manager of the title holder (or of the authority while
+     * there is no title holder) may, and the write is refused if the holder changes between the
+     * check and the write.
+     *
+     * @param ctx who is acting; a bypassing actor is not held to the holder check
+     */
     @NotNull UnsetPriceResult unsetPrice(@NotNull String worldGuardRegionId,
-                                         @NotNull UUID worldId);
+                                         @NotNull UUID worldId,
+                                         @NotNull ActorContext ctx);
 
     // --- Set Duration ---
 
     sealed interface SetDurationResult {
         record Success() implements SetDurationResult {}
         record NoLeaseholdContract() implements SetDurationResult {}
+        record NotAuthorized() implements SetDurationResult {}
+        record Occupied() implements SetDurationResult {}
         record UpdateFailed() implements SetDurationResult {}
     }
 
+    /** Sets a leasehold's duration with no check of who is acting and no tenancy condition. */
+    default @NotNull SetDurationResult setDuration(@NotNull String worldGuardRegionId,
+                                                   @NotNull UUID worldId,
+                                                   long durationSeconds) {
+        return setDuration(worldGuardRegionId, worldId, durationSeconds, ActorContext.console(), false);
+    }
+
+    /**
+     * Sets a leasehold's duration. Only a manager of the landlord may, and the write is refused
+     * if the landlord changes between the check and the write.
+     *
+     * @param ctx        who is acting; a bypassing actor is not held to the landlord check
+     * @param vacantOnly whether a lease with a tenant refuses the change ({@code Occupied})
+     */
     @NotNull SetDurationResult setDuration(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
-                                           long durationSeconds);
+                                           long durationSeconds,
+                                           @NotNull ActorContext ctx,
+                                           boolean vacantOnly);
 
     // --- Set Max Renewals ---
 
@@ -192,12 +248,30 @@ public interface RealtyBackend {
         record Success() implements SetMaxRenewalsResult {}
         record NoLeaseholdContract() implements SetMaxRenewalsResult {}
         record BelowCurrentExtensions(int currentExtensions) implements SetMaxRenewalsResult {}
+        record NotAuthorized() implements SetMaxRenewalsResult {}
+        record Occupied() implements SetMaxRenewalsResult {}
         record UpdateFailed() implements SetMaxRenewalsResult {}
     }
 
+    /** Sets a leasehold's renewal limit with no check of who is acting and no tenancy condition. */
+    default @NotNull SetMaxRenewalsResult setMaxRenewals(@NotNull String worldGuardRegionId,
+                                                         @NotNull UUID worldId,
+                                                         int maxRenewals) {
+        return setMaxRenewals(worldGuardRegionId, worldId, maxRenewals, ActorContext.console(), false);
+    }
+
+    /**
+     * Sets a leasehold's renewal limit. Only a manager of the landlord may, and the write is
+     * refused if the landlord changes between the check and the write.
+     *
+     * @param ctx        who is acting; a bypassing actor is not held to the landlord check
+     * @param vacantOnly whether a lease with a tenant refuses the change ({@code Occupied})
+     */
     @NotNull SetMaxRenewalsResult setMaxRenewals(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId,
-                                                 int maxRenewals);
+                                                 int maxRenewals,
+                                                 @NotNull ActorContext ctx,
+                                                 boolean vacantOnly);
 
     // --- Set Landlord ---
 
@@ -205,6 +279,8 @@ public interface RealtyBackend {
         record Success(@NotNull Party previousLandlord) implements SetLandlordResult {}
         record NoLeaseholdContract() implements SetLandlordResult {}
         record UpdateFailed() implements SetLandlordResult {}
+        /** The lease has a tenant and the change was asked for only while it has none. */
+        record Occupied() implements SetLandlordResult {}
         /** The actor may not hand the current landlord's role to another party. */
         record NotAllowedToReassign(@NotNull Party current) implements SetLandlordResult {}
         /** The actor does not manage the party the role would go to. */
@@ -214,12 +290,29 @@ public interface RealtyBackend {
     /**
      * Hands the lease's landlord role to {@code newLandlord}. Unless {@code ctx} bypasses the rules,
      * the current landlord must be in {@link ActorContext#reassigns()} and the new one in
-     * {@link ActorContext#manages()}, checked in that order.
+     * {@link ActorContext#manages()}, checked in that order. There is no tenancy condition.
+     */
+    default @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
+                                                   @NotNull UUID worldId,
+                                                   @NotNull Party newLandlord,
+                                                   @NotNull ActorContext ctx) {
+        return setLandlord(worldGuardRegionId, worldId, newLandlord, ctx, false);
+    }
+
+    /**
+     * Hands the lease's landlord role to {@code newLandlord}. The authority checks are those of
+     * {@link #setLandlord(String, UUID, Party, ActorContext)}. The write is also refused with
+     * {@link SetLandlordResult.NotAllowedToReassign} (carrying the landlord now stored) if the
+     * landlord changes between the check and the write, unless {@code ctx} bypasses the rules.
+     *
+     * @param ctx        who is acting
+     * @param vacantOnly whether a lease with a tenant refuses the change ({@code Occupied})
      */
     @NotNull SetLandlordResult setLandlord(@NotNull String worldGuardRegionId,
                                            @NotNull UUID worldId,
                                            @NotNull Party newLandlord,
-                                           @NotNull ActorContext ctx);
+                                           @NotNull ActorContext ctx,
+                                           boolean vacantOnly);
 
     // --- Set Authority ---
 
@@ -239,11 +332,27 @@ public interface RealtyBackend {
         record Success(@Nullable UUID previousTitleHolder) implements SetTitleHolderResult {}
         record NoFreeholdContract() implements SetTitleHolderResult {}
         record UpdateFailed() implements SetTitleHolderResult {}
+        record NotAuthorized() implements SetTitleHolderResult {}
     }
 
+    /** Sets the title holder with no check of who is acting. */
+    default @NotNull SetTitleHolderResult setTitleHolder(@NotNull String worldGuardRegionId,
+                                                         @NotNull UUID worldId,
+                                                         @Nullable UUID titleHolderId) {
+        return setTitleHolder(worldGuardRegionId, worldId, titleHolderId, ActorContext.console());
+    }
+
+    /**
+     * Sets or clears a freehold's title holder. Only a manager of the current holder (the title
+     * holder, or the authority while there is none) may, and the write is refused if the holder
+     * changes between the check and the write.
+     *
+     * @param ctx who is acting; a bypassing actor is not held to the holder check
+     */
     @NotNull SetTitleHolderResult setTitleHolder(@NotNull String worldGuardRegionId,
                                                  @NotNull UUID worldId,
-                                                 @Nullable UUID titleHolderId);
+                                                 @Nullable UUID titleHolderId,
+                                                 @NotNull ActorContext ctx);
 
     // --- Transfer Title Holder (sets title holder and clears price) ---
 
@@ -263,11 +372,29 @@ public interface RealtyBackend {
         record Success(@Nullable UUID previousTenant, @NotNull Party landlord) implements SetTenantResult {}
         record NoLeaseholdContract() implements SetTenantResult {}
         record UpdateFailed() implements SetTenantResult {}
+        record NotAuthorized() implements SetTenantResult {}
+        record Occupied() implements SetTenantResult {}
     }
 
+    /** Sets the tenant with no check of who is acting and no tenancy condition. */
+    default @NotNull SetTenantResult setTenant(@NotNull String worldGuardRegionId,
+                                               @NotNull UUID worldId,
+                                               @Nullable UUID tenantId) {
+        return setTenant(worldGuardRegionId, worldId, tenantId, ActorContext.console(), false);
+    }
+
+    /**
+     * Sets or clears a lease's tenant. Only a manager of the landlord may, and the write is
+     * refused if the landlord changes between the check and the write.
+     *
+     * @param ctx        who is acting; a bypassing actor is not held to the landlord check
+     * @param vacantOnly whether a lease with a tenant refuses the change ({@code Occupied})
+     */
     @NotNull SetTenantResult setTenant(@NotNull String worldGuardRegionId,
                                        @NotNull UUID worldId,
-                                       @Nullable UUID tenantId);
+                                       @Nullable UUID tenantId,
+                                       @NotNull ActorContext ctx,
+                                       boolean vacantOnly);
 
     // --- Buy (fixed-price) ---
 
