@@ -47,6 +47,11 @@ public final class RegionOrFlagParser<C, T> implements ArgumentParser.FutureArgu
         return ParserDescriptor.of(new RegionOrFlagParser<>(delegate.parser()), valueType);
     }
 
+    /** The parser every word that is not a flag goes to. */
+    @NotNull ArgumentParser<C, T> delegate() {
+        return delegate;
+    }
+
     @Override
     public @NotNull CompletableFuture<ArgumentParseResult<Optional<T>>> parseFuture(
             @NotNull CommandContext<C> ctx,

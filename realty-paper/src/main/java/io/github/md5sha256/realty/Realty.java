@@ -73,6 +73,7 @@ import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
 import io.github.md5sha256.realty.command.util.PartyFlags;
+import io.github.md5sha256.realty.command.util.PartyNameParser;
 import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.database.Database;
@@ -1030,6 +1031,7 @@ public final class Realty extends JavaPlugin {
                 .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
                 .buildOnEnable(this);
         manager.brigadierManager().setNativeNumberSuggestions(true);
+        PartyNameParser.registerBrigadierMappings(manager.brigadierManager());
         Command.Builder<Source> rootBuilder = manager.commandBuilder("realty", "rl");
         // Register help commands and proxy the root literal to the base help command
         List<Command<? extends Source>> helpCommands = helpCommand.commands(rootBuilder);

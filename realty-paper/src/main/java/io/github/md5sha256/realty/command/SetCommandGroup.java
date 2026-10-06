@@ -11,6 +11,7 @@ import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
+import io.github.md5sha256.realty.command.util.PartyNameParser;
 import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.command.util.RegionOrFlagParser;
 import io.github.md5sha256.realty.command.util.SetRouter;
@@ -39,7 +40,6 @@ import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.DoubleParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
-import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -126,7 +126,7 @@ public record SetCommandGroup(
                         .build(),
                 PartyFlags.addTo(base.literal("landlord")
                         .permission("realty.command.set.landlord")
-                        .required("landlord", StringParser.stringParser(), partySuggestions)
+                        .required("landlord", PartyNameParser.partyName(), partySuggestions)
                         .optional("region", RegionOrFlagParser.regionOrFlag()))
                         .flag(NOW_FLAG)
                         .handler(this::executeSetLandlord)
@@ -148,7 +148,7 @@ public record SetCommandGroup(
                         .build(),
                 PartyFlags.addTo(base.literal("authority")
                         .permission("realty.command.set.authority")
-                        .required("authority", StringParser.stringParser(), partySuggestions)
+                        .required("authority", PartyNameParser.partyName(), partySuggestions)
                         .optional("region", RegionOrFlagParser.regionOrFlag()))
                         .handler(this::executeSetAuthority)
                         .build()

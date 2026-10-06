@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
+import io.github.md5sha256.realty.command.util.PartyNameParser;
 import io.github.md5sha256.realty.command.util.PartyResolver;
 import io.github.md5sha256.realty.command.util.RegionOrFlagParser;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
@@ -24,7 +25,6 @@ import org.incendo.cloud.paper.util.sender.PlayerSource;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.IntegerParser;
-import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -125,7 +125,7 @@ public record ListCommand(
      */
     private @NotNull Command.Builder<Source> withName(@NotNull Command.Builder<Source> builder) {
         return PartyFlags.addTo(builder
-                .optional("name", RegionOrFlagParser.of(StringParser.<Source>stringParser()), partySuggestions)
+                .optional("name", RegionOrFlagParser.of(PartyNameParser.<Source>partyName()), partySuggestions)
                 .flag(PAGE_FLAG));
     }
 
