@@ -16,7 +16,7 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.api.ExecutorState;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
@@ -38,7 +38,8 @@ import java.util.concurrent.CompletableFuture;
  * <p>Permissions: {@code realty.command.sign.place}, {@code realty.command.sign.remove},
  * {@code realty.command.sign.list}.</p>
  */
-public record SignCommand(@NotNull RealtyPaperApi api,
+public record SignCommand(@NotNull Server server,
+                           @NotNull RealtyPaperApi api,
                            @NotNull ActorContexts actors,
                            @NotNull ExecutorState executorState,
                            @NotNull MessageContainer messages) implements CustomCommandBean {
@@ -225,7 +226,7 @@ public record SignCommand(@NotNull RealtyPaperApi api,
                     sender.sendMessage(messages.messageFor(MessageKeys.SIGN_LIST_HEADER,
                             Placeholder.unparsed("region", regionId)));
                     for (RealtySignEntity signEntity : signs) {
-                        World signWorld = Bukkit.getWorld(signEntity.worldId());
+                        World signWorld = server.getWorld(signEntity.worldId());
                         String worldName = signWorld != null
                                 ? signWorld.getName() : signEntity.worldId().toString();
                         sender.sendMessage(messages.messageFor(MessageKeys.SIGN_LIST_ENTRY,

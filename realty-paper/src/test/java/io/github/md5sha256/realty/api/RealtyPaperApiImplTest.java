@@ -21,8 +21,8 @@ import io.github.md5sha256.realty.settings.AccountManagers;
 import io.github.md5sha256.realty.settings.Settings;
 import net.democracycraft.treasury.api.TreasuryApi;
 import net.democracycraft.treasury.model.economy.AccountMember;
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -74,13 +74,14 @@ class RealtyPaperApiImplTest {
     @Mock
     private SignTextApplicator signTextApplicator;
     @Mock
+    private Server server;
+    @Mock
     private World world;
     @Mock
     private TreasuryApi treasury;
 
     private SignCache signCache;
     private RealtyPaperApiImpl api;
-    private MockedStatic<Bukkit> bukkitMock;
     private MockedStatic<WorldGuard> worldGuardMock;
     private MockedStatic<BukkitAdapter> bukkitAdapterMock;
 
@@ -130,7 +131,7 @@ class RealtyPaperApiImplTest {
                 new AtomicReference<>(new Settings(null, null, null, new SimpleDateFormat("yyyy"),
                         0, 0, 0, 0, List.of(), null, 0, 0, 0, 0, AccountManagers.MEMBERS)),
                 realtyApi);
-        api = new RealtyPaperApiImpl(realtyApi, economyProvider, executorState, database,
+        api = new RealtyPaperApiImpl(server, realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
                 new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()),
                 actorContexts);
@@ -140,8 +141,6 @@ class RealtyPaperApiImplTest {
         protectedRegion = new ProtectedCuboidRegion(REGION_ID,
                 BlockVector3.at(0, 0, 0), BlockVector3.at(100, 100, 100));
         wgRegion = new WorldGuardRegion(protectedRegion, world);
-
-        bukkitMock = mockStatic(Bukkit.class);
 
         // Mock WorldGuard static chain: getInstance() -> platform -> regionContainer -> get() -> null
         // Returning null for RegionManager makes updateChildLandlords return early
@@ -160,7 +159,6 @@ class RealtyPaperApiImplTest {
 
     @AfterEach
     void tearDown() {
-        bukkitMock.close();
         worldGuardMock.close();
         bukkitAdapterMock.close();
     }
@@ -470,7 +468,7 @@ class RealtyPaperApiImplTest {
         void holdTheMainThread() {
             ExecutorState controlled = new ExecutorState(mainThread::add,
                     sameThreadExecutorService(), sameThreadExecutorService());
-            held = new RealtyPaperApiImpl(realtyApi, economyProvider,
+            held = new RealtyPaperApiImpl(server, realtyApi, economyProvider,
                     controlled, database, regionProfileService, signTextApplicator, signCache,
                     () -> 604800, new SafeLocationFinder(), stubPlayerNameService(),
                     accountId -> CompletableFuture.completedFuture(Optional.empty()),
@@ -1250,7 +1248,7 @@ class RealtyPaperApiImplTest {
         private static final Map<String, String> NEW_TERMS = Map.of("price", "5000");
 
         private void regionIs(RegionState state) {
-            bukkitMock.when(() -> Bukkit.getWorld(WORLD_ID)).thenReturn(world);
+            when(server.getWorld(WORLD_ID)).thenReturn(world);
             when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
                     .thenReturn(new RealtyBackend.RegionWithState(
                             new RealtyRegionEntity(1, REGION_ID, WORLD_ID), state, NEW_TERMS));
@@ -1348,7 +1346,7 @@ class RealtyPaperApiImplTest {
         void unloadedWorld() {
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
-            bukkitMock.when(() -> Bukkit.getWorld(WORLD_ID)).thenReturn(null);
+            when(server.getWorld(WORLD_ID)).thenReturn(null);
             when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
                     .thenReturn(new RealtyBackend.RegionWithState(
                             new RealtyRegionEntity(1, REGION_ID, WORLD_ID), RegionState.SOLD, NEW_TERMS));
@@ -1396,7 +1394,7 @@ class RealtyPaperApiImplTest {
             java.util.ArrayDeque<Runnable> mainThread = new java.util.ArrayDeque<>();
             ExecutorState controlled = new ExecutorState(mainThread::add,
                     sameThreadExecutorService(), sameThreadExecutorService());
-            RealtyPaperApiImpl onControlled = new RealtyPaperApiImpl(realtyApi, economyProvider,
+            RealtyPaperApiImpl onControlled = new RealtyPaperApiImpl(server, realtyApi, economyProvider,
                     controlled, database, regionProfileService, signTextApplicator, signCache,
                     () -> 604800, new SafeLocationFinder(), stubPlayerNameService(),
                     accountId -> CompletableFuture.completedFuture(Optional.empty()),

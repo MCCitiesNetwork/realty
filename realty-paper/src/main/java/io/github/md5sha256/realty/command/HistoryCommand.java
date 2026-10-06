@@ -18,6 +18,7 @@ import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -41,7 +42,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>Permission: {@code realty.command.history}.</p>
  */
-public record HistoryCommand(@NotNull RealtyPaperApi api,
+public record HistoryCommand(@NotNull Server server,
+                              @NotNull RealtyPaperApi api,
                               @NotNull AtomicReference<Settings> settings,
                               @NotNull MessageContainer messages,
                               @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
@@ -84,15 +86,18 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                     .withComponent(DurationParser.duration())
                     .build();
 
-    private static final CommandFlag<UUID> PLAYER_FLAG =
-            CommandFlag.<Source>builder("player")
-                    .withComponent(AuthorityParser.authority())
-                    .build();
-
     private static final CommandFlag<Integer> PAGE_FLAG =
             CommandFlag.<Source>builder("page")
                     .withComponent(IntegerParser.integerParser(1))
                     .build();
+
+    private static final String PLAYER_FLAG = "player";
+
+    private @NotNull CommandFlag<UUID> playerFlag() {
+        return CommandFlag.<Source>builder(PLAYER_FLAG)
+                .withComponent(AuthorityParser.authority(server))
+                .build();
+    }
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -102,7 +107,7 @@ public record HistoryCommand(@NotNull RealtyPaperApi api,
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .flag(EVENT_FLAG)
                 .flag(TIME_FLAG)
-                .flag(PLAYER_FLAG)
+                .flag(playerFlag())
                 .flag(PAGE_FLAG)
                 .handler(this::execute)
                 .build();

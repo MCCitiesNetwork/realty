@@ -11,8 +11,8 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -35,7 +35,7 @@ import java.util.function.Function;
  * <p>Base permission: {@code realty.command.add}.
  * Acting on another player's region additionally requires {@code realty.command.add.others}.</p>
  */
-public record AddCommand(@NotNull MessageContainer messages) implements CustomCommandBean.Single {
+public record AddCommand(@NotNull Server server, @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -50,9 +50,9 @@ public record AddCommand(@NotNull MessageContainer messages) implements CustomCo
                 .build();
     }
 
-    private static @NotNull SuggestionProvider<Source> playerSuggestions() {
+    private @NotNull SuggestionProvider<Source> playerSuggestions() {
         return (ctx, input) -> CompletableFuture.completedFuture(
-                Bukkit.getOnlinePlayers().stream()
+                server.getOnlinePlayers().stream()
                         .map(Player::getName)
                         .map(Suggestion::suggestion)
                         .toList()
@@ -83,7 +83,7 @@ public record AddCommand(@NotNull MessageContainer messages) implements CustomCo
         if (isGroup) {
             protectedRegion.getMembers().addGroup(playerOrGroup);
         } else {
-            OfflinePlayer target = Bukkit.getOfflinePlayer(playerOrGroup);
+            OfflinePlayer target = server.getOfflinePlayer(playerOrGroup);
             protectedRegion.getMembers().addPlayer(target.getUniqueId());
         }
         sender.sendMessage(messages.messageFor(MessageKeys.ADD_SUCCESS,

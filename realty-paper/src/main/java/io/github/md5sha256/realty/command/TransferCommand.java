@@ -12,6 +12,7 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -31,6 +32,7 @@ import java.util.UUID;
  * to transfer regions you don't own).</p>
  */
 public record TransferCommand(
+        @NotNull Server server,
         @NotNull RealtyPaperApi api,
         @NotNull MessageContainer messages,
         @NotNull RealtyEventDispatch events,
@@ -42,7 +44,7 @@ public record TransferCommand(
         return builder
                 .literal("transfer")
                 .permission("realty.command.transfer")
-                .required("titleholder", AuthorityParser.authority())
+                .required("titleholder", AuthorityParser.authority(server))
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();

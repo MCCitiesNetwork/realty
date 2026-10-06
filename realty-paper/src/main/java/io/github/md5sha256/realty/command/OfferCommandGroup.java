@@ -25,8 +25,8 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -55,6 +55,7 @@ import java.util.concurrent.CompletableFuture;
  * </ul>
  */
 public record OfferCommandGroup(
+        @NotNull Server server,
         @NotNull RealtyPaperApi api,
         @NotNull ActorContexts actors,
         @NotNull ExecutorState executorState,
@@ -118,9 +119,9 @@ public record OfferCommandGroup(
         );
     }
 
-    private static @NotNull SuggestionProvider<Source> playerSuggestions() {
+    private @NotNull SuggestionProvider<Source> playerSuggestions() {
         return (ctx, input) -> CompletableFuture.completedFuture(
-                Bukkit.getOnlinePlayers().stream()
+                server.getOnlinePlayers().stream()
                         .map(Player::getName)
                         .map(Suggestion::suggestion)
                         .toList()
@@ -251,7 +252,7 @@ public record OfferCommandGroup(
                 Component output = messages.messageFor(MessageKeys.OFFERS_INBOUND_HEADER);
 
                 for (InboundOfferView offer : offers) {
-                    OfflinePlayer offerer = Bukkit.getOfflinePlayer(offer.offererId());
+                    OfflinePlayer offerer = server.getOfflinePlayer(offer.offererId());
                     String offererName = offerer.getName() != null ? offerer.getName() : offer.offererId().toString();
 
                     String status;
@@ -294,7 +295,7 @@ public record OfferCommandGroup(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
+        OfflinePlayer target = server.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYER_NOT_FOUND,
                     Placeholder.unparsed("player", playerName)));
@@ -463,7 +464,7 @@ public record OfferCommandGroup(
             return;
         }
         @SuppressWarnings("deprecation")
-        OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
+        OfflinePlayer target = server.getOfflinePlayer(playerName);
         if (!target.hasPlayedBefore() && !target.isOnline()) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYER_NOT_FOUND,
                     Placeholder.unparsed("player", playerName)));

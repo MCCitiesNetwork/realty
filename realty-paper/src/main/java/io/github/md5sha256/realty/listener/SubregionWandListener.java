@@ -6,9 +6,9 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.wand.SubregionWand;
 import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.wand.WandSelection;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -36,6 +36,7 @@ public final class SubregionWandListener implements Listener {
     private static final long RENDER_PERIOD_TICKS = 10L;
     private static final int MAX_POINTS_PER_EDGE = 32;
 
+    private final Server server;
     private final SubregionWand wand;
     private final SubregionWandManager wandManager;
     private final MessageContainer messages;
@@ -44,10 +45,11 @@ public final class SubregionWandListener implements Listener {
                                  @NotNull SubregionWand wand,
                                  @NotNull SubregionWandManager wandManager,
                                  @NotNull MessageContainer messages) {
+        this.server = plugin.getServer();
         this.wand = wand;
         this.wandManager = wandManager;
         this.messages = messages;
-        plugin.getServer().getScheduler().runTaskTimer(plugin, this::renderSelections,
+        this.server.getScheduler().runTaskTimer(plugin, this::renderSelections,
                 RENDER_PERIOD_TICKS, RENDER_PERIOD_TICKS);
     }
 
@@ -91,7 +93,7 @@ public final class SubregionWandListener implements Listener {
     }
 
     private void renderSelections() {
-        for (Player player : Bukkit.getOnlinePlayers()) {
+        for (Player player : server.getOnlinePlayers()) {
             if (!wand.isWand(player.getInventory().getItemInMainHand())) {
                 continue;
             }

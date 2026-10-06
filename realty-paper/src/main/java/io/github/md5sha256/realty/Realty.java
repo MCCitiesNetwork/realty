@@ -353,7 +353,7 @@ public final class Realty extends JavaPlugin {
             registerTreasuryTaxProvider();
         }
         this.paperApi = new RealtyPaperApiImpl(
-                this.logic, economyProvider, this.executorState, this.database,
+                getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
                 () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
                 this.playerNameService,
@@ -456,7 +456,7 @@ public final class Realty extends JavaPlugin {
         var registration = getServer().getServicesManager().getRegistration(Economy.class);
         if (registration != null) {
             getLogger().info("Using Vault as the economy provider");
-            return new VaultEconomyProvider(registration.getProvider());
+            return new VaultEconomyProvider(getServer(), registration.getProvider());
         }
         return null;
     }
@@ -943,14 +943,14 @@ public final class Realty extends JavaPlugin {
                 getLogger());
         List<CustomCommandBean> commands = List.of(
                 new VersionCommand(version),
-                new AddCommand(messageContainer),
-                new AgentInviteCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                new AddCommand(getServer(), messageContainer),
+                new AgentInviteCommand(getServer(), paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch, this.partyNames),
                 new AgentInviteAcceptCommand(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch),
                 new AgentInviteRejectCommand(paperApi, messageContainer, this.eventDispatch),
-                new AgentInviteWithdrawCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
-                new AgentRemoveCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
+                new AgentInviteWithdrawCommand(getServer(), paperApi, messageContainer, this.eventDispatch, this.partyNames),
+                new AgentRemoveCommand(getServer(), paperApi, messageContainer, this.eventDispatch, this.partyNames),
                 new AuctionCommandGroup(paperApi,
                         this.actorContexts,
                         executorState,
@@ -959,16 +959,16 @@ public final class Realty extends JavaPlugin {
                         this.eventDispatch,
                         this.partyNames),
                 new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
-                new CreateCommand(paperApi, this.defaultParties, this.partyResolver, partySuggestions,
+                new CreateCommand(getServer(), paperApi, this.defaultParties, this.partyResolver, partySuggestions,
                         executorState, messageContainer, this.eventDispatch),
-                new RegisterCommand(paperApi, this.defaultParties, this.partyResolver, partySuggestions,
+                new RegisterCommand(getServer(), paperApi, this.defaultParties, this.partyResolver, partySuggestions,
                         executorState, messageContainer, this.eventDispatch),
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
                 new GroupCommandGroup(paperApi, this.partyResolver,
                         PartyFlags.groupSuggestions(this.logic, executorState.dbExec()),
                         PartyFlags.accountSuggestions(this.treasury, executorState.dbExec()),
                         executorState, messageContainer, this.partyNames),
-                new HistoryCommand(paperApi, this.settings, messageContainer, this.partyNames),
+                new HistoryCommand(getServer(), paperApi, this.settings, messageContainer, this.partyNames),
                 new InfoCommand(paperApi,
                         this.settings,
                         this.database,
@@ -977,7 +977,8 @@ public final class Realty extends JavaPlugin {
                         this.partyNames),
                 new ListCommand(paperApi, this.partyResolver, partySuggestions, executorState,
                         messageContainer, this.partyNames),
-                new OfferCommandGroup(paperApi,
+                new OfferCommandGroup(getServer(),
+                        paperApi,
                         this.actorContexts,
                         executorState,
                         messageContainer,
@@ -994,23 +995,23 @@ public final class Realty extends JavaPlugin {
                         this.settings,
                         messageContainer,
                         getLogger()),
-                new SetCommandGroup(paperApi, this.partyResolver, partySuggestions,
+                new SetCommandGroup(getServer(), paperApi, this.partyResolver, partySuggestions,
                         executorState, messageContainer,
                         this.eventDispatch, this.partyNames, setRouter),
                 new ModifyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch, this.partyNames),
                 new TerminateCommand(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch),
-                new TransferCommand(paperApi, messageContainer, this.eventDispatch, this.partyNames),
+                new TransferCommand(getServer(), paperApi, messageContainer, this.eventDispatch, this.partyNames),
                 new UnsetCommandGroup(paperApi, messageContainer, setRouter),
                 new ModuleCommandGroup(this.moduleManager, executorState, messageContainer),
                 new ReloadCommand(executorState, () -> {
                     performReload();
                     return null;
                 }, messageContainer),
-                new RemoveCommand(messageContainer),
-                new SignCommand(paperApi, this.actorContexts, executorState, messageContainer),
-                new TeleportCommand(getLogger(), paperApi, this.settings, messageContainer, safeLocationFinder),
+                new RemoveCommand(getServer(), messageContainer),
+                new SignCommand(getServer(), paperApi, this.actorContexts, executorState, messageContainer),
+                new TeleportCommand(getServer(), getLogger(), paperApi, this.settings, messageContainer, safeLocationFinder),
                 new SubregionCommandGroup(subregionWand, subregionWandManager, subregionDialog,
                         messageContainer),
                 new CleanupCommandGroup(this.database,

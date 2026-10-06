@@ -31,6 +31,7 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.DefaultParties;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -64,7 +65,8 @@ import java.util.regex.Pattern;
  *
  * <p>Permissions: {@code realty.command.create.leasehold} / {@code realty.command.create.freehold}.</p>
  */
-public record CreateCommand(@NotNull RealtyPaperApi api,
+public record CreateCommand(@NotNull Server server,
+                             @NotNull RealtyPaperApi api,
                              @NotNull AtomicReference<DefaultParties> defaults,
                              @NotNull PartyResolver partyResolver,
                              @NotNull SuggestionProvider<Source> partySuggestions,
@@ -77,19 +79,21 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
     private static final CloudKey<Integer> MAX_EXTENSIONS = CloudKey.of("maxextensions", Integer.class);
-    private static final CommandFlag<UUID> TITLEHOLDER_FLAG =
-            CommandFlag.<Source>builder("titleholder")
-                    .withComponent(AuthorityParser.authority())
-                    .build();
-
     private static final CommandFlag<Double> PRICE_FLAG =
             CommandFlag.<Source>builder("price")
                     .withComponent(DoubleParser.doubleParser(ParseBounds.MIN_STRICTLY_POSITIVE,
                             Double.MAX_VALUE))
                     .build();
 
+    private static final String TITLEHOLDER_FLAG = "titleholder";
     private static final String LANDLORD_FLAG = "landlord";
     private static final String AUTHORITY_FLAG = "authority";
+
+    private @NotNull CommandFlag<UUID> titleholderFlag() {
+        return CommandFlag.<Source>builder(TITLEHOLDER_FLAG)
+                .withComponent(AuthorityParser.authority(server))
+                .build();
+    }
 
     @Override
     public @NotNull List<Command<? extends Source>> commands(@NotNull Command.Builder<Source> builder) {
@@ -110,7 +114,7 @@ public record CreateCommand(@NotNull RealtyPaperApi api,
                         .permission("realty.command.create.freehold")
                         .required(NAME, StringParser.stringParser())
                         .flag(PRICE_FLAG)
-                        .flag(TITLEHOLDER_FLAG)
+                        .flag(titleholderFlag())
                         .flag(PartyFlags.nameFlag(AUTHORITY_FLAG, partySuggestions)))
                         .handler(this::executeFreehold)
                         .build()

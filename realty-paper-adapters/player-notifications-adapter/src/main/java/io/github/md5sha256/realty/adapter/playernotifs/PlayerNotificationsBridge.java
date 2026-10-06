@@ -2,7 +2,6 @@ package io.github.md5sha256.realty.adapter.playernotifs;
 
 import io.github.md5sha256.playernotifications.api.NotificationService;
 import io.github.md5sha256.realty.Realty;
-import org.bukkit.Bukkit;
 import org.bukkit.event.Listener;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -56,7 +55,7 @@ final class PlayerNotificationsBridge {
      * Bukkit's event dispatch. Registering the listener last makes the failure path clean: nothing
      * is live, so nothing needs unwinding.</p>
      *
-     * @param plugin            the owning plugin, used for its logger
+     * @param plugin            the owning plugin, used for its logger and its server
      * @param dataFolder        this module's data folder
      * @param listenerRegistrar receives the listener to register with Bukkit
      * @return the started bridge
@@ -68,7 +67,7 @@ final class PlayerNotificationsBridge {
         // 1. PlayerNotifications registers NotificationService in its own onEnable; a null here
         //    means PN started after us, even though the plugin itself is enabled.
         NotificationService notificationService =
-                Bukkit.getServicesManager().load(NotificationService.class);
+                plugin.getServer().getServicesManager().load(NotificationService.class);
         if (notificationService == null) {
             throw new IllegalStateException(
                     "PlayerNotifications is enabled but registered no NotificationService — "
