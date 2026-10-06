@@ -26,8 +26,8 @@ import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.jetbrains.annotations.NotNull;
@@ -48,6 +48,7 @@ import java.util.function.Supplier;
 
 public class RealtyPaperApiImpl implements RealtyPaperApi {
 
+    private final Server server;
     private final RealtyBackend realtyApi;
     private final EconomyProvider economyProvider;
     private final ExecutorState executorState;
@@ -69,7 +70,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      */
     private final ConcurrentMap<String, CompletableFuture<?>> regionLocks = new ConcurrentHashMap<>();
 
-    public RealtyPaperApiImpl(@NotNull RealtyBackend realtyApi,
+    public RealtyPaperApiImpl(@NotNull Server server,
+                              @NotNull RealtyBackend realtyApi,
                               @NotNull EconomyProvider economyProvider,
                               @NotNull ExecutorState executorState,
                               @NotNull Database database,
@@ -81,6 +83,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull PlayerNameService playerNameService,
                               @NotNull AccountNameService accountNameService,
                               @NotNull ActorContexts actorContexts) {
+        this.server = server;
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
         this.executorState = executorState;
@@ -1157,7 +1160,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 if (rws != null) {
                     executorState.mainThreadExec().execute(() ->
                             signTextApplicator.applySignText(
-                                    Bukkit.getWorld(signWorldId),
+                                    server.getWorld(signWorldId),
                                     blockX, blockY, blockZ,
                                     regionId, rws.state(), rws.placeholders()));
                 }
@@ -1624,7 +1627,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.dbExec())).thenApplyAsync(written -> {
             RealtyBackend.RegionWithState region = written.region();
             try {
-                World world = region != null ? Bukkit.getWorld(worldId) : null;
+                World world = region != null ? server.getWorld(worldId) : null;
                 if (world != null) {
                     signTextApplicator.updateLoadedSigns(world, regionId,
                             region.state(), region.placeholders());

@@ -32,6 +32,7 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -81,6 +82,7 @@ import java.util.function.Function;
  * holder test be bypassed. {@code set authority} is decided by its permission alone.</p>
  */
 public record SetCommandGroup(
+        @NotNull Server server,
         @NotNull RealtyPaperApi api,
         @NotNull PartyResolver partyResolver,
         @NotNull SuggestionProvider<Source> partySuggestions,
@@ -103,7 +105,7 @@ public record SetCommandGroup(
                 .literal("set");
         var titleholderCommand = base.literal("titleholder")
                 .permission("realty.command.set.titleholder")
-                .required("titleholder", AuthorityParser.authority())
+                .required("titleholder", AuthorityParser.authority(server))
                 .optional("region", RegionOrFlagParser.regionOrFlag())
                 .flag(NOW_FLAG)
                 .handler(this::executeSetTitleHolder)
@@ -134,7 +136,7 @@ public record SetCommandGroup(
                 titleholderCommand,
                 base.literal("tenant")
                         .permission("realty.command.set.tenant")
-                        .required("tenant", AuthorityParser.authority())
+                        .required("tenant", AuthorityParser.authority(server))
                         .optional("region", RegionOrFlagParser.regionOrFlag())
                         .flag(NOW_FLAG)
                         .handler(this::executeSetTenant)

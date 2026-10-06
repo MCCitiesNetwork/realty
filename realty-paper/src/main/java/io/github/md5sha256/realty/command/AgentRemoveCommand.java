@@ -12,6 +12,7 @@ import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -28,7 +29,8 @@ import java.util.UUID;
  *
  * <p>Permission: {@code realty.command.agent.remove}.</p>
  */
-public record AgentRemoveCommand(@NotNull RealtyPaperApi api,
+public record AgentRemoveCommand(@NotNull Server server,
+                                  @NotNull RealtyPaperApi api,
                                   @NotNull MessageContainer messages,
                                   @NotNull RealtyEventDispatch events,
                                   @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
@@ -39,7 +41,7 @@ public record AgentRemoveCommand(@NotNull RealtyPaperApi api,
                 .literal("agent")
                 .literal("remove")
                 .permission("realty.command.agent.remove")
-                .required("player", AuthorityParser.authority())
+                .required("player", AuthorityParser.authority(server))
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();

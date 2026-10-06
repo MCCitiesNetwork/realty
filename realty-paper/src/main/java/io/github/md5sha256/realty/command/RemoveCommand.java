@@ -10,8 +10,8 @@ import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -34,7 +34,7 @@ import java.util.function.Function;
  * <p>Base permission: {@code realty.command.remove}.
  * Acting on another player's region additionally requires {@code realty.command.remove.others}.</p>
  */
-public record RemoveCommand(@NotNull MessageContainer messages) implements CustomCommandBean.Single {
+public record RemoveCommand(@NotNull Server server, @NotNull MessageContainer messages) implements CustomCommandBean.Single {
 
     @Override
     public @NotNull Command<? extends Source> command(@NotNull Command.Builder<Source> builder) {
@@ -49,9 +49,9 @@ public record RemoveCommand(@NotNull MessageContainer messages) implements Custo
                 .build();
     }
 
-    private static @NotNull SuggestionProvider<Source> playerSuggestions() {
+    private @NotNull SuggestionProvider<Source> playerSuggestions() {
         return (ctx, input) -> CompletableFuture.completedFuture(
-                Bukkit.getOnlinePlayers().stream()
+                server.getOnlinePlayers().stream()
                         .map(Player::getName)
                         .map(Suggestion::suggestion)
                         .toList()
@@ -82,7 +82,7 @@ public record RemoveCommand(@NotNull MessageContainer messages) implements Custo
         if (isGroup) {
             protectedRegion.getMembers().removeGroup(playerOrGroup);
         } else {
-            OfflinePlayer target = Bukkit.getOfflinePlayer(playerOrGroup);
+            OfflinePlayer target = server.getOfflinePlayer(playerOrGroup);
             protectedRegion.getMembers().removePlayer(target.getUniqueId());
         }
         sender.sendMessage(messages.messageFor(MessageKeys.REMOVE_SUCCESS,

@@ -6,7 +6,6 @@ import com.minecraftcitiesnetwork.pluginInfrastructure.modules.SimplePluginModul
 import io.github.md5sha256.realty.Realty;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import net.ess3.api.IUser;
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 
@@ -35,7 +34,7 @@ public final class EssentialsAdapterModule extends SimplePluginModule<Realty> {
     @Override
     public void initialize(@NotNull Realty plugin, @NotNull Path dataFolder) {
         super.initialize(plugin, dataFolder);
-        Plugin essentialsPlugin = Bukkit.getPluginManager().getPlugin("Essentials");
+        Plugin essentialsPlugin = plugin.getServer().getPluginManager().getPlugin("Essentials");
         if (!(essentialsPlugin instanceof IEssentials essentials) || !essentialsPlugin.isEnabled()) {
             throw new IllegalStateException(
                     "EssentialsX is not installed or not enabled — essentials-adapter cannot start");
@@ -56,7 +55,7 @@ public final class EssentialsAdapterModule extends SimplePluginModule<Realty> {
         }
         registerListener(new EssentialsMailListener(
                 (uuid, text) -> sendMail(essentials, uuid, text),
-                uuid -> Bukkit.getPlayer(uuid) != null,
+                uuid -> plugin.getServer().getPlayer(uuid) != null,
                 plugin.getLogger()));
     }
 

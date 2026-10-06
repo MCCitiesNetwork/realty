@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.command.util;
 
 import org.incendo.cloud.paper.util.sender.Source;
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.context.CommandInput;
@@ -18,8 +18,14 @@ import java.util.concurrent.CompletableFuture;
 
 public class AuthorityParser implements ArgumentParser<Source, UUID> {
 
-    public static @NotNull ParserDescriptor<Source, UUID> authority() {
-        return ParserDescriptor.of(new AuthorityParser(), UUID.class);
+    private final Server server;
+
+    public AuthorityParser(@NotNull Server server) {
+        this.server = server;
+    }
+
+    public static @NotNull ParserDescriptor<Source, UUID> authority(@NotNull Server server) {
+        return ParserDescriptor.of(new AuthorityParser(server), UUID.class);
     }
 
     @Override
@@ -28,11 +34,11 @@ public class AuthorityParser implements ArgumentParser<Source, UUID> {
             @NotNull CommandInput input
     ) {
         String name = input.readString();
-        Player onlinePlayer = Bukkit.getPlayerExact(name);
+        Player onlinePlayer = server.getPlayerExact(name);
         if (onlinePlayer != null) {
             return ArgumentParseResult.success(onlinePlayer.getUniqueId());
         }
-        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayerIfCached(name);
+        OfflinePlayer offlinePlayer = server.getOfflinePlayerIfCached(name);
         if (offlinePlayer == null || !offlinePlayer.hasPlayedBefore()) {
             return ArgumentParseResult.failure(
                     new IllegalArgumentException("Player not found: " + name));
@@ -43,7 +49,7 @@ public class AuthorityParser implements ArgumentParser<Source, UUID> {
     @Override
     public @NotNull SuggestionProvider<Source> suggestionProvider() {
         return (ctx, input) -> CompletableFuture.completedFuture(
-                Bukkit.getOnlinePlayers().stream()
+                server.getOnlinePlayers().stream()
                         .map(Player::getName)
                         .map(Suggestion::suggestion)
                         .toList()

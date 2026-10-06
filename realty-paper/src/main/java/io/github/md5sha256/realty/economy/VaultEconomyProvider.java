@@ -3,8 +3,8 @@ package io.github.md5sha256.realty.economy;
 import io.github.md5sha256.realty.api.Party;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,9 +18,11 @@ import java.util.UUID;
  */
 public final class VaultEconomyProvider implements EconomyProvider {
 
+    private final Server server;
     private final Economy economy;
 
-    public VaultEconomyProvider(@NotNull Economy economy) {
+    public VaultEconomyProvider(@NotNull Server server, @NotNull Economy economy) {
+        this.server = server;
         this.economy = economy;
     }
 
@@ -29,7 +31,7 @@ public final class VaultEconomyProvider implements EconomyProvider {
         if (!(party instanceof Party.Personal personal)) {
             return 0.0;
         }
-        return economy.getBalance(Bukkit.getOfflinePlayer(personal.playerUuid()));
+        return economy.getBalance(server.getOfflinePlayer(personal.playerUuid()));
     }
 
     @Override
@@ -38,12 +40,12 @@ public final class VaultEconomyProvider implements EconomyProvider {
         if (!(from instanceof Party.Personal fromPlayer) || !(to instanceof Party.Personal toPlayer)) {
             return new PaymentResult.Failure("Account and group parties require Treasury");
         }
-        OfflinePlayer payer = Bukkit.getOfflinePlayer(fromPlayer.playerUuid());
+        OfflinePlayer payer = server.getOfflinePlayer(fromPlayer.playerUuid());
         EconomyResponse withdraw = economy.withdrawPlayer(payer, amount);
         if (!withdraw.transactionSuccess()) {
             return new PaymentResult.Failure(withdraw.errorMessage);
         }
-        OfflinePlayer recipient = Bukkit.getOfflinePlayer(toPlayer.playerUuid());
+        OfflinePlayer recipient = server.getOfflinePlayer(toPlayer.playerUuid());
         EconomyResponse deposit = economy.depositPlayer(recipient, amount);
         if (!deposit.transactionSuccess()) {
             // Rollback: return money to payer

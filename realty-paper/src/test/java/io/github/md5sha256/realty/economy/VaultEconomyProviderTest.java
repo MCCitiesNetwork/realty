@@ -4,14 +4,12 @@ import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.Party;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
-import org.junit.jupiter.api.AfterEach;
+import org.bukkit.Server;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.UUID;
@@ -20,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -32,8 +30,9 @@ class VaultEconomyProviderTest {
 
     @Mock
     private Economy economy;
+    @Mock
+    private Server server;
 
-    private MockedStatic<Bukkit> bukkitMock;
     private VaultEconomyProvider provider;
 
     private final UUID payerId = UUID.randomUUID();
@@ -43,15 +42,9 @@ class VaultEconomyProviderTest {
 
     @BeforeEach
     void setUp() {
-        bukkitMock = mockStatic(Bukkit.class);
-        bukkitMock.when(() -> Bukkit.getOfflinePlayer(payerId)).thenReturn(payer);
-        bukkitMock.when(() -> Bukkit.getOfflinePlayer(recipientId)).thenReturn(recipient);
-        provider = new VaultEconomyProvider(economy);
-    }
-
-    @AfterEach
-    void tearDown() {
-        bukkitMock.close();
+        lenient().when(server.getOfflinePlayer(payerId)).thenReturn(payer);
+        lenient().when(server.getOfflinePlayer(recipientId)).thenReturn(recipient);
+        provider = new VaultEconomyProvider(server, economy);
     }
 
     private static EconomyResponse ok(double amount) {

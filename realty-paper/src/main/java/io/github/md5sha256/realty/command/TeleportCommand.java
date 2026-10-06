@@ -12,8 +12,8 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -37,6 +37,7 @@ import java.util.logging.Logger;
  * <p>Permission: {@code realty.command.tp}.</p>
  */
 public record TeleportCommand(
+        @NotNull Server server,
         @NotNull Logger logger,
         @NotNull RealtyPaperApi api,
         @NotNull AtomicReference<Settings> settings,
@@ -98,7 +99,7 @@ public record TeleportCommand(
                     if (loc != null) {
                         return CompletableFuture.completedFuture(loc);
                     }
-                    World signWorld = Bukkit.getWorld(sign.worldId());
+                    World signWorld = server.getWorld(sign.worldId());
                     if (signWorld == null) {
                         return CompletableFuture.completedFuture(null);
                     }

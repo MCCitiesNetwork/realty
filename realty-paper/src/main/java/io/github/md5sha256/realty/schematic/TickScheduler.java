@@ -27,8 +27,7 @@ public interface TickScheduler {
 
         @Override
         public @NotNull Cancellable repeating(@NotNull Runnable task) {
-            // Qualified: this record shadows org.bukkit.Bukkit inside its own body.
-            BukkitTask handle = org.bukkit.Bukkit.getScheduler()
+            BukkitTask handle = this.plugin.getServer().getScheduler()
                     .runTaskTimer(this.plugin, task, 1L, 1L);
             return handle::cancel;
         }

@@ -16,8 +16,8 @@ import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import org.incendo.cloud.paper.util.sender.Source;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -36,7 +36,8 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Permission: {@code realty.command.agent.invite}.</p>
  */
-public record AgentInviteCommand(@NotNull RealtyPaperApi api,
+public record AgentInviteCommand(@NotNull Server server,
+                                  @NotNull RealtyPaperApi api,
                                   @NotNull ActorContexts actors,
                                   @NotNull ExecutorState executorState,
                                   @NotNull MessageContainer messages,
@@ -49,7 +50,7 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
                 .literal("agent")
                 .literal("invite")
                 .permission("realty.command.agent.invite")
-                .required("player", AuthorityParser.authority())
+                .required("player", AuthorityParser.authority(server))
                 .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
                 .handler(this::execute)
                 .build();
@@ -81,10 +82,10 @@ public record AgentInviteCommand(@NotNull RealtyPaperApi api,
             return;
         }
         // An offline invitee's permissions, and possibly their groups, are unknown; accepting checks again.
-        Player onlineInvitee = Bukkit.getPlayer(inviteeId);
+        Player onlineInvitee = server.getPlayer(inviteeId);
         boolean bypassConflict = onlineInvitee != null
                 && onlineInvitee.hasPermission("realty.bypass.conflict-of-interest");
-        OfflinePlayer invitee = onlineInvitee != null ? onlineInvitee : Bukkit.getOfflinePlayer(inviteeId);
+        OfflinePlayer invitee = onlineInvitee != null ? onlineInvitee : server.getOfflinePlayer(inviteeId);
         CompletableFuture.supplyAsync(() -> actors.forRegion(invitee, false, region), executorState.dbExec())
                 .thenComposeAsync(inviteeContext -> api.inviteAgent(regionId, worldId, player.getUniqueId(),
                         inviteeContext, bypassConflict), executorState.mainThreadExec())

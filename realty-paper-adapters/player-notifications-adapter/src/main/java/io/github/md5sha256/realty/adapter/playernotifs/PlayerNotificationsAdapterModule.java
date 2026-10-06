@@ -3,7 +3,6 @@ package io.github.md5sha256.realty.adapter.playernotifs;
 import com.minecraftcitiesnetwork.pluginInfrastructure.modules.PluginModule;
 import com.minecraftcitiesnetwork.pluginInfrastructure.modules.SimplePluginModule;
 import io.github.md5sha256.realty.Realty;
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -53,7 +52,7 @@ public final class PlayerNotificationsAdapterModule extends SimplePluginModule<R
     public void initialize(@NotNull Realty plugin, @NotNull Path dataFolder) {
         super.initialize(plugin, dataFolder);
 
-        Plugin pnPlugin = Bukkit.getPluginManager().getPlugin("PlayerNotifications");
+        Plugin pnPlugin = plugin.getServer().getPluginManager().getPlugin("PlayerNotifications");
         if (pnPlugin == null || !pnPlugin.isEnabled()) {
             throw new IllegalStateException(
                     "PlayerNotifications is not installed or not enabled — player-notifications-adapter cannot start");
