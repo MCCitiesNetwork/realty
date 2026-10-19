@@ -1,8 +1,8 @@
 package io.github.md5sha256.realty.util;
 
 import io.github.md5sha256.realty.api.AccountNameService;
-import net.democracycraft.treasury.api.TreasuryApi;
-import net.democracycraft.treasury.model.economy.Account;
+import io.paradaux.treasury.api.TreasuryApi;
+import io.paradaux.treasury.model.economy.Account;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -2,9 +2,9 @@ package io.github.md5sha256.realty.util;
 
 import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.Party;
-import net.democracycraft.treasury.api.TreasuryApi;
-import net.democracycraft.treasury.model.economy.Account;
-import net.democracycraft.treasury.model.economy.AccountType;
+import io.paradaux.treasury.api.TreasuryApi;
+import io.paradaux.treasury.model.economy.Account;
+import io.paradaux.treasury.model.economy.AccountType;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
