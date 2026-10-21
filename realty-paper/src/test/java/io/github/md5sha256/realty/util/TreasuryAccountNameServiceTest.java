@@ -1,7 +1,7 @@
 package io.github.md5sha256.realty.util;
 
-import net.democracycraft.treasury.api.TreasuryApi;
-import net.democracycraft.treasury.model.economy.Account;
+import io.paradaux.treasury.api.TreasuryApi;
+import io.paradaux.treasury.model.economy.Account;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

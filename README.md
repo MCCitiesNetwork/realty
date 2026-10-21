@@ -46,11 +46,17 @@ refusing to start -- with the exception of the economy, where *neither* provider
 |---|---|---|
 | [WorldGuard](https://enginehub.org/worldguard/) | **yes** | Realty regions *are* WorldGuard regions; ownership changes sync to WG member and owner lists |
 | [WorldEdit](https://enginehub.org/worldedit/) | **yes** (WorldGuard's own dependency) | The clipboard API behind `/realty schematic capture`. FAWE installs work unchanged -- they provide the same `com.sk89q.worldedit` classes |
-| [Treasury](https://github.com/ArcanePlugins/Treasury) | one of | Preferred economy provider (full ledger support) |
+| [Hibernia Treasury](https://github.com/ParadauxIO/hibernia-economy) | one of | Preferred economy provider (full ledger support); uses the `io.paradaux:treasury-api:2.3.0-SNAPSHOT` API |
 | [Vault](https://github.com/MilkBowl/Vault) | one of | Fallback economy provider. With neither Treasury nor Vault at enable time, Realty logs why and self-disables |
 | [EssentialsX](https://essentialsx.net/) | no | Notification delivery as mail, plus a teleport-safety predicate -- via `essentials-adapter` |
 | [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) | no | Per-player notification preferences and an inbox -- via `player-notifications-adapter` |
 | [Plan](https://github.com/plan-player-analytics/Plan) | no | Realty data on player analytics pages -- via `realty-paper-plan-extension` |
+
+The Treasury integration uses Hibernia's `io.paradaux.treasury` service and event
+types. Builds exposing only the older `net.democracycraft.treasury` API are not
+compatible with this integration. Treasury's API is supplied by the installed
+Treasury plugin; Realty does not bundle it. Servers without Treasury can continue
+to use the Vault economy provider.
 
 Realty ships no notification delivery of its own: it renders a message and fires
 `RealtyNotificationEvent`, and a module delivers it. Install at least one adapter or players are

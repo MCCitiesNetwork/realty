@@ -1,9 +1,9 @@
 package io.github.md5sha256.realty.economy;
 
 import io.github.md5sha256.realty.api.Party;
-import net.democracycraft.treasury.api.TreasuryApi;
-import net.democracycraft.treasury.model.economy.Account;
-import net.democracycraft.treasury.model.economy.TransferRequest;
+import io.paradaux.treasury.api.TreasuryApi;
+import io.paradaux.treasury.model.economy.Account;
+import io.paradaux.treasury.model.economy.TransferRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

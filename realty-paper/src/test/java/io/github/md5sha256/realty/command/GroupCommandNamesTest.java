@@ -3,9 +3,9 @@ package io.github.md5sha256.realty.command;
 import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.util.PartyNames;
-import net.democracycraft.treasury.api.TreasuryApi;
-import net.democracycraft.treasury.model.economy.Account;
-import net.democracycraft.treasury.model.economy.AccountType;
+import io.paradaux.treasury.api.TreasuryApi;
+import io.paradaux.treasury.model.economy.Account;
+import io.paradaux.treasury.model.economy.AccountType;
 import org.bukkit.Server;
 import org.junit.jupiter.api.Test;
 
