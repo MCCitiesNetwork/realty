@@ -4,12 +4,8 @@ import com.destroystokyo.paper.profile.PlayerProfile;
 import org.enginehub.squirrelid.Profile;
 import org.enginehub.squirrelid.cache.ProfileCache;
 import org.enginehub.squirrelid.cache.SQLiteCache;
-import org.enginehub.squirrelid.resolver.CacheForwardingService;
-import org.enginehub.squirrelid.resolver.CombinedProfileService;
 import org.enginehub.squirrelid.resolver.HttpRepositoryService;
-import org.enginehub.squirrelid.resolver.PaperPlayerService;
 import org.enginehub.squirrelid.resolver.ProfileService;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.jetbrains.annotations.NotNull;
 
@@ -23,7 +19,6 @@ import java.util.concurrent.Executor;
 public class SquirrelIdUsernameResolver {
 
     private final ProfileCache cache;
-    private final ProfileService service;
     private final ProfileService mojang;
     private final Executor asyncExecutor;
     private final Server server;
@@ -40,9 +35,6 @@ public class SquirrelIdUsernameResolver {
                                @NotNull Server server) {
         this.cache = cache;
         this.mojang = mojang;
-        this.service = new CacheForwardingService(
-                new CombinedProfileService(PaperPlayerService.getInstance(), mojang),
-                cache);
         this.asyncExecutor = asyncExecutor;
         this.server = server;
     }
@@ -95,20 +87,31 @@ public class SquirrelIdUsernameResolver {
     }
 
     /**
-     * Name → UUID. Mirrors {@link #getUsername}: the local usercache first, which is the only place
-     * a Floodgate name such as {@code .Cool Guy 123} can be found, then the profile service.
-     * Completes empty, never exceptionally, when nothing knows the name.
+     * Name → UUID: Paper's cache of recently completed profiles, then Mojang. Completes empty, never
+     * exceptionally, when neither knows the name.
+     *
+     * <p>Like {@link #getUsername}, only the {@link PlayerProfile} API is used, so all of this runs on
+     * {@code asyncExecutor}. {@code completeFromCache(false, true)} reads Paper's lock-guarded profile
+     * cache and never goes to the network; {@code completeFromCache(true, ...)} would fall back to a
+     * blocking Mojang lookup. That cache matches the exact spelling and holds only recently completed
+     * profiles, and Mojang does not know Bedrock names, so a Floodgate name such as
+     * {@code .Cool Guy 123} is found only while it is in the cache. Namebook, when installed, finds
+     * those from its database instead.</p>
      */
     @NotNull
     public CompletableFuture<Optional<UUID>> getUuid(@NotNull String name) {
-        OfflinePlayer cached = this.server.getOfflinePlayerIfCached(name);
-        if (cached != null) {
-            return CompletableFuture.completedFuture(Optional.of(cached.getUniqueId()));
-        }
         return CompletableFuture.supplyAsync(() -> {
             try {
-                Profile profile = this.service.findByName(name);
-                return Optional.ofNullable(profile).map(Profile::getUniqueId);
+                PlayerProfile local = this.server.createProfile(name);
+                if (local.completeFromCache(false, true) && local.getId() != null) {
+                    return Optional.of(local.getId());
+                }
+                Profile profile = this.mojang.findByName(name);
+                if (profile != null && profile.getUniqueId() != null) {
+                    this.cache.put(profile);
+                    return Optional.of(profile.getUniqueId());
+                }
+                return Optional.<UUID>empty();
             } catch (Exception ex) {
                 return Optional.<UUID>empty();
             }
