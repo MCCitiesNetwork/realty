@@ -18,14 +18,15 @@ import java.util.function.Function;
  * without a running server: the resolver answers an unknown UUID with the UUID's own string, and
  * this class is where that becomes {@link Optional#empty()}.</p>
  *
- * <p><b>Threading.</b> The lookups are only <i>mostly</i> asynchronous: both read the server's
- * usercache first ({@code Server#getOfflinePlayer}, {@code Server#getOfflinePlayerIfCached})
- * <i>before</i> returning their future, and that profile cache is mutated on the main thread.
- * Calling them from an arbitrary thread — a Javalin worker serving {@code query-service}, say — is
- * therefore a data race. This class is the single place that fixes it: an off-main-thread call hops
- * to {@code mainThread} for the lookup itself, while a main-thread caller invokes it directly,
- * because a main-thread caller that joins the returned future must not end up waiting for its own
- * next tick.</p>
+ * <p><b>Threading.</b> The name lookup is safe from any thread and does all of its work
+ * asynchronously (see {@link SquirrelIdUsernameResolver#getUsername}), so {@link #nameOf} calls it
+ * directly. The UUID lookup is only <i>mostly</i> asynchronous: it reads
+ * {@code Server#getOfflinePlayerIfCached} <i>before</i> returning its future, and that walks the
+ * online players, which change on the main thread. Calling it from an arbitrary thread — a Javalin
+ * worker serving {@code query-service}, say — is therefore a data race. This class is the single
+ * place that fixes it: an off-main-thread {@link #uuidOf} hops to {@code mainThread} for the lookup
+ * itself, while a main-thread caller invokes it directly, because a main-thread caller that joins
+ * the returned future must not end up waiting for its own next tick.</p>
  */
 public final class SquirrelIdPlayerNameService implements PlayerNameService {
 
@@ -52,7 +53,7 @@ public final class SquirrelIdPlayerNameService implements PlayerNameService {
 
     @Override
     public @NotNull CompletableFuture<Optional<String>> nameOf(@NotNull UUID id) {
-        return onMainThread(this.nameLookup, id)
+        return this.nameLookup.apply(id)
                 .thenApply(name -> name == null || name.isEmpty() || name.equals(id.toString())
                         ? Optional.<String>empty()
                         : Optional.of(name))
