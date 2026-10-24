@@ -11,10 +11,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -92,6 +95,40 @@ class SquirrelIdUsernameResolverTest {
         UUID unknown = UUID.randomUUID();
         userCache(unknown, null);
         Assertions.assertEquals(unknown.toString(), this.resolver.getUsername(unknown).join());
+    }
+
+    /** Paper's profile cache completes {@code name} to {@code id}; null means it does not know it. */
+    private PlayerProfile profileCache(String name, UUID id) {
+        PlayerProfile profile = mock(PlayerProfile.class);
+        when(profile.completeFromCache(false, true)).thenReturn(id != null);
+        when(profile.getId()).thenReturn(id);
+        when(this.server.createProfile(name)).thenReturn(profile);
+        return profile;
+    }
+
+    @Test
+    void aUuidComesFromPaperProfileCacheWithoutOfflinePlayerOrTheNetwork() throws Exception {
+        PlayerProfile bedrock = profileCache(".Cool Guy 123", BEDROCK);
+        Assertions.assertEquals(Optional.of(BEDROCK), this.resolver.getUuid(".Cool Guy 123").join());
+        verify(this.remote, never()).findByName(any());
+        verify(this.server, never()).getOfflinePlayerIfCached(any());
+        verify(this.server, never()).getOfflinePlayer(any(String.class));
+        // completeFromCache(true, ...) falls back to a blocking Mojang lookup for an unknown name.
+        verify(bedrock, never()).completeFromCache(eq(true), anyBoolean());
+    }
+
+    @Test
+    void aNameMissingFromPaperProfileCacheIsAskedOfMojangAndKept() throws Exception {
+        profileCache("Notch", null);
+        when(this.remote.findByName("Notch")).thenReturn(new Profile(NOTCH, "Notch"));
+        Assertions.assertEquals(Optional.of(NOTCH), this.resolver.getUuid("Notch").join());
+        Assertions.assertEquals("Notch", this.cache.getIfPresent(NOTCH).getName());
+    }
+
+    @Test
+    void aNameNobodyKnowsIsEmpty() throws Exception {
+        profileCache("nobody", null);
+        Assertions.assertEquals(Optional.empty(), this.resolver.getUuid("nobody").join());
     }
 
     @Test

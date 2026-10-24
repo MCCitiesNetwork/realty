@@ -480,10 +480,7 @@ public final class Realty extends JavaPlugin {
                         + "); using Realty's own name lookup");
             }
         }
-        return new SquirrelIdPlayerNameService(
-                resolver,
-                this.executorState.mainThreadExec(),
-                getServer()::isPrimaryThread);
+        return new SquirrelIdPlayerNameService(resolver);
     }
 
     /**
