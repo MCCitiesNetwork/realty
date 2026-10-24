@@ -100,6 +100,7 @@ import io.github.md5sha256.realty.settings.RegionProfileSettings;
 import io.github.md5sha256.realty.settings.RegionTagSettings;
 import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.settings.TaxSettings;
+import io.github.md5sha256.realty.util.NamebookPlayerNameService;
 import io.github.md5sha256.realty.util.SquirrelIdPlayerNameService;
 import io.github.md5sha256.realty.util.TreasuryAccountNameService;
 import io.github.md5sha256.realty.notify.PartyRecipients;
@@ -296,10 +297,7 @@ public final class Realty extends JavaPlugin {
                     new File(getDataFolder(), "profiles.sqlite"),
                     this.executorState.networkExec(),
                     getServer());
-            this.playerNameService = new SquirrelIdPlayerNameService(
-                    this.nameResolver,
-                    this.executorState.mainThreadExec(),
-                    getServer()::isPrimaryThread);
+            this.playerNameService = resolvePlayerNameService(this.nameResolver);
         } catch (IOException ex) {
             getLogger().severe("Failed to initialize profile cache!");
             ex.printStackTrace();
@@ -320,7 +318,8 @@ public final class Realty extends JavaPlugin {
         // once the economy is known.
         this.logic = new RealtyBackendImpl(mariaDatabase,
                 party -> party instanceof Party.Personal personal
-                        ? this.nameResolver.getUsername(personal.playerUuid())
+                        ? this.playerNameService.nameOf(personal.playerUuid())
+                                .thenApply(name -> name.orElse(personal.playerUuid().toString()))
                         : CompletableFuture.completedFuture(this.partyNames.display(party)),
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds());
@@ -459,6 +458,32 @@ public final class Realty extends JavaPlugin {
             return new VaultEconomyProvider(getServer(), registration.getProvider());
         }
         return null;
+    }
+
+    /**
+     * Namebook's lookup when Namebook is installed, otherwise Realty's own over {@code resolver}.
+     * Namebook's types are named only in {@link NamebookPlayerNameService}, which is loaded only
+     * after the check, and a {@link LinkageError} means an installed Namebook whose API does not
+     * match the one Realty was built against.
+     */
+    private @NotNull PlayerNameService resolvePlayerNameService(@NotNull SquirrelIdUsernameResolver resolver) {
+        if (getServer().getPluginManager().isPluginEnabled("Namebook")) {
+            try {
+                PlayerNameService namebook = NamebookPlayerNameService.find(getServer().getServicesManager());
+                if (namebook != null) {
+                    getLogger().info("Detected Namebook, using Namebook for player names");
+                    return namebook;
+                }
+                getLogger().warning("Namebook is loaded but its service is not registered; using Realty's own name lookup");
+            } catch (LinkageError ex) {
+                getLogger().warning("Namebook is installed but its API could not be loaded (" + ex
+                        + "); using Realty's own name lookup");
+            }
+        }
+        return new SquirrelIdPlayerNameService(
+                resolver,
+                this.executorState.mainThreadExec(),
+                getServer()::isPrimaryThread);
     }
 
     /**

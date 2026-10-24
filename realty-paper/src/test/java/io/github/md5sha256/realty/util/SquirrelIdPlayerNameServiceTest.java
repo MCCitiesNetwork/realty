@@ -94,13 +94,19 @@ class SquirrelIdPlayerNameServiceTest {
     }
 
     @Test
-    void anOffMainThreadCallRunsTheLookupOnTheMainThreadExecutor() {
+    void anOffMainThreadUuidLookupRunsOnTheMainThreadExecutor() {
+        RecordingExecutor mainThread = new RecordingExecutor();
+        SquirrelIdPlayerNameService service = service(mainThread, false);
+        Assertions.assertEquals(Optional.of(NOTCH), service.uuidOf("Notch").join());
+        Assertions.assertEquals(1, mainThread.taskCount());
+    }
+
+    @Test
+    void anOffMainThreadNameLookupNeverTouchesTheMainThread() {
         RecordingExecutor mainThread = new RecordingExecutor();
         SquirrelIdPlayerNameService service = service(mainThread, false);
         Assertions.assertEquals(Optional.of("Notch"), service.nameOf(NOTCH).join());
-        Assertions.assertEquals(1, mainThread.taskCount());
-        Assertions.assertEquals(Optional.of(NOTCH), service.uuidOf("Notch").join());
-        Assertions.assertEquals(2, mainThread.taskCount());
+        Assertions.assertEquals(0, mainThread.taskCount());
     }
 
     @Test
