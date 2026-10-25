@@ -2,7 +2,8 @@ plugins {
     `java-library`
     `realty-conventions`
     id("xyz.jpenilla.run-paper") version "3.0.2"
-    id("com.gradleup.shadow") version "9.3.1"
+    id("com.gradleup.shadow")
+    `realty-shared-relocation`
 }
 
 dependencies {
@@ -24,9 +25,8 @@ dependencies {
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.0")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
-    // Shared module system, schema migrations and formatting helpers. Deliberately NOT relocated in
-    // shadowJar: module jars are compiled against these types and loaded into this plugin's class
-    // loader, so the names must match.
+    // Shared module system, schema migrations and formatting helpers. Relocated by
+    // realty-shared-relocation, which every module jar applies too, so the names still match.
     implementation("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
 
     testImplementation("io.papermc.paper:paper-api:26.1.2.build.74-stable")
