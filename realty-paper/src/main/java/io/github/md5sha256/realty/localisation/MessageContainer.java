@@ -57,7 +57,7 @@ public class MessageContainer
         ClickEvent click = component.clickEvent();
         if (click != null && click.payload() instanceof ClickEvent.Payload.Text text
                 && COMMAND_STAND_IN.equals(text.value())) {
-            result = result.clickEvent(ClickEvent.clickEvent(click.action(), ClickEvent.Payload.string(command)));
+            result = result.clickEvent(ClickEvent.clickEvent(click.action(), command));
         }
         List<Component> children = component.children();
         if (children.isEmpty()) {

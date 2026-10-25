@@ -7,8 +7,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 /**
@@ -18,41 +16,30 @@ import java.util.function.Function;
  * without a running server: the resolver answers an unknown UUID with the UUID's own string, and
  * this class is where that becomes {@link Optional#empty()}.</p>
  *
- * <p><b>Threading.</b> The lookups are only <i>mostly</i> asynchronous: both read the server's
- * usercache first ({@code Server#getOfflinePlayer}, {@code Server#getOfflinePlayerIfCached})
- * <i>before</i> returning their future, and that profile cache is mutated on the main thread.
- * Calling them from an arbitrary thread — a Javalin worker serving {@code query-service}, say — is
- * therefore a data race. This class is the single place that fixes it: an off-main-thread call hops
- * to {@code mainThread} for the lookup itself, while a main-thread caller invokes it directly,
- * because a main-thread caller that joins the returned future must not end up waiting for its own
- * next tick.</p>
+ * <p><b>Threading.</b> Both lookups are safe from any thread: the resolver uses only the
+ * {@code PlayerProfile} API, whose caches Paper guards with locks, and does all of its work on its
+ * own executor (see {@link SquirrelIdUsernameResolver#getUsername} and
+ * {@link SquirrelIdUsernameResolver#getUuid}). So this class calls them directly, with no hop to
+ * the main thread.</p>
  */
 public final class SquirrelIdPlayerNameService implements PlayerNameService {
 
     private final Function<UUID, CompletableFuture<String>> nameLookup;
     private final Function<String, CompletableFuture<Optional<UUID>>> uuidLookup;
-    private final Executor mainThread;
-    private final BooleanSupplier onMainThread;
 
-    public SquirrelIdPlayerNameService(@NotNull SquirrelIdUsernameResolver resolver,
-                                       @NotNull Executor mainThread,
-                                       @NotNull BooleanSupplier onMainThread) {
-        this(resolver::getUsername, resolver::getUuid, mainThread, onMainThread);
+    public SquirrelIdPlayerNameService(@NotNull SquirrelIdUsernameResolver resolver) {
+        this(resolver::getUsername, resolver::getUuid);
     }
 
     public SquirrelIdPlayerNameService(@NotNull Function<UUID, CompletableFuture<String>> nameLookup,
-                                       @NotNull Function<String, CompletableFuture<Optional<UUID>>> uuidLookup,
-                                       @NotNull Executor mainThread,
-                                       @NotNull BooleanSupplier onMainThread) {
+                                       @NotNull Function<String, CompletableFuture<Optional<UUID>>> uuidLookup) {
         this.nameLookup = Objects.requireNonNull(nameLookup, "nameLookup");
         this.uuidLookup = Objects.requireNonNull(uuidLookup, "uuidLookup");
-        this.mainThread = Objects.requireNonNull(mainThread, "mainThread");
-        this.onMainThread = Objects.requireNonNull(onMainThread, "onMainThread");
     }
 
     @Override
     public @NotNull CompletableFuture<Optional<String>> nameOf(@NotNull UUID id) {
-        return onMainThread(this.nameLookup, id)
+        return this.nameLookup.apply(id)
                 .thenApply(name -> name == null || name.isEmpty() || name.equals(id.toString())
                         ? Optional.<String>empty()
                         : Optional.of(name))
@@ -61,21 +48,7 @@ public final class SquirrelIdPlayerNameService implements PlayerNameService {
 
     @Override
     public @NotNull CompletableFuture<Optional<UUID>> uuidOf(@NotNull String name) {
-        return this.<String, Optional<UUID>>onMainThread(this.uuidLookup, name)
+        return this.uuidLookup.apply(name)
                 .exceptionally(ex -> Optional.empty());
-    }
-
-    /**
-     * Runs {@code lookup} on the main thread unless the caller is already there. The lookup's own
-     * future is flattened back out, so the returned future still completes when the underlying
-     * asynchronous work does, not when the main-thread hop returns.
-     */
-    private <I, O> @NotNull CompletableFuture<O> onMainThread(
-            @NotNull Function<I, CompletableFuture<O>> lookup, @NotNull I input) {
-        if (this.onMainThread.getAsBoolean()) {
-            return lookup.apply(input);
-        }
-        return CompletableFuture.supplyAsync(() -> lookup.apply(input), this.mainThread)
-                .thenCompose(Function.identity());
     }
 }
