@@ -26,7 +26,7 @@ import java.util.concurrent.Executor;
  */
 class PartyFlagsWithoutTreasuryTest {
 
-    private static final String TREASURY_PACKAGE = "net.democracycraft.treasury.";
+    private static final String TREASURY_PACKAGE = "io.paradaux.treasury.";
 
     @Test
     void suggestionsBuildWithoutTreasury() throws Exception {

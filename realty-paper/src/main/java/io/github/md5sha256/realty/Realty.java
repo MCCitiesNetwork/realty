@@ -174,7 +174,7 @@ public final class Realty extends JavaPlugin {
     private final SignCache signCache = new SignCache();
     private EconomyProvider economyProvider;
     /** Treasury's API when Treasury provides the economy, else {@code null}. */
-    private @Nullable net.democracycraft.treasury.api.TreasuryApi treasury;
+    private @Nullable io.paradaux.treasury.api.TreasuryApi treasury;
     private ActorContexts actorContexts;
     private PartyResolver partyResolver;
     private PartyNames partyNames;
@@ -431,7 +431,7 @@ public final class Realty extends JavaPlugin {
 
     private void registerTreasuryTaxProvider() {
         var treasuryRegistration = getServer().getServicesManager()
-                .getRegistration(net.democracycraft.treasury.api.TreasuryApi.class);
+                .getRegistration(io.paradaux.treasury.api.TreasuryApi.class);
         if (treasuryRegistration != null) {
             getServer().getPluginManager().registerEvents(
                     new PropertyTaxListener(this.database, treasuryRegistration.getProvider(),
@@ -443,7 +443,7 @@ public final class Realty extends JavaPlugin {
     private @Nullable EconomyProvider resolveEconomyProvider() {
         if (getServer().getPluginManager().isPluginEnabled("Treasury")) {
             var registration = getServer().getServicesManager()
-                    .getRegistration(net.democracycraft.treasury.api.TreasuryApi.class);
+                    .getRegistration(io.paradaux.treasury.api.TreasuryApi.class);
             if (registration != null) {
                 getLogger().info("Detected Treasury, using Treasury as the economy provider (full ledger support)");
                 var treasury = registration.getProvider();
