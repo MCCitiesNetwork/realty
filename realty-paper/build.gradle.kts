@@ -2,7 +2,8 @@ plugins {
     `java-library`
     `realty-conventions`
     id("xyz.jpenilla.run-paper") version "3.0.2"
-    id("com.gradleup.shadow") version "9.3.1"
+    id("com.gradleup.shadow")
+    `realty-shared-relocation`
 }
 
 dependencies {
@@ -21,16 +22,17 @@ dependencies {
         isTransitive = false
     }
     compileOnly("io.paradaux:treasury-api:2.3.0-SNAPSHOT")
+    compileOnly("com.minecraftcitiesnetwork:namebook-api:1.0.0-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.1")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
-    // Shared module system, schema migrations and formatting helpers. Deliberately NOT relocated in
-    // shadowJar: module jars are compiled against these types and loaded into this plugin's class
-    // loader, so the names must match.
+    // Shared module system, schema migrations and formatting helpers. Relocated by
+    // realty-shared-relocation, which every module jar applies too, so the names still match.
     implementation("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
 
     testImplementation("io.papermc.paper:paper-api:26.1.2.build.74-stable")
     testImplementation("io.paradaux:treasury-api:2.3.0-SNAPSHOT")
+    testImplementation("com.minecraftcitiesnetwork:namebook-api:1.0.0-SNAPSHOT")
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
     testImplementation("com.github.MilkBowl:VaultAPI:1.7") {
@@ -143,19 +145,7 @@ tasks {
     }
 
     shadowJar {
-        val base = "io.github.md5sha256.realty.libraries"
-        relocate("org.mariadb", "${base}.org.mariadb")
-        relocate("org.mybatis", "${base}.org.mybatis")
-        relocate("org.spongepowered", "${base}.org.spongepowered")
-        relocate("org.yaml", "${base}.org.yaml")
-        relocate("io.leangen.geantyref", "${base}.io.leangen.geantyref")
-        relocate("org.apache.ibatis", "${base}.org.apache.ibatis")
-        relocate("org.jetbrains.annotations", "${base}.org.jetbrains.annotations")
-        relocate("org.intellij.lang", "${base}.org.intellij.lang")
-        relocate("net.kyori.option", "${base}.net.kyori.option")
-        relocate("org.incendo.cloud", "${base}.org.incendo.cloud")
-        relocate("org.enginehub.squirrelid", "${base}.org.enginehub.squirrelid")
-        relocate("org.sqlite", "${base}.org.sqlite")
+        // Relocations live in the realty-shared-relocation convention, shared with every module.
         mergeServiceFiles()
     }
 

@@ -96,15 +96,21 @@ public final class PartyFlags {
     public static @NotNull SuggestionProvider<Source> suggestions(@Nullable TreasuryApi treasury,
                                                                   @NotNull RealtyBackend backend,
                                                                   @NotNull Executor lookupExecutor) {
+        if (treasury == null) {
+            // Without Treasury only players can be parties.
+            return (ctx, input) -> CompletableFuture.completedFuture(onlinePlayers());
+        }
+        return treasurySuggestions(treasury, backend, lookupExecutor);
+    }
+
+    // A lambda capturing a TreasuryApi loads that class when it is created, even if the captured
+    // value is null, so it must not be created on a server without Treasury. Keeping each such
+    // lambda in a method that is only called once Treasury is known to be present guarantees that.
+    private static @NotNull SuggestionProvider<Source> treasurySuggestions(@NotNull TreasuryApi treasury,
+                                                                           @NotNull RealtyBackend backend,
+                                                                           @NotNull Executor lookupExecutor) {
         return (ctx, input) -> {
-            List<Suggestion> players = Bukkit.getOnlinePlayers().stream()
-                    .map(Player::getName)
-                    .map(Suggestion::suggestion)
-                    .toList();
-            if (treasury == null) {
-                // Without Treasury only players can be parties.
-                return CompletableFuture.completedFuture(players);
-            }
+            List<Suggestion> players = onlinePlayers();
             UUID senderId = ctx.sender().source() instanceof Player player ? player.getUniqueId() : null;
             return CompletableFuture.supplyAsync(() -> {
                 List<Suggestion> all = new ArrayList<>(players);
@@ -121,10 +127,15 @@ public final class PartyFlags {
      */
     public static @NotNull SuggestionProvider<Source> accountSuggestions(@Nullable TreasuryApi treasury,
                                                                          @NotNull Executor lookupExecutor) {
+        if (treasury == null) {
+            return (ctx, input) -> CompletableFuture.completedFuture(List.of());
+        }
+        return treasuryAccountSuggestions(treasury, lookupExecutor);
+    }
+
+    private static @NotNull SuggestionProvider<Source> treasuryAccountSuggestions(@NotNull TreasuryApi treasury,
+                                                                                  @NotNull Executor lookupExecutor) {
         return (ctx, input) -> {
-            if (treasury == null) {
-                return CompletableFuture.completedFuture(List.of());
-            }
             UUID senderId = ctx.sender().source() instanceof Player player ? player.getUniqueId() : null;
             return CompletableFuture.supplyAsync(() -> accountsOf(treasury, senderId), lookupExecutor)
                     .exceptionally(_ -> List.of());
@@ -136,6 +147,13 @@ public final class PartyFlags {
                                                                        @NotNull Executor lookupExecutor) {
         return (ctx, input) -> CompletableFuture.supplyAsync(() -> mappedGroups(backend), lookupExecutor)
                 .exceptionally(_ -> List.of());
+    }
+
+    private static @NotNull List<Suggestion> onlinePlayers() {
+        return Bukkit.getOnlinePlayers().stream()
+                .map(Player::getName)
+                .map(Suggestion::suggestion)
+                .toList();
     }
 
     private static @NotNull List<Suggestion> accountsOf(@NotNull TreasuryApi treasury, @Nullable UUID senderId) {
