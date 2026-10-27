@@ -28,10 +28,10 @@ See [`realty-web/README.md`](realty-web/README.md) for the web half's deployment
 
 To run the plugin:
 
-- **Paper** 26.1.2 (the plugin declares `api-version: 26.1.2`)
+- **Paper** 26.3 (the plugin declares `api-version: 26.1.2`; WorldGuard 7.0.20 needs 26.3)
 - **Java 25** -- Paper 26.x ships Java 25 class files, and Realty compiles to the same release
 - **MariaDB/MySQL** for region data
-- **WorldGuard** 7.0.18 and **WorldEdit** 7.4.5 -- both required
+- **WorldGuard** 7.0.20 and **WorldEdit** 7.4.6 -- both required
 - An economy: **Treasury** *or* **Vault** with a Vault-compatible provider
 
 To build from source you additionally need a JDK 25 for the Gradle toolchain; the web front end's

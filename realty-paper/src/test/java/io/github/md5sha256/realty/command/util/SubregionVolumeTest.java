@@ -29,21 +29,19 @@ class SubregionVolumeTest {
         Polygonal2DRegion region = new Polygonal2DRegion(null, List.of(
                 BlockVector2.at(0, 0), BlockVector2.at(3, 0),
                 BlockVector2.at(3, 4), BlockVector2.at(0, 4)), Y, Y);
-        Assertions.assertEquals(12L, region.getVolume(), "shoelace area, the buggy measure");
         Assertions.assertEquals(20L, SubregionSelectionValidator.blockVolume(region));
     }
 
     @Test
     void selfIntersectingPolygonCountsTheShapeItActuallyMakes() {
         // Clicking the four corners in reading order (TL, TR, BL, BR) walks a bow-tie, not the
-        // rectangle the player meant. The shoelace area of a bow-tie cancels to exactly zero --
-        // that is the "0 volume" report. The two triangles it really encloses are 12 blocks, so
+        // rectangle the player meant. Older WorldEdit measured it by shoelace area, which cancels to
+        // exactly zero -- the "0 volume" report. The two triangles it really encloses are 12 blocks, so
         // this footprint is genuinely not the 4x5 the player wanted; the volume gate now says so
         // honestly instead of saying zero.
         Polygonal2DRegion region = new Polygonal2DRegion(null, List.of(
                 BlockVector2.at(0, 0), BlockVector2.at(3, 0),
                 BlockVector2.at(0, 4), BlockVector2.at(3, 4)), Y, Y);
-        Assertions.assertEquals(0L, region.getVolume(), "shoelace area, the buggy measure");
         Assertions.assertEquals(12L, SubregionSelectionValidator.blockVolume(region));
     }
 }

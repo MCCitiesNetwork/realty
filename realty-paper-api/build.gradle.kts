@@ -5,15 +5,15 @@ plugins {
 
 dependencies {
     api(project(":realty-backend"))
-    compileOnlyApi("io.papermc.paper:paper-api:26.1.2.build.74-stable")
-    compileOnlyApi("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
+    compileOnlyApi("io.papermc.paper:paper-api:26.3.build.222-stable")
+    compileOnlyApi("com.sk89q.worldguard:worldguard-bukkit:7.0.20") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     compileOnlyApi("org.jetbrains:annotations:26.0.2-1")
     api("org.spongepowered:configurate-yaml:4.2.0")
-    testImplementation("io.papermc.paper:paper-api:26.1.2.build.74-stable")
+    testImplementation("io.papermc.paper:paper-api:26.3.build.222-stable")
     // Real ProtectedRegion for tests that build a WorldGuardRegion (events are region events).
-    testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
+    testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.20") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
 }

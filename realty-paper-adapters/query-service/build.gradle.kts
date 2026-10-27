@@ -8,8 +8,8 @@ plugins {
 dependencies {
     compileOnly(project(":realty-paper"))
     compileOnly(project(":realty-paper-api"))
-    compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
-    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
+    compileOnly("io.papermc.paper:paper-api:26.3.build.222-stable")
+    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.20") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     compileOnly("org.jetbrains:annotations:26.0.2-1")
@@ -24,8 +24,8 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
 
     testImplementation(project(":realty-paper-api"))
-    testImplementation("io.papermc.paper:paper-api:26.1.2.build.74-stable")
-    testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
+    testImplementation("io.papermc.paper:paper-api:26.3.build.222-stable")
+    testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.20") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     testImplementation("io.javalin:javalin-testtools:7.2.3")

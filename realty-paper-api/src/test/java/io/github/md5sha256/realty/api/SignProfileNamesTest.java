@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.api;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.junit.jupiter.api.Test;
@@ -180,7 +181,8 @@ class SignProfileNamesTest {
 
     private static String clickValue(Component line) {
         return tree(line).stream().filter(c -> c.clickEvent() != null)
-                .findFirst().orElseThrow().clickEvent().value();
+                .findFirst().orElseThrow().clickEvent().payload() instanceof ClickEvent.Payload.Text text
+                ? text.value() : null;
     }
 
     @Test

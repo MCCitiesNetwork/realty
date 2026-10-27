@@ -55,7 +55,7 @@ class ListCommandNamesTest {
         return all;
     }
 
-    private static List<ClickEvent> clickEvents(Component root) {
+    private static List<ClickEvent<?>> clickEvents(Component root) {
         return tree(root).stream().map(Component::clickEvent).filter(event -> event != null).toList();
     }
 

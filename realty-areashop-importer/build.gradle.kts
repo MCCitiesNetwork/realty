@@ -4,14 +4,14 @@ plugins {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.222-stable")
     compileOnly("com.github.md5sha256.AreaShop:areashop:cc3a0b32a4") {
         exclude(group = "org.bukkit")
         exclude(group = "org.spigotmc")
         exclude(group = "com.sk89q.worldedit")
         exclude(group = "com.sk89q.worldguard")
     }
-    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
+    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.20") {
         exclude(group = "org.bukkit")
         exclude(group = "org.spigotmc")
     }

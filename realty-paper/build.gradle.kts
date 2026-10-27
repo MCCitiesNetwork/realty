@@ -8,11 +8,11 @@ plugins {
 
 dependencies {
     api(project(":realty-paper-api"))
-    compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.222-stable")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
+    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.20") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
     implementation("org.enginehub:squirrelid:0.3.2") {
@@ -30,7 +30,7 @@ dependencies {
     // realty-shared-relocation, which every module jar applies too, so the names still match.
     implementation("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
 
-    testImplementation("io.papermc.paper:paper-api:26.1.2.build.74-stable")
+    testImplementation("io.papermc.paper:paper-api:26.3.build.222-stable")
     testImplementation("io.paradaux:treasury-api:2.3.0-SNAPSHOT")
     testImplementation("com.minecraftcitiesnetwork:namebook-api:1.0.0-SNAPSHOT")
     testImplementation("org.mockito:mockito-core:5.23.0")
@@ -38,7 +38,7 @@ dependencies {
     testImplementation("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
-    testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.18") {
+    testImplementation("com.sk89q.worldguard:worldguard-bukkit:7.0.20") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
 }
@@ -204,12 +204,12 @@ tasks {
             planExtensionJar.get().asFile
                     .copyTo(pluginsDir.resolve("realty-paper-plan-extension.jar"), overwrite = true)
         }
-        minecraftVersion("26.1.2")
+        minecraftVersion("26.3")
         downloadPlugins {
-            // WorldEdit 7.4.5 (supports 1.21.4-26.2)
-            url("https://cdn.modrinth.com/data/1u6JkXh5/versions/F5ea2ov3/worldedit-bukkit-7.4.5.jar")
-            // WorldGuard 7.0.18 (supports 26.1-26.2) -- matches the compileOnly version
-            url("https://cdn.modrinth.com/data/DKY9btbd/versions/btHBavWa/worldguard-bukkit-7.0.18.jar")
+            // WorldEdit 7.4.6 (supports 26.1.2-26.3)
+            url("https://cdn.modrinth.com/data/1u6JkXh5/versions/YFnqiUlL/worldedit-bukkit-7.4.6.jar")
+            // WorldGuard 7.0.20 (supports 26.3) -- matches the compileOnly version
+            url("https://cdn.modrinth.com/data/DKY9btbd/versions/9YdeGXiK/worldguard-bukkit-7.0.20.jar")
             // EssX 2.22.0 release (the previous dev build fails to enable on 26.x)
             url("https://cdn.modrinth.com/data/hXiIvTyT/versions/nY6VN1XH/EssentialsX-2.22.0.jar")
             // Vault
