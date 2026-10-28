@@ -224,6 +224,8 @@ public interface RealtyPaperApi {
         record NoFreeholdContract(@NotNull String regionId) implements SetTitleHolderResult {}
         /** The actor does not manage the region's current holder. */
         record NotAuthorized(@NotNull String regionId) implements SetTitleHolderResult {}
+        /** The new holder already holds the title. */
+        record AlreadyTitleHolder(@NotNull String regionId) implements SetTitleHolderResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTitleHolderResult {}
         record Error(@NotNull String message) implements SetTitleHolderResult {}
     }

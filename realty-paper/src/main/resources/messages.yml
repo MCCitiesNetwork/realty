@@ -868,3 +868,4 @@ transfer:
     update-failed: Failed to transfer region <region>.
     error: 'Failed to transfer region: <error>'
     no-permission: You do not have permission to transfer this region.
+    already-titleholder: <titleholder> already holds region <region>.

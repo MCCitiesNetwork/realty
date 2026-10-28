@@ -826,6 +826,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetTitleHolderResult.NoFreeholdContract();
             }
             UUID previousTitleHolder = freehold.titleHolderId();
+            if (titleHolderId != null && titleHolderId.equals(previousTitleHolder)) {
+                return new SetTitleHolderResult.AlreadyTitleHolder();
+            }
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
                     false, null, null);
             if (updated == 0) {

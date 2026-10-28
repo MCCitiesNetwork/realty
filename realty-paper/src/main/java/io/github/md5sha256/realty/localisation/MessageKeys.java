@@ -412,6 +412,7 @@ public final class MessageKeys {
     public static final String TRANSFER_UPDATE_FAILED = "transfer.update-failed";
     public static final String TRANSFER_ERROR = "transfer.error";
     public static final String TRANSFER_NO_PERMISSION = "transfer.no-permission";
+    public static final String TRANSFER_ALREADY_TITLEHOLDER = "transfer.already-titleholder";
 
     // unset (shared)
     public static final String UNSET_NO_PERMISSION = "unset.no-permission";

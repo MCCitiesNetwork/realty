@@ -333,6 +333,8 @@ public interface RealtyBackend {
         record NoFreeholdContract() implements SetTitleHolderResult {}
         record UpdateFailed() implements SetTitleHolderResult {}
         record NotAuthorized() implements SetTitleHolderResult {}
+        /** The new holder already holds the title. */
+        record AlreadyTitleHolder() implements SetTitleHolderResult {}
     }
 
     /** Sets the title holder with no check of who is acting. */

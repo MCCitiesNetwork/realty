@@ -1235,6 +1235,25 @@ class RealtyPaperApiImplTest {
             verify(regionProfileService, never()).applyFlags(any(), any(), any());
             verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
         }
+
+        @Test
+        @DisplayName("a transfer to the current holder is refused and leaves owners, flags and signs untouched")
+        void transferToCurrentHolder() {
+            protectedRegion.getOwners().addPlayer(TITLE_HOLDER_ID);
+
+            when(realtyApi.transferTitleHolder(REGION_ID, WORLD_ID, TITLE_HOLDER_ID))
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.AlreadyTitleHolder());
+
+            RealtyPaperApi.SetTitleHolderResult result =
+                    api.transferTitleHolder(wgRegion, TITLE_HOLDER).join();
+
+            RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder refused = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder.class, result);
+            Assertions.assertEquals(REGION_ID, refused.regionId());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TITLE_HOLDER_ID));
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
     }
 
     // ═══════════════════════════════════════════════════

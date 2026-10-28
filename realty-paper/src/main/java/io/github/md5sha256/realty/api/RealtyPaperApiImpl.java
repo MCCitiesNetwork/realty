@@ -826,6 +826,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetTitleHolderResult) new SetTitleHolderResult.NoFreeholdContract(regionId);
             case RealtyBackend.SetTitleHolderResult.NotAuthorized ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NotAuthorized(regionId);
+            case RealtyBackend.SetTitleHolderResult.AlreadyTitleHolder ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.AlreadyTitleHolder(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -873,6 +875,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetTitleHolderResult) new SetTitleHolderResult.NoFreeholdContract(regionId);
             case RealtyBackend.SetTitleHolderResult.NotAuthorized ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NotAuthorized(regionId);
+            case RealtyBackend.SetTitleHolderResult.AlreadyTitleHolder ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.AlreadyTitleHolder(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
