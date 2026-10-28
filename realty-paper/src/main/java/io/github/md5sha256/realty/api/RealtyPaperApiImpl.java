@@ -1394,6 +1394,16 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     @Override
+    public @NotNull CompletableFuture<List<RealtyBackend.ActiveAuction>> listActiveAuctions() {
+        return CompletableFuture.supplyAsync(realtyApi::listActiveAuctions, executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<RealtyBackend.OfferListing>> listOfferListings() {
+        return CompletableFuture.supplyAsync(realtyApi::listOfferListings, executorState.dbExec());
+    }
+
+    @Override
     public @NotNull CompletableFuture<RealtyBackend.OfferResult> placeOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext offerer, double price, boolean bypassConflict) {

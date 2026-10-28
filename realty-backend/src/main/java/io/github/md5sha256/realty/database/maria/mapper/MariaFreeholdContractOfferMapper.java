@@ -199,6 +199,26 @@ public interface MariaFreeholdContractOfferMapper extends FreeholdContractOfferM
 
     @Override
     @Select("""
+            SELECT rr.worldGuardRegionId, rr.worldId, sco.offererId, sco.offerPrice, sco.offerTime,
+                   scop.currentPayment, scop.paymentDeadline
+            FROM FreeholdContractOffer sco
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
+            LEFT JOIN FreeholdContractOfferPayment scop ON scop.offerId = sco.offerId
+            ORDER BY sco.offerTime
+            """)
+    @ConstructorArgs({
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "offererId", javaType = UUID.class),
+            @Arg(column = "offerPrice", javaType = double.class),
+            @Arg(column = "offerTime", javaType = LocalDateTime.class),
+            @Arg(column = "currentPayment", javaType = Double.class),
+            @Arg(column = "paymentDeadline", javaType = LocalDateTime.class)
+    })
+    @NotNull List<InboundOfferView> selectAllOpen();
+
+    @Override
+    @Select("""
             SELECT COUNT(*)
             FROM FreeholdContractOffer
             """)

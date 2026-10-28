@@ -576,7 +576,19 @@ public interface RealtyPaperApi {
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict);
 
+    /**
+     * Every auction that has not finished, whether still taking bids or waiting for its winner to
+     * pay, soonest bidding end first. A plugin can call this on startup to catch up.
+     */
+    @NotNull CompletableFuture<List<RealtyBackend.ActiveAuction>> listActiveAuctions();
+
     // --- Offer ---
+
+    /**
+     * Every freehold that accepts offers, or has an accepted offer still being paid for, with its
+     * open offers. A freehold with an auction running is left out.
+     */
+    @NotNull CompletableFuture<List<RealtyBackend.OfferListing>> listOfferListings();
 
     /**
      * Places an offer. Fires {@link io.github.md5sha256.realty.api.event.OfferPlaceEvent} first,

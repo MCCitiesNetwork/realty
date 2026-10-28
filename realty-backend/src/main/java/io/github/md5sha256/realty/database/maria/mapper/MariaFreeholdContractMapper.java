@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.maria.mapper;
 
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.OfferListingRow;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.entity.TitleHeldRegionTag;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
@@ -245,6 +246,31 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             @Arg(column = "plotCount", javaType = int.class)
     })
     @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolder();
+
+    @Override
+    @Select("""
+            SELECT rr.worldGuardRegionId, rr.worldId, fc.titleHolderId, fc.price,
+            """ + PartySql.AUTHORITY_COLUMNS + """
+            FROM FreeholdContract fc
+            INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            """ + PartySql.AUTHORITY_JOINS_CONTRACT + """
+            WHERE (fc.acceptingOffers = TRUE
+                   OR EXISTS (SELECT 1 FROM FreeholdContractOffer sco
+                              INNER JOIN FreeholdContractOfferPayment scop ON scop.offerId = sco.offerId
+                              WHERE sco.realtyRegionId = rr.realtyRegionId))
+            AND NOT EXISTS (SELECT 1 FROM FreeholdContractAuction sca
+                            WHERE sca.realtyRegionId = rr.realtyRegionId AND sca.ended = FALSE)
+            ORDER BY rr.worldGuardRegionId, rr.worldId
+            """)
+    @ConstructorArgs({
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "authority_", javaType = Party.class),
+            @Arg(column = "titleHolderId", javaType = UUID.class),
+            @Arg(column = "price", javaType = Double.class)
+    })
+    @NotNull List<OfferListingRow> selectOfferListings();
 
     @Override
     @Select("""
