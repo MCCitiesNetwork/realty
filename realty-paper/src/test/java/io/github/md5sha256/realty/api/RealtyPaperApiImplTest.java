@@ -1244,13 +1244,13 @@ class RealtyPaperApiImplTest {
             protectedRegion.getMembers().addPlayer(member);
 
             when(realtyApi.transferTitleHolder(REGION_ID, WORLD_ID, TITLE_HOLDER_ID))
-                    .thenReturn(new RealtyBackend.SetTitleHolderResult.AlreadyTitleHolder());
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.NoChange());
 
             RealtyPaperApi.SetTitleHolderResult result =
                     api.transferTitleHolder(wgRegion, TITLE_HOLDER).join();
 
-            RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder refused = Assertions.assertInstanceOf(
-                    RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder.class, result);
+            RealtyPaperApi.SetTitleHolderResult.NoChange refused = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetTitleHolderResult.NoChange.class, result);
             Assertions.assertEquals(REGION_ID, refused.regionId());
             Assertions.assertTrue(protectedRegion.getOwners().contains(TITLE_HOLDER_ID));
             Assertions.assertTrue(protectedRegion.getMembers().contains(member));
@@ -1266,11 +1266,11 @@ class RealtyPaperApiImplTest {
             protectedRegion.getMembers().addPlayer(member);
 
             when(realtyApi.setTitleHolder(REGION_ID, WORLD_ID, TITLE_HOLDER_ID, ActorContext.console()))
-                    .thenReturn(new RealtyBackend.SetTitleHolderResult.AlreadyTitleHolder());
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.NoChange());
 
             RealtyPaperApi.SetTitleHolderResult result = api.setTitleHolder(wgRegion, TITLE_HOLDER).join();
 
-            Assertions.assertInstanceOf(RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder.class, result);
+            Assertions.assertInstanceOf(RealtyPaperApi.SetTitleHolderResult.NoChange.class, result);
             Assertions.assertTrue(protectedRegion.getOwners().contains(TITLE_HOLDER_ID));
             Assertions.assertTrue(protectedRegion.getMembers().contains(member));
             verify(regionProfileService, never()).applyFlags(any(), any(), any());
@@ -1595,19 +1595,19 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("AlreadyTenant leaves owners, members, flags and signs untouched")
+        @DisplayName("NoChange leaves owners, members, flags and signs untouched")
         void alreadyTenant() {
             UUID member = UUID.randomUUID();
             protectedRegion.getOwners().addPlayer(TENANT_ID);
             protectedRegion.getMembers().addPlayer(member);
 
             when(realtyApi.setTenant(REGION_ID, WORLD_ID, TENANT_ID, ActorContext.console(), false))
-                    .thenReturn(new RealtyBackend.SetTenantResult.AlreadyTenant());
+                    .thenReturn(new RealtyBackend.SetTenantResult.NoChange());
 
             RealtyPaperApi.SetTenantResult result = api.setTenant(wgRegion, TENANT).join();
 
-            RealtyPaperApi.SetTenantResult.AlreadyTenant refused = Assertions.assertInstanceOf(
-                    RealtyPaperApi.SetTenantResult.AlreadyTenant.class, result);
+            RealtyPaperApi.SetTenantResult.NoChange refused = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetTenantResult.NoChange.class, result);
             Assertions.assertEquals(REGION_ID, refused.regionId());
             Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID));
             Assertions.assertTrue(protectedRegion.getMembers().contains(member));
@@ -1727,18 +1727,18 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("AlreadyLandlord keeps the members")
+        @DisplayName("NoChange keeps the members")
         void alreadyLandlord() {
             UUID member = UUID.randomUUID();
             protectedRegion.getMembers().addPlayer(member);
 
             when(realtyApi.setLandlord(REGION_ID, WORLD_ID, LANDLORD, ActorContext.console(), false))
-                    .thenReturn(new RealtyBackend.SetLandlordResult.AlreadyLandlord());
+                    .thenReturn(new RealtyBackend.SetLandlordResult.NoChange());
 
             RealtyPaperApi.SetLandlordResult result = api.setLandlord(wgRegion, LANDLORD).join();
 
-            RealtyPaperApi.SetLandlordResult.AlreadyLandlord refused = Assertions.assertInstanceOf(
-                    RealtyPaperApi.SetLandlordResult.AlreadyLandlord.class, result);
+            RealtyPaperApi.SetLandlordResult.NoChange refused = Assertions.assertInstanceOf(
+                    RealtyPaperApi.SetLandlordResult.NoChange.class, result);
             Assertions.assertEquals(REGION_ID, refused.regionId());
             Assertions.assertTrue(protectedRegion.getMembers().contains(member));
         }

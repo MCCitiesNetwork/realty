@@ -389,7 +389,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
     void transferToTheCurrentHolderIsRefusedAndChangesNothing() {
         String id = freehold();
         int historyBefore = historyCount(id);
-        Assertions.assertInstanceOf(SetTitleHolderResult.AlreadyTitleHolder.class,
+        Assertions.assertInstanceOf(SetTitleHolderResult.NoChange.class,
                 logic.transferTitleHolder(id, WORLD_ID, PLAYER_A));
         Assertions.assertEquals(PLAYER_A, freeholdContract(id).titleHolderId());
         Assertions.assertEquals(500.0, freeholdContract(id).price());
@@ -400,7 +400,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
     void settingTheCurrentTitleHolderIsRefusedAndChangesNothing() {
         String id = freehold();
         int historyBefore = historyCount(id);
-        Assertions.assertInstanceOf(SetTitleHolderResult.AlreadyTitleHolder.class,
+        Assertions.assertInstanceOf(SetTitleHolderResult.NoChange.class,
                 logic.setTitleHolder(id, WORLD_ID, PLAYER_A, AS_A));
         Assertions.assertEquals(historyBefore, historyCount(id));
     }
@@ -424,7 +424,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
     void settingTheCurrentTenantIsRefusedAndChangesNothing() {
         String id = rentedLease();
         int historyBefore = historyCount(id);
-        Assertions.assertInstanceOf(SetTenantResult.AlreadyTenant.class,
+        Assertions.assertInstanceOf(SetTenantResult.NoChange.class,
                 logic.setTenant(id, WORLD_ID, PLAYER_B, AS_A, false));
         Assertions.assertEquals(PLAYER_B, lease(id).tenantId());
         Assertions.assertEquals(historyBefore, historyCount(id));
@@ -434,7 +434,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
     void settingTheCurrentLandlordIsRefusedAndChangesNothing() {
         String id = rentedLease();
         int historyBefore = historyCount(id);
-        Assertions.assertInstanceOf(SetLandlordResult.AlreadyLandlord.class,
+        Assertions.assertInstanceOf(SetLandlordResult.NoChange.class,
                 logic.setLandlord(id, WORLD_ID, Party.personal(PLAYER_A), ActorContext.console()));
         Assertions.assertEquals(historyBefore, historyCount(id));
     }
@@ -443,7 +443,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
     void clearingTheTitleHolderOfAnUnsoldFreeholdIsRefusedAndChangesNothing() {
         String id = unsoldFreehold();
         int historyBefore = historyCount(id);
-        Assertions.assertInstanceOf(SetTitleHolderResult.AlreadyTitleHolder.class,
+        Assertions.assertInstanceOf(SetTitleHolderResult.NoChange.class,
                 logic.setTitleHolder(id, WORLD_ID, null, AS_AUTHORITY));
         Assertions.assertEquals(historyBefore, historyCount(id));
     }
@@ -452,7 +452,7 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
     void clearingTheTenantOfAVacantLeaseIsRefusedAndChangesNothing() {
         String id = vacantLease();
         int historyBefore = historyCount(id);
-        Assertions.assertInstanceOf(SetTenantResult.AlreadyTenant.class,
+        Assertions.assertInstanceOf(SetTenantResult.NoChange.class,
                 logic.setTenant(id, WORLD_ID, null, AS_A, false));
         Assertions.assertEquals(historyBefore, historyCount(id));
     }

@@ -143,7 +143,7 @@ public record UnsetCommandGroup(
                 case RealtyPaperApi.SetTitleHolderResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder ignored ->
+                case RealtyPaperApi.SetTitleHolderResult.NoChange ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_NO_TITLEHOLDER,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyPaperApi.SetTitleHolderResult.Error error ->
@@ -182,7 +182,7 @@ public record UnsetCommandGroup(
                 case RealtyPaperApi.SetTenantResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.SetTenantResult.AlreadyTenant ignored ->
+                case RealtyPaperApi.SetTenantResult.NoChange ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_NO_TENANT,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyPaperApi.SetTenantResult.Error error ->

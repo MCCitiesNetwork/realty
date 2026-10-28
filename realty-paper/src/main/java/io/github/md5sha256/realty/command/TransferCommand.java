@@ -85,10 +85,10 @@ public record TransferCommand(
                                 Placeholder.unparsed("region", noContract.regionId())));
                 case RealtyPaperApi.SetTitleHolderResult.NotAuthorized ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_NO_PERMISSION));
-                case RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder alreadyHeld ->
+                case RealtyPaperApi.SetTitleHolderResult.NoChange unchanged ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_ALREADY_TITLEHOLDER,
                                 Placeholder.unparsed("titleholder", partyNames.display(titleHolderId)),
-                                Placeholder.unparsed("region", alreadyHeld.regionId())));
+                                Placeholder.unparsed("region", unchanged.regionId())));
                 case RealtyPaperApi.SetTitleHolderResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));

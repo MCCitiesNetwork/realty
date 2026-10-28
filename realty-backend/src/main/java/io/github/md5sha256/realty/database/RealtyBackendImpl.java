@@ -716,7 +716,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetLandlordResult.NotAllowedToAssign(newLandlord);
             }
             if (newLandlord.equals(previousLandlord)) {
-                return new SetLandlordResult.AlreadyLandlord();
+                return new SetLandlordResult.NoChange();
             }
             int previousLandlordPartyId = namedPartyId(wrapper, previousLandlord);
             Integer requiredLandlordPartyId = ctx.bypass() ? null : previousLandlordPartyId;
@@ -788,7 +788,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             UUID previousTitleHolder = freehold.titleHolderId();
             if (Objects.equals(titleHolderId, previousTitleHolder)) {
-                return new SetTitleHolderResult.AlreadyTitleHolder();
+                return new SetTitleHolderResult.NoChange();
             }
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
             boolean guardTitleHolder = !ctx.bypass();
@@ -833,7 +833,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             UUID previousTitleHolder = freehold.titleHolderId();
             if (titleHolderId != null && titleHolderId.equals(previousTitleHolder)) {
-                return new SetTitleHolderResult.AlreadyTitleHolder();
+                return new SetTitleHolderResult.NoChange();
             }
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
                     false, null, null);
@@ -895,7 +895,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             UUID previousTenant = lease.tenantId();
             if (Objects.equals(tenantId, previousTenant)) {
-                return new SetTenantResult.AlreadyTenant();
+                return new SetTenantResult.NoChange();
             }
             int landlordPartyId = namedPartyId(wrapper, lease.landlord());
             Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;

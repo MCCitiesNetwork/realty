@@ -349,10 +349,10 @@ public record SetCommandGroup(
                 case RealtyPaperApi.SetLandlordResult.Occupied occupied ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
                                 Placeholder.unparsed("region", occupied.regionId())));
-                case RealtyPaperApi.SetLandlordResult.AlreadyLandlord alreadyLandlord ->
+                case RealtyPaperApi.SetLandlordResult.NoChange unchanged ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_ALREADY_LANDLORD,
                                 Placeholder.unparsed("landlord", partyNames.display(newLandlord)),
-                                Placeholder.unparsed("region", alreadyLandlord.regionId())));
+                                Placeholder.unparsed("region", unchanged.regionId())));
                 case RealtyPaperApi.SetLandlordResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_LANDLORD_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));
@@ -405,10 +405,10 @@ public record SetCommandGroup(
                     case RealtyPaperApi.SetTitleHolderResult.UpdateFailed updateFailed ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_UPDATE_FAILED,
                                     Placeholder.unparsed("region", updateFailed.regionId())));
-                    case RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder alreadyHeld ->
+                    case RealtyPaperApi.SetTitleHolderResult.NoChange unchanged ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_ALREADY_TITLEHOLDER,
                                     Placeholder.unparsed("titleholder", partyNames.display(titleHolderId)),
-                                    Placeholder.unparsed("region", alreadyHeld.regionId())));
+                                    Placeholder.unparsed("region", unchanged.regionId())));
                     case RealtyPaperApi.SetTitleHolderResult.Error error ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_ERROR,
                                     Placeholder.unparsed("error", error.message())));
@@ -447,10 +447,10 @@ public record SetCommandGroup(
                 case RealtyPaperApi.SetTenantResult.Occupied occupied ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
                                 Placeholder.unparsed("region", occupied.regionId())));
-                case RealtyPaperApi.SetTenantResult.AlreadyTenant alreadyTenant ->
+                case RealtyPaperApi.SetTenantResult.NoChange unchanged ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_ALREADY_TENANT,
                                 Placeholder.unparsed("tenant", partyNames.display(tenantId)),
-                                Placeholder.unparsed("region", alreadyTenant.regionId())));
+                                Placeholder.unparsed("region", unchanged.regionId())));
                 case RealtyPaperApi.SetTenantResult.UpdateFailed updateFailed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_TENANT_UPDATE_FAILED,
                                 Placeholder.unparsed("region", updateFailed.regionId())));
