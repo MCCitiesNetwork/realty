@@ -834,6 +834,7 @@ set-maxextensions:
     error: '<prefix> Failed to set max extensions: <error>'
 toggle-offers:
     success: <prefix> Offers on region <yellow><region></yellow> are now <state>.
+    no-change: <prefix> Offers on region <yellow><region></yellow> are already <state>.
     not-sanctioned: <prefix> You are not authorized to toggle offers on region <yellow><region>.</yellow>
     no-freehold-contract: <prefix> Region <yellow><region></yellow> is not a freehold.
     update-failed: <prefix> Failed to update offer status on region <yellow><region>.</yellow>

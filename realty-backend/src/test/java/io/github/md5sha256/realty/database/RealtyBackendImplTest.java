@@ -1408,6 +1408,18 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false);
             Assertions.assertInstanceOf(OfferResult.Success.class, result);
         }
+
+        @Test
+        @DisplayName("setting the state the freehold already has is no change")
+        void sameStateIsNoChange() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.toggleOffers(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
+
+            RealtyBackend.ToggleOffersResult result =
+                    logic.toggleOffers(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
+            Assertions.assertInstanceOf(RealtyBackend.ToggleOffersResult.NoChange.class, result);
+        }
     }
 
     @Nested

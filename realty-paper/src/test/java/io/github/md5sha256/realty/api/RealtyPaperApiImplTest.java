@@ -18,6 +18,11 @@ import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
 import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
+import io.github.md5sha256.realty.api.event.OfferAcceptEvent;
+import io.github.md5sha256.realty.api.event.OfferPlaceEvent;
+import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
+import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
+import io.github.md5sha256.realty.api.event.OffersToggledEvent;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
@@ -1952,4 +1957,92 @@ class RealtyPaperApiImplTest {
             verify(events, never()).fireSync(any(RealtyRegionEvent.class));
         }
     }
+
+    /** The offer actions fire their events from the API, as the auction actions do. */
+    @Nested
+    class OfferEvents {
+
+        @BeforeEach
+        void regionIsKnownToWorldGuard() {
+            RegionManager regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            lenient().when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
+            lenient().when(events.fireSync(any(RealtyRegionEvent.class))).thenReturn(true);
+        }
+
+        private List<RealtyRegionEvent> firedEvents() {
+            ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
+            verify(events, org.mockito.Mockito.atLeast(0)).fireSync(captor.capture());
+            return captor.getAllValues();
+        }
+
+        @Test
+        void placeFiresBothEvents() {
+            when(realtyApi.placeOffer(REGION_ID, WORLD_ID, BUYER_CTX, 500, false))
+                    .thenReturn(new RealtyBackend.OfferResult.Success(TITLE_HOLDER_ID));
+
+            api.placeOffer(REGION_ID, WORLD_ID, BUYER_CTX, 500, false).join();
+
+            List<RealtyRegionEvent> fired = firedEvents();
+            Assertions.assertInstanceOf(OfferPlaceEvent.class, fired.get(0));
+            OfferPlacedEvent placed = Assertions.assertInstanceOf(OfferPlacedEvent.class, fired.get(1));
+            Assertions.assertEquals(TITLE_HOLDER, placed.getTitleHolder());
+        }
+
+        @Test
+        void placeVetoedByAListenerIsCancelled() {
+            when(events.fireSync(any(OfferPlaceEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.OfferResult.Cancelled.class,
+                    api.placeOffer(REGION_ID, WORLD_ID, BUYER_CTX, 500, false).join());
+
+            verify(realtyApi, never()).placeOffer(any(), any(), any(),
+                    org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
+        void acceptVetoedByAListenerIsCancelled() {
+            when(events.fireSync(any(OfferAcceptEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.AcceptOfferResult.Cancelled.class,
+                    api.acceptOffer(REGION_ID, WORLD_ID, BUYER_CTX, TENANT_ID).join());
+
+            verify(realtyApi, never()).acceptOffer(any(), any(), any(), any());
+        }
+
+        @Test
+        void rejectAllFiresOneEventPerOffer() {
+            UUID first = UUID.randomUUID();
+            UUID second = UUID.randomUUID();
+            when(realtyApi.rejectAllOffers(REGION_ID, WORLD_ID, ActorContext.console()))
+                    .thenReturn(new RealtyBackend.RejectAllOffersResult.Success(List.of(first, second)));
+
+            api.rejectAllOffers(REGION_ID, WORLD_ID, ActorContext.console()).join();
+
+            List<OfferRejectedEvent> rejected = firedEvents().stream()
+                    .map(OfferRejectedEvent.class::cast).toList();
+            Assertions.assertEquals(List.of(first, second),
+                    rejected.stream().map(OfferRejectedEvent::getOffererId).toList());
+            Assertions.assertTrue(rejected.getFirst().getRejecterId().isEmpty());
+        }
+
+        @Test
+        void toggleFiresOnlyOnAChange() {
+            when(realtyApi.toggleOffers(REGION_ID, WORLD_ID, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.ToggleOffersResult.Success(false));
+            when(realtyApi.toggleOffers(REGION_ID, WORLD_ID, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.ToggleOffersResult.NoChange());
+
+            api.toggleOffers(REGION_ID, WORLD_ID, BUYER_CTX, false).join();
+            api.toggleOffers(REGION_ID, WORLD_ID, BUYER_CTX, true).join();
+
+            List<RealtyRegionEvent> fired = firedEvents();
+            Assertions.assertEquals(1, fired.size());
+            OffersToggledEvent toggled = Assertions.assertInstanceOf(OffersToggledEvent.class, fired.getFirst());
+            Assertions.assertFalse(toggled.isAcceptingOffers());
+            Assertions.assertEquals(Optional.of(BUYER_ID), toggled.getActorId());
+        }
+    }
 }
+

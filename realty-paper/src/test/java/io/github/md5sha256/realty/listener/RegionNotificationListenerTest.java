@@ -12,6 +12,8 @@ import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
 import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
+import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RegionRentedEvent;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
@@ -225,6 +227,24 @@ class RegionNotificationListenerTest {
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(LANDLORD), notice.getTargets());
         Assertions.assertEquals(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED, notice.getMessageKey());
+    }
+
+    @Test
+    void offerPlaced_notifiesTheTitleholder() {
+        listener.onOfferPlaced(new OfferPlacedEvent(region, TENANT, LANDLORD, 500));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(LANDLORD), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_PLACED, notice.getMessageKey());
+    }
+
+    @Test
+    void offerRejected_notifiesTheOfferer() {
+        listener.onOfferRejected(new OfferRejectedEvent(region, null, TENANT));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(TENANT), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_REJECTED, notice.getMessageKey());
     }
 }
 

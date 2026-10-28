@@ -15,6 +15,11 @@ import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminationCancelledEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminationScheduledEvent;
+import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
+import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
+import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
+import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
+import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
 import io.github.md5sha256.realty.api.event.RegionRentedEvent;
@@ -100,6 +105,41 @@ public final class RegionNotificationListener implements Listener {
             notifyPlayer(bidder, event.getRegion(), MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
                     Placeholder.unparsed("region", event.getRegionId()));
         }
+    }
+
+    @EventHandler
+    public void onOfferPlaced(@NotNull OfferPlacedEvent event) {
+        notifyParty(event.getTitleHolder(), event.getRegion(), MessageKeys.NOTIFICATION_OFFER_PLACED,
+                Placeholder.unparsed("player", partyNames.display(event.getOffererId())),
+                Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    @EventHandler
+    public void onOfferWithdrawn(@NotNull OfferWithdrawnEvent event) {
+        notifyParty(event.getTitleHolder(), event.getRegion(), MessageKeys.NOTIFICATION_OFFER_WITHDRAWN,
+                Placeholder.unparsed("player", partyNames.display(event.getOffererId())),
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    @EventHandler
+    public void onOfferAccepted(@NotNull OfferAcceptedEvent event) {
+        notifyPlayer(event.getOffererId(), event.getRegion(), MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    @EventHandler
+    public void onOfferRejected(@NotNull OfferRejectedEvent event) {
+        notifyPlayer(event.getOffererId(), event.getRegion(), MessageKeys.NOTIFICATION_OFFER_REJECTED,
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    @EventHandler
+    public void onOfferPurchaseCompleted(@NotNull OfferPurchaseCompletedEvent event) {
+        Party.playerUuidOf(event.getPreviousTitleHolder()).ifPresent(seller ->
+                notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
+                        Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
+                        Placeholder.unparsed("region", event.getRegionId())));
     }
 
     @EventHandler

@@ -3,7 +3,9 @@ package io.github.md5sha256.realty.api.event;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -17,7 +19,7 @@ public class OfferRejectedEvent extends RealtyRegionEvent {
     private final UUID offererId;
 
     public OfferRejectedEvent(@NotNull WorldGuardRegion region,
-                              @NotNull UUID rejecterId,
+                              @Nullable UUID rejecterId,
                               @NotNull UUID offererId) {
         super(region);
         this.rejecterId = rejecterId;
@@ -25,10 +27,10 @@ public class OfferRejectedEvent extends RealtyRegionEvent {
     }
 
     /**
-     * The player who rejected the offer.
+     * The player who rejected the offer, or empty when the console or a plugin did.
      */
-    public @NotNull UUID getRejecterId() {
-        return this.rejecterId;
+    public @NotNull Optional<UUID> getRejecterId() {
+        return Optional.ofNullable(this.rejecterId);
     }
 
     /**

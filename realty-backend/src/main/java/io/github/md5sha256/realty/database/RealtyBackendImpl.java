@@ -2155,6 +2155,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!ctx.bypass() && !actsForFreehold(wrapper, freehold, worldGuardRegionId, worldId, ctx)) {
                 return new ToggleOffersResult.NotSanctioned();
             }
+            if (freehold.acceptingOffers() == acceptingOffers) {
+                return new ToggleOffersResult.NoChange();
+            }
             int updated = wrapper.freeholdContractMapper().updateAcceptingOffersByRegion(
                     worldGuardRegionId, worldId, acceptingOffers);
             if (updated == 0) {

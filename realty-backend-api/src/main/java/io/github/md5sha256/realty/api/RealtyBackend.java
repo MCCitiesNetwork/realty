@@ -973,6 +973,8 @@ public interface RealtyBackend {
         record AlreadyHasOffer() implements OfferResult {}
         record AuctionExists() implements OfferResult {}
         record InsertFailed() implements OfferResult {}
+        /** A listener cancelled the {@code OfferPlaceEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements OfferResult {}
     }
 
     /**
@@ -993,6 +995,8 @@ public interface RealtyBackend {
         record NotSanctioned() implements ToggleOffersResult {}
         record NoFreeholdContract() implements ToggleOffersResult {}
         record UpdateFailed() implements ToggleOffersResult {}
+        /** The freehold already was in the requested state. */
+        record NoChange() implements ToggleOffersResult {}
     }
 
     /** Like the other offer actions, and an admin may too. */
@@ -1008,6 +1012,8 @@ public interface RealtyBackend {
         record AuctionExists() implements AcceptOfferResult {}
         record AlreadyAccepted() implements AcceptOfferResult {}
         record InsertFailed() implements AcceptOfferResult {}
+        /** A listener cancelled the {@code OfferAcceptEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements AcceptOfferResult {}
     }
 
     /**
