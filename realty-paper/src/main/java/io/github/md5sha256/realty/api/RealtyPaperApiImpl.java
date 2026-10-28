@@ -927,6 +927,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetTenantResult) new SetTenantResult.NotAuthorized(regionId);
             case RealtyBackend.SetTenantResult.Occupied ignored ->
                     (SetTenantResult) new SetTenantResult.Occupied(regionId);
+            case RealtyBackend.SetTenantResult.AlreadyTenant ignored ->
+                    (SetTenantResult) new SetTenantResult.AlreadyTenant(regionId);
             case RealtyBackend.SetTenantResult.UpdateFailed ignored ->
                     (SetTenantResult) new SetTenantResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -955,6 +957,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetLandlordResult) new SetLandlordResult.NoLeaseholdContract(regionId);
             case RealtyBackend.SetLandlordResult.Occupied ignored ->
                     (SetLandlordResult) new SetLandlordResult.Occupied(regionId);
+            case RealtyBackend.SetLandlordResult.AlreadyLandlord ignored ->
+                    (SetLandlordResult) new SetLandlordResult.AlreadyLandlord(regionId);
             case RealtyBackend.SetLandlordResult.UpdateFailed ignored ->
                     (SetLandlordResult) new SetLandlordResult.UpdateFailed(regionId);
             case RealtyBackend.SetLandlordResult.NotAllowedToReassign refused ->

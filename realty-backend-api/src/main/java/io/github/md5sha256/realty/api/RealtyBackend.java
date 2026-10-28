@@ -285,6 +285,8 @@ public interface RealtyBackend {
         record NotAllowedToReassign(@NotNull Party current) implements SetLandlordResult {}
         /** The actor does not manage the party the role would go to. */
         record NotAllowedToAssign(@NotNull Party requested) implements SetLandlordResult {}
+        /** The new landlord is already the landlord. */
+        record AlreadyLandlord() implements SetLandlordResult {}
     }
 
     /**
@@ -376,6 +378,8 @@ public interface RealtyBackend {
         record UpdateFailed() implements SetTenantResult {}
         record NotAuthorized() implements SetTenantResult {}
         record Occupied() implements SetTenantResult {}
+        /** The new tenant is already the tenant. */
+        record AlreadyTenant() implements SetTenantResult {}
     }
 
     /** Sets the tenant with no check of who is acting and no tenancy condition. */

@@ -434,6 +434,7 @@ set-titleholder:
         to <green><titleholder>.</green>
     update-failed: <prefix> Failed to update titleholder for region <region>.
     error: '<prefix> Failed to set titleholder: <error>'
+    already-titleholder: <prefix> <green><titleholder></green> already holds region <yellow><region></yellow>.
     no-freehold-contract: <prefix> Region <yellow><region></yellow> is for lease,
         and accordingly cannot have a titleholder.
 set-tenant:
@@ -443,6 +444,7 @@ set-tenant:
         a lease contract.
     update-failed: <prefix> Failed to update tenant for region <region>.
     error: '<prefix> Failed to set tenant: <error>'
+    already-tenant: <prefix> <green><tenant></green> is already the tenant of region <yellow><region></yellow>.
 unset-titleholder:
     success: <prefix> You have cleared the titleholder for region <yellow><region>.</yellow>
     update-failed: <prefix> Failed to clear titleholder for region <region>.
@@ -637,6 +639,7 @@ set-landlord:
         contract
     update-failed: <prefix> Failed to update landlord for <yellow><region></yellow>
     error: '<prefix> Failed to set landlord: <error>'
+    already-landlord: <prefix> <green><landlord></green> is already the landlord of <yellow><region></yellow>.
 sign:
     place-success: <prefix> You have <green>registered a sign</green> for <yellow><region></yellow>
     place-not-a-sign: <prefix> You must be looking at a sign block

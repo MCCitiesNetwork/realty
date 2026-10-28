@@ -369,4 +369,73 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
                 logic.setTitleHolder(id, WORLD_ID, PLAYER_B, AS_C));
         Assertions.assertEquals(PLAYER_B, freeholdContract(id).titleHolderId());
     }
+
+    // --- Handing a role to the party that already holds it is refused before anything is written ---
+
+    private static int historyCount(String regionId) {
+        return logic.searchHistory(regionId, WORLD_ID, null, null, null, 100, 0).totalCount();
+    }
+
+    @Test
+    void transferToAnotherPlayerMovesTheTitleAndClearsThePrice() {
+        String id = freehold();
+        Assertions.assertEquals(new SetTitleHolderResult.Success(PLAYER_A),
+                logic.transferTitleHolder(id, WORLD_ID, PLAYER_B));
+        Assertions.assertEquals(PLAYER_B, freeholdContract(id).titleHolderId());
+        Assertions.assertNull(freeholdContract(id).price());
+    }
+
+    @Test
+    void transferToTheCurrentHolderIsRefusedAndChangesNothing() {
+        String id = freehold();
+        int historyBefore = historyCount(id);
+        Assertions.assertInstanceOf(SetTitleHolderResult.AlreadyTitleHolder.class,
+                logic.transferTitleHolder(id, WORLD_ID, PLAYER_A));
+        Assertions.assertEquals(PLAYER_A, freeholdContract(id).titleHolderId());
+        Assertions.assertEquals(500.0, freeholdContract(id).price());
+        Assertions.assertEquals(historyBefore, historyCount(id));
+    }
+
+    @Test
+    void settingTheCurrentTitleHolderIsRefusedAndChangesNothing() {
+        String id = freehold();
+        int historyBefore = historyCount(id);
+        Assertions.assertInstanceOf(SetTitleHolderResult.AlreadyTitleHolder.class,
+                logic.setTitleHolder(id, WORLD_ID, PLAYER_A, AS_A));
+        Assertions.assertEquals(historyBefore, historyCount(id));
+    }
+
+    @Test
+    void settingTheCurrentTitleHolderByAStrangerIsStillNotAuthorized() {
+        Assertions.assertInstanceOf(SetTitleHolderResult.NotAuthorized.class,
+                logic.setTitleHolder(freehold(), WORLD_ID, PLAYER_A, AS_B));
+    }
+
+    @Test
+    void settingAnotherTenantWritesHistory() {
+        String id = rentedLease();
+        int historyBefore = historyCount(id);
+        Assertions.assertInstanceOf(SetTenantResult.Success.class,
+                logic.setTenant(id, WORLD_ID, PLAYER_C, AS_A, false));
+        Assertions.assertEquals(historyBefore + 1, historyCount(id));
+    }
+
+    @Test
+    void settingTheCurrentTenantIsRefusedAndChangesNothing() {
+        String id = rentedLease();
+        int historyBefore = historyCount(id);
+        Assertions.assertInstanceOf(SetTenantResult.AlreadyTenant.class,
+                logic.setTenant(id, WORLD_ID, PLAYER_B, AS_A, false));
+        Assertions.assertEquals(PLAYER_B, lease(id).tenantId());
+        Assertions.assertEquals(historyBefore, historyCount(id));
+    }
+
+    @Test
+    void settingTheCurrentLandlordIsRefusedAndChangesNothing() {
+        String id = rentedLease();
+        int historyBefore = historyCount(id);
+        Assertions.assertInstanceOf(SetLandlordResult.AlreadyLandlord.class,
+                logic.setLandlord(id, WORLD_ID, Party.personal(PLAYER_A), ActorContext.console()));
+        Assertions.assertEquals(historyBefore, historyCount(id));
+    }
 }

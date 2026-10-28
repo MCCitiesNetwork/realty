@@ -140,10 +140,8 @@ public record UnsetCommandGroup(
                 case RealtyPaperApi.SetTitleHolderResult.NotAuthorized ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_NO_PERMISSION,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.SetTitleHolderResult.UpdateFailed ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_UPDATE_FAILED,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder ignored ->
+                case RealtyPaperApi.SetTitleHolderResult.UpdateFailed _,
+                     RealtyPaperApi.SetTitleHolderResult.AlreadyTitleHolder _ ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TITLEHOLDER_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyPaperApi.SetTitleHolderResult.Error error ->
@@ -179,7 +177,8 @@ public record UnsetCommandGroup(
                 case RealtyPaperApi.SetTenantResult.Occupied ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.SET_JUST_RENTED,
                                 Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.SetTenantResult.UpdateFailed ignored ->
+                case RealtyPaperApi.SetTenantResult.UpdateFailed _,
+                     RealtyPaperApi.SetTenantResult.AlreadyTenant _ ->
                         sender.sendMessage(messages.messageFor(MessageKeys.UNSET_TENANT_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyPaperApi.SetTenantResult.Error error ->

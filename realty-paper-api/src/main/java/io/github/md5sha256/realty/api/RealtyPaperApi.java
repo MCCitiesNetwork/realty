@@ -288,6 +288,8 @@ public interface RealtyPaperApi {
         record NotAuthorized(@NotNull String regionId) implements SetTenantResult {}
         /** The lease has a tenant and the change was asked for only while it has none. */
         record Occupied(@NotNull String regionId) implements SetTenantResult {}
+        /** The new tenant is already the tenant. */
+        record AlreadyTenant(@NotNull String regionId) implements SetTenantResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTenantResult {}
         record Error(@NotNull String message) implements SetTenantResult {}
     }
@@ -331,6 +333,8 @@ public interface RealtyPaperApi {
         record NoLeaseholdContract(@NotNull String regionId) implements SetLandlordResult {}
         /** The lease has a tenant and the change was asked for only while it has none. */
         record Occupied(@NotNull String regionId) implements SetLandlordResult {}
+        /** The new landlord is already the landlord. */
+        record AlreadyLandlord(@NotNull String regionId) implements SetLandlordResult {}
         record UpdateFailed(@NotNull String regionId) implements SetLandlordResult {}
         /** The actor may not hand the current landlord's role to another party. */
         record NotAllowedToReassign(@NotNull Party current) implements SetLandlordResult {}

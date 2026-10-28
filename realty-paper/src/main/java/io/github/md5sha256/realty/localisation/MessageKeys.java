@@ -379,6 +379,7 @@ public final class MessageKeys {
     public static final String SET_LANDLORD_NO_LEASEHOLD_CONTRACT = "set-landlord.no-leasehold-contract";
     public static final String SET_LANDLORD_UPDATE_FAILED = "set-landlord.update-failed";
     public static final String SET_LANDLORD_ERROR = "set-landlord.error";
+    public static final String SET_LANDLORD_ALREADY_LANDLORD = "set-landlord.already-landlord";
 
     // set-price
     public static final String SET_PRICE_SUCCESS = "set-price.success";
@@ -394,6 +395,7 @@ public final class MessageKeys {
     public static final String SET_TENANT_NO_LEASEHOLD_CONTRACT = "set-tenant.no-leasehold-contract";
     public static final String SET_TENANT_UPDATE_FAILED = "set-tenant.update-failed";
     public static final String SET_TENANT_ERROR = "set-tenant.error";
+    public static final String SET_TENANT_ALREADY_TENANT = "set-tenant.already-tenant";
 
     // set-authority
     public static final String SET_AUTHORITY_SUCCESS = "set-authority.success";
@@ -405,6 +407,7 @@ public final class MessageKeys {
     public static final String SET_TITLEHOLDER_NO_FREEHOLD_CONTRACT = "set-titleholder.no-freehold-contract";
     public static final String SET_TITLEHOLDER_UPDATE_FAILED = "set-titleholder.update-failed";
     public static final String SET_TITLEHOLDER_ERROR = "set-titleholder.error";
+    public static final String SET_TITLEHOLDER_ALREADY_TITLEHOLDER = "set-titleholder.already-titleholder";
 
     // transfer
     public static final String TRANSFER_SUCCESS = "transfer.success";
