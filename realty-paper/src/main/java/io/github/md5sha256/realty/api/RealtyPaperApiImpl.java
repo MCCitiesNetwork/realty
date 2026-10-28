@@ -11,6 +11,13 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AuctionBidEvent;
+import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
+import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
+import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
@@ -24,6 +31,8 @@ import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import org.bukkit.OfflinePlayer;
@@ -34,7 +43,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +54,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -61,6 +73,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final PlayerNameService playerNameService;
     private final AccountNameService accountNameService;
     private final ActorContexts actorContexts;
+    private final RealtyEventDispatch events;
 
     /**
      * Per-region serialisation chains. Each entry is the tail of a queue of
@@ -82,7 +95,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull SafeLocationFinder safeLocationFinder,
                               @NotNull PlayerNameService playerNameService,
                               @NotNull AccountNameService accountNameService,
-                              @NotNull ActorContexts actorContexts) {
+                              @NotNull ActorContexts actorContexts,
+                              @NotNull RealtyEventDispatch events) {
         this.server = server;
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
@@ -96,6 +110,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.playerNameService = playerNameService;
         this.accountNameService = accountNameService;
         this.actorContexts = actorContexts;
+        this.events = events;
     }
 
     /** In this version a tenant and a title holder are always players. */
@@ -684,6 +699,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), bidderId);
+        events.fireSync(new AuctionWonPurchaseEvent(region, bidderId, fullyPaid.titleHolderId(), amount));
         return CompletableFuture.completedFuture(
                 new PayBidResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
     }
@@ -1258,32 +1274,100 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 executorState.dbExec());
     }
 
+    /** A region resolved on the main thread, and whether its pre-event let the action go ahead. */
+    private record Gate(@Nullable WorldGuardRegion region, boolean proceed) {}
+
+    /**
+     * Resolves the region and fires its cancellable pre-event, both on the main thread. A region
+     * WorldGuard no longer knows fires no events and goes ahead, so the backend decides the outcome.
+     */
+    private @NotNull CompletableFuture<Gate> gate(@NotNull String regionId, @NotNull UUID worldId,
+                                                  @NotNull Function<WorldGuardRegion, RealtyRegionEvent> preEvent) {
+        return CompletableFuture.supplyAsync(() -> {
+            WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
+            return new Gate(region, region == null || events.fireSync(preEvent.apply(region)));
+        }, executorState.mainThreadExec());
+    }
+
+    private static @NotNull Instant toInstant(@NotNull LocalDateTime time) {
+        return time.atZone(ZoneId.systemDefault()).toInstant();
+    }
+
     @Override
     public @NotNull CompletableFuture<RealtyBackend.CreateAuctionResult> createAuction(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, long biddingDurationSeconds,
             long paymentDurationSeconds, double minBid, double minBidStep) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.createAuction(regionId, worldId, ctx,
-                        biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep),
-                executorState.dbExec());
+        UUID auctioneerId = ctx.requirePlayer();
+        return gate(regionId, worldId, region -> new AuctionCreateEvent(region, auctioneerId, minBid, minBidStep,
+                biddingDurationSeconds, paymentDurationSeconds))
+                .thenComposeAsync(gate -> {
+                    if (!gate.proceed()) {
+                        return CompletableFuture.completedFuture(new RealtyBackend.CreateAuctionResult.Cancelled());
+                    }
+                    return CompletableFuture.supplyAsync(
+                            () -> realtyApi.createAuction(regionId, worldId, ctx,
+                                    biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep),
+                            executorState.dbExec()
+                    ).thenApplyAsync(result -> {
+                        if (result instanceof RealtyBackend.CreateAuctionResult.Success && gate.region() != null) {
+                            events.fireSync(new AuctionCreatedEvent(gate.region(), auctioneerId, minBid, minBidStep,
+                                    biddingDurationSeconds, paymentDurationSeconds,
+                                    Instant.now().plusSeconds(biddingDurationSeconds)));
+                        }
+                        return result;
+                    }, executorState.mainThreadExec());
+                }, executorState.mainThreadExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
-            @NotNull String regionId, @NotNull UUID worldId) {
+            @NotNull String regionId, @NotNull UUID worldId, @Nullable UUID actorId) {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.cancelAuction(regionId, worldId),
-                executorState.dbExec());
+                executorState.dbExec()
+        ).thenApplyAsync(result -> {
+            WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
+            if (result.deleted() > 0 && region != null) {
+                events.fireSync(new AuctionCancelledEvent(region, actorId, result.bidderIds()));
+            }
+            return result;
+        }, executorState.mainThreadExec());
     }
+
+    /** What the bid's post-event needs beyond the result: when bidding now ends. */
+    private record PlacedBid(@NotNull RealtyBackend.BidResult result, @Nullable Instant biddingEndsAt) {}
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.BidResult> performBid(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.performBid(regionId, worldId, bidder, bidAmount, bypassConflict),
-                executorState.dbExec());
+        UUID bidderId = bidder.requirePlayer();
+        return gate(regionId, worldId, region -> new AuctionBidEvent(region, bidderId, bidAmount))
+                .thenComposeAsync(gate -> {
+                    if (!gate.proceed()) {
+                        return CompletableFuture.completedFuture(new RealtyBackend.BidResult.Cancelled());
+                    }
+                    return CompletableFuture.supplyAsync(() -> {
+                        RealtyBackend.BidResult result = realtyApi.performBid(regionId, worldId, bidder,
+                                bidAmount, bypassConflict);
+                        if (!(result instanceof RealtyBackend.BidResult.Success)) {
+                            return new PlacedBid(result, null);
+                        }
+                        RealtyBackend.RegionInfo info = realtyApi.getRegionInfo(regionId, worldId);
+                        Instant endsAt = info.auction() == null || info.highestBid() == null ? null
+                                : toInstant(info.highestBid().bidTime())
+                                        .plusSeconds(info.auction().biddingDurationSeconds());
+                        return new PlacedBid(result, endsAt);
+                    }, executorState.dbExec()).thenApplyAsync(placed -> {
+                        if (placed.result() instanceof RealtyBackend.BidResult.Success success
+                                && gate.region() != null && placed.biddingEndsAt() != null) {
+                            events.fireSync(new AuctionBidPlacedEvent(gate.region(), bidderId, bidAmount,
+                                    success.previousBidderId(), placed.biddingEndsAt()));
+                        }
+                        return placed.result();
+                    }, executorState.mainThreadExec());
+                }, executorState.mainThreadExec());
     }
 
     @Override

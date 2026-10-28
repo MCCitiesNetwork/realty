@@ -1,7 +1,6 @@
 package io.github.md5sha256.realty.command;
 
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
-import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
@@ -11,15 +10,7 @@ import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
-import io.github.md5sha256.realty.api.event.AuctionBidEvent;
-import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
-import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
-import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
-import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
-import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
-import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
-import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -60,7 +51,6 @@ public record AuctionCommandGroup(
         @NotNull ExecutorState executorState,
         @NotNull AtomicReference<Settings> settings,
         @NotNull MessageContainer messages,
-        @NotNull RealtyEventDispatch events,
         @NotNull PartyNames partyNames
 ) implements CustomCommandBean {
 
@@ -174,11 +164,6 @@ public record AuctionCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        if (!events.fireSync(new AuctionCreateEvent(region, player.getUniqueId(), minBid, minBidStep,
-                bidDuration.toSeconds(), paymentDuration.toSeconds()))) {
-            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
-            return;
-        }
         CompletableFuture.supplyAsync(() -> actors.forRegion(player, false, region), executorState.dbExec())
                 .thenComposeAsync(actor -> api.createAuction(
                         regionId,
@@ -191,12 +176,11 @@ public record AuctionCommandGroup(
                 ), executorState.mainThreadExec())
                 .thenAccept(result -> {
             switch (result) {
-                case RealtyBackend.CreateAuctionResult.Success ignored -> {
+                case RealtyBackend.CreateAuctionResult.Success ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_SUCCESS,
                                 Placeholder.unparsed("region", regionId)));
-                        events.fireSync(new AuctionCreatedEvent(region, player.getUniqueId(),
-                                minBid, minBidStep));
-                }
+                case RealtyBackend.CreateAuctionResult.Cancelled ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
                 case RealtyBackend.CreateAuctionResult.NotSanctioned ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.AUCTION_NOT_SANCTIONED,
                                 Placeholder.unparsed("region", regionId)));
@@ -226,22 +210,14 @@ public record AuctionCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        api.cancelAuction(regionId, region.world().getUID()).thenAccept(result -> {
+        UUID cancellerId = sender instanceof Player player ? player.getUniqueId() : null;
+        api.cancelAuction(regionId, region.world().getUID(), cancellerId).thenAccept(result -> {
             if (result.deleted() == 0) {
                 sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_NO_AUCTION));
                 return;
             }
             sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_SUCCESS,
                     Placeholder.unparsed("region", regionId)));
-            for (UUID bidderId : result.bidderIds()) {
-                events.fireSync(new RealtyNotificationEvent(List.of(bidderId),
-                        MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
-                        messages.messageFor(MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
-                                Placeholder.unparsed("region", regionId)), region));
-            }
-            if (sender instanceof Player canceller) {
-                events.fireSync(new AuctionCancelledEvent(region, canceller.getUniqueId()));
-            }
         }).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.CANCEL_AUCTION_ERROR,
                     Placeholder.unparsed("error", ex.getMessage())));
@@ -264,29 +240,18 @@ public record AuctionCommandGroup(
             return;
         }
         String regionId = region.region().getId();
-        if (!events.fireSync(new AuctionBidEvent(region, sender.getUniqueId(), bidAmount))) {
-            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
-            return;
-        }
         boolean bypassConflict = sender.hasPermission("realty.bypass.conflict-of-interest");
         CompletableFuture.supplyAsync(() -> actors.forRegion(sender, false, region), executorState.dbExec())
                 .thenComposeAsync(bidder -> api.performBid(regionId, region.world().getUID(), bidder,
                         bidAmount, bypassConflict), executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyBackend.BidResult.Success success -> {
-                            sender.sendMessage(messages.messageFor(MessageKeys.BID_SUCCESS,
-                                    Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
-                                    Placeholder.unparsed("region", regionId)));
-                            if (success.previousBidderId() != null) {
-                                events.fireSync(new RealtyNotificationEvent(List.of(success.previousBidderId()),
-                                        MessageKeys.NOTIFICATION_OUTBID,
-                                        messages.messageFor(MessageKeys.NOTIFICATION_OUTBID,
-                                                Placeholder.unparsed("region", regionId),
-                                                Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount))), region));
-                            }
-                            events.fireSync(new AuctionBidPlacedEvent(region, sender.getUniqueId(), bidAmount));
-                        }
+                        case RealtyBackend.BidResult.Success ignored ->
+                                sender.sendMessage(messages.messageFor(MessageKeys.BID_SUCCESS,
+                                        Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
+                                        Placeholder.unparsed("region", regionId)));
+                        case RealtyBackend.BidResult.Cancelled ignored ->
+                                sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
                         case RealtyBackend.BidResult.NoAuction ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.BID_NO_AUCTION));
                         case RealtyBackend.BidResult.IsOwner ignored ->
@@ -330,20 +295,9 @@ public record AuctionCommandGroup(
                                 Placeholder.unparsed("region", success.regionId()),
                                 Placeholder.unparsed("total", CurrencyFormatter.format(success.newTotal())),
                                 Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining()))));
-                case RealtyPaperApi.PayBidResult.FullyPaid fullyPaid -> {
-                    sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
-                            Placeholder.unparsed("region", fullyPaid.regionId())));
-                    UUID previousTitleHolderId = Party.playerUuidOf(fullyPaid.previousTitleHolder()).orElse(null);
-                    if (previousTitleHolderId != null) {
-                        events.fireSync(new RealtyNotificationEvent(List.of(previousTitleHolderId),
-                                MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
-                                messages.messageFor(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
-                                        Placeholder.unparsed("player", sender.getName()),
-                                        Placeholder.unparsed("region", fullyPaid.regionId())), region));
-                    }
-                    events.fireSync(new AuctionWonPurchaseEvent(region, sender.getUniqueId(),
-                            previousTitleHolderId, fullyPaid.amount()));
-                }
+                case RealtyPaperApi.PayBidResult.FullyPaid fullyPaid ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
+                                Placeholder.unparsed("region", fullyPaid.regionId())));
                 case RealtyPaperApi.PayBidResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", noPayment.regionId())));

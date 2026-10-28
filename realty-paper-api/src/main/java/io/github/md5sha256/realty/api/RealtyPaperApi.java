@@ -192,6 +192,10 @@ public interface RealtyPaperApi {
         record Error(@NotNull String message) implements PayBidResult {}
     }
 
+    /**
+     * Pays towards a won auction. The payment that clears the amount owed transfers the title
+     * and fires {@link io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent}.
+     */
     @NotNull CompletableFuture<PayBidResult> payBid(@NotNull WorldGuardRegion region,
                                                      @NotNull UUID bidderId,
                                                      double amount);
@@ -528,14 +532,42 @@ public interface RealtyPaperApi {
 
     // --- Auction ---
 
+    /**
+     * Starts an auction with the acting player as the auctioneer. Fires
+     * {@link io.github.md5sha256.realty.api.event.AuctionCreateEvent} first, returning
+     * {@link RealtyBackend.CreateAuctionResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.AuctionCreatedEvent} once the auction exists.
+     */
     @NotNull CompletableFuture<RealtyBackend.CreateAuctionResult> createAuction(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, long biddingDurationSeconds,
             long paymentDurationSeconds, double minBid, double minBidStep);
 
-    @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
-            @NotNull String regionId, @NotNull UUID worldId);
+    /**
+     * Cancels the region's auction as the console.
+     *
+     * @deprecated use {@link #cancelAuction(String, UUID, UUID)}, which names who cancelled
+     */
+    @Deprecated
+    default @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
+            @NotNull String regionId, @NotNull UUID worldId) {
+        return cancelAuction(regionId, worldId, null);
+    }
 
+    /**
+     * Cancels the region's auction and refunds its bidders. Fires
+     * {@link io.github.md5sha256.realty.api.event.AuctionCancelledEvent} when there was one.
+     *
+     * @param actorId the player who cancelled it, or null for the console or a plugin
+     */
+    @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
+            @NotNull String regionId, @NotNull UUID worldId, @Nullable UUID actorId);
+
+    /**
+     * Places a bid. Fires {@link io.github.md5sha256.realty.api.event.AuctionBidEvent} first,
+     * returning {@link RealtyBackend.BidResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent} once the bid stands.
+     */
     @NotNull CompletableFuture<RealtyBackend.BidResult> performBid(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict);

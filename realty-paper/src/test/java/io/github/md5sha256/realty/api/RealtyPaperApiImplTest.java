@@ -8,10 +8,20 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.internal.platform.WorldGuardPlatform;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
+import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
+import io.github.md5sha256.realty.api.event.AuctionBidEvent;
+import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
+import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
+import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
+import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
+import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
+import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
@@ -29,6 +39,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -79,11 +90,14 @@ class RealtyPaperApiImplTest {
     private World world;
     @Mock
     private TreasuryApi treasury;
+    @Mock
+    private RealtyEventDispatch events;
 
     private SignCache signCache;
     private RealtyPaperApiImpl api;
     private MockedStatic<WorldGuard> worldGuardMock;
     private MockedStatic<BukkitAdapter> bukkitAdapterMock;
+    private RegionContainer regionContainer;
 
     private ProtectedRegion protectedRegion;
     private WorldGuardRegion wgRegion;
@@ -134,7 +148,7 @@ class RealtyPaperApiImplTest {
         api = new RealtyPaperApiImpl(server, realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
                 new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()),
-                actorContexts);
+                actorContexts, events);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
 
@@ -146,7 +160,7 @@ class RealtyPaperApiImplTest {
         // Returning null for RegionManager makes updateChildLandlords return early
         WorldGuard worldGuardInstance = org.mockito.Mockito.mock(WorldGuard.class);
         WorldGuardPlatform platform = org.mockito.Mockito.mock(WorldGuardPlatform.class);
-        RegionContainer regionContainer = org.mockito.Mockito.mock(RegionContainer.class);
+        regionContainer = org.mockito.Mockito.mock(RegionContainer.class);
         worldGuardMock = mockStatic(WorldGuard.class);
         worldGuardMock.when(WorldGuard::getInstance).thenReturn(worldGuardInstance);
         lenient().when(worldGuardInstance.getPlatform()).thenReturn(platform);
@@ -476,7 +490,7 @@ class RealtyPaperApiImplTest {
                             new AtomicReference<>(new Settings(null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi));
+                            realtyApi), events);
         }
 
         private void runMainThread() {
@@ -1443,7 +1457,7 @@ class RealtyPaperApiImplTest {
                             new AtomicReference<>(new Settings(null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi));
+                            realtyApi), events);
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
             regionIs(RegionState.FOR_SALE);
@@ -1834,6 +1848,108 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(
                     RealtyPaperApi.CreateLeaseholdResult.AlreadyRegistered.class, result);
+        }
+    }
+
+    /** The auction actions fire their events from the API, so a plugin calling them gets the same as a command. */
+    @Nested
+    class AuctionEvents {
+
+        private static final RealtyBackend.RegionInfo BID_STANDING = new RealtyBackend.RegionInfo(null, null,
+                new FreeholdContractAuctionEntity(1, 1, AUTHORITY_ID, LocalDateTime.of(2026, 10, 1, 12, 0),
+                        3600, 600, LocalDateTime.of(2026, 10, 2, 12, 0), 100, 10, false),
+                null, new FreeholdContractBid(1, BUYER_ID, 150, LocalDateTime.of(2026, 10, 1, 13, 0)));
+
+        @BeforeEach
+        void regionIsKnownToWorldGuard() {
+            RegionManager regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            lenient().when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
+            lenient().when(events.fireSync(any(RealtyRegionEvent.class))).thenReturn(true);
+        }
+
+        private <E extends RealtyRegionEvent> E fired(Class<E> type) {
+            ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
+            verify(events, org.mockito.Mockito.atLeastOnce()).fireSync(captor.capture());
+            return captor.getAllValues().stream().filter(type::isInstance).map(type::cast)
+                    .findFirst().orElseThrow(() -> new AssertionError("no " + type.getSimpleName() + " fired"));
+        }
+
+        @Test
+        void createFiresBothEvents() {
+            when(realtyApi.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10))
+                    .thenReturn(new RealtyBackend.CreateAuctionResult.Success());
+
+            Assertions.assertInstanceOf(RealtyBackend.CreateAuctionResult.Success.class,
+                    api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10).join());
+
+            Assertions.assertEquals(BUYER_ID, fired(AuctionCreateEvent.class).getAuctioneerId());
+            AuctionCreatedEvent created = fired(AuctionCreatedEvent.class);
+            Assertions.assertEquals(3600, created.getBiddingDurationSeconds());
+            Assertions.assertEquals(600, created.getPaymentDurationSeconds());
+        }
+
+        @Test
+        void createVetoedByAListenerIsCancelled() {
+            when(events.fireSync(any(AuctionCreateEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.CreateAuctionResult.Cancelled.class,
+                    api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10).join());
+
+            verify(realtyApi, never()).createAuction(any(), any(), any(),
+                    org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.anyDouble());
+        }
+
+        @Test
+        void bidNamesTheOutbidPlayerAndTheNewEnd() {
+            UUID outbid = UUID.randomUUID();
+            when(realtyApi.performBid(REGION_ID, WORLD_ID, BUYER_CTX, 150, false))
+                    .thenReturn(new RealtyBackend.BidResult.Success(outbid));
+            when(realtyApi.getRegionInfo(REGION_ID, WORLD_ID)).thenReturn(BID_STANDING);
+
+            Assertions.assertInstanceOf(RealtyBackend.BidResult.Success.class,
+                    api.performBid(REGION_ID, WORLD_ID, BUYER_CTX, 150, false).join());
+
+            AuctionBidPlacedEvent placed = fired(AuctionBidPlacedEvent.class);
+            Assertions.assertEquals(Optional.of(outbid), placed.getPreviousBidderId());
+            Assertions.assertEquals(LocalDateTime.of(2026, 10, 1, 14, 0)
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant(), placed.getBiddingEndsAt());
+        }
+
+        @Test
+        void bidVetoedByAListenerIsCancelled() {
+            when(events.fireSync(any(AuctionBidEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.BidResult.Cancelled.class,
+                    api.performBid(REGION_ID, WORLD_ID, BUYER_CTX, 150, false).join());
+
+            verify(realtyApi, never()).performBid(any(), any(), any(),
+                    org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
+        void cancelByTheConsoleStillFiresTheEvent() {
+            UUID bidder = UUID.randomUUID();
+            when(realtyApi.cancelAuction(REGION_ID, WORLD_ID))
+                    .thenReturn(new RealtyBackend.CancelAuctionResult(1, List.of(bidder)));
+
+            api.cancelAuction(REGION_ID, WORLD_ID, null).join();
+
+            AuctionCancelledEvent cancelled = fired(AuctionCancelledEvent.class);
+            Assertions.assertTrue(cancelled.getActorId().isEmpty());
+            Assertions.assertEquals(List.of(bidder), cancelled.getBidderIds());
+        }
+
+        @Test
+        void cancelWithNoAuctionFiresNothing() {
+            when(realtyApi.cancelAuction(REGION_ID, WORLD_ID))
+                    .thenReturn(new RealtyBackend.CancelAuctionResult(0, List.of()));
+
+            api.cancelAuction(REGION_ID, WORLD_ID, BUYER_ID).join();
+
+            verify(events, never()).fireSync(any(RealtyRegionEvent.class));
         }
     }
 }

@@ -81,6 +81,7 @@ import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.MariaDatabase;
 import io.github.md5sha256.realty.listener.WorldRegistrar;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.listener.PropertyTaxListener;
 import io.github.md5sha256.realty.listener.RegionNotificationListener;
@@ -351,17 +352,17 @@ public final class Realty extends JavaPlugin {
         if (getServer().getPluginManager().isPluginEnabled("Treasury")) {
             registerTreasuryTaxProvider();
         }
+        this.eventDispatch = new RealtyEventDispatch(
+                getServer(),
+                this.executorState.mainThreadExec(),
+                task -> getServer().getScheduler().runTaskAsynchronously(this, task));
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
                 () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
                 this.playerNameService,
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
-                this.actorContexts);
-        this.eventDispatch = new RealtyEventDispatch(
-                getServer(),
-                this.executorState.mainThreadExec(),
-                task -> getServer().getScheduler().runTaskAsynchronously(this, task));
+                this.actorContexts, this.eventDispatch);
         this.moduleManager = new ModuleLifecycleManager<>(this,
                 new ModuleLoader(getDataFolder().toPath().resolve("modules")),
                 Realty.class.getName(),
@@ -513,7 +514,7 @@ public final class Realty extends JavaPlugin {
                 // Resolve WorldGuard regions and fire notifications/post-events on the main thread.
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.ExpiredBiddingAuction auction : endedAuctions) {
-                        WorldGuardRegion wgRegion = resolveRegion(auction.worldId(), auction.worldGuardRegionId());
+                        WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(getServer(), auction.worldId(), auction.worldGuardRegionId());
                         if (auction.winnerId() != null) {
                             this.eventDispatch.fireSync(new RealtyNotificationEvent(
                                     List.of(auction.winnerId()),
@@ -540,7 +541,7 @@ public final class Realty extends JavaPlugin {
             if (!expiredBidPayments.isEmpty()) {
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.ExpiredBidPayment payment : expiredBidPayments) {
-                        WorldGuardRegion wgRegion = resolveRegion(payment.worldId(), payment.regionId());
+                        WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId());
                         this.eventDispatch.fireSync(new RealtyNotificationEvent(
                                 List.of(payment.bidderId()),
                                 MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
@@ -556,7 +557,7 @@ public final class Realty extends JavaPlugin {
             if (!expiredOfferPayments.isEmpty()) {
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.ExpiredOfferPayment payment : expiredOfferPayments) {
-                        WorldGuardRegion wgRegion = resolveRegion(payment.worldId(), payment.regionId());
+                        WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId());
                         this.eventDispatch.fireSync(new RealtyNotificationEvent(
                                 List.of(payment.offererId()),
                                 MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
@@ -655,32 +656,6 @@ public final class Realty extends JavaPlugin {
                 });
             }
         }, intervalTicks, intervalTicks);
-    }
-
-    /**
-     * Resolves a {@link WorldGuardRegion} for a sweep-produced payment record, returning
-     * {@code null} when the world id is unknown or either the world or the WorldGuard region
-     * itself cannot be resolved (e.g. the region row has already been deleted). Must be called
-     * on the main thread.
-     */
-    private @Nullable WorldGuardRegion resolveRegion(@Nullable UUID worldId, @NotNull String worldGuardRegionId) {
-        if (worldId == null) {
-            return null;
-        }
-        World world = getServer().getWorld(worldId);
-        if (world == null) {
-            return null;
-        }
-        RegionManager regionManager = WorldGuard.getInstance().getPlatform()
-                .getRegionContainer().get(BukkitAdapter.adapt(world));
-        if (regionManager == null) {
-            return null;
-        }
-        ProtectedRegion protectedRegion = regionManager.getRegion(worldGuardRegionId);
-        if (protectedRegion == null) {
-            return null;
-        }
-        return new WorldGuardRegion(protectedRegion, world);
     }
 
     private void initDataFolder() throws IOException {
@@ -978,7 +953,6 @@ public final class Realty extends JavaPlugin {
                         executorState,
                         this.settings,
                         messageContainer,
-                        this.eventDispatch,
                         this.partyNames),
                 new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
                 new CreateCommand(getServer(), paperApi, this.defaultParties, this.partyResolver, partySuggestions,

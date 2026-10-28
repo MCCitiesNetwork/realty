@@ -104,6 +104,8 @@ public interface RealtyBackend {
         record NoFreeholdContract() implements CreateAuctionResult {}
         /** The region already has at least one offer; offers and auctions are mutually exclusive. */
         record OffersExist() implements CreateAuctionResult {}
+        /** A listener cancelled the {@code AuctionCreateEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements CreateAuctionResult {}
     }
 
     /**
@@ -131,6 +133,8 @@ public interface RealtyBackend {
         record BidTooLowMinimum(double minBid) implements BidResult {}
         record BidTooLowCurrent(double currentHighest) implements BidResult {}
         record AlreadyHighestBidder() implements BidResult {}
+        /** A listener cancelled the {@code AuctionBidEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements BidResult {}
     }
 
     /**

@@ -6,6 +6,9 @@ import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
+import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationProposedEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
@@ -73,6 +76,30 @@ public final class RegionNotificationListener implements Listener {
                         Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
                         Placeholder.unparsed("region", event.getRegionId())));
+    }
+
+    @EventHandler
+    public void onAuctionWonPurchase(@NotNull AuctionWonPurchaseEvent event) {
+        Party.playerUuidOf(event.getPreviousTitleHolder()).ifPresent(seller ->
+                notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
+                        Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
+                        Placeholder.unparsed("region", event.getRegionId())));
+    }
+
+    @EventHandler
+    public void onAuctionBidPlaced(@NotNull AuctionBidPlacedEvent event) {
+        event.getPreviousBidderId().ifPresent(outbid ->
+                notifyPlayer(outbid, event.getRegion(), MessageKeys.NOTIFICATION_OUTBID,
+                        Placeholder.unparsed("region", event.getRegionId()),
+                        Placeholder.unparsed("amount", CurrencyFormatter.format(event.getBidAmount()))));
+    }
+
+    @EventHandler
+    public void onAuctionCancelled(@NotNull AuctionCancelledEvent event) {
+        for (UUID bidder : event.getBidderIds()) {
+            notifyPlayer(bidder, event.getRegion(), MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
+                    Placeholder.unparsed("region", event.getRegionId()));
+        }
     }
 
     @EventHandler
