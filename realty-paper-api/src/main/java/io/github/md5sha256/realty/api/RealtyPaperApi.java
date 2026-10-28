@@ -224,7 +224,7 @@ public interface RealtyPaperApi {
         record NoFreeholdContract(@NotNull String regionId) implements SetTitleHolderResult {}
         /** The actor does not manage the region's current holder. */
         record NotAuthorized(@NotNull String regionId) implements SetTitleHolderResult {}
-        /** The new holder already holds the title. */
+        /** The new holder already holds the title, or nobody does and the title is being cleared. */
         record AlreadyTitleHolder(@NotNull String regionId) implements SetTitleHolderResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTitleHolderResult {}
         record Error(@NotNull String message) implements SetTitleHolderResult {}
@@ -288,7 +288,7 @@ public interface RealtyPaperApi {
         record NotAuthorized(@NotNull String regionId) implements SetTenantResult {}
         /** The lease has a tenant and the change was asked for only while it has none. */
         record Occupied(@NotNull String regionId) implements SetTenantResult {}
-        /** The new tenant is already the tenant. */
+        /** The new tenant is already the tenant, or there is none and the tenant is being cleared. */
         record AlreadyTenant(@NotNull String regionId) implements SetTenantResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTenantResult {}
         record Error(@NotNull String message) implements SetTenantResult {}

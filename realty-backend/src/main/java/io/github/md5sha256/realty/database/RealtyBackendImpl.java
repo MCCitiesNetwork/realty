@@ -787,7 +787,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetTitleHolderResult.NotAuthorized();
             }
             UUID previousTitleHolder = freehold.titleHolderId();
-            if (titleHolderId != null && titleHolderId.equals(previousTitleHolder)) {
+            if (Objects.equals(titleHolderId, previousTitleHolder)) {
                 return new SetTitleHolderResult.AlreadyTitleHolder();
             }
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
@@ -894,7 +894,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetTenantResult.NotAuthorized();
             }
             UUID previousTenant = lease.tenantId();
-            if (tenantId != null && tenantId.equals(previousTenant)) {
+            if (Objects.equals(tenantId, previousTenant)) {
                 return new SetTenantResult.AlreadyTenant();
             }
             int landlordPartyId = namedPartyId(wrapper, lease.landlord());

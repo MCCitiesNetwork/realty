@@ -335,7 +335,7 @@ public interface RealtyBackend {
         record NoFreeholdContract() implements SetTitleHolderResult {}
         record UpdateFailed() implements SetTitleHolderResult {}
         record NotAuthorized() implements SetTitleHolderResult {}
-        /** The new holder already holds the title. */
+        /** The new holder already holds the title, or nobody does and the title is being cleared. */
         record AlreadyTitleHolder() implements SetTitleHolderResult {}
     }
 
@@ -378,7 +378,7 @@ public interface RealtyBackend {
         record UpdateFailed() implements SetTenantResult {}
         record NotAuthorized() implements SetTenantResult {}
         record Occupied() implements SetTenantResult {}
-        /** The new tenant is already the tenant. */
+        /** The new tenant is already the tenant, or there is none and the tenant is being cleared. */
         record AlreadyTenant() implements SetTenantResult {}
     }
 

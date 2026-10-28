@@ -449,6 +449,7 @@ unset-titleholder:
     success: <prefix> You have cleared the titleholder for region <yellow><region>.</yellow>
     update-failed: <prefix> Failed to clear titleholder for region <region>.
     error: '<prefix> Failed to unset titleholder: <error>'
+    no-titleholder: <prefix> Region <yellow><region></yellow> has no titleholder to clear.
     no-freehold-contract: <prefix> Region <yellow><region></yellow> is for lease,
         and accordingly cannot have a titleholder.
 unset-tenant:
@@ -457,6 +458,7 @@ unset-tenant:
         and accordingly cannot have a tenant.
     update-failed: <prefix> Failed to clear tenant for region <region>.
     error: '<prefix> Failed to unset tenant: <error>'
+    no-tenant: <prefix> Region <yellow><region></yellow> has no tenant to clear.
 withdraw-offer:
     no-offer: <prefix> You do not have an offer on region <region>.
     accepted: <prefix> Your offer on region <yellow><region></yellow> has been accepted

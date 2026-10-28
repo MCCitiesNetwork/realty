@@ -438,4 +438,22 @@ class GuardedHolderSetterTest extends AbstractDatabaseTest {
                 logic.setLandlord(id, WORLD_ID, Party.personal(PLAYER_A), ActorContext.console()));
         Assertions.assertEquals(historyBefore, historyCount(id));
     }
+
+    @Test
+    void clearingTheTitleHolderOfAnUnsoldFreeholdIsRefusedAndChangesNothing() {
+        String id = unsoldFreehold();
+        int historyBefore = historyCount(id);
+        Assertions.assertInstanceOf(SetTitleHolderResult.AlreadyTitleHolder.class,
+                logic.setTitleHolder(id, WORLD_ID, null, AS_AUTHORITY));
+        Assertions.assertEquals(historyBefore, historyCount(id));
+    }
+
+    @Test
+    void clearingTheTenantOfAVacantLeaseIsRefusedAndChangesNothing() {
+        String id = vacantLease();
+        int historyBefore = historyCount(id);
+        Assertions.assertInstanceOf(SetTenantResult.AlreadyTenant.class,
+                logic.setTenant(id, WORLD_ID, null, AS_A, false));
+        Assertions.assertEquals(historyBefore, historyCount(id));
+    }
 }

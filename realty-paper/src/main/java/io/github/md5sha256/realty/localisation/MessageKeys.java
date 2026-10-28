@@ -434,12 +434,14 @@ public final class MessageKeys {
     public static final String UNSET_TENANT_NO_LEASEHOLD_CONTRACT = "unset-tenant.no-leasehold-contract";
     public static final String UNSET_TENANT_UPDATE_FAILED = "unset-tenant.update-failed";
     public static final String UNSET_TENANT_ERROR = "unset-tenant.error";
+    public static final String UNSET_TENANT_NO_TENANT = "unset-tenant.no-tenant";
 
     // unset-titleholder
     public static final String UNSET_TITLEHOLDER_SUCCESS = "unset-titleholder.success";
     public static final String UNSET_TITLEHOLDER_NO_FREEHOLD_CONTRACT = "unset-titleholder.no-freehold-contract";
     public static final String UNSET_TITLEHOLDER_UPDATE_FAILED = "unset-titleholder.update-failed";
     public static final String UNSET_TITLEHOLDER_ERROR = "unset-titleholder.error";
+    public static final String UNSET_TITLEHOLDER_NO_TITLEHOLDER = "unset-titleholder.no-titleholder";
 
     // withdraw-offer
     public static final String WITHDRAW_OFFER_NO_OFFER = "withdraw-offer.no-offer";
