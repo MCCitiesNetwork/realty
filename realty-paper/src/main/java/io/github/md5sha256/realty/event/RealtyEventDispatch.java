@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.event;
 
+import io.github.md5sha256.realty.api.event.PaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import org.bukkit.Server;
@@ -68,6 +69,15 @@ public final class RealtyEventDispatch {
             throw new IllegalArgumentException(
                     "fireSync requires a synchronous event; use fireAsync for " + event.getEventName());
         }
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "Cancellable synchronous events must be fired from the main thread: ");
+    }
+
+    /**
+     * Fires a {@link PaymentExpiredEvent}, hopping to the main thread if the caller is not
+     * already on it. These events are never cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull PaymentExpiredEvent event) {
         return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
                 "Cancellable synchronous events must be fired from the main thread: ");
     }

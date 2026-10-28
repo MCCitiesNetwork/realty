@@ -29,6 +29,8 @@ import io.github.md5sha256.realty.api.SignProfile;
 import io.github.md5sha256.realty.api.SignTextApplicator;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.AuctionEndedEvent;
+import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
+import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
@@ -541,15 +543,10 @@ public final class Realty extends JavaPlugin {
             if (!expiredBidPayments.isEmpty()) {
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.ExpiredBidPayment payment : expiredBidPayments) {
-                        WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId());
-                        this.eventDispatch.fireSync(new RealtyNotificationEvent(
-                                List.of(payment.bidderId()),
-                                MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
-                                this.messageContainer.messageFor(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
-                                        Placeholder.unparsed("region", payment.regionId()),
-                                        Placeholder.unparsed("amount",
-                                                CurrencyFormatter.format(payment.refundAmount()))),
-                                wgRegion));
+                        this.eventDispatch.fireSync(new AuctionPaymentExpiredEvent(payment.regionId(),
+                                payment.worldId(),
+                                WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
+                                payment.bidderId(), payment.refundAmount()));
                     }
                 });
             }
@@ -557,15 +554,10 @@ public final class Realty extends JavaPlugin {
             if (!expiredOfferPayments.isEmpty()) {
                 scheduler.runTask(this, () -> {
                     for (RealtyBackend.ExpiredOfferPayment payment : expiredOfferPayments) {
-                        WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId());
-                        this.eventDispatch.fireSync(new RealtyNotificationEvent(
-                                List.of(payment.offererId()),
-                                MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
-                                this.messageContainer.messageFor(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
-                                        Placeholder.unparsed("region", payment.regionId()),
-                                        Placeholder.unparsed("amount",
-                                                CurrencyFormatter.format(payment.refundAmount()))),
-                                wgRegion));
+                        this.eventDispatch.fireSync(new OfferPaymentExpiredEvent(payment.regionId(),
+                                payment.worldId(),
+                                WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
+                                payment.offererId(), payment.refundAmount()));
                     }
                 });
             }

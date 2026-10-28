@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
 import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationProposedEvent;
@@ -16,6 +17,7 @@ import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminationCancelledEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminationScheduledEvent;
 import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
+import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
 import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
 import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
@@ -105,6 +107,20 @@ public final class RegionNotificationListener implements Listener {
             notifyPlayer(bidder, event.getRegion(), MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
                     Placeholder.unparsed("region", event.getRegionId()));
         }
+    }
+
+    @EventHandler
+    public void onAuctionPaymentExpired(@NotNull AuctionPaymentExpiredEvent event) {
+        notifyPlayer(event.getBidderId(), event.getRegion().orElse(null), MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
+                Placeholder.unparsed("region", event.getRegionId()),
+                Placeholder.unparsed("amount", CurrencyFormatter.format(event.getRefundAmount())));
+    }
+
+    @EventHandler
+    public void onOfferPaymentExpired(@NotNull OfferPaymentExpiredEvent event) {
+        notifyPlayer(event.getOffererId(), event.getRegion().orElse(null), MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
+                Placeholder.unparsed("region", event.getRegionId()),
+                Placeholder.unparsed("amount", CurrencyFormatter.format(event.getRefundAmount())));
     }
 
     @EventHandler
@@ -229,7 +245,7 @@ public final class RegionNotificationListener implements Listener {
                 Placeholder.unparsed("region", event.getRegionId()));
     }
 
-    private void notifyPlayer(@NotNull UUID playerId, @NotNull WorldGuardRegion region, @NotNull String key,
+    private void notifyPlayer(@NotNull UUID playerId, @Nullable WorldGuardRegion region, @NotNull String key,
                               @NotNull TagResolver... placeholders) {
         this.events.fireSync(new RealtyNotificationEvent(List.of(playerId), key,
                 this.messages.messageFor(key, placeholders), region));

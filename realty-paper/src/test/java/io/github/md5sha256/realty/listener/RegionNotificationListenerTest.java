@@ -10,8 +10,10 @@ import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
 import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
 import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
 import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
@@ -245,6 +247,24 @@ class RegionNotificationListenerTest {
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
         Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_REJECTED, notice.getMessageKey());
+    }
+
+    @Test
+    void bidPaymentExpired_notifiesTheBidderEvenWhenTheRegionIsGone() {
+        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("gone", null, null, TENANT, 250));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(TENANT), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED, notice.getMessageKey());
+    }
+
+    @Test
+    void offerPaymentExpired_notifiesTheOfferer() {
+        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(TENANT), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED, notice.getMessageKey());
     }
 }
 
