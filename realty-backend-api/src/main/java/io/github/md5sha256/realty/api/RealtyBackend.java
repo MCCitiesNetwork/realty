@@ -1075,6 +1075,7 @@ public interface RealtyBackend {
                        @NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record NoPaymentRecord() implements PayOfferResult {}
+        record PaymentExpired() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
     }
 

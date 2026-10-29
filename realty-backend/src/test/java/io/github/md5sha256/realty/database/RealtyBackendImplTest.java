@@ -986,6 +986,22 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("returns PaymentExpired and records nothing after the deadline")
+        void paymentExpired() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false);
+            insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusMinutes(1));
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 0.0);
+            Assertions.assertInstanceOf(PayOfferResult.PaymentExpired.class, result);
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                Assertions.assertEquals(0.0, wrapper.freeholdContractOfferPaymentMapper()
+                        .selectByRegion(regionId, WORLD_ID).currentPayment());
+            }
+        }
+
+        @Test
         @DisplayName("returns ExceedsAmountOwed when payment exceeds remaining")
         void exceedsAmountOwed() {
             String regionId = uniqueRegionId();

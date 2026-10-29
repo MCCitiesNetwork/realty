@@ -341,6 +341,9 @@ public record OfferCommandGroup(
                 case RealtyPaperApi.PayOfferResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", noPayment.regionId())));
+                case RealtyPaperApi.PayOfferResult.PaymentExpired expired ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_PAYMENT_EXPIRED,
+                                Placeholder.unparsed("region", expired.regionId())));
                 case RealtyPaperApi.PayOfferResult.ExceedsAmountOwed exceeds ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_EXCEEDS_OWED,
                                 Placeholder.unparsed("amount", CurrencyFormatter.format(exceeds.amount())),

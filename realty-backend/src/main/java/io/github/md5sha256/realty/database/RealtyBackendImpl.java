@@ -2323,6 +2323,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment == null || !payment.offererId().equals(offererId)) {
                 return new PayOfferResult.NoPaymentRecord();
             }
+            if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
+                return new PayOfferResult.PaymentExpired();
+            }
             double amountOwed = payment.offerPrice() - payment.currentPayment();
             if (amount > amountOwed + PAYMENT_EPSILON) {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);

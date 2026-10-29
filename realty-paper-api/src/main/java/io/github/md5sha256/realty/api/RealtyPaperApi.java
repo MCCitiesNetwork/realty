@@ -208,6 +208,7 @@ public interface RealtyPaperApi {
         record FullyPaid(double amount, @NotNull String regionId,
                          @Nullable Party previousTitleHolder) implements PayOfferResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayOfferResult {}
+        record PaymentExpired(@NotNull String regionId) implements PayOfferResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
                                  @NotNull String regionId) implements PayOfferResult {}
         record InsufficientFunds(double balance) implements PayOfferResult {}
