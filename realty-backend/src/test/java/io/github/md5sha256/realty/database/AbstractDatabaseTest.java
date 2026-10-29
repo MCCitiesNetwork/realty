@@ -35,6 +35,19 @@ abstract class AbstractDatabaseTest {
 
     private static volatile boolean migrated;
 
+    /**
+     * Turns offers on for a freehold. A new freehold refuses offers, so a test that places one
+     * opens the freehold first.
+     */
+    protected static void openToOffers(String regionId, UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            if (wrapper.freeholdContractMapper().updateAcceptingOffersByRegion(regionId, worldId, true) != 1) {
+                throw new IllegalStateException("No freehold for " + regionId);
+            }
+            wrapper.session().commit();
+        }
+    }
+
     @BeforeAll
     static void initDatabase() throws IOException, SQLException {
         if (!migrated) {

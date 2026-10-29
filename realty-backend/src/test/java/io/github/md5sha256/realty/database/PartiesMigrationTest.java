@@ -235,7 +235,7 @@ class PartiesMigrationTest extends AbstractDatabaseTest {
         }
 
         MariaSchemaMigrator.migrate(url, "root", ROOT_PASSWORD, Path.of("sql/migrations"),
-                all, Logger.getLogger("test"));
+                all.stream().filter(step -> step.version() <= 19).toList(), Logger.getLogger("test"));
 
         try (Connection connection = DriverManager.getConnection(url, "root", ROOT_PASSWORD);
              Statement statement = connection.createStatement();

@@ -36,6 +36,7 @@ class AgentLogicTest extends AbstractDatabaseTest {
     private static void createFreeholdRegion(String regionId) {
         boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, Party.personal(AUTHORITY), TITLE_HOLDER);
         Assertions.assertTrue(created, "Expected freehold region to be created");
+        openToOffers(regionId, WORLD_ID);
     }
 
     private static String governmentFreehold() {

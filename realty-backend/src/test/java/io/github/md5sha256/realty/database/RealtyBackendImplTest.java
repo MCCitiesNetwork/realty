@@ -57,6 +57,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
     private static void createFreeholdRegion(String regionId, UUID worldId, UUID authority, UUID titleHolder) {
         boolean created = logic.createFreehold(regionId, worldId, 1000.0, Party.personal(authority), titleHolder);
         Assertions.assertTrue(created, "Expected freehold region to be created");
+        openToOffers(regionId, worldId);
     }
 
     private static void createAuctionOnRegion(String regionId, UUID worldId) {
@@ -1428,6 +1429,20 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
     class ToggleOffers {
 
         @Test
+        @DisplayName("a new freehold refuses offers until they are turned on")
+        void newFreeholdRefusesOffers() {
+            String regionId = uniqueRegionId();
+            Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0, Party.personal(AUTHORITY), PLAYER_A));
+
+            Assertions.assertInstanceOf(OfferResult.NotAcceptingOffers.class,
+                    logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false));
+            Assertions.assertInstanceOf(RealtyBackend.ToggleOffersResult.Success.class,
+                    logic.toggleOffers(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), true));
+            Assertions.assertInstanceOf(OfferResult.Success.class,
+                    logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false));
+        }
+
+        @Test
         @DisplayName("titleHolder can toggle offers off")
         void titleHolderCanToggleOff() {
             String regionId = uniqueRegionId();
@@ -1723,6 +1738,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         private static String governmentFreehold() {
             String regionId = uniqueRegionId();
             Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0, GOV, PLAYER_B));
+            openToOffers(regionId, WORLD_ID);
             return regionId;
         }
 
@@ -2097,6 +2113,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         private static String governmentFreehold() {
             String regionId = uniqueRegionId();
             Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, 1000.0, GOV, PLAYER_B));
+            openToOffers(regionId, WORLD_ID);
             return regionId;
         }
 
