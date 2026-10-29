@@ -38,6 +38,20 @@ public interface MariaFreeholdContractBidMapper extends FreeholdContractBidMappe
 
     @Override
     @Select("""
+            SELECT freeholdContractAuctionId, bidderId, bidPrice, bidTime
+            FROM FreeholdContractBid
+            WHERE bidId = #{bidId}
+            """)
+    @ConstructorArgs({
+            @Arg(column = "freeholdContractAuctionId", javaType = int.class),
+            @Arg(column = "bidderId", javaType = UUID.class),
+            @Arg(column = "bidPrice", javaType = double.class),
+            @Arg(column = "bidTime", javaType = java.time.LocalDateTime.class)
+    })
+    @Nullable FreeholdContractBid selectById(@Param("bidId") int bidId);
+
+    @Override
+    @Select("""
             SELECT DISTINCT scb.bidderId
             FROM FreeholdContractBid scb
             INNER JOIN FreeholdContractAuction sca ON sca.freeholdContractAuctionId = scb.freeholdContractAuctionId

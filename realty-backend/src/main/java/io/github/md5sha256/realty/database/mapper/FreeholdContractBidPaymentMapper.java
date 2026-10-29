@@ -22,7 +22,12 @@ public interface FreeholdContractBidPaymentMapper {
 
     int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId, double bidPrice, @NotNull LocalDateTime paymentDeadline);
 
-    int insertNextPayment(int freeholdContractAuctionId, @NotNull UUID excludeBidderId, @NotNull LocalDateTime paymentDeadline);
+    /**
+     * Offers the auction to the next bidder after a missed payment. Payments are offered in
+     * order of each bidder's highest bid, so every bidder with a bid at or above the missed one
+     * has already had their turn and is skipped.
+     */
+    int insertNextPayment(int freeholdContractAuctionId, double missedBidPrice, @NotNull LocalDateTime paymentDeadline);
 
     int updatePayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId, double payment);
 

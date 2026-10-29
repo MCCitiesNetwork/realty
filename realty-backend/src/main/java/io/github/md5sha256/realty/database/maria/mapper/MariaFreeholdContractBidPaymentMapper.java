@@ -88,12 +88,17 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
             FROM FreeholdContractBid scb
             INNER JOIN FreeholdContractAuction sca ON sca.freeholdContractAuctionId = scb.freeholdContractAuctionId
             WHERE scb.freeholdContractAuctionId = #{freeholdContractAuctionId}
-            AND scb.bidderId != #{excludeBidderId}
+            AND scb.bidderId NOT IN (
+                SELECT defaulted.bidderId
+                FROM FreeholdContractBid defaulted
+                WHERE defaulted.freeholdContractAuctionId = #{freeholdContractAuctionId}
+                AND defaulted.bidPrice >= #{missedBidPrice}
+            )
             ORDER BY scb.bidPrice DESC
             LIMIT 1
             """)
     int insertNextPayment(@Param("freeholdContractAuctionId") int freeholdContractAuctionId,
-                          @Param("excludeBidderId") @NotNull UUID excludeBidderId,
+                          @Param("missedBidPrice") double missedBidPrice,
                           @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline);
 
     @Override
