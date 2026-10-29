@@ -15,6 +15,7 @@ import io.github.md5sha256.realty.database.entity.TagCountEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +105,8 @@ public interface RealtyBackend {
         record NoFreeholdContract() implements CreateAuctionResult {}
         /** The region already has at least one offer; offers and auctions are mutually exclusive. */
         record OffersExist() implements CreateAuctionResult {}
+        /** A listener cancelled the {@code AuctionCreateEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements CreateAuctionResult {}
     }
 
     /**
@@ -122,6 +125,32 @@ public interface RealtyBackend {
 
     @NotNull CancelAuctionResult cancelAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
+    /**
+     * An auction that has not finished: still taking bids, or waiting for its winner to pay.
+     *
+     * @param highestBid      the standing bid, or null when nobody has bid
+     * @param biddingEndsAt   when bidding ends unless someone bids; null once the winner is paying
+     * @param paymentDeadline when the winner must have paid by; null while bidding
+     * @param amountPaid      how much the winner has paid so far; 0 while bidding
+     */
+    record ActiveAuction(@NotNull String regionId,
+                         @NotNull UUID worldId,
+                         @NotNull FreeholdContractAuctionEntity auction,
+                         @NotNull Phase phase,
+                         @Nullable FreeholdContractBid highestBid,
+                         @Nullable Instant biddingEndsAt,
+                         @Nullable Instant paymentDeadline,
+                         double amountPaid) {
+
+        public enum Phase {
+            BIDDING,
+            AWAITING_PAYMENT
+        }
+    }
+
+    /** Every auction that has not finished, soonest bidding end first. */
+    @NotNull List<ActiveAuction> listActiveAuctions();
+
     // --- Bid ---
 
     sealed interface BidResult {
@@ -131,6 +160,8 @@ public interface RealtyBackend {
         record BidTooLowMinimum(double minBid) implements BidResult {}
         record BidTooLowCurrent(double currentHighest) implements BidResult {}
         record AlreadyHighestBidder() implements BidResult {}
+        /** A listener cancelled the {@code AuctionBidEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements BidResult {}
     }
 
     /**
@@ -969,6 +1000,8 @@ public interface RealtyBackend {
         record AlreadyHasOffer() implements OfferResult {}
         record AuctionExists() implements OfferResult {}
         record InsertFailed() implements OfferResult {}
+        /** A listener cancelled the {@code OfferPlaceEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements OfferResult {}
     }
 
     /**
@@ -989,9 +1022,27 @@ public interface RealtyBackend {
         record NotSanctioned() implements ToggleOffersResult {}
         record NoFreeholdContract() implements ToggleOffersResult {}
         record UpdateFailed() implements ToggleOffersResult {}
+        /** The freehold already was in the requested state. */
+        record NoChange() implements ToggleOffersResult {}
     }
 
     /** Like the other offer actions, and an admin may too. */
+    /**
+     * A freehold that accepts offers, or has an accepted offer still being paid for.
+     *
+     * @param price  the listed price, or null when none is set
+     * @param offers its open offers, oldest first, each with its payment once accepted
+     */
+    record OfferListing(@NotNull String regionId,
+                        @NotNull UUID worldId,
+                        @NotNull Party authority,
+                        @Nullable Party titleHolder,
+                        @Nullable Double price,
+                        @NotNull List<InboundOfferView> offers) {}
+
+    /** Every freehold that accepts offers or is being paid for through one, by region id. */
+    @NotNull List<OfferListing> listOfferListings();
+
     @NotNull ToggleOffersResult toggleOffers(@NotNull String worldGuardRegionId,
                                              @NotNull UUID worldId,
                                              @NotNull ActorContext ctx,
@@ -1004,6 +1055,8 @@ public interface RealtyBackend {
         record AuctionExists() implements AcceptOfferResult {}
         record AlreadyAccepted() implements AcceptOfferResult {}
         record InsertFailed() implements AcceptOfferResult {}
+        /** A listener cancelled the {@code OfferAcceptEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements AcceptOfferResult {}
     }
 
     /**

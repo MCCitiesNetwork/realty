@@ -192,6 +192,10 @@ public interface RealtyPaperApi {
         record Error(@NotNull String message) implements PayBidResult {}
     }
 
+    /**
+     * Pays towards a won auction. The payment that clears the amount owed transfers the title
+     * and fires {@link io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent}.
+     */
     @NotNull CompletableFuture<PayBidResult> payBid(@NotNull WorldGuardRegion region,
                                                      @NotNull UUID bidderId,
                                                      double amount);
@@ -212,6 +216,10 @@ public interface RealtyPaperApi {
         record Error(@NotNull String message) implements PayOfferResult {}
     }
 
+    /**
+     * Pays towards an accepted offer. The payment that clears the amount owed transfers the title
+     * and fires {@link io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent}.
+     */
     @NotNull CompletableFuture<PayOfferResult> payOffer(@NotNull WorldGuardRegion region,
                                                          @NotNull UUID offererId,
                                                          double amount);
@@ -528,40 +536,99 @@ public interface RealtyPaperApi {
 
     // --- Auction ---
 
+    /**
+     * Starts an auction with the acting player as the auctioneer. Fires
+     * {@link io.github.md5sha256.realty.api.event.AuctionCreateEvent} first, returning
+     * {@link RealtyBackend.CreateAuctionResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.AuctionCreatedEvent} once the auction exists.
+     */
     @NotNull CompletableFuture<RealtyBackend.CreateAuctionResult> createAuction(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, long biddingDurationSeconds,
             long paymentDurationSeconds, double minBid, double minBidStep);
 
-    @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
-            @NotNull String regionId, @NotNull UUID worldId);
+    /**
+     * Cancels the region's auction as the console.
+     *
+     * @deprecated use {@link #cancelAuction(String, UUID, UUID)}, which names who cancelled
+     */
+    @Deprecated
+    default @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
+            @NotNull String regionId, @NotNull UUID worldId) {
+        return cancelAuction(regionId, worldId, null);
+    }
 
+    /**
+     * Cancels the region's auction and refunds its bidders. Fires
+     * {@link io.github.md5sha256.realty.api.event.AuctionCancelledEvent} when there was one.
+     *
+     * @param actorId the player who cancelled it, or null for the console or a plugin
+     */
+    @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
+            @NotNull String regionId, @NotNull UUID worldId, @Nullable UUID actorId);
+
+    /**
+     * Places a bid. Fires {@link io.github.md5sha256.realty.api.event.AuctionBidEvent} first,
+     * returning {@link RealtyBackend.BidResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent} once the bid stands.
+     */
     @NotNull CompletableFuture<RealtyBackend.BidResult> performBid(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict);
 
+    /**
+     * Every auction that has not finished, whether still taking bids or waiting for its winner to
+     * pay, soonest bidding end first. A plugin can call this on startup to catch up.
+     */
+    @NotNull CompletableFuture<List<RealtyBackend.ActiveAuction>> listActiveAuctions();
+
     // --- Offer ---
 
+    /**
+     * Every freehold that accepts offers, or has an accepted offer still being paid for, with its
+     * open offers. A freehold with an auction running is left out.
+     */
+    @NotNull CompletableFuture<List<RealtyBackend.OfferListing>> listOfferListings();
+
+    /**
+     * Places an offer. Fires {@link io.github.md5sha256.realty.api.event.OfferPlaceEvent} first,
+     * returning {@link RealtyBackend.OfferResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.OfferPlacedEvent} once the offer stands.
+     */
     @NotNull CompletableFuture<RealtyBackend.OfferResult> placeOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext offerer, double price, boolean bypassConflict);
 
+    /**
+     * Accepts an offer as the acting player. Fires
+     * {@link io.github.md5sha256.realty.api.event.OfferAcceptEvent} first, returning
+     * {@link RealtyBackend.AcceptOfferResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.OfferAcceptedEvent} once it is accepted.
+     */
     @NotNull CompletableFuture<RealtyBackend.AcceptOfferResult> acceptOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, @NotNull UUID offererId);
 
+    /** Withdraws the player's offer. Fires {@link io.github.md5sha256.realty.api.event.OfferWithdrawnEvent}. */
     @NotNull CompletableFuture<RealtyBackend.WithdrawOfferResult> withdrawOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID offererId);
 
+    /** Rejects one offer. Fires {@link io.github.md5sha256.realty.api.event.OfferRejectedEvent}. */
     @NotNull CompletableFuture<RealtyBackend.RejectOfferResult> rejectOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, @NotNull UUID offererId);
 
+    /** Rejects every open offer. Fires an {@link io.github.md5sha256.realty.api.event.OfferRejectedEvent} for each. */
     @NotNull CompletableFuture<RealtyBackend.RejectAllOffersResult> rejectAllOffers(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx);
 
+    /**
+     * Sets whether the freehold accepts offers. Fires
+     * {@link io.github.md5sha256.realty.api.event.OffersToggledEvent} when the state changes, and
+     * returns {@link RealtyBackend.ToggleOffersResult.NoChange} when it already was that state.
+     */
     @NotNull CompletableFuture<RealtyBackend.ToggleOffersResult> toggleOffers(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, boolean accepting);

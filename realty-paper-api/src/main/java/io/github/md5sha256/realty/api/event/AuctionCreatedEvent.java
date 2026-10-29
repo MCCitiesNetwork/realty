@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -16,15 +17,24 @@ public class AuctionCreatedEvent extends RealtyRegionEvent {
     private final UUID auctioneerId;
     private final double minBid;
     private final double minBidStep;
+    private final long biddingDurationSeconds;
+    private final long paymentDurationSeconds;
+    private final Instant biddingEndsAt;
 
     public AuctionCreatedEvent(@NotNull WorldGuardRegion region,
                                @NotNull UUID auctioneerId,
                                double minBid,
-                               double minBidStep) {
+                               double minBidStep,
+                               long biddingDurationSeconds,
+                               long paymentDurationSeconds,
+                               @NotNull Instant biddingEndsAt) {
         super(region);
         this.auctioneerId = auctioneerId;
         this.minBid = minBid;
         this.minBidStep = minBidStep;
+        this.biddingDurationSeconds = biddingDurationSeconds;
+        this.paymentDurationSeconds = paymentDurationSeconds;
+        this.biddingEndsAt = biddingEndsAt;
     }
 
     /**
@@ -46,6 +56,28 @@ public class AuctionCreatedEvent extends RealtyRegionEvent {
      */
     public double getMinBidStep() {
         return this.minBidStep;
+    }
+
+    /**
+     * How long the auction stays open after its start or its latest bid, in seconds.
+     */
+    public long getBiddingDurationSeconds() {
+        return this.biddingDurationSeconds;
+    }
+
+    /**
+     * How long the winner has to pay once bidding ends, in seconds.
+     */
+    public long getPaymentDurationSeconds() {
+        return this.paymentDurationSeconds;
+    }
+
+    /**
+     * When bidding ends if nobody bids. Each bid moves it later; see
+     * {@link AuctionBidPlacedEvent#getBiddingEndsAt()}.
+     */
+    public @NotNull Instant getBiddingEndsAt() {
+        return this.biddingEndsAt;
     }
 
     @Override

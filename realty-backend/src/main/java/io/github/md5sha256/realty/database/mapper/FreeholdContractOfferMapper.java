@@ -55,6 +55,9 @@ public interface FreeholdContractOfferMapper {
 
     @NotNull List<InboundOfferView> selectAllByTitleHolder(@NotNull UUID titleHolderId);
 
+    /** Every open offer on every region, with its payment once accepted, oldest first. */
+    @NotNull List<InboundOfferView> selectAllOpen();
+
     int countAll();
 
 }

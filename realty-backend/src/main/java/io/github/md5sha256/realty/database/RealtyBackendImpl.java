@@ -23,10 +23,13 @@ import io.github.md5sha256.realty.database.entity.LeaseholdModificationEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import io.github.md5sha256.realty.database.entity.InboundOfferView;
+import io.github.md5sha256.realty.database.entity.OfferListingRow;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.TagCountEntity;
 import io.github.md5sha256.realty.database.entity.StatisticsEntity;
+import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
+import io.github.md5sha256.realty.database.entity.AuctionSort;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBid;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
@@ -48,7 +51,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -291,6 +296,36 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+
+    @Override
+    public @NotNull List<ActiveAuction> listActiveAuctions() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractAuctionMapper auctionMapper = wrapper.freeholdContractAuctionMapper();
+            List<ActiveAuction> auctions = new ArrayList<>();
+            for (ActiveAuctionRow row : auctionMapper.selectActivePage(null, AuctionSort.ENDING_SOON,
+                    Integer.MAX_VALUE, 0)) {
+                String regionId = row.worldGuardRegionId();
+                FreeholdContractAuctionEntity auction = auctionMapper.selectActiveByRegion(regionId, row.worldId());
+                if (auction == null) {
+                    continue;
+                }
+                FreeholdContractBid highestBid = wrapper.freeholdContractBidMapper()
+                        .selectHighestBid(regionId, row.worldId());
+                FreeholdContractBidPaymentEntity payment = wrapper.freeholdContractBidPaymentMapper()
+                        .selectByRegion(regionId, row.worldId());
+                auctions.add(payment == null
+                        ? new ActiveAuction(regionId, row.worldId(), auction, ActiveAuction.Phase.BIDDING,
+                                highestBid, toInstant(row.endDate()), null, 0)
+                        : new ActiveAuction(regionId, row.worldId(), auction, ActiveAuction.Phase.AWAITING_PAYMENT,
+                                highestBid, null, toInstant(payment.paymentDeadline()), payment.currentPayment()));
+            }
+            return auctions;
+        }
+    }
+
+    private static @NotNull Instant toInstant(@NotNull LocalDateTime time) {
+        return time.atZone(ZoneId.systemDefault()).toInstant();
+    }
 
     @Override
     public @NotNull CancelAuctionResult cancelAuction(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
@@ -2138,6 +2173,29 @@ public class RealtyBackendImpl implements RealtyBackend {
 
 
     @Override
+    public @NotNull List<OfferListing> listOfferListings() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            Map<String, List<InboundOfferView>> offersByRegion = new LinkedHashMap<>();
+            for (InboundOfferView offer : wrapper.freeholdContractOfferMapper().selectAllOpen()) {
+                offersByRegion.computeIfAbsent(regionKey(offer.worldGuardRegionId(), offer.worldId()),
+                        ignored -> new ArrayList<>()).add(offer);
+            }
+            List<OfferListing> listings = new ArrayList<>();
+            for (OfferListingRow row : wrapper.freeholdContractMapper().selectOfferListings()) {
+                listings.add(new OfferListing(row.worldGuardRegionId(), row.worldId(), row.authority(),
+                        row.titleHolderId() == null ? null : Party.personal(row.titleHolderId()), row.price(),
+                        List.copyOf(offersByRegion.getOrDefault(
+                                regionKey(row.worldGuardRegionId(), row.worldId()), List.of()))));
+            }
+            return listings;
+        }
+    }
+
+    private static @NotNull String regionKey(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        return worldId + "/" + worldGuardRegionId;
+    }
+
+    @Override
     public @NotNull ToggleOffersResult toggleOffers(@NotNull String worldGuardRegionId,
                                                      @NotNull UUID worldId,
                                                      @NotNull ActorContext ctx,
@@ -2154,6 +2212,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             if (!ctx.bypass() && !actsForFreehold(wrapper, freehold, worldGuardRegionId, worldId, ctx)) {
                 return new ToggleOffersResult.NotSanctioned();
+            }
+            if (freehold.acceptingOffers() == acceptingOffers) {
+                return new ToggleOffersResult.NoChange();
             }
             int updated = wrapper.freeholdContractMapper().updateAcceptingOffersByRegion(
                     worldGuardRegionId, worldId, acceptingOffers);

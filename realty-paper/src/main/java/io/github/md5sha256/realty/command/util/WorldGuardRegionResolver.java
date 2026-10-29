@@ -9,6 +9,7 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.bukkit.Location;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.context.CommandInput;
@@ -18,10 +19,12 @@ import org.incendo.cloud.parser.ParserDescriptor;
 import org.incendo.cloud.suggestion.Suggestion;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -62,6 +65,29 @@ public class WorldGuardRegionResolver implements ArgumentParser<Source, WorldGua
         }
 
         return ArgumentParseResult.success(new WorldGuardRegion(region, world));
+    }
+
+    /**
+     * Resolves a region by its world and id. Returns {@code null} when the world id is null or
+     * either the world or the WorldGuard region cannot be found, for instance because the region
+     * has been deleted. Must be called on the main thread.
+     */
+    public static @Nullable WorldGuardRegion resolve(@NotNull Server server, @Nullable UUID worldId,
+                                                     @NotNull String regionId) {
+        if (worldId == null) {
+            return null;
+        }
+        World world = server.getWorld(worldId);
+        if (world == null) {
+            return null;
+        }
+        RegionManager regionManager = WorldGuard.getInstance().getPlatform()
+                .getRegionContainer().get(BukkitAdapter.adapt(world));
+        if (regionManager == null) {
+            return null;
+        }
+        ProtectedRegion protectedRegion = regionManager.getRegion(regionId);
+        return protectedRegion == null ? null : new WorldGuardRegion(protectedRegion, world);
     }
 
     /**

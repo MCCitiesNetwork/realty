@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
+import io.github.md5sha256.realty.database.entity.OfferListingRow;
 import io.github.md5sha256.realty.database.entity.PlotOwnerCount;
 import io.github.md5sha256.realty.database.entity.TitleHeldRegionTag;
 import org.jetbrains.annotations.NotNull;
@@ -188,6 +189,12 @@ public interface FreeholdContractMapper {
      * Only players with at least one plot are included.
      */
     @NotNull List<PlotOwnerCount> selectPlotCountsByTitleHolder();
+
+    /**
+     * Every freehold that accepts offers, or has an accepted offer still being paid for, and has no
+     * auction running. Ordered by region id.
+     */
+    @NotNull List<OfferListingRow> selectOfferListings();
 
     /**
      * One page of the same counts, ranked highest first.

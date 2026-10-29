@@ -6,12 +6,22 @@ import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
+import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationProposedEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminationCancelledEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminationScheduledEvent;
+import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
+import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
+import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
+import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
+import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
+import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
 import io.github.md5sha256.realty.api.event.RegionRentedEvent;
@@ -72,6 +82,79 @@ public final class RegionNotificationListener implements Listener {
                 notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_REGION_BOUGHT,
                         Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
+                        Placeholder.unparsed("region", event.getRegionId())));
+    }
+
+    @EventHandler
+    public void onAuctionWonPurchase(@NotNull AuctionWonPurchaseEvent event) {
+        Party.playerUuidOf(event.getPreviousTitleHolder()).ifPresent(seller ->
+                notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
+                        Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
+                        Placeholder.unparsed("region", event.getRegionId())));
+    }
+
+    @EventHandler
+    public void onAuctionBidPlaced(@NotNull AuctionBidPlacedEvent event) {
+        event.getPreviousBidderId().ifPresent(outbid ->
+                notifyPlayer(outbid, event.getRegion(), MessageKeys.NOTIFICATION_OUTBID,
+                        Placeholder.unparsed("region", event.getRegionId()),
+                        Placeholder.unparsed("amount", CurrencyFormatter.format(event.getBidAmount()))));
+    }
+
+    @EventHandler
+    public void onAuctionCancelled(@NotNull AuctionCancelledEvent event) {
+        for (UUID bidder : event.getBidderIds()) {
+            notifyPlayer(bidder, event.getRegion(), MessageKeys.NOTIFICATION_AUCTION_CANCELLED,
+                    Placeholder.unparsed("region", event.getRegionId()));
+        }
+    }
+
+    @EventHandler
+    public void onAuctionPaymentExpired(@NotNull AuctionPaymentExpiredEvent event) {
+        notifyPlayer(event.getBidderId(), event.getRegion().orElse(null), MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
+                Placeholder.unparsed("region", event.getRegionId()),
+                Placeholder.unparsed("amount", CurrencyFormatter.format(event.getRefundAmount())));
+    }
+
+    @EventHandler
+    public void onOfferPaymentExpired(@NotNull OfferPaymentExpiredEvent event) {
+        notifyPlayer(event.getOffererId(), event.getRegion().orElse(null), MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
+                Placeholder.unparsed("region", event.getRegionId()),
+                Placeholder.unparsed("amount", CurrencyFormatter.format(event.getRefundAmount())));
+    }
+
+    @EventHandler
+    public void onOfferPlaced(@NotNull OfferPlacedEvent event) {
+        notifyParty(event.getTitleHolder(), event.getRegion(), MessageKeys.NOTIFICATION_OFFER_PLACED,
+                Placeholder.unparsed("player", partyNames.display(event.getOffererId())),
+                Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    @EventHandler
+    public void onOfferWithdrawn(@NotNull OfferWithdrawnEvent event) {
+        notifyParty(event.getTitleHolder(), event.getRegion(), MessageKeys.NOTIFICATION_OFFER_WITHDRAWN,
+                Placeholder.unparsed("player", partyNames.display(event.getOffererId())),
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    @EventHandler
+    public void onOfferAccepted(@NotNull OfferAcceptedEvent event) {
+        notifyPlayer(event.getOffererId(), event.getRegion(), MessageKeys.NOTIFICATION_OFFER_ACCEPTED,
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    @EventHandler
+    public void onOfferRejected(@NotNull OfferRejectedEvent event) {
+        notifyPlayer(event.getOffererId(), event.getRegion(), MessageKeys.NOTIFICATION_OFFER_REJECTED,
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    @EventHandler
+    public void onOfferPurchaseCompleted(@NotNull OfferPurchaseCompletedEvent event) {
+        Party.playerUuidOf(event.getPreviousTitleHolder()).ifPresent(seller ->
+                notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
+                        Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("region", event.getRegionId())));
     }
 
@@ -162,7 +245,7 @@ public final class RegionNotificationListener implements Listener {
                 Placeholder.unparsed("region", event.getRegionId()));
     }
 
-    private void notifyPlayer(@NotNull UUID playerId, @NotNull WorldGuardRegion region, @NotNull String key,
+    private void notifyPlayer(@NotNull UUID playerId, @Nullable WorldGuardRegion region, @NotNull String key,
                               @NotNull TagResolver... placeholders) {
         this.events.fireSync(new RealtyNotificationEvent(List.of(playerId), key,
                 this.messages.messageFor(key, placeholders), region));

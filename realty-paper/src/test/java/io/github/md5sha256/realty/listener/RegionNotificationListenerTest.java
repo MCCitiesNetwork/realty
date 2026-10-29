@@ -8,6 +8,14 @@ import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
+import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
+import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
+import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
+import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RegionRentedEvent;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
@@ -178,4 +186,85 @@ class RegionNotificationListenerTest {
         verify(events, times(1)).fireSync(captor.capture());
         Assertions.assertEquals(List.of(TENANT), captor.getValue().getTargets());
     }
+
+    private List<RealtyNotificationEvent> notices(int count) {
+        ArgumentCaptor<RealtyNotificationEvent> captor = ArgumentCaptor.forClass(RealtyNotificationEvent.class);
+        verify(events, times(count)).fireSync(captor.capture());
+        return captor.getAllValues();
+    }
+
+    @Test
+    void outbid_notifiesThePreviousBidder() {
+        UUID outbid = UUID.randomUUID();
+
+        listener.onAuctionBidPlaced(new AuctionBidPlacedEvent(region, TENANT, 150, outbid, Instant.EPOCH));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(outbid), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OUTBID, notice.getMessageKey());
+    }
+
+    @Test
+    void firstBid_notifiesNobody() {
+        listener.onAuctionBidPlaced(new AuctionBidPlacedEvent(region, TENANT, 150, null, Instant.EPOCH));
+
+        verify(events, never()).fireSync(any(RealtyNotificationEvent.class));
+    }
+
+    @Test
+    void cancelledAuction_notifiesEveryBidder() {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+
+        listener.onAuctionCancelled(new AuctionCancelledEvent(region, null, List.of(first, second)));
+
+        Assertions.assertEquals(List.of(List.of(first), List.of(second)),
+                notices(2).stream().map(RealtyNotificationEvent::getTargets).toList());
+    }
+
+    @Test
+    void wonAuctionPaidOff_notifiesThePreviousTitleholder() {
+        listener.onAuctionWonPurchase(new AuctionWonPurchaseEvent(region, TENANT, LANDLORD, 500));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(LANDLORD), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED, notice.getMessageKey());
+    }
+
+    @Test
+    void offerPlaced_notifiesTheTitleholder() {
+        listener.onOfferPlaced(new OfferPlacedEvent(region, TENANT, LANDLORD, 500));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(LANDLORD), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_PLACED, notice.getMessageKey());
+    }
+
+    @Test
+    void offerRejected_notifiesTheOfferer() {
+        listener.onOfferRejected(new OfferRejectedEvent(region, null, TENANT));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(TENANT), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_REJECTED, notice.getMessageKey());
+    }
+
+    @Test
+    void bidPaymentExpired_notifiesTheBidderEvenWhenTheRegionIsGone() {
+        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("gone", null, null, TENANT, 250));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(TENANT), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED, notice.getMessageKey());
+    }
+
+    @Test
+    void offerPaymentExpired_notifiesTheOfferer() {
+        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(List.of(TENANT), notice.getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED, notice.getMessageKey());
+    }
 }
+

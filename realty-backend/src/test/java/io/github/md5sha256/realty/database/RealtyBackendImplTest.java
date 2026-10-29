@@ -18,6 +18,7 @@ import io.github.md5sha256.realty.api.RealtyBackend.PayOfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RegionInfo;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
+import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
@@ -1407,6 +1408,117 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
 
             OfferResult result = logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false);
             Assertions.assertInstanceOf(OfferResult.Success.class, result);
+        }
+
+        @Test
+        @DisplayName("setting the state the freehold already has is no change")
+        void sameStateIsNoChange() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.toggleOffers(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
+
+            RealtyBackend.ToggleOffersResult result =
+                    logic.toggleOffers(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
+            Assertions.assertInstanceOf(RealtyBackend.ToggleOffersResult.NoChange.class, result);
+        }
+    }
+
+    @Nested
+    @DisplayName("listActiveAuctions")
+    class ListActiveAuctions {
+
+        private RealtyBackend.ActiveAuction listed(String regionId) {
+            return logic.listActiveAuctions().stream()
+                    .filter(auction -> auction.regionId().equals(regionId))
+                    .findFirst().orElseThrow(() -> new AssertionError(regionId + " not listed"));
+        }
+
+        @Test
+        @DisplayName("an auction taking bids is listed with its standing bid and end")
+        void bidding() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 150.0, false);
+
+            RealtyBackend.ActiveAuction auction = listed(regionId);
+            Assertions.assertEquals(RealtyBackend.ActiveAuction.Phase.BIDDING, auction.phase());
+            Assertions.assertEquals(PLAYER_B, auction.highestBid().bidderId());
+            Assertions.assertNotNull(auction.biddingEndsAt());
+            Assertions.assertNull(auction.paymentDeadline());
+        }
+
+        @Test
+        @DisplayName("an auction whose winner is paying is listed with the amount paid")
+        void awaitingPayment() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 150.0, false);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().plusDays(1));
+            applyPartialBidPayment(regionId, WORLD_ID, PLAYER_B, 50.0);
+
+            RealtyBackend.ActiveAuction auction = listed(regionId);
+            Assertions.assertEquals(RealtyBackend.ActiveAuction.Phase.AWAITING_PAYMENT, auction.phase());
+            Assertions.assertEquals(50.0, auction.amountPaid());
+            Assertions.assertNotNull(auction.paymentDeadline());
+            Assertions.assertNull(auction.biddingEndsAt());
+        }
+    }
+
+    @Nested
+    @DisplayName("listOfferListings")
+    class ListOfferListings {
+
+        private java.util.Optional<RealtyBackend.OfferListing> listed(String regionId) {
+            return logic.listOfferListings().stream()
+                    .filter(listing -> listing.regionId().equals(regionId))
+                    .findFirst();
+        }
+
+        @Test
+        @DisplayName("a freehold accepting offers is listed with its open offers")
+        void accepting() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false);
+
+            RealtyBackend.OfferListing listing = listed(regionId).orElseThrow();
+            Assertions.assertEquals(Party.personal(PLAYER_A), listing.titleHolder());
+            Assertions.assertEquals(List.of(PLAYER_B),
+                    listing.offers().stream().map(InboundOfferView::offererId).toList());
+        }
+
+        @Test
+        @DisplayName("a freehold not accepting offers is left out")
+        void notAccepting() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.toggleOffers(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
+
+            Assertions.assertTrue(listed(regionId).isEmpty());
+        }
+
+        @Test
+        @DisplayName("a freehold still being paid for through an offer stays listed after offers are turned off")
+        void beingPaidFor() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            logic.toggleOffers(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), false);
+
+            RealtyBackend.OfferListing listing = listed(regionId).orElseThrow();
+            Assertions.assertTrue(listing.offers().getFirst().accepted());
+        }
+
+        @Test
+        @DisplayName("a freehold with an auction running is left out")
+        void auctioned() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+
+            Assertions.assertTrue(listed(regionId).isEmpty());
         }
     }
 

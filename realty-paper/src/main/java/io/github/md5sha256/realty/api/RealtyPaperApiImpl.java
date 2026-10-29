@@ -11,6 +11,21 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
+import io.github.md5sha256.realty.api.event.AuctionBidEvent;
+import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
+import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
+import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
+import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.api.event.OfferAcceptEvent;
+import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
+import io.github.md5sha256.realty.api.event.OfferPlaceEvent;
+import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
+import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
+import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
+import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
+import io.github.md5sha256.realty.api.event.OffersToggledEvent;
+import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
@@ -24,6 +39,8 @@ import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
+import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
+import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import org.bukkit.OfflinePlayer;
@@ -34,7 +51,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +62,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -61,6 +82,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final PlayerNameService playerNameService;
     private final AccountNameService accountNameService;
     private final ActorContexts actorContexts;
+    private final RealtyEventDispatch events;
 
     /**
      * Per-region serialisation chains. Each entry is the tail of a queue of
@@ -82,7 +104,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull SafeLocationFinder safeLocationFinder,
                               @NotNull PlayerNameService playerNameService,
                               @NotNull AccountNameService accountNameService,
-                              @NotNull ActorContexts actorContexts) {
+                              @NotNull ActorContexts actorContexts,
+                              @NotNull RealtyEventDispatch events) {
         this.server = server;
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
@@ -96,6 +119,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.playerNameService = playerNameService;
         this.accountNameService = accountNameService;
         this.actorContexts = actorContexts;
+        this.events = events;
     }
 
     /** In this version a tenant and a title holder are always players. */
@@ -684,6 +708,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), bidderId);
+        events.fireSync(new AuctionWonPurchaseEvent(region, bidderId, fullyPaid.titleHolderId(), amount));
         return CompletableFuture.completedFuture(
                 new PayBidResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
     }
@@ -773,6 +798,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), offererId);
+        events.fireSync(new OfferPurchaseCompletedEvent(region, offererId, fullyPaid.titleHolderId(), amount));
         return CompletableFuture.completedFuture(
                 new PayOfferResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
     }
@@ -1258,86 +1284,214 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 executorState.dbExec());
     }
 
+    /** A region resolved on the main thread, and whether its pre-event let the action go ahead. */
+    private record Gate(@Nullable WorldGuardRegion region, boolean proceed) {}
+
+    /**
+     * Resolves the region and fires its cancellable pre-event, both on the main thread. A region
+     * WorldGuard no longer knows fires no events and goes ahead, so the backend decides the outcome.
+     */
+    private @NotNull CompletableFuture<Gate> gate(@NotNull String regionId, @NotNull UUID worldId,
+                                                  @NotNull Function<WorldGuardRegion, RealtyRegionEvent> preEvent) {
+        return CompletableFuture.supplyAsync(() -> {
+            WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
+            return new Gate(region, region == null || events.fireSync(preEvent.apply(region)));
+        }, executorState.mainThreadExec());
+    }
+
+    /**
+     * Runs a backend call on the database executor, then hands its result to {@code postEvents} on
+     * the main thread with the region, when WorldGuard still knows it.
+     */
+    private <R> @NotNull CompletableFuture<R> thenFire(@NotNull String regionId, @NotNull UUID worldId,
+                                                       @NotNull Supplier<R> call,
+                                                       @NotNull BiConsumer<WorldGuardRegion, R> postEvents) {
+        return CompletableFuture.supplyAsync(call, executorState.dbExec()).thenApplyAsync(result -> {
+            WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
+            if (region != null) {
+                postEvents.accept(region, result);
+            }
+            return result;
+        }, executorState.mainThreadExec());
+    }
+
+    private static @NotNull Instant toInstant(@NotNull LocalDateTime time) {
+        return time.atZone(ZoneId.systemDefault()).toInstant();
+    }
+
     @Override
     public @NotNull CompletableFuture<RealtyBackend.CreateAuctionResult> createAuction(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, long biddingDurationSeconds,
             long paymentDurationSeconds, double minBid, double minBidStep) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.createAuction(regionId, worldId, ctx,
-                        biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep),
-                executorState.dbExec());
+        UUID auctioneerId = ctx.requirePlayer();
+        return gate(regionId, worldId, region -> new AuctionCreateEvent(region, auctioneerId, minBid, minBidStep,
+                biddingDurationSeconds, paymentDurationSeconds))
+                .thenComposeAsync(gate -> {
+                    if (!gate.proceed()) {
+                        return CompletableFuture.completedFuture(new RealtyBackend.CreateAuctionResult.Cancelled());
+                    }
+                    return CompletableFuture.supplyAsync(
+                            () -> realtyApi.createAuction(regionId, worldId, ctx,
+                                    biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep),
+                            executorState.dbExec()
+                    ).thenApplyAsync(result -> {
+                        if (result instanceof RealtyBackend.CreateAuctionResult.Success && gate.region() != null) {
+                            events.fireSync(new AuctionCreatedEvent(gate.region(), auctioneerId, minBid, minBidStep,
+                                    biddingDurationSeconds, paymentDurationSeconds,
+                                    Instant.now().plusSeconds(biddingDurationSeconds)));
+                        }
+                        return result;
+                    }, executorState.mainThreadExec());
+                }, executorState.mainThreadExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
-            @NotNull String regionId, @NotNull UUID worldId) {
-        return CompletableFuture.supplyAsync(
+            @NotNull String regionId, @NotNull UUID worldId, @Nullable UUID actorId) {
+        return thenFire(regionId, worldId,
                 () -> realtyApi.cancelAuction(regionId, worldId),
-                executorState.dbExec());
+                (region, result) -> {
+                    if (result.deleted() > 0) {
+                        events.fireSync(new AuctionCancelledEvent(region, actorId, result.bidderIds()));
+                    }
+                });
     }
+
+    /** What the bid's post-event needs beyond the result: when bidding now ends. */
+    private record PlacedBid(@NotNull RealtyBackend.BidResult result, @Nullable Instant biddingEndsAt) {}
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.BidResult> performBid(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.performBid(regionId, worldId, bidder, bidAmount, bypassConflict),
-                executorState.dbExec());
+        UUID bidderId = bidder.requirePlayer();
+        return gate(regionId, worldId, region -> new AuctionBidEvent(region, bidderId, bidAmount))
+                .thenComposeAsync(gate -> {
+                    if (!gate.proceed()) {
+                        return CompletableFuture.completedFuture(new RealtyBackend.BidResult.Cancelled());
+                    }
+                    return CompletableFuture.supplyAsync(() -> {
+                        RealtyBackend.BidResult result = realtyApi.performBid(regionId, worldId, bidder,
+                                bidAmount, bypassConflict);
+                        if (!(result instanceof RealtyBackend.BidResult.Success)) {
+                            return new PlacedBid(result, null);
+                        }
+                        RealtyBackend.RegionInfo info = realtyApi.getRegionInfo(regionId, worldId);
+                        Instant endsAt = info.auction() == null || info.highestBid() == null ? null
+                                : toInstant(info.highestBid().bidTime())
+                                        .plusSeconds(info.auction().biddingDurationSeconds());
+                        return new PlacedBid(result, endsAt);
+                    }, executorState.dbExec()).thenApplyAsync(placed -> {
+                        if (placed.result() instanceof RealtyBackend.BidResult.Success success
+                                && gate.region() != null && placed.biddingEndsAt() != null) {
+                            events.fireSync(new AuctionBidPlacedEvent(gate.region(), bidderId, bidAmount,
+                                    success.previousBidderId(), placed.biddingEndsAt()));
+                        }
+                        return placed.result();
+                    }, executorState.mainThreadExec());
+                }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<RealtyBackend.ActiveAuction>> listActiveAuctions() {
+        return CompletableFuture.supplyAsync(realtyApi::listActiveAuctions, executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<RealtyBackend.OfferListing>> listOfferListings() {
+        return CompletableFuture.supplyAsync(realtyApi::listOfferListings, executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.OfferResult> placeOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext offerer, double price, boolean bypassConflict) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.placeOffer(regionId, worldId, offerer, price, bypassConflict),
-                executorState.dbExec());
+        UUID offererId = offerer.requirePlayer();
+        return gate(regionId, worldId, region -> new OfferPlaceEvent(region, offererId, price))
+                .thenComposeAsync(gate -> gate.proceed()
+                        ? thenFire(regionId, worldId,
+                                () -> realtyApi.placeOffer(regionId, worldId, offerer, price, bypassConflict),
+                                (region, result) -> {
+                                    if (result instanceof RealtyBackend.OfferResult.Success success) {
+                                        events.fireSync(new OfferPlacedEvent(region, offererId,
+                                                success.titleHolderId(), price));
+                                    }
+                                })
+                        : CompletableFuture.completedFuture(new RealtyBackend.OfferResult.Cancelled()),
+                        executorState.mainThreadExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.AcceptOfferResult> acceptOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, @NotNull UUID offererId) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
-                executorState.dbExec());
+        UUID accepterId = ctx.requirePlayer();
+        return gate(regionId, worldId, region -> new OfferAcceptEvent(region, accepterId, offererId))
+                .thenComposeAsync(gate -> gate.proceed()
+                        ? thenFire(regionId, worldId,
+                                () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
+                                (region, result) -> {
+                                    if (result instanceof RealtyBackend.AcceptOfferResult.Success) {
+                                        events.fireSync(new OfferAcceptedEvent(region, accepterId, offererId));
+                                    }
+                                })
+                        : CompletableFuture.completedFuture(new RealtyBackend.AcceptOfferResult.Cancelled()),
+                        executorState.mainThreadExec());
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.WithdrawOfferResult> withdrawOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull UUID offererId) {
-        return CompletableFuture.supplyAsync(
+        return thenFire(regionId, worldId,
                 () -> realtyApi.withdrawOffer(regionId, worldId, offererId),
-                executorState.dbExec());
+                (region, result) -> {
+                    if (result instanceof RealtyBackend.WithdrawOfferResult.Success success) {
+                        events.fireSync(new OfferWithdrawnEvent(region, offererId, success.titleHolderId()));
+                    }
+                });
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.RejectOfferResult> rejectOffer(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, @NotNull UUID offererId) {
-        return CompletableFuture.supplyAsync(
+        return thenFire(regionId, worldId,
                 () -> realtyApi.rejectOffer(regionId, worldId, ctx, offererId),
-                executorState.dbExec());
+                (region, result) -> {
+                    if (result instanceof RealtyBackend.RejectOfferResult.Success success) {
+                        events.fireSync(new OfferRejectedEvent(region, ctx.player(), success.offererId()));
+                    }
+                });
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.RejectAllOffersResult> rejectAllOffers(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx) {
-        return CompletableFuture.supplyAsync(
+        return thenFire(regionId, worldId,
                 () -> realtyApi.rejectAllOffers(regionId, worldId, ctx),
-                executorState.dbExec());
+                (region, result) -> {
+                    if (result instanceof RealtyBackend.RejectAllOffersResult.Success success) {
+                        for (UUID offererId : success.offererIds()) {
+                            events.fireSync(new OfferRejectedEvent(region, ctx.player(), offererId));
+                        }
+                    }
+                });
     }
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.ToggleOffersResult> toggleOffers(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx, boolean accepting) {
-        return CompletableFuture.supplyAsync(
+        return thenFire(regionId, worldId,
                 () -> realtyApi.toggleOffers(regionId, worldId, ctx, accepting),
-                executorState.dbExec());
+                (region, result) -> {
+                    if (result instanceof RealtyBackend.ToggleOffersResult.Success) {
+                        events.fireSync(new OffersToggledEvent(region, accepting, ctx.player()));
+                    }
+                });
     }
 
     @Override
