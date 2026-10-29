@@ -224,6 +224,11 @@ public interface RealtyPaperApi {
         record NoFreeholdContract(@NotNull String regionId) implements SetTitleHolderResult {}
         /** The actor does not manage the region's current holder. */
         record NotAuthorized(@NotNull String regionId) implements SetTitleHolderResult {}
+        /**
+         * The holder would not change: the new holder already holds the title, or
+         * {@code setTitleHolder} was asked to clear a title nobody holds.
+         */
+        record NoChange(@NotNull String regionId) implements SetTitleHolderResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTitleHolderResult {}
         record Error(@NotNull String message) implements SetTitleHolderResult {}
     }
@@ -286,6 +291,8 @@ public interface RealtyPaperApi {
         record NotAuthorized(@NotNull String regionId) implements SetTenantResult {}
         /** The lease has a tenant and the change was asked for only while it has none. */
         record Occupied(@NotNull String regionId) implements SetTenantResult {}
+        /** The tenant would not change: the new tenant is already the tenant, or there is no tenant to clear. */
+        record NoChange(@NotNull String regionId) implements SetTenantResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTenantResult {}
         record Error(@NotNull String message) implements SetTenantResult {}
     }
@@ -329,6 +336,8 @@ public interface RealtyPaperApi {
         record NoLeaseholdContract(@NotNull String regionId) implements SetLandlordResult {}
         /** The lease has a tenant and the change was asked for only while it has none. */
         record Occupied(@NotNull String regionId) implements SetLandlordResult {}
+        /** The landlord would not change: the new landlord is already the landlord. */
+        record NoChange(@NotNull String regionId) implements SetLandlordResult {}
         record UpdateFailed(@NotNull String regionId) implements SetLandlordResult {}
         /** The actor may not hand the current landlord's role to another party. */
         record NotAllowedToReassign(@NotNull Party current) implements SetLandlordResult {}

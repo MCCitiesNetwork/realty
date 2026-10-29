@@ -715,6 +715,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!ctx.mayManage(newLandlord)) {
                 return new SetLandlordResult.NotAllowedToAssign(newLandlord);
             }
+            if (newLandlord.equals(previousLandlord)) {
+                return new SetLandlordResult.NoChange();
+            }
             int previousLandlordPartyId = namedPartyId(wrapper, previousLandlord);
             Integer requiredLandlordPartyId = ctx.bypass() ? null : previousLandlordPartyId;
             endRead(wrapper);
@@ -784,6 +787,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetTitleHolderResult.NotAuthorized();
             }
             UUID previousTitleHolder = freehold.titleHolderId();
+            if (Objects.equals(titleHolderId, previousTitleHolder)) {
+                return new SetTitleHolderResult.NoChange();
+            }
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
             boolean guardTitleHolder = !ctx.bypass();
             Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
@@ -826,6 +832,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetTitleHolderResult.NoFreeholdContract();
             }
             UUID previousTitleHolder = freehold.titleHolderId();
+            if (titleHolderId != null && titleHolderId.equals(previousTitleHolder)) {
+                return new SetTitleHolderResult.NoChange();
+            }
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
                     false, null, null);
             if (updated == 0) {
@@ -885,6 +894,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new SetTenantResult.NotAuthorized();
             }
             UUID previousTenant = lease.tenantId();
+            if (Objects.equals(tenantId, previousTenant)) {
+                return new SetTenantResult.NoChange();
+            }
             int landlordPartyId = namedPartyId(wrapper, lease.landlord());
             Integer requiredLandlordPartyId = ctx.bypass() ? null : landlordPartyId;
             endRead(wrapper);
