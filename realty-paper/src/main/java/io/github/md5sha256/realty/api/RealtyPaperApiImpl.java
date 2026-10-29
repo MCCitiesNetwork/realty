@@ -741,6 +741,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             case RealtyBackend.PayOfferResult.NoPaymentRecord ignored ->
                     CompletableFuture.completedFuture(
                             (PayOfferResult) new PayOfferResult.NoPaymentRecord(regionId));
+            case RealtyBackend.PayOfferResult.PaymentExpired ignored ->
+                    CompletableFuture.completedFuture(
+                            (PayOfferResult) new PayOfferResult.PaymentExpired(regionId));
             case RealtyBackend.PayOfferResult.ExceedsAmountOwed exceeds ->
                     CompletableFuture.completedFuture(
                             (PayOfferResult) new PayOfferResult.ExceedsAmountOwed(amount,

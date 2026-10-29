@@ -72,6 +72,22 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
     }
 
+    private static void expireBidPayment(String regionId) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session();
+             java.sql.PreparedStatement statement = session.getConnection().prepareStatement("""
+                     UPDATE FreeholdContractBidPayment
+                     SET paymentDeadline = NOW() - INTERVAL 1 DAY
+                     WHERE realtyRegionId = (SELECT realtyRegionId FROM RealtyRegion WHERE worldGuardRegionId = ?)
+                     """)) {
+            statement.setString(1, regionId);
+            Assertions.assertEquals(1, statement.executeUpdate());
+            session.commit();
+        } catch (java.sql.SQLException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     private static void applyPartialBidPayment(String regionId, UUID worldId, UUID bidderId, double amount) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
@@ -986,6 +1002,22 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("returns PaymentExpired and records nothing after the deadline")
+        void paymentExpired() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false);
+            insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusMinutes(1));
+
+            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 0.0);
+            Assertions.assertInstanceOf(PayOfferResult.PaymentExpired.class, result);
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                Assertions.assertEquals(0.0, wrapper.freeholdContractOfferPaymentMapper()
+                        .selectByRegion(regionId, WORLD_ID).currentPayment());
+            }
+        }
+
+        @Test
         @DisplayName("returns ExceedsAmountOwed when payment exceeds remaining")
         void exceedsAmountOwed() {
             String regionId = uniqueRegionId();
@@ -1205,6 +1237,52 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                 Assertions.assertEquals(150.0, nextPayment.bidPrice());
                 Assertions.assertEquals(0.0, nextPayment.currentPayment());
                 Assertions.assertTrue(nextPayment.paymentDeadline().isAfter(LocalDateTime.now()));
+            }
+        }
+
+        @Test
+        @DisplayName("a second missed payment moves on to the third bidder, not back to the first")
+        void secondExpirySkipsEarlierDefaulter() {
+            String regionId = uniqueRegionId();
+            UUID third = UUID.randomUUID();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(third, false), 120.0, false);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_C, false), 150.0, false);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 200.0, false);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+            logic.clearExpiredBidPayments();
+            expireBidPayment(regionId);
+
+            logic.clearExpiredBidPayments();
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                FreeholdContractBidPaymentEntity nextPayment = wrapper.freeholdContractBidPaymentMapper()
+                        .selectByRegion(regionId, WORLD_ID);
+                Assertions.assertNotNull(nextPayment, "The third bidder should have a payment record");
+                Assertions.assertEquals(third, nextPayment.bidderId());
+                Assertions.assertEquals(120.0, nextPayment.bidPrice());
+            }
+        }
+
+        @Test
+        @DisplayName("a bidder who already missed a payment is not asked again through a lower bid")
+        void earlierDefaulterLowerBidSkipped() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 150.0, false);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_C, false), 200.0, false);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 300.0, false);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+            logic.clearExpiredBidPayments();
+            expireBidPayment(regionId);
+
+            logic.clearExpiredBidPayments();
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                Assertions.assertNull(wrapper.freeholdContractBidPaymentMapper().selectByRegion(regionId, WORLD_ID),
+                        "Nobody is left who has not missed a payment");
             }
         }
 
@@ -1463,6 +1541,23 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             Assertions.assertEquals(50.0, auction.amountPaid());
             Assertions.assertNotNull(auction.paymentDeadline());
             Assertions.assertNull(auction.biddingEndsAt());
+        }
+
+        @Test
+        @DisplayName("after a missed payment, the listed bid is the runner-up's, who now owes")
+        void runnerUpPaying() {
+            String regionId = uniqueRegionId();
+            createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
+            createAuctionOnRegion(regionId, WORLD_ID);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_C, false), 150.0, false);
+            logic.performBid(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 200.0, false);
+            insertBidPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusDays(1));
+            logic.clearExpiredBidPayments();
+
+            RealtyBackend.ActiveAuction auction = listed(regionId);
+            Assertions.assertEquals(RealtyBackend.ActiveAuction.Phase.AWAITING_PAYMENT, auction.phase());
+            Assertions.assertEquals(PLAYER_C, auction.highestBid().bidderId());
+            Assertions.assertEquals(150.0, auction.highestBid().bidAmount());
         }
     }
 

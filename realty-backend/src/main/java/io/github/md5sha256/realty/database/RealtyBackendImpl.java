@@ -309,15 +309,17 @@ public class RealtyBackendImpl implements RealtyBackend {
                 if (auction == null) {
                     continue;
                 }
-                FreeholdContractBid highestBid = wrapper.freeholdContractBidMapper()
-                        .selectHighestBid(regionId, row.worldId());
+                FreeholdContractBidMapper bidMapper = wrapper.freeholdContractBidMapper();
                 FreeholdContractBidPaymentEntity payment = wrapper.freeholdContractBidPaymentMapper()
                         .selectByRegion(regionId, row.worldId());
+                // While paying, report the bid being paid for: after a missed payment that is the
+                // runner-up's, not the highest.
                 auctions.add(payment == null
                         ? new ActiveAuction(regionId, row.worldId(), auction, ActiveAuction.Phase.BIDDING,
-                                highestBid, toInstant(row.endDate()), null, 0)
+                                bidMapper.selectHighestBid(regionId, row.worldId()), toInstant(row.endDate()), null, 0)
                         : new ActiveAuction(regionId, row.worldId(), auction, ActiveAuction.Phase.AWAITING_PAYMENT,
-                                highestBid, null, toInstant(payment.paymentDeadline()), payment.currentPayment()));
+                                bidMapper.selectById(payment.bidId()), null, toInstant(payment.paymentDeadline()),
+                                payment.currentPayment()));
             }
             return auctions;
         }
@@ -2323,6 +2325,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment == null || !payment.offererId().equals(offererId)) {
                 return new PayOfferResult.NoPaymentRecord();
             }
+            if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
+                return new PayOfferResult.PaymentExpired();
+            }
             double amountOwed = payment.offerPrice() - payment.currentPayment();
             if (amount > amountOwed + PAYMENT_EPSILON) {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);
@@ -2572,7 +2577,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     LocalDateTime nextDeadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
                     paymentMapper.insertNextPayment(
                             payment.freeholdContractAuctionId(),
-                            payment.bidderId(),
+                            payment.bidPrice(),
                             nextDeadline);
                 }
                 wrapper.session().commit();

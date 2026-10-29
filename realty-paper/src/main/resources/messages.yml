@@ -251,6 +251,8 @@ pay-offer:
         now be will be transferred to you.
     no-payment-record: <prefix> You do not have an accepted on region <gold><region>.</gold>
         Payment refunded.
+    payment-expired: <prefix> The payment deadline for region <gold><region></gold>
+        has passed. Payment refunded.
     exceeds-owed: <prefix> Payment of <green><amount></green> exceeds the remaining
         amount owed (<green><owed></green>) on region <gold><region></gold>. Payment
         refunded.

@@ -1388,7 +1388,7 @@ class MapperTest extends AbstractDatabaseTest {
                 FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
                         .selectActiveByRegion(regionId, WORLD_ID);
                 int inserted = wrapper.freeholdContractBidPaymentMapper()
-                        .insertNextPayment(auction.freeholdContractAuctionId(), PLAYER_B,
+                        .insertNextPayment(auction.freeholdContractAuctionId(), 200.0,
                                 LocalDateTime.now().plusDays(1));
                 session.commit();
                 Assertions.assertEquals(1, inserted);

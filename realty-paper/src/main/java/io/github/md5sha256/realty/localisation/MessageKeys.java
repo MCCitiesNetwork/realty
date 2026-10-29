@@ -261,6 +261,7 @@ public final class MessageKeys {
     public static final String PAY_OFFER_SUCCESS = "pay-offer.success";
     public static final String PAY_OFFER_FULLY_PAID = "pay-offer.fully-paid";
     public static final String PAY_OFFER_NO_PAYMENT_RECORD = "pay-offer.no-payment-record";
+    public static final String PAY_OFFER_PAYMENT_EXPIRED = "pay-offer.payment-expired";
     public static final String PAY_OFFER_EXCEEDS_OWED = "pay-offer.exceeds-owed";
     public static final String PAY_OFFER_ERROR = "pay-offer.error";
     public static final String PAY_OFFER_TRANSFER_FAILED = "pay-offer.transfer-failed";

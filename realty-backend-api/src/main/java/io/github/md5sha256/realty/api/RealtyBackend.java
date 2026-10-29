@@ -128,7 +128,9 @@ public interface RealtyBackend {
     /**
      * An auction that has not finished: still taking bids, or waiting for its winner to pay.
      *
-     * @param highestBid      the standing bid, or null when nobody has bid
+     * @param highestBid      while bidding, the standing bid, or null when nobody has bid; while
+     *                        paying, the bid being paid for, which after a missed payment is the
+     *                        runner-up's
      * @param biddingEndsAt   when bidding ends unless someone bids; null once the winner is paying
      * @param paymentDeadline when the winner must have paid by; null while bidding
      * @param amountPaid      how much the winner has paid so far; 0 while bidding
@@ -1075,6 +1077,7 @@ public interface RealtyBackend {
                        @NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
         record NoPaymentRecord() implements PayOfferResult {}
+        record PaymentExpired() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
     }
 
