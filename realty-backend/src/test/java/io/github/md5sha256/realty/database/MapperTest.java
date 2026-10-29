@@ -48,6 +48,7 @@ class MapperTest extends AbstractDatabaseTest {
     private static void createFreeholdRegion(String regionId, UUID authority, UUID titleHolder) {
         boolean created = logic.createFreehold(regionId, WORLD_ID, 1000.0, Party.personal(authority), titleHolder);
         Assertions.assertTrue(created);
+        openToOffers(regionId, WORLD_ID);
     }
 
     private static void createLeaseholdRegion(String regionId, UUID landlord) {

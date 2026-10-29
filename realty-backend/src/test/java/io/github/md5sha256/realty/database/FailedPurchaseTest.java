@@ -44,6 +44,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
     private static String regionForSale() {
         String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
         Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, Party.personal(AUTHORITY), TITLE_HOLDER));
+        openToOffers(regionId, WORLD_ID);
         return regionId;
     }
 
@@ -256,6 +257,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         Party government = Party.account(42, AccountKind.GOVERNMENT);
         String regionId = "failed_purchase_" + REGION_COUNTER.incrementAndGet();
         Assertions.assertTrue(logic.createFreehold(regionId, WORLD_ID, ASKING_PRICE, government, null));
+        openToOffers(regionId, WORLD_ID);
         placeOffer(regionId, OFFERER, 500.0);
 
         tryToBuyAndFailToPay(regionId, BUYER);

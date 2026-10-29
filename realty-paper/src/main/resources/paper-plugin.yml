@@ -118,7 +118,7 @@ permissions:
     default: true
   realty.command.offer.toggle:
     description: Allows using /realty offer toggle
-    default: op
+    default: true
   realty.command.offer.toggle.bypass:
     description: Bypasses ownership/agent check for /realty offer toggle
     default: op
