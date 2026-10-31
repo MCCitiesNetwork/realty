@@ -59,8 +59,8 @@ public final class FeeCalculator {
             int buyerPlots,
             @NotNull List<PlayerFeeInput> playerFees
     ) {
-        BigDecimal priceCents = BigDecimal.valueOf(price);
-        BigDecimal sellerRemainder = priceCents;
+        BigDecimal priceAmount = BigDecimal.valueOf(price);
+        BigDecimal sellerRemainder = priceAmount;
         BigDecimal buyerExtra = BigDecimal.ZERO;
         List<FeeLine> lines = new ArrayList<>();
 
@@ -73,17 +73,14 @@ public final class FeeCalculator {
             }
         }
         for (PlayerFeeInput fee : playerFees) {
-            if (Party.playerUuidOf(fee.recipient()).filter(buyerId::equals).isPresent()) {
-                continue;
-            }
             candidates.add(new Candidate(fee.recipient().toString(), fee.recipient(), fee.side(), fee.percent()));
         }
 
         for (Candidate c : candidates) {
-            if (c.percent <= 0) {
+            if (!(c.percent > 0) || Party.playerUuidOf(c.recipient).filter(buyerId::equals).isPresent()) {
                 continue;
             }
-            BigDecimal amount = priceCents.multiply(BigDecimal.valueOf(c.percent))
+            BigDecimal amount = priceAmount.multiply(BigDecimal.valueOf(c.percent))
                     .divide(BigDecimal.valueOf(100), 2, RoundingMode.DOWN);
             if (c.side == FeeSide.SELLER) {
                 amount = amount.min(sellerRemainder);
@@ -101,7 +98,7 @@ public final class FeeCalculator {
             return FeeQuote.none(price);
         }
         return new FeeQuote(price, lines,
-                priceCents.add(buyerExtra).doubleValue(),
+                priceAmount.add(buyerExtra).doubleValue(),
                 sellerRemainder.doubleValue());
     }
 

@@ -90,6 +90,28 @@ class FeeCalculatorTest {
     }
 
     @Test
+    void levyPaidToTheBuyerIsSkipped() {
+        FeeCalculator.LevyInput toBuyer = new FeeCalculator.LevyInput(levy(5).levy(), Party.personal(BUYER));
+        FeeQuote quote = FeeCalculator.quote(1000, BUYER, toBuyer, Set.of(), 0, List.of());
+        assertTrue(quote.lines().isEmpty());
+        assertEquals(1000, quote.buyerTotal());
+        assertEquals(1000, quote.sellerReceives());
+    }
+
+    @Test
+    void sellerLevyAppliedBeforePlayerFeesWhenCapped() {
+        LevyRule rule = new LevyRule(Set.of(), Set.of(), List.of(new LevyTier(0, 80)));
+        FeeCalculator.LevyInput sellerLevy = new FeeCalculator.LevyInput(
+                new LevyDefinition("seller-levy", true, true, FeeSide.SELLER, null, null, List.of(rule)), STATE);
+        Party agent = Party.personal(UUID.randomUUID());
+        FeeQuote quote = FeeCalculator.quote(100, BUYER, sellerLevy, Set.of(), 0,
+                List.of(new FeeCalculator.PlayerFeeInput(agent, FeeSide.SELLER, 50)));
+        assertEquals(80.00, quote.lines().get(0).amount());
+        assertEquals(20.00, quote.lines().get(1).amount());
+        assertEquals(0, quote.sellerReceives());
+    }
+
+    @Test
     void noLevyAndNoFeesIsNone() {
         assertEquals(FeeQuote.none(500), FeeCalculator.quote(500, BUYER, null, Set.of(), 0, List.of()));
     }
