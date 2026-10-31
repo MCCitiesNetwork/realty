@@ -95,7 +95,7 @@ class RegionNotificationListenerTest {
             @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
             @Override public void execute(Runnable command) { command.run(); }
         };
-        Settings settings = new Settings(null, null, null, new SimpleDateFormat("yyyy"),
+        Settings settings = new Settings(null, null, null, null, new SimpleDateFormat("yyyy"),
                 0, 0, 0, 0, List.of(), null, 0, 0, 0, 0, AccountManagers.MEMBERS);
         listener = new RegionNotificationListener(events, new MessageContainer(),
                 new PartyNames(server, null, Clock.systemUTC()),
@@ -251,7 +251,7 @@ class RegionNotificationListenerTest {
 
     @Test
     void bidPaymentExpired_notifiesTheBidderEvenWhenTheRegionIsGone() {
-        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("gone", null, null, TENANT, 250));
+        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("gone", null, null, TENANT, 250, true));
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
@@ -260,7 +260,7 @@ class RegionNotificationListenerTest {
 
     @Test
     void offerPaymentExpired_notifiesTheOfferer() {
-        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250));
+        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250, true));
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());

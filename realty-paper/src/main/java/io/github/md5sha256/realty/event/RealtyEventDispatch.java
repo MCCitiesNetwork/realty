@@ -1,8 +1,10 @@
 package io.github.md5sha256.realty.event;
 
+import io.github.md5sha256.realty.api.event.FeePaidEvent;
 import io.github.md5sha256.realty.api.event.PaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
+import io.github.md5sha256.realty.api.event.RefundPaidEvent;
 import org.bukkit.Server;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
@@ -78,6 +80,24 @@ public final class RealtyEventDispatch {
      * already on it. These events are never cancellable, so this always reports {@code true}.
      */
     public boolean fireSync(@NotNull PaymentExpiredEvent event) {
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "Cancellable synchronous events must be fired from the main thread: ");
+    }
+
+    /**
+     * Fires a {@link FeePaidEvent}, hopping to the main thread if the caller is not already on it.
+     * These events are never cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull FeePaidEvent event) {
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "Cancellable synchronous events must be fired from the main thread: ");
+    }
+
+    /**
+     * Fires a {@link RefundPaidEvent}, hopping to the main thread if the caller is not already on
+     * it. These events are never cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull RefundPaidEvent event) {
         return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
                 "Cancellable synchronous events must be fired from the main thread: ");
     }

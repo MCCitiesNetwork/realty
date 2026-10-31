@@ -16,6 +16,7 @@ public record Settings(
         @Setting("default-freehold-authority") @Nullable PartySetting defaultFreeholdAuthority,
         @Setting("default-leasehold-landlord") @Nullable PartySetting defaultLeaseholdLandlord,
         @Setting("default-freehold-titleholder") @Nullable PartySetting defaultFreeholdTitleholder,
+        @Setting("escrow") @Nullable PartySetting escrow,
         @Setting("date-format") @Required @NotNull SimpleDateFormat dateFormat,
         @Setting("profile-reapply-per-tick") int profileReapplyPerTick,
         @Setting("subregion-min-volume") int subregionMinVolume,
@@ -34,6 +35,7 @@ public record Settings(
         defaultFreeholdAuthority = PartySetting.nullIfEmpty(defaultFreeholdAuthority);
         defaultLeaseholdLandlord = PartySetting.nullIfEmpty(defaultLeaseholdLandlord);
         defaultFreeholdTitleholder = PartySetting.nullIfEmpty(defaultFreeholdTitleholder);
+        escrow = PartySetting.nullIfEmpty(escrow);
         if (profileReapplyPerTick <= 0) {
             profileReapplyPerTick = 10;
         }

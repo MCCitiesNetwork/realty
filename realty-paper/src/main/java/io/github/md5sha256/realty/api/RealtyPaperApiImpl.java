@@ -42,7 +42,9 @@ import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.HoldingAccount;
 import io.github.md5sha256.realty.economy.PaymentResult;
+import io.github.md5sha256.realty.economy.SaleSettlement;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.World;
@@ -56,6 +58,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -66,6 +69,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class RealtyPaperApiImpl implements RealtyPaperApi {
 
@@ -83,6 +88,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final AccountNameService accountNameService;
     private final ActorContexts actorContexts;
     private final RealtyEventDispatch events;
+    private final HoldingAccount holding;
+    private final SaleSettlement settlement;
+    private final Logger logger;
 
     /**
      * Per-region serialisation chains. Each entry is the tail of a queue of
@@ -105,7 +113,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull PlayerNameService playerNameService,
                               @NotNull AccountNameService accountNameService,
                               @NotNull ActorContexts actorContexts,
-                              @NotNull RealtyEventDispatch events) {
+                              @NotNull RealtyEventDispatch events,
+                              @NotNull HoldingAccount holding,
+                              @NotNull SaleSettlement settlement,
+                              @NotNull Logger logger) {
         this.server = server;
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
@@ -120,7 +131,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.accountNameService = accountNameService;
         this.actorContexts = actorContexts;
         this.events = events;
+        this.holding = holding;
+        this.settlement = settlement;
+        this.logger = logger;
     }
+
+    /** Why an instalment is refused while no holding account is configured. */
+    private static final String NO_HOLDING_ACCOUNT = "no holding account";
 
     /** In this version a tenant and a title holder are always players. */
     private static final String ONLY_PLAYERS = "only a player can be tenant or titleholder in this version";
@@ -265,16 +282,17 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull RealtyBackend.BuyResult.Success reserved,
             @NotNull Map<String, String> placeholders) {
         double price = reserved.price();
+        FeeQuote fees = reserved.fees();
+        Party seller = seller(reserved.titleHolderId(), reserved.authority());
         // Region is already reserved in DB. Process payment, rollback DB on failure.
-        if (price > 0) {
+        double owed = fees.buyerTotal();
+        if (owed > 0) {
             double balance = economyProvider.getBalance(Party.personal(buyerId));
-            if (balance < price) {
+            if (balance < owed) {
                 return rollbackBuyAsync(regionId, worldId, buyerId, reserved)
-                        .thenApply(ignored -> new BuyResult.InsufficientFunds(price, balance));
+                        .thenApply(ignored -> new BuyResult.InsufficientFunds(owed, balance));
             }
-            PaymentResult result = economyProvider.transfer(Party.personal(buyerId),
-                    seller(reserved.titleHolderId(), reserved.authority()), price,
-                    "Plot Purchase: " + regionId, buyerId);
+            PaymentResult result = payBuy(regionId, buyerId, seller, fees);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackBuyAsync(regionId, worldId, buyerId, reserved)
                         .thenApply(ignored -> new BuyResult.PaymentFailed(failure.errorMessage()));
@@ -288,8 +306,94 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), buyerId);
-        return CompletableFuture.completedFuture(
-                new BuyResult.Success(price, regionId, playerParty(reserved.titleHolderId())));
+        BuyResult success = new BuyResult.Success(price, regionId, playerParty(reserved.titleHolderId()));
+        // Within the region's turn, so nothing acts on it before its fees are cleaned up.
+        return CompletableFuture.runAsync(
+                () -> realtyApi.recordBuyFees(regionId, worldId, buyerId, seller, fees),
+                executorState.dbExec()
+        ).handle((ignored, ex) -> {
+            if (ex != null) {
+                // The money has moved and the buyer owns the region; only the record is missing.
+                logger.log(Level.SEVERE, "The buy of " + regionId + " by " + buyerId + " was paid, but its fees"
+                        + " could not be recorded: " + describeQuote(seller, fees), ex);
+            }
+            return success;
+        });
+    }
+
+    /**
+     * Pays a buy in one go: the seller their proceeds, then each fee recipient their line. A buy has
+     * no instalments, so nothing goes through the holding account. If a transfer fails, the ones
+     * already made are reversed, last first.
+     */
+    private @NotNull PaymentResult payBuy(@NotNull String regionId, @NotNull UUID buyerId,
+                                          @NotNull Party seller, @NotNull FeeQuote fees) {
+        Party buyer = Party.personal(buyerId);
+        List<Map.Entry<Party, Double>> payments = new ArrayList<>();
+        List<String> messages = new ArrayList<>();
+        payments.add(Map.entry(seller, fees.sellerReceives()));
+        messages.add("Plot Purchase: " + regionId);
+        for (FeeLine line : fees.lines()) {
+            payments.add(Map.entry(line.recipient(), line.amount()));
+            messages.add("Plot Purchase fee (" + line.source() + "): " + regionId);
+        }
+        List<Map.Entry<Party, Double>> made = new ArrayList<>();
+        for (int i = 0; i < payments.size(); i++) {
+            Map.Entry<Party, Double> payment = payments.get(i);
+            if (payment.getValue() <= 0) {
+                continue;
+            }
+            PaymentResult result = economyProvider.transfer(buyer, payment.getKey(), payment.getValue(),
+                    messages.get(i), buyerId);
+            if (result instanceof PaymentResult.Failure) {
+                reverseBuy(regionId, buyerId, made);
+                return result;
+            }
+            made.add(payment);
+        }
+        return new PaymentResult.Success();
+    }
+
+    private void reverseBuy(@NotNull String regionId, @NotNull UUID buyerId,
+                            @NotNull List<Map.Entry<Party, Double>> made) {
+        Party buyer = Party.personal(buyerId);
+        for (int i = made.size() - 1; i >= 0; i--) {
+            Map.Entry<Party, Double> payment = made.get(i);
+            PaymentResult reversal = economyProvider.transfer(payment.getKey(), buyer, payment.getValue(),
+                    "Plot Purchase reversal: " + regionId, buyerId);
+            if (reversal instanceof PaymentResult.Failure failure) {
+                logger.severe("A failed buy of " + regionId + " could not be reversed (" + failure.errorMessage()
+                        + "): " + payment.getKey() + " still holds " + CurrencyFormatter.format(payment.getValue())
+                        + " paid by " + buyerId + ". Return it by hand.");
+            }
+        }
+    }
+
+    private static @NotNull String describeQuote(@NotNull Party seller, @NotNull FeeQuote fees) {
+        StringBuilder text = new StringBuilder(CurrencyFormatter.format(fees.sellerReceives()))
+                .append(" to the seller ").append(seller);
+        for (FeeLine line : fees.lines()) {
+            text.append(", ").append(CurrencyFormatter.format(line.amount())).append(" (").append(line.source())
+                    .append(") to ").append(line.recipient());
+        }
+        return text.toString();
+    }
+
+    /**
+     * Who an instalment is paid to: under the old rules the seller, else the holding account, or
+     * empty when there is none.
+     */
+    private @NotNull Optional<Party> instalmentRecipient(boolean oldRules, @Nullable UUID titleHolderId,
+                                                         @NotNull Party authority) {
+        return oldRules ? Optional.of(seller(titleHolderId, authority)) : holding.party();
+    }
+
+    /** Pays out the completed sale's lines from the holding account, without holding up the buyer. */
+    private void payOutInBackground() {
+        CompletableFuture.runAsync(settlement::payOutDue, executorState.dbExec()).exceptionally(ex -> {
+            logger.log(Level.SEVERE, "The sale payouts failed to run; they will be tried again", ex);
+            return null;
+        });
     }
 
     /**
@@ -670,8 +774,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
+        Optional<Party> recipient = instalmentRecipient(success.oldRules(), success.titleHolderId(),
+                success.authority());
+        if (recipient.isEmpty()) {
+            return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
+                    .thenApply(ignored -> new PayBidResult.PaymentFailed(NO_HOLDING_ACCOUNT));
+        }
         PaymentResult result = economyProvider.transferAuctionProceeds(
-                Party.personal(bidderId), seller(success.titleHolderId(), success.authority()), amount,
+                Party.personal(bidderId), recipient.get(), amount,
                 "Auction Bid Payment (partial): " + regionId, bidderId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
@@ -690,8 +800,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
+        Optional<Party> recipient = instalmentRecipient(fullyPaid.oldRules(), fullyPaid.titleHolderId(),
+                fullyPaid.authority());
+        if (recipient.isEmpty()) {
+            return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
+                    .thenApply(ignored -> new PayBidResult.PaymentFailed(NO_HOLDING_ACCOUNT));
+        }
         PaymentResult result = economyProvider.transferAuctionProceeds(
-                Party.personal(bidderId), seller(fullyPaid.titleHolderId(), fullyPaid.authority()), amount,
+                Party.personal(bidderId), recipient.get(), amount,
                 "Auction Bid Payment (final): " + regionId, bidderId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
@@ -708,6 +824,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), bidderId);
+        if (!fullyPaid.oldRules()) {
+            // Ownership has moved; the seller and fee recipients are paid from the holding account.
+            payOutInBackground();
+        }
         events.fireSync(new AuctionWonPurchaseEvent(region, bidderId, fullyPaid.titleHolderId(), amount));
         return CompletableFuture.completedFuture(
                 new PayBidResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
@@ -763,8 +883,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
+        Optional<Party> recipient = instalmentRecipient(success.oldRules(), success.titleHolderId(),
+                success.authority());
+        if (recipient.isEmpty()) {
+            return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
+                    .thenApply(ignored -> new PayOfferResult.PaymentFailed(NO_HOLDING_ACCOUNT));
+        }
         PaymentResult result = economyProvider.transfer(
-                Party.personal(offererId), seller(success.titleHolderId(), success.authority()), amount,
+                Party.personal(offererId), recipient.get(), amount,
                 "Purchase Offer Payment (partial): " + regionId, offererId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
@@ -783,8 +909,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
+        Optional<Party> recipient = instalmentRecipient(fullyPaid.oldRules(), fullyPaid.titleHolderId(),
+                fullyPaid.authority());
+        if (recipient.isEmpty()) {
+            return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
+                    .thenApply(ignored -> new PayOfferResult.PaymentFailed(NO_HOLDING_ACCOUNT));
+        }
         PaymentResult result = economyProvider.transfer(
-                Party.personal(offererId), seller(fullyPaid.titleHolderId(), fullyPaid.authority()), amount,
+                Party.personal(offererId), recipient.get(), amount,
                 "Purchase Offer Payment (final): " + regionId, offererId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
@@ -801,6 +933,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), offererId);
+        if (!fullyPaid.oldRules()) {
+            // Ownership has moved; the seller and fee recipients are paid from the holding account.
+            payOutInBackground();
+        }
         events.fireSync(new OfferPurchaseCompletedEvent(region, offererId, fullyPaid.titleHolderId(), amount));
         return CompletableFuture.completedFuture(
                 new PayOfferResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));

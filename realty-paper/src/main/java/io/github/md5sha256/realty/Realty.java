@@ -116,6 +116,8 @@ import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.HoldingAccount;
+import io.github.md5sha256.realty.economy.SaleSettlement;
 import io.github.md5sha256.realty.economy.PartyWallets;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.economy.TreasuryEconomyProvider;
@@ -182,6 +184,9 @@ public final class Realty extends JavaPlugin {
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
     private EconomyProvider economyProvider;
+    /** Where instalments wait until a sale finishes; set once the economy is chosen. */
+    private volatile @Nullable HoldingAccount holdingAccount;
+    private SaleSettlement settlement;
     /** Treasury's API when Treasury provides the economy, else {@code null}. */
     private @Nullable io.paradaux.treasury.api.TreasuryApi treasury;
     private ActorContexts actorContexts;
@@ -340,8 +345,8 @@ public final class Realty extends JavaPlugin {
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds(),
                 this.levyCatalog::get,
-                // Until the holding account is wired in, sales move to payment as before.
-                () -> true,
+                // Read on each use: on Vault the escrow player resolves after startup and on reload.
+                () -> this.holdingAccount != null && this.holdingAccount.party().isPresent(),
                 getLogger());
         EconomyProvider economyProvider = resolveEconomyProvider();
         this.economyProvider = economyProvider;
@@ -350,6 +355,7 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        this.holdingAccount = createHoldingAccount();
         this.actorContexts = new ActorContexts(this.treasury, resolveVaultPermission(), this.settings, this.logic);
         this.partyResolver = new PartyResolver(getServer(), this.treasury, this.logic);
         this.partyNames = new PartyNames(getServer(), this.treasury, Clock.systemUTC());
@@ -376,13 +382,16 @@ public final class Realty extends JavaPlugin {
                 getServer(),
                 this.executorState.mainThreadExec(),
                 task -> getServer().getScheduler().runTaskAsynchronously(this, task));
+        this.settlement = new SaleSettlement(economyProvider, this.logic, this.holdingAccount, this.eventDispatch,
+                getLogger());
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
                 () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
                 this.playerNameService,
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
-                this.actorContexts, this.eventDispatch);
+                this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement, getLogger());
+        reportStuckSalePayments();
         this.moduleManager = new ModuleLifecycleManager<>(this,
                 new ModuleLoader(getDataFolder().toPath().resolve("modules")),
                 Realty.class.getName(),
@@ -557,28 +566,45 @@ public final class Realty extends JavaPlugin {
                     }
                 });
             }
+            // Each refund is paid here, off the main thread, before its event is fired there.
             List<RealtyBackend.ExpiredBidPayment> expiredBidPayments = this.logic.clearExpiredBidPayments();
             if (!expiredBidPayments.isEmpty()) {
+                List<SaleSettlement.ExpiryRefund> bidRefunds = expiredBidPayments.stream()
+                        .map(payment -> this.settlement.refundExpired(payment.bidderId(), payment.refundAmount(),
+                                payment.oldRules(), payment.regionId(), payment.worldId(), "bid-expired"))
+                        .toList();
                 scheduler.runTask(this, () -> {
-                    for (RealtyBackend.ExpiredBidPayment payment : expiredBidPayments) {
+                    for (int i = 0; i < expiredBidPayments.size(); i++) {
+                        RealtyBackend.ExpiredBidPayment payment = expiredBidPayments.get(i);
+                        SaleSettlement.ExpiryRefund refund = bidRefunds.get(i);
                         this.eventDispatch.fireSync(new AuctionPaymentExpiredEvent(payment.regionId(),
                                 payment.worldId(),
                                 WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
-                                payment.bidderId(), payment.refundAmount()));
+                                payment.bidderId(), refund.amount(), refund.paid()));
                     }
                 });
             }
             List<RealtyBackend.ExpiredOfferPayment> expiredOfferPayments = this.logic.clearExpiredOfferPayments();
             if (!expiredOfferPayments.isEmpty()) {
+                List<SaleSettlement.ExpiryRefund> offerRefunds = expiredOfferPayments.stream()
+                        .map(payment -> this.settlement.refundExpired(payment.offererId(), payment.refundAmount(),
+                                payment.oldRules(), payment.regionId(), payment.worldId(), "offer-expired"))
+                        .toList();
                 scheduler.runTask(this, () -> {
-                    for (RealtyBackend.ExpiredOfferPayment payment : expiredOfferPayments) {
+                    for (int i = 0; i < expiredOfferPayments.size(); i++) {
+                        RealtyBackend.ExpiredOfferPayment payment = expiredOfferPayments.get(i);
+                        SaleSettlement.ExpiryRefund refund = offerRefunds.get(i);
                         this.eventDispatch.fireSync(new OfferPaymentExpiredEvent(payment.regionId(),
                                 payment.worldId(),
                                 WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
-                                payment.offererId(), payment.refundAmount()));
+                                payment.offererId(), refund.amount(), refund.paid()));
                     }
                 });
             }
+            // Payouts of completed sales and refunds that failed before. Both are cheap when
+            // nothing is due.
+            this.settlement.payOutDue();
+            this.settlement.retryRefunds();
             List<RealtyBackend.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
             if (!expiredLeaseholds.isEmpty()) {
                 Map<String, Map<String, String>> leaseholdPlaceholders = new HashMap<>();
@@ -717,6 +743,43 @@ public final class Realty extends JavaPlugin {
             }
             this.defaultParties.set(resolved);
             resolved.errors().forEach(error -> getLogger().severe(error));
+            warnIfNoHoldingAccount();
+        });
+    }
+
+    /**
+     * The holding account: Realty's Treasury SYSTEM account, or on Vault the {@code escrow} player.
+     * Treasury's is found or created here, which does Treasury I/O once at startup.
+     */
+    private @NotNull HoldingAccount createHoldingAccount() {
+        if (this.treasury == null) {
+            return HoldingAccount.vault(this::defaultParties);
+        }
+        try {
+            return HoldingAccount.treasury(this.treasury, getLogger());
+        } catch (RuntimeException ex) {
+            getLogger().log(Level.SEVERE, "Could not find or create Realty's Treasury holding account", ex);
+            return HoldingAccount.none();
+        }
+    }
+
+    private void warnIfNoHoldingAccount() {
+        HoldingAccount holding = this.holdingAccount;
+        if (holding != null && holding.party().isEmpty()) {
+            getLogger().warning("No holding account: on Vault, set 'escrow' in settings.yml. Auctions will not move"
+                    + " to payment and offers cannot be accepted until it is set.");
+        }
+    }
+
+    /** Once at startup, off the main thread: payments a crash left half done, for an admin. */
+    private void reportStuckSalePayments() {
+        SaleSettlement current = this.settlement;
+        this.executorState.dbExec().execute(() -> {
+            try {
+                current.reportStuck();
+            } catch (RuntimeException ex) {
+                getLogger().log(Level.SEVERE, "Could not check for sale payments left half done", ex);
+            }
         });
     }
 
