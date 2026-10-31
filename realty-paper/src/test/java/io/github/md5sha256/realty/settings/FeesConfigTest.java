@@ -158,4 +158,15 @@ class FeesConfigTest {
         Assertions.assertTrue(catalog.find("bad").isEmpty());
         Assertions.assertEquals(Party.personal(KNOWN), catalog.find("good").orElseThrow().recipient());
     }
+
+    @Test
+    void missingChoices_namesEachChosenLevyTheCatalogLacks_once() throws IOException {
+        LevyCatalog catalog = ConfiguredLevyCatalog.compile(parse(TOWNVILLE), resolver(), LOG);
+        String defined = catalog.all().getFirst().name();
+
+        Assertions.assertEquals(java.util.List.of("old-levy", "gone"), ConfiguredLevyCatalog.missingChoices(catalog,
+                java.util.List.of(defined.toUpperCase(java.util.Locale.ROOT), "old-levy", "gone", "old-levy")));
+        Assertions.assertEquals(java.util.List.of(), ConfiguredLevyCatalog.missingChoices(catalog,
+                java.util.List.of(defined)));
+    }
 }

@@ -1628,6 +1628,9 @@ public interface RealtyBackend {
     /** Every levy the server defines. */
     @NotNull List<LevyDefinition> listLevies();
 
+    /** Every levy name chosen for a region or an authority, each once, whether or not the catalog has it. */
+    @NotNull List<String> listChosenLevyNames();
+
     /**
      * The levy a freehold uses: its own choice, else its authority's choice, else the default
      * levy. A choice naming a levy that is no longer defined is skipped.

@@ -3944,6 +3944,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
+    public @NotNull List<String> listChosenLevyNames() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return List.copyOf(wrapper.levyChoiceMapper().selectAllChosenLevyNames());
+        }
+    }
+
+    @Override
     public @Nullable String chosenLevy(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper()

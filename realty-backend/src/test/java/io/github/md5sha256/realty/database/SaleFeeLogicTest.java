@@ -451,4 +451,16 @@ class SaleFeeLogicTest extends AbstractDatabaseTest {
         Assertions.assertInstanceOf(SetLevyResult.Success.class,
                 logic.setAuthorityLevy(GOV, MANAGER, "government-levy"));
     }
+
+    @Test
+    void listChosenLevyNames_listsEachChoiceOnce() {
+        levies = catalog(DEFAULT_LEVY, TOWN_LEVY, REGION_LEVY);
+        String regionId = freehold(TITLE_HOLDER);
+        Assertions.assertTrue(logic.listChosenLevyNames().isEmpty());
+
+        logic.setAuthorityLevy(GOV, MANAGER, "town-levy");
+        logic.setRegionLevy(regionId, WORLD_ID, MANAGER, "region-levy");
+
+        Assertions.assertEquals(Set.of("town-levy", "region-levy"), Set.copyOf(logic.listChosenLevyNames()));
+    }
 }

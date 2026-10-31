@@ -48,6 +48,21 @@ public final class ConfiguredLevyCatalog implements LevyCatalog {
         return Optional.ofNullable(this.defaultLevy);
     }
 
+    /**
+     * The chosen levy names {@code catalog} does not define, as when a levy was removed from
+     * fees.yml while plots or authorities still chose it. Each is reported once, in the order given.
+     */
+    public static @NotNull List<String> missingChoices(@NotNull LevyCatalog catalog,
+                                                       @NotNull List<String> chosenNames) {
+        LinkedHashSet<String> missing = new LinkedHashSet<>();
+        for (String name : chosenNames) {
+            if (catalog.find(name).isEmpty()) {
+                missing.add(name);
+            }
+        }
+        return List.copyOf(missing);
+    }
+
     @Override
     public @NotNull List<LevyDefinition> all() {
         return List.copyOf(this.levies.values());

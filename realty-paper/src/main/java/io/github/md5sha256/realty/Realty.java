@@ -365,7 +365,7 @@ public final class Realty extends JavaPlugin {
         this.partyResolver = new PartyResolver(getServer(), this.treasury, this.logic);
         this.partyNames = new PartyNames(getServer(), this.treasury, Clock.systemUTC());
         resolveDefaultParties();
-        compileLevyCatalog();
+        compileLevyCatalog(true);
         SafeLocationFinder safeLocationFinder = new SafeLocationFinder();
         this.signTextApplicator = new SignTextApplicator(
                 this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
@@ -829,28 +829,53 @@ public final class Realty extends JavaPlugin {
     }
 
     /**
-     * Compiles the levies of fees.yml in the background, because a recipient is looked up in
-     * Treasury and the database. Until it finishes the catalog is empty.
+     * Compiles the levies of fees.yml. At startup it runs at once, so that no sale can lock its
+     * fees, on the scheduler or by a command, before the levies are known. On a reload it runs in
+     * the background, because a recipient is looked up in Treasury and the database. A compile that
+     * fails keeps the catalog in use: none at startup, the previous one on a reload.
+     *
+     * @param now whether to compile on this thread, as at startup
      */
-    private void compileLevyCatalog() {
+    private void compileLevyCatalog(boolean now) {
         FeeSettings current = this.feeSettings.get();
         PartyResolver resolver = this.partyResolver;
         long generation = this.levyCatalogGeneration.incrementAndGet();
-        this.executorState.dbExec().execute(() -> {
+        Runnable compile = () -> {
             LevyCatalog compiled;
             try {
                 compiled = ConfiguredLevyCatalog.compile(current, resolver, getLogger());
             } catch (RuntimeException ex) {
-                getLogger().log(Level.SEVERE, "Failed to compile the levies of fees.yml", ex);
-                compiled = LevyCatalog.EMPTY;
+                getLogger().log(Level.SEVERE, "Failed to compile the levies of fees.yml; the levies in use"
+                        + " are kept", ex);
+                return;
             }
             // dbExec has several threads, so an older compile can finish after a newer one.
             synchronized (this.levyCatalogGeneration) {
-                if (this.levyCatalogGeneration.get() == generation) {
-                    this.levyCatalog.set(compiled);
+                if (this.levyCatalogGeneration.get() != generation) {
+                    return;
                 }
+                this.levyCatalog.set(compiled);
             }
-        });
+            warnMissingLevyChoices(compiled);
+        };
+        if (now) {
+            compile.run();
+        } else {
+            this.executorState.dbExec().execute(compile);
+        }
+    }
+
+    /** Logs a warning for each levy a plot or an authority has chosen that the catalog no longer has. */
+    private void warnMissingLevyChoices(@NotNull LevyCatalog catalog) {
+        try {
+            for (String name : ConfiguredLevyCatalog.missingChoices(catalog, this.logic.listChosenLevyNames())) {
+                getLogger().warning("The levy '" + name + "' is chosen for some plots or authorities, but fees.yml"
+                        + " no longer defines it. They use their authority's choice or the default levy instead"
+                        + " until the choice is changed.");
+            }
+        } catch (RuntimeException ex) {
+            getLogger().log(Level.WARNING, "Could not check the levy choices against fees.yml", ex);
+        }
     }
 
     private DatabaseSettings loadDatabaseSettings() throws IOException {
@@ -975,7 +1000,7 @@ public final class Realty extends JavaPlugin {
         this.taxSettings.set(loadTaxSettings());
         this.feeSettings.set(loadFeeSettings());
         resolveDefaultParties();
-        compileLevyCatalog();
+        compileLevyCatalog(false);
         reloadMessages();
         warnOrphanedTags();
         reloadModules();
