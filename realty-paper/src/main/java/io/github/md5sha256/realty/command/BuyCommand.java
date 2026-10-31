@@ -48,6 +48,15 @@ public record BuyCommand(
                 .build();
     }
 
+    /** The post-event for a completed buy, carrying the fees the sale paid. */
+    static @NotNull RegionBoughtEvent boughtEvent(@NotNull WorldGuardRegion region,
+                                                  @NotNull java.util.UUID buyerId,
+                                                  @NotNull RealtyPaperApi.BuyResult.Success success) {
+        return new RegionBoughtEvent(region, buyerId,
+                Party.playerUuidOf(success.previousTitleHolder()).orElse(null), success.price(),
+                success.fees());
+    }
+
     private void execute(@NotNull CommandContext<Source> ctx) {
         if (!(ctx.sender().source() instanceof Player sender)) {
             ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
@@ -75,9 +84,7 @@ public record BuyCommand(
                             Placeholder.unparsed("price", CurrencyFormatter.format(success.price())),
                             Placeholder.unparsed("region", success.regionId())));
                     // Post-event; fireSync hops to the main thread. RegionNotificationListener notifies the seller.
-                    events.fireSync(new RegionBoughtEvent(region, sender.getUniqueId(),
-                            Party.playerUuidOf(success.previousTitleHolder()).orElse(null), success.price(),
-                            success.fees()));
+                    events.fireSync(boughtEvent(region, sender.getUniqueId(), success));
                 }
                 case RealtyPaperApi.BuyResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_NO_FREEHOLD_CONTRACT,

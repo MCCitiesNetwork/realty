@@ -2056,7 +2056,7 @@ class RealtyPaperApiImplTest {
 
         private List<RealtyRegionEvent> firedEvents() {
             ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
-            verify(events, org.mockito.Mockito.atLeast(0)).fireSync(captor.capture());
+            verify(events, org.mockito.Mockito.atLeastOnce()).fireSync(captor.capture());
             return captor.getAllValues();
         }
 
@@ -2607,7 +2607,7 @@ class RealtyPaperApiImplTest {
             Assertions.assertEquals(AGENT_QUOTE, bid.fees());
             Assertions.assertEquals(AGENT_QUOTE, offer.fees());
             ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
-            verify(events, org.mockito.Mockito.atLeast(0)).fireSync(captor.capture());
+            verify(events, org.mockito.Mockito.atLeastOnce()).fireSync(captor.capture());
             Assertions.assertEquals(AGENT_QUOTE, captor.getAllValues().stream()
                     .filter(AuctionWonPurchaseEvent.class::isInstance)
                     .map(AuctionWonPurchaseEvent.class::cast).findFirst().orElseThrow().getFees());
@@ -2639,7 +2639,7 @@ class RealtyPaperApiImplTest {
 
         private List<RealtyRegionEvent> firedRegionEvents() {
             ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
-            verify(events, org.mockito.Mockito.atLeast(0)).fireSync(captor.capture());
+            verify(events, org.mockito.Mockito.atLeastOnce()).fireSync(captor.capture());
             return captor.getAllValues();
         }
 
@@ -2663,7 +2663,7 @@ class RealtyPaperApiImplTest {
 
             List<RealtyRegionEvent> fired = firedRegionEvents();
             FeeChangeEvent change = Assertions.assertInstanceOf(FeeChangeEvent.class, fired.get(0));
-            Assertions.assertEquals(recipient, change.getRecipient());
+            Assertions.assertEquals(Optional.of(recipient), change.getRecipient());
             Assertions.assertEquals(Optional.of(BUYER_ID), change.getActorId());
             FeeChangedEvent changed = Assertions.assertInstanceOf(FeeChangedEvent.class, fired.get(1));
             Assertions.assertEquals(recipient, changed.getRecipient());
@@ -2691,7 +2691,7 @@ class RealtyPaperApiImplTest {
 
             FeeRemovedEvent removed = Assertions.assertInstanceOf(FeeRemovedEvent.class,
                     firedRegionEvents().getFirst());
-            Assertions.assertEquals(recipient, removed.getRecipient());
+            Assertions.assertEquals(Optional.of(recipient), removed.getRecipient());
         }
 
         @Test
@@ -2706,7 +2706,7 @@ class RealtyPaperApiImplTest {
             Assertions.assertEquals(recipient, approved.getRecipient());
             Assertions.assertEquals(FeeSide.SELLER, approved.getSide());
             Assertions.assertEquals(3, approved.getPercent(), 0.0001);
-            Assertions.assertEquals(BUYER_ID, approved.getApproverId());
+            Assertions.assertEquals(Optional.of(BUYER_ID), approved.getApproverId());
         }
 
         @Test
@@ -2718,7 +2718,7 @@ class RealtyPaperApiImplTest {
 
             FeeRejectedEvent rejected = Assertions.assertInstanceOf(FeeRejectedEvent.class,
                     firedRegionEvents().getFirst());
-            Assertions.assertEquals(BUYER_ID, rejected.getApproverId());
+            Assertions.assertEquals(Optional.of(BUYER_ID), rejected.getApproverId());
         }
 
         @Test
@@ -2728,7 +2728,41 @@ class RealtyPaperApiImplTest {
 
             api.approveFee(wgRegion, BUYER_CTX, recipient).join();
 
-            Assertions.assertTrue(firedRegionEvents().isEmpty());
+            verify(events, never()).fireSync(any(RealtyRegionEvent.class));
+        }
+
+        @Test
+        void consoleApproveAndRemove_stillFireWithNoActor() {
+            ActorContext console = ActorContext.console();
+            when(realtyApi.approveFee(REGION_ID, WORLD_ID, console, recipient))
+                    .thenReturn(new RealtyBackend.ResolveFeeResult.Success(FeeSide.SELLER, 3));
+            when(realtyApi.removeFee(REGION_ID, WORLD_ID, console, false))
+                    .thenReturn(new RealtyBackend.RemoveFeeResult.Success());
+
+            api.approveFee(wgRegion, console, recipient).join();
+            api.removeFee(wgRegion, console, false).join();
+
+            List<RealtyRegionEvent> fired = firedRegionEvents();
+            Assertions.assertTrue(Assertions.assertInstanceOf(FeeApprovedEvent.class, fired.get(0))
+                    .getApproverId().isEmpty());
+            Assertions.assertTrue(Assertions.assertInstanceOf(FeeRemovedEvent.class, fired.get(1))
+                    .getRecipient().isEmpty());
+        }
+
+        @Test
+        void setFee_consolePersonal_stillFiresChangeEventAndVetoHolds() {
+            ActorContext console = ActorContext.console();
+            when(events.fireSync(any(FeeChangeEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.SetFeeResult.Cancelled.class,
+                    api.setFee(wgRegion, console, 3, FeeSide.SELLER, false).join());
+
+            ArgumentCaptor<FeeChangeEvent> pre = ArgumentCaptor.forClass(FeeChangeEvent.class);
+            verify(events).fireSync(pre.capture());
+            Assertions.assertTrue(pre.getValue().getRecipient().isEmpty());
+            Assertions.assertTrue(pre.getValue().getActorId().isEmpty());
+            verify(realtyApi, never()).setFee(any(), any(), any(), anyDouble(), any(),
+                    org.mockito.ArgumentMatchers.anyBoolean());
         }
 
         @Test

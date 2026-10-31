@@ -1874,8 +1874,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return CompletableFuture.supplyAsync(
                         () -> feeRecipient(regionId, worldId, ctx, asAuthority), executorState.dbExec())
                 .thenComposeAsync(recipient -> {
-                    if (recipient.isPresent() && !events.fireSync(
-                            new FeeChangeEvent(region, recipient.get(), side, percent, null, actorId))) {
+                    // Always fired, so a veto cannot be bypassed; the recipient is null when unnamed.
+                    if (!events.fireSync(
+                            new FeeChangeEvent(region, recipient.orElse(null), side, percent, null, actorId))) {
                         return CompletableFuture.completedFuture(
                                 (RealtyBackend.SetFeeResult) new RealtyBackend.SetFeeResult.Cancelled());
                     }
@@ -1901,7 +1902,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             Party recipient = feeRecipient(regionId, worldId, ctx, asAuthority).orElse(null);
             return new FeeCall<>(realtyApi.removeFee(regionId, worldId, ctx, asAuthority), recipient);
         }, executorState.dbExec()).thenApplyAsync(call -> {
-            if (call.result() instanceof RealtyBackend.RemoveFeeResult.Success && call.recipient() != null) {
+            if (call.result() instanceof RealtyBackend.RemoveFeeResult.Success) {
                 events.fireSync(new FeeRemovedEvent(region, call.recipient()));
             }
             return call.result();
@@ -1916,7 +1917,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.approveFee(regionId, worldId, ctx, recipient), executorState.dbExec()
         ).thenApplyAsync(result -> {
-            if (result instanceof RealtyBackend.ResolveFeeResult.Success success && ctx.player() != null) {
+            if (result instanceof RealtyBackend.ResolveFeeResult.Success success) {
                 events.fireSync(new FeeApprovedEvent(region, recipient, success.side(), success.percent(),
                         ctx.player()));
             }
@@ -1932,7 +1933,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.rejectFee(regionId, worldId, ctx, recipient), executorState.dbExec()
         ).thenApplyAsync(result -> {
-            if (result instanceof RealtyBackend.ResolveFeeResult.Success success && ctx.player() != null) {
+            if (result instanceof RealtyBackend.ResolveFeeResult.Success success) {
                 events.fireSync(new FeeRejectedEvent(region, recipient, success.side(), success.percent(),
                         ctx.player()));
             }

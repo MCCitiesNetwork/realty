@@ -122,7 +122,7 @@ public final class RealtyEventDispatch {
      */
     public boolean fireSync(@NotNull LevyChangedEvent event) {
         return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
-                "Cancellable synchronous events must be fired from the main thread: ");
+                "Synchronous events must be fired from the main thread: ");
     }
 
     /**

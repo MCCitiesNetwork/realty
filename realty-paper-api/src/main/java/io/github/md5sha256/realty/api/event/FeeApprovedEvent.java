@@ -6,6 +6,9 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import java.util.UUID;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Optional;
 
 /**
  * Called after the seller has approved a seller-paid fee, so it applies to sales.
@@ -23,7 +26,7 @@ public class FeeApprovedEvent extends RealtyRegionEvent {
                             @NotNull Party recipient,
                             @NotNull FeeSide side,
                             double percent,
-                            @NotNull UUID approverId) {
+                            @Nullable UUID approverId) {
         super(region);
         this.recipient = recipient;
         this.side = side;
@@ -53,10 +56,10 @@ public class FeeApprovedEvent extends RealtyRegionEvent {
     }
 
     /**
-     * The seller who approved the fee.
+     * The seller who approved the fee, or empty when the console or a plugin did.
      */
-    public @NotNull UUID getApproverId() {
-        return this.approverId;
+    public @NotNull Optional<UUID> getApproverId() {
+        return Optional.ofNullable(this.approverId);
     }
 
     @Override

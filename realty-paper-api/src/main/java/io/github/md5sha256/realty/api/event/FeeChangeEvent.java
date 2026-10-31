@@ -28,7 +28,7 @@ public class FeeChangeEvent extends RealtyRegionEvent implements Cancellable {
     private boolean cancelled;
 
     public FeeChangeEvent(@NotNull WorldGuardRegion region,
-                          @NotNull Party recipient,
+                          @Nullable Party recipient,
                           @NotNull FeeSide side,
                           double percent,
                           @Nullable Double previousPercent,
@@ -42,10 +42,11 @@ public class FeeChangeEvent extends RealtyRegionEvent implements Cancellable {
     }
 
     /**
-     * Who the fee is paid to: the actor, or the authority when it is set for the authority.
+     * Who the fee is paid to, or empty when that cannot be named before the change is made, such
+     * as when the console sets a fee for itself.
      */
-    public @NotNull Party getRecipient() {
-        return this.recipient;
+    public @NotNull Optional<Party> getRecipient() {
+        return Optional.ofNullable(this.recipient);
     }
 
     /**
