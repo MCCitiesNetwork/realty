@@ -95,7 +95,10 @@ import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
+import io.github.md5sha256.realty.api.LevyCatalog;
+import io.github.md5sha256.realty.fees.ConfiguredLevyCatalog;
 import io.github.md5sha256.realty.settings.DefaultParties;
+import io.github.md5sha256.realty.settings.FeeSettings;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
 import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.RegionProfile;
@@ -173,6 +176,8 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
     private final AtomicReference<TaxSettings> taxSettings = new AtomicReference<>();
+    private final AtomicReference<FeeSettings> feeSettings = new AtomicReference<>();
+    private final AtomicReference<LevyCatalog> levyCatalog = new AtomicReference<>(LevyCatalog.EMPTY);
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
     private EconomyProvider economyProvider;
@@ -243,6 +248,11 @@ public final class Realty extends JavaPlugin {
         return this.taxSettings.get();
     }
 
+    /** The compiled sale levies; empty until the party resolver exists and the compile ran. */
+    public LevyCatalog levyCatalog() {
+        return this.levyCatalog.get();
+    }
+
     @Override
     public void onLoad() {
         try {
@@ -255,6 +265,7 @@ public final class Realty extends JavaPlugin {
             copyResourceTemplate("settings.yml", "defaults/default-settings.yml");
             copyResourceTemplate("profiles.yml", "defaults/default-profiles.yml");
             copyResourceTemplate("taxes.yml", "defaults/default-taxes.yml");
+            copyResourceTemplate("fees.yml", "defaults/default-fees.yml");
             copyResourceTemplate("database.yml", "defaults/default-database.yml");
             copyResourceTemplate("region-tags.yml", "defaults/default-region-tags.yml");
             reloadMessages();
@@ -263,6 +274,7 @@ public final class Realty extends JavaPlugin {
             this.regionFlagSettings.set(loadRegionFlagSettings());
             this.realtyTags.set(new RealtyTags(loadRegionTagSettings()));
             this.taxSettings.set(loadTaxSettings());
+            this.feeSettings.set(loadFeeSettings());
             registerTagPermissions(this.realtyTags.get());
             configureRegionFlagService(this.regionFlagSettings.get());
 
@@ -337,6 +349,7 @@ public final class Realty extends JavaPlugin {
         this.partyResolver = new PartyResolver(getServer(), this.treasury, this.logic);
         this.partyNames = new PartyNames(getServer(), this.treasury, Clock.systemUTC());
         resolveDefaultParties();
+        compileLevyCatalog();
         SafeLocationFinder safeLocationFinder = new SafeLocationFinder();
         this.signTextApplicator = new SignTextApplicator(
                 this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
@@ -702,6 +715,25 @@ public final class Realty extends JavaPlugin {
         });
     }
 
+    /**
+     * Compiles the levies of fees.yml in the background, because a recipient is looked up in
+     * Treasury and the database. Until it finishes the catalog is empty.
+     */
+    private void compileLevyCatalog() {
+        FeeSettings current = this.feeSettings.get();
+        PartyResolver resolver = this.partyResolver;
+        this.executorState.dbExec().execute(() -> {
+            LevyCatalog compiled;
+            try {
+                compiled = ConfiguredLevyCatalog.compile(current, resolver, getLogger());
+            } catch (RuntimeException ex) {
+                getLogger().log(Level.SEVERE, "Failed to compile the levies of fees.yml", ex);
+                compiled = LevyCatalog.EMPTY;
+            }
+            this.levyCatalog.set(compiled);
+        });
+    }
+
     private DatabaseSettings loadDatabaseSettings() throws IOException {
         ConfigurationNode settingsRoot = copyDefaultsYaml("database");
         return settingsRoot.get(DatabaseSettings.class);
@@ -720,6 +752,11 @@ public final class Realty extends JavaPlugin {
     private TaxSettings loadTaxSettings() throws IOException {
         ConfigurationNode settingsRoot = copyDefaultsYaml("taxes");
         return settingsRoot.get(TaxSettings.class);
+    }
+
+    private FeeSettings loadFeeSettings() throws IOException {
+        ConfigurationNode settingsRoot = copyDefaultsYaml("fees");
+        return settingsRoot.get(FeeSettings.class);
     }
 
     private void unregisterTagPermissions(@NotNull RealtyTags realtyTags) {
@@ -817,7 +854,9 @@ public final class Realty extends JavaPlugin {
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         this.taxSettings.set(loadTaxSettings());
+        this.feeSettings.set(loadFeeSettings());
         resolveDefaultParties();
+        compileLevyCatalog();
         reloadMessages();
         warnOrphanedTags();
         reloadModules();
