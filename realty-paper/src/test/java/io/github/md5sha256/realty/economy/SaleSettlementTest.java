@@ -9,6 +9,7 @@ import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.FeePaidEvent;
 import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.RefundPaidEvent;
+import io.github.md5sha256.realty.api.event.SaleProceedsPaidEvent;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.settings.DefaultParties;
 import org.jetbrains.annotations.NotNull;
@@ -146,6 +147,12 @@ class SaleSettlementTest {
         Assertions.assertEquals("agent", fired.getValue().getSource());
         Assertions.assertEquals(BUYER_ID, fired.getValue().getBuyerId());
         Assertions.assertEquals("plot", fired.getValue().getRegionId());
+        ArgumentCaptor<SaleProceedsPaidEvent> proceeds = ArgumentCaptor.forClass(SaleProceedsPaidEvent.class);
+        verify(events).fireSync(proceeds.capture());
+        Assertions.assertEquals(SELLER, proceeds.getValue().getSeller());
+        Assertions.assertEquals(970, proceeds.getValue().getAmount(), 0.001);
+        Assertions.assertEquals(BUYER_ID, proceeds.getValue().getBuyerId());
+        Assertions.assertEquals("plot", proceeds.getValue().getRegionId());
     }
 
     @Test
@@ -260,6 +267,7 @@ class SaleSettlementTest {
         verify(events).fireSync(fired.capture());
         Assertions.assertEquals(BUYER_ID, fired.getValue().getBuyerId());
         Assertions.assertEquals("bid-expired", fired.getValue().getReason());
+        Assertions.assertFalse(fired.getValue().isRetry(), "the first attempt is told with the expiry");
         Assertions.assertTrue(new AuctionPaymentExpiredEvent("plot", WORLD_ID, null, BUYER_ID,
                 refund.amount(), refund.paid()).isRefundPaid());
     }
@@ -324,7 +332,9 @@ class SaleSettlementTest {
                 "Sale refund (region-deleted): plot")), economy.transfers);
         verify(backend).markRefundPaid(7);
         verify(backend).markRefundFailed(8, "Account #42 is archived");
-        verify(events).fireSync(any(RefundPaidEvent.class));
+        ArgumentCaptor<RefundPaidEvent> fired = ArgumentCaptor.forClass(RefundPaidEvent.class);
+        verify(events).fireSync(fired.capture());
+        Assertions.assertTrue(fired.getValue().isRetry());
         Assertions.assertEquals(1, severe().size(), "the last attempt failing is logged");
     }
 

@@ -7,6 +7,8 @@ import io.github.md5sha256.realty.api.FeeLine;
 import io.github.md5sha256.realty.api.FeeQuote;
 import io.github.md5sha256.realty.api.FeeSide;
 import io.github.md5sha256.realty.api.event.FeePaidEvent;
+import io.github.md5sha256.realty.api.event.RefundPaidEvent;
+import io.github.md5sha256.realty.api.event.SaleProceedsPaidEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.Party;
@@ -260,7 +262,7 @@ class RegionNotificationListenerTest {
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_REFUND_PAID, notice.getMessageKey());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_REFUNDED, notice.getMessageKey());
     }
 
     @Test
@@ -269,7 +271,7 @@ class RegionNotificationListenerTest {
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_REFUND_PAID, notice.getMessageKey());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_REFUNDED, notice.getMessageKey());
     }
 
     @Test
@@ -290,16 +292,51 @@ class RegionNotificationListenerTest {
     }
 
     @Test
-    void wonAuctionWithFees_alsoTellsTheSellerWhatTheyReceived() {
+    void wonAuctionWithFees_toldOnlyOfTheTransferUntilTheMoneyArrives() {
         FeeQuote quote = new FeeQuote(1000,
                 List.of(new FeeLine("agent fee", Party.personal(UUID.randomUUID()), FeeSide.SELLER, 3, 30)),
                 1000, 970);
 
         listener.onAuctionWonPurchase(new AuctionWonPurchaseEvent(region, TENANT, LANDLORD, 1000, quote));
 
-        List<RealtyNotificationEvent> notices = notices(2);
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_SALE_PROCEEDS, notices.get(1).getMessageKey());
-        Assertions.assertEquals(List.of(LANDLORD), notices.get(1).getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED, notices(1).getFirst().getMessageKey());
+    }
+
+    @Test
+    void proceedsPaidToAPlayer_tellsThatPlayer() {
+        listener.onSaleProceedsPaid(new SaleProceedsPaidEvent("region-1", null, Party.personal(LANDLORD), 970, TENANT));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_SALE_PROCEEDS, notice.getMessageKey());
+        Assertions.assertEquals(List.of(LANDLORD), notice.getTargets());
+    }
+
+    @Test
+    void proceedsPaidToAnAuthorityAccount_tellsItsManagers() {
+        UUID authorizer = UUID.randomUUID();
+        when(treasury.getAuthorizers(42)).thenReturn(List.of(row(authorizer)));
+        when(treasury.getMembers(42)).thenReturn(List.of());
+
+        listener.onSaleProceedsPaid(new SaleProceedsPaidEvent("region-1", null,
+                Party.account(42, AccountKind.GOVERNMENT), 970, TENANT));
+
+        Assertions.assertEquals(List.of(authorizer), notices(1).getFirst().getTargets());
+    }
+
+    @Test
+    void refundPaidOnARetry_tellsTheBuyer() {
+        listener.onRefundPaid(new RefundPaidEvent(TENANT, 250, "region-1", null, "bid-expired", true));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_REFUND_PAID, notice.getMessageKey());
+        Assertions.assertEquals(List.of(TENANT), notice.getTargets());
+    }
+
+    @Test
+    void refundPaidOnTheFirstAttempt_isLeftToTheExpiryNotice() {
+        listener.onRefundPaid(new RefundPaidEvent(TENANT, 250, "region-1", null, "bid-expired", false));
+
+        verify(events, never()).fireSync(any(RealtyNotificationEvent.class));
     }
 
     @Test

@@ -25,17 +25,45 @@ public class RefundPaidEvent extends Event {
     private final String regionId;
     private final UUID worldId;
     private final String reason;
+    private final boolean retry;
 
+    /**
+     * @param retry whether the refund was paid on a retry, after an earlier attempt failed, rather
+     *              than on the first attempt
+     */
     public RefundPaidEvent(@NotNull UUID buyerId,
                            double amount,
                            @NotNull String regionId,
                            @Nullable UUID worldId,
-                           @NotNull String reason) {
+                           @NotNull String reason,
+                           boolean retry) {
         this.buyerId = buyerId;
         this.amount = amount;
         this.regionId = regionId;
         this.worldId = worldId;
         this.reason = reason;
+        this.retry = retry;
+    }
+
+    /**
+     * @deprecated says nothing of whether the refund was paid on a retry; use the constructor that does.
+     */
+    @Deprecated
+    public RefundPaidEvent(@NotNull UUID buyerId,
+                           double amount,
+                           @NotNull String regionId,
+                           @Nullable UUID worldId,
+                           @NotNull String reason) {
+        this(buyerId, amount, regionId, worldId, reason, false);
+    }
+
+    /**
+     * Whether the refund was paid on a retry, after an earlier attempt failed. A refund paid on the
+     * first attempt, as when a payment deadline passes, is {@code false}: the buyer was already
+     * told of it with the expiry.
+     */
+    public boolean isRetry() {
+        return this.retry;
     }
 
     /**

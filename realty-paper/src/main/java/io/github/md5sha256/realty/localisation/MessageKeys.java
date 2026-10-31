@@ -254,7 +254,7 @@ public final class MessageKeys {
     public static final String PAY_BID_ERROR = "pay-bid.error";
     public static final String PAY_BID_TRANSFER_FAILED = "pay-bid.transfer-failed";
     public static final String PAY_BID_TRANSFER_SUCCESS = "pay-bid.transfer-success";
-    public static final String PAY_BID_FINALIZE_PENDING = "pay-bid.finalize-pending";
+    public static final String PAY_FINALIZE_PENDING = "pay.finalize-pending";
 
     // pay-offer
     public static final String PAY_OFFER_INSUFFICIENT_FUNDS = "pay-offer.insufficient-funds";
@@ -267,7 +267,6 @@ public final class MessageKeys {
     public static final String PAY_OFFER_ERROR = "pay-offer.error";
     public static final String PAY_OFFER_TRANSFER_FAILED = "pay-offer.transfer-failed";
     public static final String PAY_OFFER_TRANSFER_SUCCESS = "pay-offer.transfer-success";
-    public static final String PAY_OFFER_FINALIZE_PENDING = "pay-offer.finalize-pending";
 
     // reject-offer
     public static final String REJECT_OFFER_SUCCESS = "reject-offer.success";
@@ -625,6 +624,7 @@ public final class MessageKeys {
     public static final String NOTIFICATION_SALE_PAYOUT = "notification.sale-payout";
     public static final String NOTIFICATION_SALE_PROCEEDS = "notification.sale-proceeds";
     public static final String NOTIFICATION_REFUND_PAID = "notification.refund-paid";
+    public static final String NOTIFICATION_PAYMENT_EXPIRED_REFUNDED = "notification.payment-expired-refunded";
     public static final String NOTIFICATION_REFUND_PENDING = "notification.refund-pending";
     public static final String NOTIFICATION_FEE_AWAITING_APPROVAL = "notification.fee-awaiting-approval";
 

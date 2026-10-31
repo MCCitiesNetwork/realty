@@ -2,7 +2,6 @@ package io.github.md5sha256.realty.listener;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
-import io.github.md5sha256.realty.api.FeeQuote;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.Party;
@@ -25,6 +24,8 @@ import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
 import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
 import io.github.md5sha256.realty.api.event.PaymentExpiredEvent;
+import io.github.md5sha256.realty.api.event.RefundPaidEvent;
+import io.github.md5sha256.realty.api.event.SaleProceedsPaidEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
 import io.github.md5sha256.realty.api.event.RegionRentedEvent;
@@ -86,7 +87,6 @@ public final class RegionNotificationListener implements Listener {
                         Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
                         Placeholder.unparsed("region", event.getRegionId())));
-        notifySaleProceeds(event.getPreviousTitleHolder(), event.getRegion(), event.getFees());
     }
 
     @EventHandler
@@ -95,22 +95,31 @@ public final class RegionNotificationListener implements Listener {
                 notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                         Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("region", event.getRegionId())));
-        notifySaleProceeds(event.getPreviousTitleHolder(), event.getRegion(), event.getFees());
     }
 
     /**
-     * Tells the seller what the sale left them after fees. A sale with no fees is already told by
-     * the sale's own notice, so nothing more is sent.
+     * Tells the seller, once the money arrives, what the sale left them after fees. The seller may
+     * be an authority, told through the people who act for it.
      */
-    private void notifySaleProceeds(@Nullable Party seller, @NotNull WorldGuardRegion region,
-                                    @NotNull FeeQuote fees) {
-        if (fees.lines().isEmpty()) {
+    @EventHandler
+    public void onSaleProceedsPaid(@NotNull SaleProceedsPaidEvent event) {
+        notifyParty(event.getSeller(), null, MessageKeys.NOTIFICATION_SALE_PROCEEDS,
+                Placeholder.unparsed("region", event.getRegionId()),
+                Placeholder.unparsed("received", CurrencyFormatter.format(event.getAmount())));
+    }
+
+    /**
+     * Tells the buyer a refund that failed before has now been paid. A refund paid on the first
+     * attempt is told with the expiry that caused it, so it is not told again here.
+     */
+    @EventHandler
+    public void onRefundPaid(@NotNull RefundPaidEvent event) {
+        if (!event.isRetry()) {
             return;
         }
-        notifyParty(seller, region, MessageKeys.NOTIFICATION_SALE_PROCEEDS,
-                Placeholder.unparsed("region", region.region().getId()),
-                Placeholder.unparsed("price", CurrencyFormatter.format(fees.price())),
-                Placeholder.unparsed("received", CurrencyFormatter.format(fees.sellerReceives())));
+        notifyPlayer(event.getBuyerId(), null, MessageKeys.NOTIFICATION_REFUND_PAID,
+                Placeholder.unparsed("region", event.getRegionId()),
+                Placeholder.unparsed("amount", CurrencyFormatter.format(event.getAmount())));
     }
 
     /** Tells a fee's recipient, once it is paid out, what they were paid and for which sale. */
@@ -128,7 +137,7 @@ public final class RegionNotificationListener implements Listener {
      */
     static @NotNull String expiryKey(@NotNull PaymentExpiredEvent event, @NotNull String oldRulesKey) {
         if (event.isRefundPaid()) {
-            return MessageKeys.NOTIFICATION_REFUND_PAID;
+            return MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_REFUNDED;
         }
         return event.getRefundAmount() > 0 ? MessageKeys.NOTIFICATION_REFUND_PENDING : oldRulesKey;
     }
@@ -198,7 +207,6 @@ public final class RegionNotificationListener implements Listener {
                 notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                         Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("region", event.getRegionId())));
-        notifySaleProceeds(event.getPreviousTitleHolder(), event.getRegion(), event.getFees());
     }
 
     @EventHandler

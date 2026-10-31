@@ -226,9 +226,12 @@ offer:
     insert-failed: <prefix> Failed to place offer on region <region>.
     error: '<prefix> Failed to place offer: <error>'
     not-accepting: Region <region> is not currently accepting offers.
+pay:
+    finalize-pending: <prefix> Your payment for <gold><region></gold> is complete and
+        held safely. The title will be transferred to you within a minute.
 pay-bid:
     insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
-    payment-failed: '<prefix> Payment failed: <error>'
+    payment-failed: '<prefix> <red>Payment failed:</red> <error>'
     success: '<prefix> Paid <green><amount></green> towards <gold><region></gold>.
         Paid <green><total></green> of <green><due></green>. <red><remaining></red> left
         by <yellow><deadline></yellow>.'
@@ -247,11 +250,9 @@ pay-bid:
         not available.'
     transfer-success: <prefix> The title for region <gold><region></gold> has been
         <green>successfully transferred</green> to you. <green>:)</green>
-    finalize-pending: <prefix> Your payment for region <gold><region></gold> is complete
-        and held safely. The title will be transferred to you shortly.
 pay-offer:
     insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
-    payment-failed: '<prefix> Payment failed: <error>'
+    payment-failed: '<prefix> <red>Payment failed:</red> <error>'
     success: '<prefix> Paid <green><amount></green> towards <gold><region></gold>.
         Paid <green><total></green> of <green><due></green>. <red><remaining></red> left
         by <yellow><deadline></yellow>.'
@@ -269,8 +270,6 @@ pay-offer:
     transfer-failed: 'Failed to transfer region: WorldGuard region manager not available.'
     transfer-success: <prefix> The title for region <gold><region></gold> has been
         <green>successfully transferred</green> to you. <green>:)</green>
-    finalize-pending: <prefix> Your payment for region <gold><region></gold> is complete
-        and held safely. The title will be transferred to you shortly.
 help:
     main:
     - <prefix> Commands
@@ -525,13 +524,15 @@ notification:
     offer-payment-expired: <prefix> Your payment deadline for <yellow><region></yellow>
         passed. Realty refunds nothing, because under the rules when you began paying
         your payments went to the seller.
-    refund-paid: <prefix> Your payment deadline for <yellow><region></yellow> passed.
-        <green>$<amount></green> was refunded.
+    payment-expired-refunded: <prefix> Your payment deadline for <yellow><region></yellow>
+        passed. <green>$<amount></green> was refunded.
+    refund-paid: <prefix> Your pending refund of <green>$<amount></green> for <yellow><region></yellow>
+        has now been paid.
     refund-pending: <prefix> Your payment deadline for <yellow><region></yellow> passed.
         Your refund of <green>$<amount></green> could not be paid yet. It is pending
         and will be retried.
-    sale-proceeds: <prefix> <yellow><region></yellow> sold for <green>$<price></green>.
-        You received <green>$<received></green> after fees.
+    sale-proceeds: <prefix> You received <green>$<received></green> from the sale of
+        <yellow><region></yellow>, after fees.
     sale-payout: <prefix> You were paid <green>$<amount></green> (<source>) from the
         sale of <yellow><region></yellow>.
     fee-awaiting-approval: <prefix> <#00aaff><player></#00aaff> set a <yellow><percent>%</yellow>

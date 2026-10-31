@@ -7,6 +7,8 @@ import io.github.md5sha256.realty.api.RealtyBackend.DuePayout;
 import io.github.md5sha256.realty.api.RealtyBackend.DueRefund;
 import io.github.md5sha256.realty.api.event.FeePaidEvent;
 import io.github.md5sha256.realty.api.event.RefundPaidEvent;
+import io.github.md5sha256.realty.api.event.SaleProceedsPaidEvent;
+import io.github.md5sha256.realty.fees.SaleFeeResolver;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import org.jetbrains.annotations.NotNull;
@@ -102,8 +104,11 @@ public final class SaleSettlement {
             case PaymentResult.Success ignored -> {
                 markPaid(() -> this.backend.markPayoutPaid(payout.id()),
                         "Sale payout #" + payout.id() + " of " + describe(payout));
-                if ("fee".equals(payout.lineKind())) {
+                if (SaleFeeResolver.LINE_FEE.equals(payout.lineKind())) {
                     this.events.fireSync(new FeePaidEvent(payout.regionName(), payout.worldId(), payout.source(),
+                            payout.recipient(), payout.amount(), payout.buyerId()));
+                } else if (SaleFeeResolver.LINE_PROCEEDS.equals(payout.lineKind())) {
+                    this.events.fireSync(new SaleProceedsPaidEvent(payout.regionName(), payout.worldId(),
                             payout.recipient(), payout.amount(), payout.buyerId()));
                 }
             }
@@ -139,7 +144,8 @@ public final class SaleSettlement {
                     + regionName + " waits for a holding account");
             return new ExpiryRefund(amount, false);
         }
-        boolean paid = retryRefund(from.get(), new DueRefund(refundId, buyerId, amount, regionName, worldId, reason, 0));
+        boolean paid = payRefund(from.get(), new DueRefund(refundId, buyerId, amount, regionName, worldId, reason, 0),
+                false);
         return new ExpiryRefund(amount, paid);
     }
 
@@ -158,7 +164,7 @@ public final class SaleSettlement {
         }
         for (DueRefund refund : due) {
             try {
-                retryRefund(from.get(), refund);
+                payRefund(from.get(), refund, true);
             } catch (RuntimeException ex) {
                 this.log.log(Level.SEVERE, "Refund #" + refund.id() + " of " + describe(refund)
                         + " was interrupted; check whether it was paid", ex);
@@ -166,8 +172,12 @@ public final class SaleSettlement {
         }
     }
 
-    /** @return whether this call paid the refund */
-    private boolean retryRefund(@NotNull Party from, @NotNull DueRefund refund) {
+    /**
+     * @param retry whether this is a retry of a refund that failed before, rather than the first
+     *              attempt made when the payment expired
+     * @return whether this call paid the refund
+     */
+    private boolean payRefund(@NotNull Party from, @NotNull DueRefund refund, boolean retry) {
         OptionalInt claimed = this.backend.claimRefund(refund.id());
         if (claimed.isEmpty()) {
             return false;
@@ -180,7 +190,7 @@ public final class SaleSettlement {
                 markPaid(() -> this.backend.markRefundPaid(refund.id()), "Refund #" + refund.id() + " of "
                         + describe(refund));
                 this.events.fireSync(new RefundPaidEvent(refund.buyerId(), refund.amount(), refund.regionName(),
-                        refund.worldId(), refund.reason()));
+                        refund.worldId(), refund.reason(), retry));
                 return true;
             }
             case PaymentResult.Failure failure -> {

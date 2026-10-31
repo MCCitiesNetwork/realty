@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.api.event.PaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import io.github.md5sha256.realty.api.event.RefundPaidEvent;
+import io.github.md5sha256.realty.api.event.SaleProceedsPaidEvent;
 import org.bukkit.Server;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
@@ -93,6 +94,15 @@ public final class RealtyEventDispatch {
     public boolean fireSync(@NotNull FeePaidEvent event) {
         return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
                 "FeePaidEvent is never cancellable, so it should never need this message: ");
+    }
+
+    /**
+     * Fires a {@link SaleProceedsPaidEvent}, hopping to the main thread if the caller is not already
+     * on it. These events are never cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull SaleProceedsPaidEvent event) {
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "SaleProceedsPaidEvent is never cancellable, so it should never need this message: ");
     }
 
     /**
