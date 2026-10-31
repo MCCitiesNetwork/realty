@@ -69,7 +69,7 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
     @Override
     @Insert("""
             INSERT INTO FreeholdContractBidPayment (bidId, freeholdContractAuctionId, realtyRegionId, bidderId, bidPrice, paymentDeadline, currentPayment, totalDue)
-            SELECT scb.bidId, scb.freeholdContractAuctionId, sca.realtyRegionId, scb.bidderId, scb.bidPrice, #{paymentDeadline}, 0, scb.bidPrice
+            SELECT scb.bidId, scb.freeholdContractAuctionId, sca.realtyRegionId, scb.bidderId, scb.bidPrice, #{paymentDeadline}, 0, #{totalDue}
             FROM FreeholdContractBid scb
             INNER JOIN FreeholdContractAuction sca ON sca.freeholdContractAuctionId = scb.freeholdContractAuctionId
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
@@ -83,7 +83,8 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
                       @Param("worldId") @NotNull UUID worldId,
                       @Param("bidderId") @NotNull UUID bidderId,
                       @Param("bidPrice") double bidPrice,
-                      @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline);
+                      @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline,
+                      @Param("totalDue") double totalDue);
 
     @Override
     @Insert("""
@@ -104,6 +105,14 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
     int insertNextPayment(@Param("freeholdContractAuctionId") int freeholdContractAuctionId,
                           @Param("missedBidPrice") double missedBidPrice,
                           @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline);
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContractBidPayment
+            SET totalDue = #{totalDue}
+            WHERE bidId = #{bidId}
+            """)
+    int updateTotalDue(@Param("bidId") int bidId, @Param("totalDue") double totalDue);
 
     @Override
     @Update("""

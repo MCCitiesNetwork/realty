@@ -25,7 +25,10 @@ public interface SaleFeeMapper {
 
     @NotNull List<SaleFeeEntity> selectBySale(@NotNull String saleKind, int saleRef);
 
-    /** Removes a sale's lines that are neither paid nor being paid, as when the sale falls through. */
+    /**
+     * Removes a sale's lines that are still locked to it and not yet completed, as when the sale
+     * falls through. Lines being paid, paid or failed are kept.
+     */
     int deleteUnpaidBySale(@NotNull String saleKind, int saleRef);
 
     /** Marks a sale's lines as completed, so that they become due for payout. */

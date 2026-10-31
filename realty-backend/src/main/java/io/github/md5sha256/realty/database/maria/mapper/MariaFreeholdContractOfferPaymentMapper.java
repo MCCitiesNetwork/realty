@@ -68,8 +68,10 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
 
     @Override
     @Insert("""
-            INSERT INTO FreeholdContractOfferPayment (offerId, realtyRegionId, offererId, offerPrice, paymentDeadline, currentPayment, totalDue)
-            SELECT sco.offerId, rr.realtyRegionId, sco.offererId, sco.offerPrice, #{paymentDeadline}, 0, sco.offerPrice
+            INSERT INTO FreeholdContractOfferPayment (offerId, realtyRegionId, offererId, offerPrice, paymentDeadline,
+                                                      currentPayment, totalDue, acceptedBy)
+            SELECT sco.offerId, rr.realtyRegionId, sco.offererId, sco.offerPrice, #{paymentDeadline}, 0, #{totalDue},
+                   #{acceptedBy}
             FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -80,7 +82,9 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
                       @Param("worldId") @NotNull UUID worldId,
                       @Param("offererId") @NotNull UUID offererId,
                       @Param("offerPrice") double offerPrice,
-                      @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline);
+                      @Param("paymentDeadline") @NotNull LocalDateTime paymentDeadline,
+                      @Param("totalDue") double totalDue,
+                      @Param("acceptedBy") @Nullable UUID acceptedBy);
 
     @Override
     @Update("""

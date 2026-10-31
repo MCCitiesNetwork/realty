@@ -339,7 +339,10 @@ public final class Realty extends JavaPlugin {
                         : CompletableFuture.completedFuture(this.partyNames.display(party)),
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds(),
-                this.levyCatalog::get);
+                this.levyCatalog::get,
+                // Until the holding account is wired in, sales move to payment as before.
+                () -> true,
+                getLogger());
         EconomyProvider economyProvider = resolveEconomyProvider();
         this.economyProvider = economyProvider;
         if (economyProvider == null) {

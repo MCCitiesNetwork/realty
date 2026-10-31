@@ -68,7 +68,9 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                                                       LocalDateTime deadline) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, worldId, bidderId, 0, deadline);
+            // Owes the bid's price, as a payment with no fees does.
+            double price = wrapper.freeholdContractBidMapper().selectHighestBid(regionId, worldId).bidAmount();
+            wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, worldId, bidderId, 0, deadline, price);
             session.commit();
         }
     }
@@ -101,7 +103,10 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                                                         LocalDateTime deadline) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.freeholdContractOfferPaymentMapper().insertPayment(regionId, worldId, offererId, 0, deadline);
+            // Owes the offer's price, as a payment with no fees does.
+            double price = wrapper.freeholdContractOfferMapper().selectByOfferer(regionId, worldId, offererId).offerPrice();
+            wrapper.freeholdContractOfferPaymentMapper().insertPayment(regionId, worldId, offererId, 0, deadline,
+                    price, null);
             session.commit();
         }
     }
@@ -1190,7 +1195,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                 Assertions.assertNotNull(payment);
                 wrapper.freeholdContractBidPaymentMapper().deleteByBidId(payment.bidId());
                 wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
-                        LocalDateTime.now().minusDays(1));
+                        LocalDateTime.now().minusDays(1), payment.totalDue());
                 wrapper.freeholdContractBidPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 75.0);
                 session.commit();
             }
@@ -1380,7 +1385,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                 Assertions.assertNotNull(payment);
                 wrapper.freeholdContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
                 wrapper.freeholdContractOfferPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
-                        LocalDateTime.now().minusDays(1));
+                        LocalDateTime.now().minusDays(1), payment.totalDue(), payment.acceptedBy());
                 wrapper.freeholdContractOfferPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 150.0);
                 session.commit();
             }

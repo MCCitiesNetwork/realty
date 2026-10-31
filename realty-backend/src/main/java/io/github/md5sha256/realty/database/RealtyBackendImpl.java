@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.database;
 import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.FeeQuote;
 import io.github.md5sha256.realty.api.FeeSide;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
@@ -52,6 +53,7 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferPaymentMapper;
 import io.github.md5sha256.realty.database.mapper.PartyMapper;
 import io.github.md5sha256.realty.database.mapper.RegionFeeMapper;
+import io.github.md5sha256.realty.fees.SaleFeeResolver;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
@@ -70,13 +72,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 
 public class RealtyBackendImpl implements RealtyBackend {
 
@@ -85,20 +89,32 @@ public class RealtyBackendImpl implements RealtyBackend {
     private final Function<LocalDateTime, String> dateFormatter;
     private final LongSupplier offerPaymentDurationSeconds;
     private final Supplier<LevyCatalog> levies;
+    private final SaleFeeResolver feeResolver;
+    private final BooleanSupplier holdingAvailable;
+    private final Logger logger;
+    /** The auctions already warned about for ending with no holding account, so each is warned once. */
+    private final Set<Integer> warnedNoHolding = ConcurrentHashMap.newKeySet();
 
     /**
-     * @param levies the levies the server defines, read on each use so that a reload takes effect
+     * @param levies           the levies the server defines, read on each use so that a reload takes effect
+     * @param holdingAvailable whether a holding account is configured; without one, no auction or
+     *                         offer moves to payment, as its instalments would have nowhere to wait
      */
     public RealtyBackendImpl(@NotNull Database database,
                              @NotNull Function<Party, CompletableFuture<String>> partyNameResolver,
                              @NotNull Function<LocalDateTime, String> dateFormatter,
                              @NotNull LongSupplier offerPaymentDurationSeconds,
-                             @NotNull Supplier<LevyCatalog> levies) {
+                             @NotNull Supplier<LevyCatalog> levies,
+                             @NotNull BooleanSupplier holdingAvailable,
+                             @NotNull Logger logger) {
         this.database = database;
         this.partyNameResolver = partyNameResolver;
         this.dateFormatter = dateFormatter;
         this.offerPaymentDurationSeconds = offerPaymentDurationSeconds;
         this.levies = levies;
+        this.feeResolver = new SaleFeeResolver(levies);
+        this.holdingAvailable = holdingAvailable;
+        this.logger = logger;
     }
 
     // --- Parties ---
@@ -340,10 +356,13 @@ public class RealtyBackendImpl implements RealtyBackend {
                 // runner-up's, not the highest.
                 auctions.add(payment == null
                         ? new ActiveAuction(regionId, row.worldId(), auction, ActiveAuction.Phase.BIDDING,
-                                bidMapper.selectHighestBid(regionId, row.worldId()), toInstant(row.endDate()), null, 0)
+                                bidMapper.selectHighestBid(regionId, row.worldId()), toInstant(row.endDate()), null, 0,
+                                null)
                         : new ActiveAuction(regionId, row.worldId(), auction, ActiveAuction.Phase.AWAITING_PAYMENT,
                                 bidMapper.selectById(payment.bidId()), null, toInstant(payment.paymentDeadline()),
-                                payment.currentPayment()));
+                                payment.currentPayment(), payment.oldRules() ? null
+                                        : SaleFeeResolver.lockedQuote(wrapper, SALE_BID, payment.bidId(),
+                                                payment.bidPrice(), payment.totalDue())));
             }
             return auctions;
         }
@@ -1030,6 +1049,10 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             Party authority = freehold.authority();
             UUID titleHolderId = freehold.titleHolderId();
+            // Before the title passes, so the buyer's plot count does not include this region. No
+            // agent runs a buy, so no agent fee applies. Nothing is saved until recordBuyFees.
+            FeeQuote fees = feeResolver.resolve(wrapper, requireRegion(wrapper, worldGuardRegionId, worldId),
+                    freehold, buyerId, freehold.price(), null);
             // Atomic: WHERE price IS NOT NULL prevents concurrent buys
             int updated = freeholdMapper.atomicBuy(worldGuardRegionId, worldId, buyerId);
             if (updated == 0) {
@@ -1056,7 +1079,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     namedPartyId(wrapper, authority), freehold.price());
             wrapper.session().commit();
             return new BuyResult.Success(freehold.price(), authority, titleHolderId,
-                    new BuyUndo(historyId, withdrawn, auctioneers));
+                    new BuyUndo(historyId, withdrawn, auctioneers), fees);
         }
     }
 
@@ -1088,6 +1111,42 @@ public class RealtyBackendImpl implements RealtyBackend {
             // changed hands once.
             wrapper.freeholdHistoryMapper().deleteById(reserved.undo().historyId());
             wrapper.session().commit();
+        }
+    }
+
+    @Override
+    public void recordBuyFees(@NotNull String worldGuardRegionId,
+                              @NotNull UUID worldId,
+                              @NotNull UUID buyerId,
+                              @NotNull Party seller,
+                              @NotNull FeeQuote quote) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
+            Integer realtyRegionId = realtyRegionIdOf(wrapper, worldGuardRegionId, worldId);
+            feeResolver.recordPaidFees(wrapper, SALE_BUY, realtyRegionId, worldGuardRegionId, worldId,
+                    buyerId, seller, quote);
+            // The clean-up executeBuy leaves undone, because rollbackBuy cannot put deleted fees back.
+            if (realtyRegionId != null) {
+                deleteAgentFees(wrapper, realtyRegionId);
+                onTitleChanged(wrapper, realtyRegionId, Party.playerUuidOf(seller).orElse(null), buyerId);
+            }
+            wrapper.session().commit();
+        }
+    }
+
+    @Override
+    public @NotNull FeeQuote previewFees(@NotNull String worldGuardRegionId,
+                                         @NotNull UUID worldId,
+                                         @NotNull UUID buyerId,
+                                         double price) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return FeeQuote.none(price);
+            }
+            return feeResolver.resolve(wrapper, requireRegion(wrapper, worldGuardRegionId, worldId),
+                    freehold, buyerId, price, null);
         }
     }
 
@@ -1659,6 +1718,26 @@ public class RealtyBackendImpl implements RealtyBackend {
     public int deleteRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
+            // A sale under way falls through with the region. What its buyer paid is held for
+            // them, so it is recorded as owed back; under the old rules it went to the seller.
+            FreeholdContractBidPaymentEntity bidPayment = wrapper.freeholdContractBidPaymentMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (bidPayment != null) {
+                wrapper.saleFeeMapper().deleteUnpaidBySale(SALE_BID, bidPayment.bidId());
+                if (!bidPayment.oldRules() && bidPayment.currentPayment() > 0) {
+                    wrapper.pendingRefundMapper().insert(bidPayment.bidderId(), bidPayment.currentPayment(),
+                            worldGuardRegionId, worldId, REFUND_REGION_DELETED);
+                }
+            }
+            FreeholdContractOfferPaymentEntity offerPayment = wrapper.freeholdContractOfferPaymentMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (offerPayment != null) {
+                wrapper.saleFeeMapper().deleteUnpaidBySale(SALE_OFFER, offerPayment.offerId());
+                if (!offerPayment.oldRules() && offerPayment.currentPayment() > 0) {
+                    wrapper.pendingRefundMapper().insert(offerPayment.offererId(), offerPayment.currentPayment(),
+                            worldGuardRegionId, worldId, REFUND_REGION_DELETED);
+                }
+            }
             int deleted = wrapper.realtyRegionMapper().deleteByWorldGuardRegion(worldGuardRegionId, worldId);
             session.commit();
             return deleted;
@@ -2215,10 +2294,20 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             List<OfferListing> listings = new ArrayList<>();
             for (OfferListingRow row : wrapper.freeholdContractMapper().selectOfferListings()) {
+                List<InboundOfferView> offers = List.copyOf(offersByRegion.getOrDefault(
+                        regionKey(row.worldGuardRegionId(), row.worldId()), List.of()));
+                FeeQuote fees = null;
+                if (offers.stream().anyMatch(InboundOfferView::accepted)) {
+                    FreeholdContractOfferPaymentEntity payment = wrapper.freeholdContractOfferPaymentMapper()
+                            .selectByRegion(row.worldGuardRegionId(), row.worldId());
+                    if (payment != null && !payment.oldRules()) {
+                        fees = SaleFeeResolver.lockedQuote(wrapper, SALE_OFFER, payment.offerId(),
+                                payment.offerPrice(), payment.totalDue());
+                    }
+                }
                 listings.add(new OfferListing(row.worldGuardRegionId(), row.worldId(), row.authority(),
                         row.titleHolderId() == null ? null : Party.personal(row.titleHolderId()), row.price(),
-                        List.copyOf(offersByRegion.getOrDefault(
-                                regionKey(row.worldGuardRegionId(), row.worldId()), List.of()))));
+                        offers, fees));
             }
             return listings;
         }
@@ -2281,7 +2370,8 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!actsForFreehold(wrapper, freehold, worldGuardRegionId, worldId, ctx)) {
                 return new AcceptOfferResult.NotSanctioned();
             }
-            if (offerMapper.selectByOfferer(worldGuardRegionId, worldId, offererId) == null) {
+            FreeholdContractOfferEntity offer = offerMapper.selectByOfferer(worldGuardRegionId, worldId, offererId);
+            if (offer == null) {
                 return new AcceptOfferResult.NoOffer();
             }
             if (auctionMapper.existsByRegion(worldGuardRegionId, worldId)) {
@@ -2290,11 +2380,19 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (paymentMapper.existsByRegion(worldGuardRegionId, worldId)) {
                 return new AcceptOfferResult.AlreadyAccepted();
             }
+            if (!holdingAvailable.getAsBoolean()) {
+                return new AcceptOfferResult.NoHoldingAccount();
+            }
+            // The fees lock now, with the agent fee of whoever accepted.
+            RealtyRegionEntity region = requireRegion(wrapper, worldGuardRegionId, worldId);
+            FeeQuote fees = feeResolver.resolve(wrapper, region, freehold, offererId, offer.offerPrice(), ctx.player());
             LocalDateTime paymentDeadline = LocalDateTime.now().plusSeconds(offerPaymentDurationSeconds.getAsLong());
-            int inserted = paymentMapper.insertPayment(worldGuardRegionId, worldId, offererId, 0, paymentDeadline);
+            int inserted = paymentMapper.insertPayment(worldGuardRegionId, worldId, offererId, offer.offerPrice(),
+                    paymentDeadline, fees.buyerTotal(), ctx.player());
             if (inserted == 0) {
                 return new AcceptOfferResult.InsertFailed();
             }
+            feeResolver.lockFees(wrapper, SALE_OFFER, offer.offerId(), region, offererId, freeholdHolder(freehold), fees);
             offerMapper.deleteOtherOffers(worldGuardRegionId, worldId, offererId);
             wrapper.session().commit();
             return new AcceptOfferResult.Success();
@@ -2340,6 +2438,13 @@ public class RealtyBackendImpl implements RealtyBackend {
     /** Currency drift tolerance (half a cent) for "fully paid" comparisons on DOUBLE columns. */
     private static final double PAYMENT_EPSILON = 0.005;
 
+    /** The {@code SaleFee.saleKind} values. */
+    private static final String SALE_BUY = "buy";
+    private static final String SALE_BID = "bid";
+    private static final String SALE_OFFER = "offer";
+    /** The {@code PendingRefund.reason} of instalments held for a sale whose region was deleted. */
+    private static final String REFUND_REGION_DELETED = "region-deleted";
+
     @Override
     public @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
                                              @NotNull UUID worldId,
@@ -2359,7 +2464,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
                 return new PayOfferResult.PaymentExpired();
             }
-            double amountOwed = payment.offerPrice() - payment.currentPayment();
+            double amountOwed = payment.totalDue() - payment.currentPayment();
             if (amount > amountOwed + PAYMENT_EPSILON) {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);
             }
@@ -2376,11 +2481,17 @@ public class RealtyBackendImpl implements RealtyBackend {
             // finalizeOfferPurchase, which the paper layer calls ONLY after the
             // economy payment succeeds. Committing the transfer here (before the
             // money moved) handed the region over for free when payment failed.
-            wrapper.session().commit();
-            if (newTotal >= payment.offerPrice() - PAYMENT_EPSILON) {
-                return new PayOfferResult.FullyPaid(authority, titleHolderId);
+            if (newTotal >= payment.totalDue() - PAYMENT_EPSILON) {
+                FeeQuote fees = payment.oldRules()
+                        ? FeeQuote.none(payment.offerPrice())
+                        : SaleFeeResolver.lockedQuote(wrapper, SALE_OFFER, payment.offerId(),
+                                payment.offerPrice(), payment.totalDue());
+                wrapper.session().commit();
+                return new PayOfferResult.FullyPaid(authority, titleHolderId, fees, payment.oldRules(), payment.offerId());
             }
-            return new PayOfferResult.Success(newTotal, payment.offerPrice() - newTotal, authority, titleHolderId);
+            wrapper.session().commit();
+            return new PayOfferResult.Success(newTotal, payment.totalDue() - newTotal, authority, titleHolderId,
+                    payment.oldRules());
         }
     }
 
@@ -2398,12 +2509,13 @@ public class RealtyBackendImpl implements RealtyBackend {
             // Only finalize a real, fully-paid record for this offerer. Idempotent:
             // a second call (or one after rollback) finds nothing/under-paid and no-ops.
             if (freehold == null || payment == null || !payment.offererId().equals(offererId)
-                    || payment.currentPayment() < payment.offerPrice() - PAYMENT_EPSILON) {
+                    || payment.currentPayment() < payment.totalDue() - PAYMENT_EPSILON) {
                 return;
             }
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
             freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
+            wrapper.saleFeeMapper().markCompleted(SALE_OFFER, payment.offerId());
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
@@ -2451,7 +2563,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
                 return new PayBidResult.PaymentExpired();
             }
-            double amountOwed = payment.bidPrice() - payment.currentPayment();
+            double amountOwed = payment.totalDue() - payment.currentPayment();
             if (amount > amountOwed + PAYMENT_EPSILON) {
                 return new PayBidResult.ExceedsAmountOwed(amountOwed);
             }
@@ -2470,11 +2582,17 @@ public class RealtyBackendImpl implements RealtyBackend {
             // finalizeBidPurchase, called by the paper layer ONLY after the
             // economy payment succeeds — so a failed/insufficient payment can
             // never hand over the region (previously it did, for free).
-            wrapper.session().commit();
-            if (newTotal >= payment.bidPrice() - PAYMENT_EPSILON) {
-                return new PayBidResult.FullyPaid(authority, titleHolderId);
+            if (newTotal >= payment.totalDue() - PAYMENT_EPSILON) {
+                FeeQuote fees = payment.oldRules()
+                        ? FeeQuote.none(payment.bidPrice())
+                        : SaleFeeResolver.lockedQuote(wrapper, SALE_BID, payment.bidId(),
+                                payment.bidPrice(), payment.totalDue());
+                wrapper.session().commit();
+                return new PayBidResult.FullyPaid(authority, titleHolderId, fees, payment.oldRules(), payment.bidId());
             }
-            return new PayBidResult.Success(newTotal, payment.bidPrice() - newTotal, authority, titleHolderId);
+            wrapper.session().commit();
+            return new PayBidResult.Success(newTotal, payment.totalDue() - newTotal, authority, titleHolderId,
+                    payment.oldRules());
         }
     }
 
@@ -2492,12 +2610,13 @@ public class RealtyBackendImpl implements RealtyBackend {
             // Only finalize a real, fully-paid record for this bidder. Idempotent:
             // a second call (or one after rollback) finds nothing/under-paid and no-ops.
             if (freehold == null || payment == null || !payment.bidderId().equals(bidderId)
-                    || payment.currentPayment() < payment.bidPrice() - PAYMENT_EPSILON) {
+                    || payment.currentPayment() < payment.totalDue() - PAYMENT_EPSILON) {
                 return;
             }
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
             freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
+            wrapper.saleFeeMapper().markCompleted(SALE_BID, payment.bidId());
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
             deleteAgentFees(wrapper, realtyRegionId);
@@ -2578,12 +2697,41 @@ public class RealtyBackendImpl implements RealtyBackend {
                     results.add(new ExpiredBiddingAuction(region.worldGuardRegionId(), region.worldId(),
                             null, auction.auctioneerId()));
                 } else {
+                    if (!holdingAvailable.getAsBoolean()) {
+                        // The winner's instalments would have nowhere to wait. The auction is left
+                        // as it is, to settle once a holding account is configured.
+                        wrapper.session().rollback();
+                        if (warnedNoHolding.add(auction.freeholdContractAuctionId())) {
+                            logger.warning("The auction of " + region.worldGuardRegionId()
+                                    + " has ended, but no holding account is configured, so its winner cannot"
+                                    + " pay yet. It will settle once one is.");
+                        }
+                        continue;
+                    }
+                    FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                            .selectByRegion(region.worldGuardRegionId(), region.worldId());
+                    if (freehold == null) {
+                        auctionMapper.markEnded(auction.freeholdContractAuctionId());
+                        wrapper.session().commit();
+                        continue;
+                    }
+                    FeeQuote fees = feeResolver.resolve(wrapper, region, freehold, highestBid.bidderId(),
+                            highestBid.bidAmount(), auction.auctioneerId());
                     LocalDateTime deadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
                     auctionMapper.setPaymentDeadline(auction.freeholdContractAuctionId(), deadline);
-                    wrapper.freeholdContractBidPaymentMapper().insertPayment(
-                            region.worldGuardRegionId(), region.worldId(),
-                            highestBid.bidderId(), highestBid.bidAmount(), deadline);
+                    FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
+                    paymentMapper.insertPayment(region.worldGuardRegionId(), region.worldId(),
+                            highestBid.bidderId(), highestBid.bidAmount(), deadline, fees.buyerTotal());
+                    FreeholdContractBidPaymentEntity payment =
+                            paymentMapper.selectByRegion(region.worldGuardRegionId(), region.worldId());
+                    if (payment == null) {
+                        throw new IllegalStateException("no payment row for the auction of "
+                                + region.worldGuardRegionId() + " just after inserting it");
+                    }
+                    feeResolver.lockFees(wrapper, SALE_BID, payment.bidId(), region, highestBid.bidderId(),
+                            freeholdHolder(freehold), fees);
                     wrapper.session().commit();
+                    warnedNoHolding.remove(auction.freeholdContractAuctionId());
                     results.add(new ExpiredBiddingAuction(region.worldGuardRegionId(), region.worldId(),
                             highestBid.bidderId(), auction.auctioneerId()));
                 }
@@ -2608,21 +2756,46 @@ public class RealtyBackendImpl implements RealtyBackend {
                 FreeholdContractAuctionMapper auctionMapper = wrapper.freeholdContractAuctionMapper();
                 RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
                 paymentMapper.deleteByBidId(payment.bidId());
+                wrapper.saleFeeMapper().deleteUnpaidBySale(SALE_BID, payment.bidId());
                 String regionName = region != null ? region.worldGuardRegionId() : "unknown";
                 UUID worldId = region != null ? region.worldId() : null;
-                refunds.add(new ExpiredBidPayment(payment.bidderId(), payment.currentPayment(), regionName, worldId));
+                refunds.add(new ExpiredBidPayment(payment.bidderId(), payment.currentPayment(), regionName, worldId,
+                        payment.oldRules()));
                 FreeholdContractAuctionEntity auction = auctionMapper.selectById(payment.freeholdContractAuctionId());
                 if (auction != null) {
                     LocalDateTime nextDeadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
-                    paymentMapper.insertNextPayment(
+                    int inserted = paymentMapper.insertNextPayment(
                             payment.freeholdContractAuctionId(),
                             payment.bidPrice(),
                             nextDeadline);
+                    if (inserted > 0 && region != null) {
+                        lockRunnerUp(wrapper, region, auction);
+                    }
                 }
                 wrapper.session().commit();
             }
         }
         return refunds;
+    }
+
+    /**
+     * Locks the fees of the runner-up just offered the auction, worked out afresh for them: their
+     * plots, and so their levy, may differ from the first bidder's.
+     */
+    private void lockRunnerUp(@NotNull SqlSessionWrapper wrapper,
+                              @NotNull RealtyRegionEntity region,
+                              @NotNull FreeholdContractAuctionEntity auction) {
+        FreeholdContractBidPaymentEntity next = wrapper.freeholdContractBidPaymentMapper()
+                .selectByRegion(region.worldGuardRegionId(), region.worldId());
+        FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                .selectByRegion(region.worldGuardRegionId(), region.worldId());
+        if (next == null || freehold == null) {
+            return;
+        }
+        FeeQuote fees = feeResolver.resolve(wrapper, region, freehold, next.bidderId(), next.bidPrice(),
+                auction.auctioneerId());
+        wrapper.freeholdContractBidPaymentMapper().updateTotalDue(next.bidId(), fees.buyerTotal());
+        feeResolver.lockFees(wrapper, SALE_BID, next.bidId(), region, next.bidderId(), freeholdHolder(freehold), fees);
     }
 
     // --- Expired Offer Payments ---
@@ -2639,10 +2812,12 @@ public class RealtyBackendImpl implements RealtyBackend {
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
                 wrapper.freeholdContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
+                wrapper.saleFeeMapper().deleteUnpaidBySale(SALE_OFFER, payment.offerId());
                 wrapper.session().commit();
                 String regionName = region != null ? region.worldGuardRegionId() : "unknown";
                 UUID worldId = region != null ? region.worldId() : null;
-                refunds.add(new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), regionName, worldId));
+                refunds.add(new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), regionName, worldId,
+                        payment.oldRules()));
             }
         }
         return refunds;
@@ -3109,7 +3284,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
             List<FeeListing> listings = new ArrayList<>();
-            LevyDefinition levy = resolveLevy(wrapper, this.levies.get(), realtyRegionId, freehold.authority());
+            LevyDefinition levy = SaleFeeResolver.resolveLevy(wrapper, this.levies.get(), realtyRegionId, freehold.authority());
             if (levy != null) {
                 Set<String> tags = new HashSet<>();
                 for (String tag : wrapper.regionTagMapper().selectTagIdsByRegionId(worldGuardRegionId)) {
@@ -3138,7 +3313,7 @@ public class RealtyBackendImpl implements RealtyBackend {
     private static @Nullable String levyRate(@NotNull LevyDefinition levy,
                                              @NotNull Set<String> lowerCasedTags,
                                              @NotNull Party authority) {
-        if (!levy.enabled() || !levyFitsAuthority(levy, authority)) {
+        if (!levy.enabled() || !SaleFeeResolver.levyFitsAuthority(levy, authority)) {
             return null;
         }
         for (LevyRule rule : levy.rules()) {
@@ -3215,6 +3390,17 @@ public class RealtyBackendImpl implements RealtyBackend {
         return region == null ? null : region.realtyRegionId();
     }
 
+    /** The region, for a region a contract was just read for, so it is registered. */
+    private static @NotNull RealtyRegionEntity requireRegion(@NotNull SqlSessionWrapper wrapper,
+                                                             @NotNull String worldGuardRegionId,
+                                                             @NotNull UUID worldId) {
+        RealtyRegionEntity region = wrapper.realtyRegionMapper().selectByWorldGuardRegion(worldGuardRegionId, worldId);
+        if (region == null) {
+            throw new IllegalStateException("no RealtyRegion row for " + worldGuardRegionId + ", although a contract names it");
+        }
+        return region;
+    }
+
     /** The region's id, for a region a contract was just read for, so it is registered. */
     private static int requireRealtyRegionId(@NotNull SqlSessionWrapper wrapper,
                                              @NotNull String worldGuardRegionId,
@@ -3246,7 +3432,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (levy == null) {
                 return new SetLevyResult.UnknownLevy();
             }
-            if (!levyFitsAuthority(levy, freehold.authority())) {
+            if (!SaleFeeResolver.levyFitsAuthority(levy, freehold.authority())) {
                 return new SetLevyResult.WrongAuthorityKind();
             }
             int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
@@ -3295,7 +3481,7 @@ public class RealtyBackendImpl implements RealtyBackend {
         if (levy == null) {
             return new SetLevyResult.UnknownLevy();
         }
-        if (!levyFitsAuthority(levy, authority)) {
+        if (!SaleFeeResolver.levyFitsAuthority(levy, authority)) {
             return new SetLevyResult.WrongAuthorityKind();
         }
         int authorityPartyId = partyIdCreatingIfAbsent(authority);
@@ -3343,42 +3529,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return null;
             }
             int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
-            LevyDefinition levy = resolveLevy(wrapper, this.levies.get(), realtyRegionId, freehold.authority());
+            LevyDefinition levy = SaleFeeResolver.resolveLevy(wrapper, this.levies.get(), realtyRegionId, freehold.authority());
             return levy == null ? null : levy.name();
         }
-    }
-
-    /** Whether {@code authority} is of the kind the levy is limited to, if it is limited to one. */
-    private static boolean levyFitsAuthority(@NotNull LevyDefinition levy, @NotNull Party authority) {
-        return levy.authorityKind() == null || levy.authorityKind() == authority.partyKind();
-    }
-
-    /**
-     * The levy a region uses: its own choice, else its authority's choice, else the default. A
-     * choice naming a levy the catalog no longer has is skipped and left in place.
-     */
-    private static @Nullable LevyDefinition resolveLevy(@NotNull SqlSessionWrapper wrapper,
-                                                        @NotNull LevyCatalog catalog,
-                                                        int realtyRegionId,
-                                                        @NotNull Party authority) {
-        String regionChoice = wrapper.levyChoiceMapper().selectRegionLevy(realtyRegionId);
-        if (regionChoice != null) {
-            Optional<LevyDefinition> levy = catalog.find(regionChoice);
-            if (levy.isPresent()) {
-                return levy.get();
-            }
-        }
-        Integer authorityPartyId = wrapper.partyMapper().findId(authority);
-        if (authorityPartyId != null) {
-            String authorityChoice = wrapper.levyChoiceMapper().selectAuthorityLevy(authorityPartyId);
-            if (authorityChoice != null) {
-                Optional<LevyDefinition> levy = catalog.find(authorityChoice);
-                if (levy.isPresent()) {
-                    return levy.get();
-                }
-            }
-        }
-        return catalog.defaultLevy().orElse(null);
     }
 
     // --- Schematics ---

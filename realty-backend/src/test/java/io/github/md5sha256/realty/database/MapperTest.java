@@ -1080,7 +1080,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 int inserted = wrapper.freeholdContractOfferPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, deadline);
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, deadline, 500.0, null);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
 
@@ -1111,7 +1111,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractOfferPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 500.0, null);
                 session.commit();
 
                 Assertions.assertTrue(wrapper.freeholdContractOfferPaymentMapper()
@@ -1141,7 +1141,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractOfferPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 500.0, null);
                 session.commit();
 
                 int updated = wrapper.freeholdContractOfferPaymentMapper()
@@ -1165,7 +1165,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractOfferPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 500.0, null);
                 session.commit();
 
                 int deleted = wrapper.freeholdContractOfferPaymentMapper()
@@ -1188,7 +1188,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractOfferPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 500.0, null);
                 session.commit();
 
                 FreeholdContractOfferPaymentEntity entity = wrapper.freeholdContractOfferPaymentMapper()
@@ -1210,7 +1210,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractOfferPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().minusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().minusDays(1), 500.0, null);
                 session.commit();
 
                 List<FreeholdContractOfferPaymentEntity> expired = wrapper.freeholdContractOfferPaymentMapper()
@@ -1237,7 +1237,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 int inserted = wrapper.freeholdContractBidPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 200.0);
                 session.commit();
                 Assertions.assertEquals(1, inserted);
 
@@ -1269,7 +1269,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractBidPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 200.0);
                 session.commit();
 
                 Assertions.assertTrue(wrapper.freeholdContractBidPaymentMapper()
@@ -1300,7 +1300,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractBidPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 200.0);
                 session.commit();
 
                 int updated = wrapper.freeholdContractBidPaymentMapper()
@@ -1325,7 +1325,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractBidPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 200.0);
                 session.commit();
 
                 int deleted = wrapper.freeholdContractBidPaymentMapper()
@@ -1346,7 +1346,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractBidPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().plusDays(1), 200.0);
                 session.commit();
 
                 FreeholdContractBidPaymentEntity entity = wrapper.freeholdContractBidPaymentMapper()
@@ -1369,7 +1369,7 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession();
                  SqlSession session = wrapper.session()) {
                 wrapper.freeholdContractBidPaymentMapper()
-                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().minusDays(1));
+                        .insertPayment(regionId, WORLD_ID, PLAYER_B, 0, LocalDateTime.now().minusDays(1), 200.0);
                 session.commit();
 
                 List<FreeholdContractBidPaymentEntity> expired = wrapper.freeholdContractBidPaymentMapper()
@@ -1910,6 +1910,34 @@ class MapperTest extends AbstractDatabaseTest {
                         .stream().map(SaleFeeEntity::saleFeeId).toList();
                 Assertions.assertTrue(due.contains(completed), "a completed sale's line is due");
                 Assertions.assertFalse(due.contains(pending), "an uncompleted sale's line is not due");
+            }
+        }
+
+        @Test
+        @DisplayName("deleteUnpaidBySale removes locked lines and keeps failed and completed ones")
+        void saleFee_deleteUnpaidBySale_keepsFailedAndCompleted() {
+            String regionName = uniqueRegionId();
+            int regionId = registerRegion(regionName);
+            int recipient = personalParty(PLAYER_A);
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                int locked = wrapper.saleFeeMapper().insert(lockedLine(regionId, regionName, 41, recipient));
+                int failed = wrapper.saleFeeMapper().insert(lockedLine(regionId, regionName, 41, recipient));
+                Assertions.assertEquals(1, wrapper.saleFeeMapper().markFailed(failed, "archived account"));
+                int completed = wrapper.saleFeeMapper().insert(lockedLine(regionId, regionName, 42, recipient));
+                Assertions.assertEquals(1, wrapper.saleFeeMapper().markCompleted("bid", 42));
+                session.commit();
+
+                Assertions.assertEquals(1, wrapper.saleFeeMapper().deleteUnpaidBySale("bid", 41));
+                Assertions.assertEquals(0, wrapper.saleFeeMapper().deleteUnpaidBySale("bid", 42));
+                session.commit();
+
+                List<Integer> left41 = wrapper.saleFeeMapper().selectBySale("bid", 41).stream()
+                        .map(SaleFeeEntity::saleFeeId).toList();
+                Assertions.assertEquals(List.of(failed), left41);
+                Assertions.assertFalse(left41.contains(locked));
+                Assertions.assertEquals(1, wrapper.saleFeeMapper().selectBySale("bid", 42).size());
+                Assertions.assertEquals(completed, wrapper.saleFeeMapper().selectBySale("bid", 42).getFirst().saleFeeId());
             }
         }
 

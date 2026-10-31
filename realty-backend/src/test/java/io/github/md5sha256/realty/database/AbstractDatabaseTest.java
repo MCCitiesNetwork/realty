@@ -37,6 +37,9 @@ abstract class AbstractDatabaseTest {
     /** The levies {@link #logic} reads; a test may replace it, and each test starts with none. */
     protected static volatile LevyCatalog levies = LevyCatalog.EMPTY;
 
+    /** Whether {@link #logic} sees a holding account; a test may clear it, and each test starts with one. */
+    protected static volatile boolean holdingAvailable = true;
+
     private static volatile boolean migrated;
 
     /**
@@ -70,7 +73,8 @@ abstract class AbstractDatabaseTest {
         logic = new RealtyBackendImpl(database,
                 party -> CompletableFuture.completedFuture(party instanceof Party.Personal personal
                         ? personal.playerUuid().toString() : party.toString()),
-                java.time.LocalDateTime::toString, () -> 86400, () -> levies);
+                java.time.LocalDateTime::toString, () -> 86400, () -> levies, () -> holdingAvailable,
+                Logger.getLogger("test"));
     }
 
     private static String truncateUrl;
@@ -78,6 +82,7 @@ abstract class AbstractDatabaseTest {
     @BeforeEach
     void truncateTables() throws SQLException {
         levies = LevyCatalog.EMPTY;
+        holdingAvailable = true;
         if (truncateUrl == null) {
             String baseJdbcUrl = CONTAINER.getJdbcUrl();
             truncateUrl = baseJdbcUrl + (baseJdbcUrl.contains("?") ? "&" : "?") + "allowMultiQueries=true";

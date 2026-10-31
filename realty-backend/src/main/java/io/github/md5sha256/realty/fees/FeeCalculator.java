@@ -36,11 +36,13 @@ public final class FeeCalculator {
     /**
      * A player fee that already applies to this sale.
      *
+     * @param source    what the fee is for, such as {@code agent fee}; it becomes the line's source.
      * @param recipient who receives the fee.
      * @param side      who pays it.
      * @param percent   the percentage of the price.
      */
-    public record PlayerFeeInput(@NotNull Party recipient, @NotNull FeeSide side, double percent) {}
+    public record PlayerFeeInput(@NotNull String source, @NotNull Party recipient, @NotNull FeeSide side,
+                                 double percent) {}
 
     /**
      * @param price       the sale price.
@@ -73,7 +75,7 @@ public final class FeeCalculator {
             }
         }
         for (PlayerFeeInput fee : playerFees) {
-            candidates.add(new Candidate(fee.recipient().toString(), fee.recipient(), fee.side(), fee.percent()));
+            candidates.add(new Candidate(fee.source(), fee.recipient(), fee.side(), fee.percent()));
         }
 
         for (Candidate c : candidates) {

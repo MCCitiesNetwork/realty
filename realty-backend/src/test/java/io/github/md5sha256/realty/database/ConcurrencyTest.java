@@ -532,7 +532,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
             wrapper.freeholdContractBidPaymentMapper().deleteByRegion(regionId, worldId);
             wrapper.freeholdContractBidPaymentMapper().insertPayment(
                     regionId, worldId, bidderId, bidAmount,
-                    java.time.LocalDateTime.now().plusDays(7));
+                    java.time.LocalDateTime.now().plusDays(7), bidAmount);
             session.commit();
         }
     }

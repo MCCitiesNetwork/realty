@@ -76,13 +76,17 @@ public interface MariaSaleFeeMapper extends SaleFeeMapper {
     @NotNull List<SaleFeeEntity> selectBySale(@Param("saleKind") @NotNull String saleKind,
                                               @Param("saleRef") int saleRef);
 
-    /** A line being paid is left alone: its payout is already under way. */
+    /**
+     * Only lines still locked to an uncompleted sale. A line being paid is left alone, its payout
+     * already under way, and a failed line is money a completed sale still owes.
+     */
     @Override
     @Delete("""
             DELETE FROM SaleFee
             WHERE saleKind = #{saleKind}
             AND saleRef = #{saleRef}
-            AND status IN ('locked', 'failed')
+            AND status = 'locked'
+            AND completedAt IS NULL
             """)
     int deleteUnpaidBySale(@Param("saleKind") @NotNull String saleKind,
                            @Param("saleRef") int saleRef);

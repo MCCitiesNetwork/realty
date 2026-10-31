@@ -138,7 +138,8 @@ class RealtyPaperApiImplTest {
             new RealtyBackend.BuyUndo(42,
                     List.of(new RealtyBackend.WithdrawnOffer(
                             UUID.randomUUID(), 500.0, LocalDateTime.of(2026, 8, 1, 12, 0))),
-                    List.of(UUID.randomUUID())));
+                    List.of(UUID.randomUUID())),
+            FeeQuote.none(1000.0));
 
     @Test
     void partialAuctionPaymentUsesAuctionSourceWithoutFinalizingOwnership() {
@@ -499,7 +500,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("a plot with no titleholder pays its account authority")
         void buy_fromAccountAuthority_paysTheAccount() {
             RealtyBackend.BuyResult.Success fromAuthority = new RealtyBackend.BuyResult.Success(
-                    1000.0, GOVERNMENT, null, RESERVED.undo());
+                    1000.0, GOVERNMENT, null, RESERVED.undo(), FeeQuote.none(1000.0));
             when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(fromAuthority);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
             when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);

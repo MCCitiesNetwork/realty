@@ -20,7 +20,12 @@ public interface FreeholdContractOfferPaymentMapper {
 
     @NotNull List<FreeholdContractOfferPaymentEntity> selectAllExpired();
 
-    int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double offerPrice, @NotNull LocalDateTime paymentDeadline);
+    /**
+     * @param totalDue   what the offerer owes in all: the price plus any buyer-paid fees
+     * @param acceptedBy the player who accepted the offer
+     */
+    int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double offerPrice,
+                      @NotNull LocalDateTime paymentDeadline, double totalDue, @Nullable UUID acceptedBy);
 
     int updatePayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double payment);
 

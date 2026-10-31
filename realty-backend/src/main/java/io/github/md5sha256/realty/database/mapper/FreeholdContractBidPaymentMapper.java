@@ -20,7 +20,9 @@ public interface FreeholdContractBidPaymentMapper {
 
     @NotNull List<FreeholdContractBidPaymentEntity> selectAllExpired();
 
-    int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId, double bidPrice, @NotNull LocalDateTime paymentDeadline);
+    /** @param totalDue what the bidder owes in all: the price plus any buyer-paid fees */
+    int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId, double bidPrice,
+                      @NotNull LocalDateTime paymentDeadline, double totalDue);
 
     /**
      * Offers the auction to the next bidder after a missed payment. Payments are offered in
@@ -28,6 +30,9 @@ public interface FreeholdContractBidPaymentMapper {
      * has already had their turn and is skipped.
      */
     int insertNextPayment(int freeholdContractAuctionId, double missedBidPrice, @NotNull LocalDateTime paymentDeadline);
+
+    /** Sets the total a payment owes, as when a runner-up's fees are locked after it was offered the sale. */
+    int updateTotalDue(int bidId, double totalDue);
 
     int updatePayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId, double payment);
 

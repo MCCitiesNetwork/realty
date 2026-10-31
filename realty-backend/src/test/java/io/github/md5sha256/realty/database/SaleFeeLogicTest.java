@@ -396,7 +396,7 @@ class SaleFeeLogicTest extends AbstractDatabaseTest {
                 logic.performBid(regionId, WORLD_ID, player(BUYER), 500.0, false));
         try (SqlSessionWrapper wrapper = database.openSession()) {
             wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, WORLD_ID, BUYER, 500.0,
-                    LocalDateTime.now().plusDays(1));
+                    LocalDateTime.now().plusDays(1), 500.0);
             wrapper.session().commit();
         }
         Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, logic.payBid(regionId, WORLD_ID, BUYER, 500.0));

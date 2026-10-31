@@ -69,7 +69,10 @@ public final class RealtyRestMain {
                 IsoDates::format,
                 () -> 0L,
                 // Read-only: this service never sets or charges a levy.
-                () -> LevyCatalog.EMPTY);
+                () -> LevyCatalog.EMPTY,
+                // Nor does it move a sale to payment, so it needs no holding account.
+                () -> false,
+                LOGGER);
 
         // from(...) logs what it chose. Asking the client here instead would mean a
         // blocking probe of the module before the port is even bound.

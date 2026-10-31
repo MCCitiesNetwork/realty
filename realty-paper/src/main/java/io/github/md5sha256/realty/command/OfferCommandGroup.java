@@ -301,7 +301,10 @@ public record OfferCommandGroup(
                         case RealtyBackend.AcceptOfferResult.AlreadyAccepted ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_ALREADY_ACCEPTED,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyBackend.AcceptOfferResult.InsertFailed ignored ->
+                        // The plugin always has a holding account for now, so this is not reached;
+                        // it gets its own message once the holding account can be missing.
+                        case RealtyBackend.AcceptOfferResult.InsertFailed _,
+                             RealtyBackend.AcceptOfferResult.NoHoldingAccount _ ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_INSERT_FAILED,
                                         Placeholder.unparsed("region", regionId)));
                     }

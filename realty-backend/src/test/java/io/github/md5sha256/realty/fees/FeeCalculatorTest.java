@@ -32,7 +32,7 @@ class FeeCalculatorTest {
     void specExample() {
         Party agent = Party.personal(UUID.randomUUID());
         FeeQuote quote = FeeCalculator.quote(1000, BUYER, levy(5), Set.of(), 0,
-                List.of(new FeeCalculator.PlayerFeeInput(agent, FeeSide.SELLER, 3)));
+                List.of(new FeeCalculator.PlayerFeeInput("agent fee", agent, FeeSide.SELLER, 3)));
         assertEquals(2, quote.lines().size());
         FeeLine levyLine = quote.lines().get(0);
         assertEquals(50.00, levyLine.amount());
@@ -49,7 +49,7 @@ class FeeCalculatorTest {
     void roundsEachFeeDownToTheCent() {
         Party agent = Party.personal(UUID.randomUUID());
         FeeQuote quote = FeeCalculator.quote(333.33, BUYER, null, Set.of(), 0,
-                List.of(new FeeCalculator.PlayerFeeInput(agent, FeeSide.SELLER, 3)));
+                List.of(new FeeCalculator.PlayerFeeInput("agent fee", agent, FeeSide.SELLER, 3)));
         assertEquals(9.99, quote.lines().get(0).amount());
         assertEquals(323.34, quote.sellerReceives());
     }
@@ -57,7 +57,7 @@ class FeeCalculatorTest {
     @Test
     void feeToTheBuyerIsSkipped() {
         FeeQuote quote = FeeCalculator.quote(1000, BUYER, null, Set.of(), 0,
-                List.of(new FeeCalculator.PlayerFeeInput(Party.personal(BUYER), FeeSide.SELLER, 3)));
+                List.of(new FeeCalculator.PlayerFeeInput("agent fee", Party.personal(BUYER), FeeSide.SELLER, 3)));
         assertTrue(quote.lines().isEmpty());
     }
 
@@ -65,9 +65,9 @@ class FeeCalculatorTest {
     void sourcesAreLevyNameAndRecipientString() {
         Party agent = Party.personal(UUID.randomUUID());
         FeeQuote quote = FeeCalculator.quote(1000, BUYER, levy(5), Set.of(), 0,
-                List.of(new FeeCalculator.PlayerFeeInput(agent, FeeSide.BUYER, 1)));
+                List.of(new FeeCalculator.PlayerFeeInput("agent fee", agent, FeeSide.BUYER, 1)));
         assertEquals("national-levy", quote.lines().get(0).source());
-        assertEquals(agent.toString(), quote.lines().get(1).source());
+        assertEquals("agent fee", quote.lines().get(1).source());
     }
 
     @Test
@@ -75,8 +75,8 @@ class FeeCalculatorTest {
         Party a = Party.personal(UUID.randomUUID());
         Party b = Party.personal(UUID.randomUUID());
         FeeQuote quote = FeeCalculator.quote(100, BUYER, null, Set.of(), 0, List.of(
-                new FeeCalculator.PlayerFeeInput(a, FeeSide.SELLER, 70),
-                new FeeCalculator.PlayerFeeInput(b, FeeSide.SELLER, 50)));
+                new FeeCalculator.PlayerFeeInput("agent fee", a, FeeSide.SELLER, 70),
+                new FeeCalculator.PlayerFeeInput("agent fee", b, FeeSide.SELLER, 50)));
         assertEquals(70.00, quote.lines().get(0).amount());
         assertEquals(30.00, quote.lines().get(1).amount());
         assertEquals(0, quote.sellerReceives());
@@ -105,7 +105,7 @@ class FeeCalculatorTest {
                 new LevyDefinition("seller-levy", true, true, FeeSide.SELLER, null, null, List.of(rule)), STATE);
         Party agent = Party.personal(UUID.randomUUID());
         FeeQuote quote = FeeCalculator.quote(100, BUYER, sellerLevy, Set.of(), 0,
-                List.of(new FeeCalculator.PlayerFeeInput(agent, FeeSide.SELLER, 50)));
+                List.of(new FeeCalculator.PlayerFeeInput("agent fee", agent, FeeSide.SELLER, 50)));
         assertEquals(80.00, quote.lines().get(0).amount());
         assertEquals(20.00, quote.lines().get(1).amount());
         assertEquals(0, quote.sellerReceives());
