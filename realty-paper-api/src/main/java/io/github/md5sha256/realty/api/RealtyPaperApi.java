@@ -182,6 +182,11 @@ public interface RealtyPaperApi {
                        @NotNull String regionId) implements PayBidResult {}
         record FullyPaid(double amount, @NotNull String regionId,
                          @Nullable Party previousTitleHolder) implements PayBidResult {}
+        /**
+         * The final instalment was paid and is held, but the ownership transfer could not be
+         * applied now. Realty finishes the sale on a later scheduler run; nothing more is owed.
+         */
+        record FinalizePending(double amount, @NotNull String regionId) implements PayBidResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayBidResult {}
         record PaymentExpired(@NotNull String regionId) implements PayBidResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
@@ -207,6 +212,11 @@ public interface RealtyPaperApi {
                        @NotNull String regionId) implements PayOfferResult {}
         record FullyPaid(double amount, @NotNull String regionId,
                          @Nullable Party previousTitleHolder) implements PayOfferResult {}
+        /**
+         * The final instalment was paid and is held, but the ownership transfer could not be
+         * applied now. Realty finishes the sale on a later scheduler run; nothing more is owed.
+         */
+        record FinalizePending(double amount, @NotNull String regionId) implements PayOfferResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayOfferResult {}
         record PaymentExpired(@NotNull String regionId) implements PayOfferResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,

@@ -35,11 +35,24 @@ public interface PendingRefundMapper {
     @NotNull List<PendingRefundEntity> selectPaying();
 
     /**
-     * Claims the refund for payout, moving it from {@code pending} to {@code paying}.
+     * Claims the refund for payout, moving it from {@code pending} to {@code paying}, if it is still
+     * due as {@link #selectDue} defines it.
      *
      * @return 1 if this call claimed the refund, 0 if it was not claimable
      */
-    int claim(int pendingRefundId);
+    int claim(int pendingRefundId, int retryAfterMinutes, int maxAttempts);
+
+    /** The refund's failed attempts so far. */
+    int selectAttempts(int pendingRefundId);
+
+    /**
+     * The newest unclaimed refund owed to the buyer for the region, locked for update, or
+     * {@code null} when there is none.
+     */
+    @Nullable PendingRefundEntity selectPendingForUpdate(@NotNull UUID buyerId, @NotNull String regionName,
+                                                         @Nullable UUID worldId);
+
+    int updateAmount(int pendingRefundId, double amount);
 
     int delete(int pendingRefundId);
 

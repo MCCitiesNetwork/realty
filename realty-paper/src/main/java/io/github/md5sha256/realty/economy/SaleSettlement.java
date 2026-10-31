@@ -14,6 +14,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -31,8 +32,6 @@ import java.util.logging.Logger;
  * <p>Treasury does I/O, so every method here belongs off the main thread.</p>
  */
 public final class SaleSettlement {
-
-    private static final String NO_HOLDING = "no holding account";
 
     private final EconomyProvider economy;
     private final RealtyBackend backend;
@@ -87,9 +86,12 @@ public final class SaleSettlement {
     }
 
     private void payOut(@NotNull Party from, @NotNull DuePayout payout) {
-        if (!this.backend.claimPayout(payout.id())) {
+        OptionalInt claimed = this.backend.claimPayout(payout.id());
+        if (claimed.isEmpty()) {
             return;
         }
+        // Read under the claim: the list may be stale.
+        int attempts = claimed.getAsInt();
         PaymentResult result = payout.amount() > 0
                 ? transfer(from, payout.recipient(), payout.amount(),
                         "Sale payout (" + payout.source() + "): " + payout.regionName())
@@ -105,7 +107,7 @@ public final class SaleSettlement {
             }
             case PaymentResult.Failure failure -> {
                 this.backend.markPayoutFailed(payout.id(), failure.errorMessage());
-                if (payout.attempts() + 1 == RealtyBackendImpl.MAX_PAYOUT_ATTEMPTS) {
+                if (attempts + 1 == RealtyBackendImpl.MAX_PAYOUT_ATTEMPTS) {
                     this.log.severe("Sale payout #" + payout.id() + " of " + describe(payout) + " failed for the "
                             + RealtyBackendImpl.MAX_PAYOUT_ATTEMPTS + "th time (" + failure.errorMessage()
                             + ") and will not be tried again. Pay it by hand from the holding account.");
@@ -115,38 +117,28 @@ public final class SaleSettlement {
     }
 
     /**
-     * Refunds an expired payment's held instalments. A payment begun before sale fees refunds
-     * nothing: its instalments went to the seller.
+     * Pays the refund an expired payment recorded, at once, through the same claim as a retry. The
+     * refund row was written with the expiry, so a failure here leaves it pending for
+     * {@link #retryRefunds()}.
+     *
+     * @param refundId the refund the expiry recorded, or null when nothing is owed back: a payment
+     *                 begun before sale fees, whose instalments went to the seller, or nothing paid
+     * @param amount   what the buyer had paid
      */
-    public @NotNull ExpiryRefund refundExpired(@NotNull UUID buyerId, double paid, boolean oldRules,
-                                               @NotNull String regionName, @Nullable UUID worldId,
-                                               @NotNull String reason) {
-        if (oldRules || paid <= 0) {
+    public @NotNull ExpiryRefund settleExpiry(@Nullable Integer refundId, @NotNull UUID buyerId, double amount,
+                                              @NotNull String regionName, @Nullable UUID worldId,
+                                              @NotNull String reason) {
+        if (refundId == null) {
             return new ExpiryRefund(0, false);
         }
-        return new ExpiryRefund(paid, refund(buyerId, paid, regionName, worldId, reason));
-    }
-
-    /**
-     * Pays {@code amount} from the holding account back to the buyer. A refund that cannot be paid
-     * now is recorded as pending, to be retried.
-     *
-     * @return whether the refund was paid now
-     */
-    public boolean refund(@NotNull UUID buyerId, double amount, @NotNull String regionName,
-                          @Nullable UUID worldId, @NotNull String reason) {
         Optional<Party> from = this.holding.party();
-        PaymentResult result = from.isEmpty()
-                ? new PaymentResult.Failure(NO_HOLDING)
-                : transfer(from.get(), Party.personal(buyerId), amount, refundMessage(reason, regionName));
-        if (result instanceof PaymentResult.Failure failure) {
-            this.backend.recordPendingRefund(buyerId, amount, regionName, worldId, reason, failure.errorMessage());
+        if (from.isEmpty()) {
             this.log.warning("A refund of " + CurrencyFormatter.format(amount) + " to " + buyerId + " for "
-                    + regionName + " failed (" + failure.errorMessage() + "); it will be tried again");
-            return false;
+                    + regionName + " waits for a holding account");
+            return new ExpiryRefund(amount, false);
         }
-        this.events.fireSync(new RefundPaidEvent(buyerId, amount, regionName, worldId, reason));
-        return true;
+        boolean paid = retryRefund(from.get(), new DueRefund(refundId, buyerId, amount, regionName, worldId, reason, 0));
+        return new ExpiryRefund(amount, paid);
     }
 
     /** Pays every pending refund due, one at a time. */
@@ -172,10 +164,13 @@ public final class SaleSettlement {
         }
     }
 
-    private void retryRefund(@NotNull Party from, @NotNull DueRefund refund) {
-        if (!this.backend.claimRefund(refund.id())) {
-            return;
+    /** @return whether this call paid the refund */
+    private boolean retryRefund(@NotNull Party from, @NotNull DueRefund refund) {
+        OptionalInt claimed = this.backend.claimRefund(refund.id());
+        if (claimed.isEmpty()) {
+            return false;
         }
+        int attempts = claimed.getAsInt();
         PaymentResult result = transfer(from, Party.personal(refund.buyerId()), refund.amount(),
                 refundMessage(refund.reason(), refund.regionName()));
         switch (result) {
@@ -184,14 +179,16 @@ public final class SaleSettlement {
                         + describe(refund));
                 this.events.fireSync(new RefundPaidEvent(refund.buyerId(), refund.amount(), refund.regionName(),
                         refund.worldId(), refund.reason()));
+                return true;
             }
             case PaymentResult.Failure failure -> {
                 this.backend.markRefundFailed(refund.id(), failure.errorMessage());
-                if (refund.attempts() + 1 == RealtyBackendImpl.MAX_PAYOUT_ATTEMPTS) {
+                if (attempts + 1 == RealtyBackendImpl.MAX_PAYOUT_ATTEMPTS) {
                     this.log.severe("Refund #" + refund.id() + " of " + describe(refund) + " failed for the "
                             + RealtyBackendImpl.MAX_PAYOUT_ATTEMPTS + "th time (" + failure.errorMessage()
                             + ") and will not be tried again. Pay it by hand from the holding account.");
                 }
+                return false;
             }
         }
     }

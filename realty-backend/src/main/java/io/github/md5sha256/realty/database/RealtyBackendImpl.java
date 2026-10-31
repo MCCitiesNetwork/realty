@@ -74,6 +74,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -2466,6 +2467,9 @@ public class RealtyBackendImpl implements RealtyBackend {
     private static final String REFUND_REGION_DELETED = "region-deleted";
     /** The {@code PendingRefund.reason} of instalments held for an auction cancelled during payment. */
     private static final String REFUND_AUCTION_CANCELLED = "auction-cancelled";
+    /** The {@code PendingRefund.reason} of instalments held for a payment that expired. */
+    private static final String REFUND_BID_EXPIRED = "bid-expired";
+    private static final String REFUND_OFFER_EXPIRED = "offer-expired";
 
     @Override
     public @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
@@ -2518,7 +2522,7 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public void finalizeOfferPurchase(@NotNull String worldGuardRegionId,
+    public boolean finalizeOfferPurchase(@NotNull String worldGuardRegionId,
                                       @NotNull UUID worldId,
                                       @NotNull UUID offererId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -2532,7 +2536,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // a second call (or one after rollback) finds nothing/under-paid and no-ops.
             if (freehold == null || payment == null || !payment.offererId().equals(offererId)
                     || payment.currentPayment() < payment.totalDue() - PAYMENT_EPSILON) {
-                return;
+                return false;
             }
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
             freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
@@ -2546,6 +2550,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.OFFER_BUY.name(),
                     offererId, namedPartyId(wrapper, freehold.authority()), payment.offerPrice());
             wrapper.session().commit();
+            return true;
         }
     }
 
@@ -2563,8 +2568,34 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment != null && payment.offererId().equals(offererId)) {
                 double rolledBack = Math.max(0, payment.currentPayment() - amount);
                 paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, rolledBack);
-                wrapper.session().commit();
+            } else {
+                reduceHeldRefund(wrapper, offererId, worldGuardRegionId, worldId, amount);
             }
+            wrapper.session().commit();
+        }
+    }
+
+    /**
+     * Takes a failed instalment back out of the refund recorded for it. The payment was counted
+     * before its transfer ran, and in that gap the sale fell through: cancelled, expired or its
+     * region deleted. The refund then recorded includes money that never arrived.
+     */
+    private void reduceHeldRefund(@NotNull SqlSessionWrapper wrapper, @NotNull UUID buyerId,
+                                  @NotNull String worldGuardRegionId, @NotNull UUID worldId, double amount) {
+        PendingRefundEntity refund = wrapper.pendingRefundMapper()
+                .selectPendingForUpdate(buyerId, worldGuardRegionId, worldId);
+        if (refund == null) {
+            logger.severe("A failed instalment of " + CurrencyFormatter.format(amount) + " by " + buyerId
+                    + " towards " + worldGuardRegionId + " was rolled back after its sale fell through, but no"
+                    + " unpaid refund for it was found. If a refund was already paid, it included this amount,"
+                    + " which never reached the holding account.");
+            return;
+        }
+        double left = refund.amount() - amount;
+        if (left <= PAYMENT_EPSILON) {
+            wrapper.pendingRefundMapper().delete(refund.pendingRefundId());
+        } else {
+            wrapper.pendingRefundMapper().updateAmount(refund.pendingRefundId(), left);
         }
     }
 
@@ -2621,7 +2652,7 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public void finalizeBidPurchase(@NotNull String worldGuardRegionId,
+    public boolean finalizeBidPurchase(@NotNull String worldGuardRegionId,
                                     @NotNull UUID worldId,
                                     @NotNull UUID bidderId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
@@ -2635,7 +2666,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // a second call (or one after rollback) finds nothing/under-paid and no-ops.
             if (freehold == null || payment == null || !payment.bidderId().equals(bidderId)
                     || payment.currentPayment() < payment.totalDue() - PAYMENT_EPSILON) {
-                return;
+                return false;
             }
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
             freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
@@ -2648,6 +2679,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),
                     bidderId, namedPartyId(wrapper, freehold.authority()), payment.bidPrice());
             wrapper.session().commit();
+            return true;
         }
     }
 
@@ -2657,13 +2689,17 @@ public class RealtyBackendImpl implements RealtyBackend {
                                 @NotNull UUID bidderId,
                                 double amount) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
+            // The freehold first, as payBid, cancelAuction and the expiry take it.
+            wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
             FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
             FreeholdContractBidPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
             if (payment != null && payment.bidderId().equals(bidderId)) {
                 double rolledBack = Math.max(0, payment.currentPayment() - amount);
                 paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, rolledBack);
-                wrapper.session().commit();
+            } else {
+                reduceHeldRefund(wrapper, bidderId, worldGuardRegionId, worldId, amount);
             }
+            wrapper.session().commit();
         }
     }
 
@@ -2759,7 +2795,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     results.add(new ExpiredBiddingAuction(region.worldGuardRegionId(), region.worldId(),
                             highestBid.bidderId(), auction.auctioneerId()));
                 }
-            } catch (PersistenceException ex) {
+            } catch (RuntimeException ex) {
                 // Such as two sales creating the same new party at once. Rolled back, so the
                 // auction is tried again on the next run; the others go ahead now.
                 logger.log(Level.WARNING, "Could not settle the auction #" + candidate.freeholdContractAuctionId()
@@ -2778,50 +2814,75 @@ public class RealtyBackendImpl implements RealtyBackend {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             expired = wrapper.freeholdContractBidPaymentMapper().selectAllExpired();
         }
-        List<ExpiredBidPayment> refunds = new ArrayList<>();
-        for (FreeholdContractBidPaymentEntity payment : expired) {
+        List<ExpiredBidPayment> results = new ArrayList<>();
+        for (FreeholdContractBidPaymentEntity candidate : expired) {
             if (!holdingAvailable.getAsBoolean()) {
                 // The next bidder's instalments would have nowhere to wait. The expired payment is
                 // left as it is: nobody can pay it, and each run looks at it again, so it hands
                 // over and refunds once a holding account is configured.
-                if (warnedNoHolding.add(payment.freeholdContractAuctionId())) {
+                if (warnedNoHolding.add(candidate.freeholdContractAuctionId())) {
                     logger.warning("A payment for an auction has expired, but no holding account is configured,"
-                            + " so the next bidder cannot be offered it yet (bid #" + payment.bidId()
+                            + " so the next bidder cannot be offered it yet (bid #" + candidate.bidId()
                             + "). It will move on once one is.");
                 }
                 continue;
             }
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
-                FreeholdContractAuctionMapper auctionMapper = wrapper.freeholdContractAuctionMapper();
-                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
-                paymentMapper.deleteByBidId(payment.bidId());
-                wrapper.saleFeeMapper().deleteUnpaidBySale(SALE_BID, payment.bidId());
-                String regionName = region != null ? region.worldGuardRegionId() : "unknown";
-                UUID worldId = region != null ? region.worldId() : null;
-                ExpiredBidPayment refund = new ExpiredBidPayment(payment.bidderId(), payment.currentPayment(),
-                        regionName, worldId, payment.oldRules());
-                FreeholdContractAuctionEntity auction = auctionMapper.selectById(payment.freeholdContractAuctionId());
-                if (auction != null) {
-                    LocalDateTime nextDeadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
-                    int inserted = paymentMapper.insertNextPayment(
-                            payment.freeholdContractAuctionId(),
-                            payment.bidPrice(),
-                            nextDeadline);
-                    if (inserted > 0 && region != null) {
-                        lockRunnerUp(wrapper, region, auction);
-                    }
-                }
+                ExpiredBidPayment result = expireBidPayment(wrapper, candidate);
                 wrapper.session().commit();
-                warnedNoHolding.remove(payment.freeholdContractAuctionId());
-                refunds.add(refund);
-            } catch (PersistenceException ex) {
+                if (result != null) {
+                    warnedNoHolding.remove(candidate.freeholdContractAuctionId());
+                    results.add(result);
+                }
+            } catch (RuntimeException ex) {
                 // Rolled back, refund and all, so the payment is tried again on the next run.
-                logger.log(Level.WARNING, "Could not end the expired payment for bid #" + payment.bidId()
+                logger.log(Level.WARNING, "Could not end the expired payment for bid #" + candidate.bidId()
                         + "; it will be tried again", ex);
             }
         }
-        return refunds;
+        return results;
+    }
+
+    /**
+     * Ends one expired payment, if it still is one: under the freehold lock it is read afresh, its
+     * deadline checked by the database clock, and a payment paid in full, whose finalize is pending,
+     * is left alone. What was paid under the new rules is recorded as owed back in the same
+     * transaction, so it cannot be lost.
+     *
+     * @return the payment ended, or null when there was none to end
+     */
+    private @Nullable ExpiredBidPayment expireBidPayment(@NotNull SqlSessionWrapper wrapper,
+                                                         @NotNull FreeholdContractBidPaymentEntity candidate) {
+        RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(candidate.realtyRegionId());
+        if (region == null) {
+            // Deleted since the candidate snapshot; deleteRegion recorded the refund.
+            return null;
+        }
+        wrapper.freeholdContractMapper().selectByRegionForUpdate(region.worldGuardRegionId(), region.worldId());
+        FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
+        FreeholdContractBidPaymentEntity payment = paymentMapper.selectExpiredById(candidate.bidId());
+        if (payment == null || payment.currentPayment() >= payment.totalDue() - PAYMENT_EPSILON) {
+            return null;
+        }
+        paymentMapper.deleteByBidId(payment.bidId());
+        wrapper.saleFeeMapper().deleteUnpaidBySale(SALE_BID, payment.bidId());
+        Integer refundId = null;
+        if (!payment.oldRules() && payment.currentPayment() > 0) {
+            refundId = wrapper.pendingRefundMapper().insert(payment.bidderId(), payment.currentPayment(),
+                    region.worldGuardRegionId(), region.worldId(), REFUND_BID_EXPIRED);
+        }
+        FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
+                .selectById(payment.freeholdContractAuctionId());
+        if (auction != null) {
+            LocalDateTime nextDeadline = LocalDateTime.now().plusSeconds(auction.paymentDurationSeconds());
+            int inserted = paymentMapper.insertNextPayment(payment.freeholdContractAuctionId(), payment.bidPrice(),
+                    nextDeadline);
+            if (inserted > 0) {
+                lockRunnerUp(wrapper, region, auction);
+            }
+        }
+        return new ExpiredBidPayment(payment.bidderId(), payment.currentPayment(), region.worldGuardRegionId(),
+                region.worldId(), payment.oldRules(), refundId);
     }
 
     /**
@@ -2853,20 +2914,81 @@ public class RealtyBackendImpl implements RealtyBackend {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             expired = wrapper.freeholdContractOfferPaymentMapper().selectAllExpired();
         }
-        List<ExpiredOfferPayment> refunds = new ArrayList<>();
-        for (FreeholdContractOfferPaymentEntity payment : expired) {
+        List<ExpiredOfferPayment> results = new ArrayList<>();
+        for (FreeholdContractOfferPaymentEntity candidate : expired) {
             try (SqlSessionWrapper wrapper = database.openSession()) {
-                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
-                wrapper.freeholdContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
-                wrapper.saleFeeMapper().deleteUnpaidBySale(SALE_OFFER, payment.offerId());
+                ExpiredOfferPayment result = expireOfferPayment(wrapper, candidate);
                 wrapper.session().commit();
-                String regionName = region != null ? region.worldGuardRegionId() : "unknown";
-                UUID worldId = region != null ? region.worldId() : null;
-                refunds.add(new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), regionName, worldId,
-                        payment.oldRules()));
+                if (result != null) {
+                    results.add(result);
+                }
+            } catch (RuntimeException ex) {
+                // Rolled back, refund and all, so the payment is tried again on the next run.
+                logger.log(Level.WARNING, "Could not end the expired payment for offer #" + candidate.offerId()
+                        + "; it will be tried again", ex);
             }
         }
-        return refunds;
+        return results;
+    }
+
+    /** As {@link #expireBidPayment}, for an accepted offer, which has no next bidder. */
+    private @Nullable ExpiredOfferPayment expireOfferPayment(@NotNull SqlSessionWrapper wrapper,
+                                                             @NotNull FreeholdContractOfferPaymentEntity candidate) {
+        RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(candidate.realtyRegionId());
+        if (region == null) {
+            return null;
+        }
+        wrapper.freeholdContractMapper().selectByRegionForUpdate(region.worldGuardRegionId(), region.worldId());
+        FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
+        FreeholdContractOfferPaymentEntity payment = paymentMapper.selectExpiredById(candidate.offerId());
+        if (payment == null || payment.currentPayment() >= payment.totalDue() - PAYMENT_EPSILON) {
+            return null;
+        }
+        paymentMapper.deleteByOfferId(payment.offerId());
+        wrapper.saleFeeMapper().deleteUnpaidBySale(SALE_OFFER, payment.offerId());
+        Integer refundId = null;
+        if (!payment.oldRules() && payment.currentPayment() > 0) {
+            refundId = wrapper.pendingRefundMapper().insert(payment.offererId(), payment.currentPayment(),
+                    region.worldGuardRegionId(), region.worldId(), REFUND_OFFER_EXPIRED);
+        }
+        return new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), region.worldGuardRegionId(),
+                region.worldId(), payment.oldRules(), refundId);
+    }
+
+    // --- Sales paid in full but not finalized ---
+
+    @Override
+    public @NotNull List<PendingFinalize> listFullyPaidUnfinalized() {
+        List<PendingFinalize> pending = new ArrayList<>();
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            for (FreeholdContractBidPaymentEntity payment
+                    : wrapper.freeholdContractBidPaymentMapper().selectFullyPaidUnfinalized()) {
+                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
+                if (region == null) {
+                    continue;
+                }
+                FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                        .selectByRegion(region.worldGuardRegionId(), region.worldId());
+                pending.add(new PendingFinalize(PendingFinalize.Kind.BID, region.worldGuardRegionId(),
+                        region.worldId(), payment.bidderId(), freehold != null ? freehold.titleHolderId() : null,
+                        payment.bidPrice(), SaleFeeResolver.lockedQuote(wrapper, SALE_BID, payment.bidId(),
+                                payment.bidPrice(), payment.totalDue())));
+            }
+            for (FreeholdContractOfferPaymentEntity payment
+                    : wrapper.freeholdContractOfferPaymentMapper().selectFullyPaidUnfinalized()) {
+                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
+                if (region == null) {
+                    continue;
+                }
+                FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                        .selectByRegion(region.worldGuardRegionId(), region.worldId());
+                pending.add(new PendingFinalize(PendingFinalize.Kind.OFFER, region.worldGuardRegionId(),
+                        region.worldId(), payment.offererId(), freehold != null ? freehold.titleHolderId() : null,
+                        payment.offerPrice(), SaleFeeResolver.lockedQuote(wrapper, SALE_OFFER, payment.offerId(),
+                                payment.offerPrice(), payment.totalDue())));
+            }
+        }
+        return pending;
     }
 
     // --- Sale payouts and refunds ---
@@ -2906,11 +3028,15 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public boolean claimPayout(int id) {
+    public @NotNull OptionalInt claimPayout(int id) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            int claimed = wrapper.saleFeeMapper().claim(id);
+            if (wrapper.saleFeeMapper().claim(id, PAYOUT_RETRY_MINUTES, MAX_PAYOUT_ATTEMPTS) != 1) {
+                wrapper.session().commit();
+                return OptionalInt.empty();
+            }
+            int attempts = wrapper.saleFeeMapper().selectAttempts(id);
             wrapper.session().commit();
-            return claimed == 1;
+            return OptionalInt.of(attempts);
         }
     }
 
@@ -2931,20 +3057,16 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public void recordPendingRefund(@NotNull UUID buyerId, double amount, @NotNull String regionName,
-                                    @Nullable UUID worldId, @NotNull String reason, @NotNull String error) {
+    public @NotNull List<DueRefund> dueRefunds() {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            int id = wrapper.pendingRefundMapper().insert(buyerId, amount, regionName, worldId, reason);
-            // The attempt that just failed counts, so the retry waits its interval.
-            wrapper.pendingRefundMapper().markFailed(id, error);
-            wrapper.session().commit();
+            return toRefunds(wrapper.pendingRefundMapper().selectDue(PAYOUT_RETRY_MINUTES, MAX_PAYOUT_ATTEMPTS));
         }
     }
 
     @Override
-    public @NotNull List<DueRefund> dueRefunds() {
+    public boolean holdsSaleMoney() {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return toRefunds(wrapper.pendingRefundMapper().selectDue(PAYOUT_RETRY_MINUTES, MAX_PAYOUT_ATTEMPTS));
+            return wrapper.saleFeeMapper().countHeldForSales() > 0;
         }
     }
 
@@ -2963,11 +3085,15 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
-    public boolean claimRefund(int id) {
+    public @NotNull OptionalInt claimRefund(int id) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            int claimed = wrapper.pendingRefundMapper().claim(id);
+            if (wrapper.pendingRefundMapper().claim(id, PAYOUT_RETRY_MINUTES, MAX_PAYOUT_ATTEMPTS) != 1) {
+                wrapper.session().commit();
+                return OptionalInt.empty();
+            }
+            int attempts = wrapper.pendingRefundMapper().selectAttempts(id);
             wrapper.session().commit();
-            return claimed == 1;
+            return OptionalInt.of(attempts);
         }
     }
 

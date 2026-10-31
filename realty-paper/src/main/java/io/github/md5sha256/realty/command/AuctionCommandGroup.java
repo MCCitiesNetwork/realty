@@ -298,6 +298,9 @@ public record AuctionCommandGroup(
                 case RealtyPaperApi.PayBidResult.FullyPaid fullyPaid ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                                 Placeholder.unparsed("region", fullyPaid.regionId())));
+                case RealtyPaperApi.PayBidResult.FinalizePending pending ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_FINALIZE_PENDING,
+                                Placeholder.unparsed("region", pending.regionId())));
                 case RealtyPaperApi.PayBidResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", noPayment.regionId())));

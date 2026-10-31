@@ -1,19 +1,11 @@
 package io.github.md5sha256.realty.economy;
 
-import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.settings.DefaultParties;
-import io.paradaux.treasury.api.TreasuryApi;
-import io.paradaux.treasury.model.economy.Account;
-import io.paradaux.treasury.model.economy.AccountType;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.function.Supplier;
-import java.util.logging.Logger;
 
 /**
  * The party that holds a buyer's auction and offer instalments until the sale finishes, so that a
@@ -23,12 +15,10 @@ import java.util.logging.Logger;
  * out money the account does not hold. Vault can move money only between players, so on Vault it
  * is the player an admin names as {@code escrow} in {@code settings.yml}, and there is none until
  * one is named.</p>
+ *
+ * <p>This class names no Treasury type, so a Vault-only server never loads one.</p>
  */
 public final class HoldingAccount {
-
-    /** The owner of Realty's SYSTEM account. No player has this id. */
-    static final UUID TREASURY_OWNER = UUID.nameUUIDFromBytes("realty:holding".getBytes(StandardCharsets.UTF_8));
-    static final String TREASURY_NAME = "Realty Holding";
 
     private final Supplier<Optional<Party>> party;
 
@@ -37,29 +27,12 @@ public final class HoldingAccount {
     }
 
     /**
-     * Finds Realty's SYSTEM account, or creates it. An account found with overdraft allowed has it
-     * turned off. Does Treasury I/O.
+     * A fixed holding party, such as Realty's Treasury SYSTEM account; see
+     * {@link TreasuryHoldingAccount#create}.
      */
-    public static @NotNull HoldingAccount treasury(@NotNull TreasuryApi api, @NotNull Logger log) {
-        List<Account> existing = api.getAccountsByTypeAndOwner(AccountType.SYSTEM, TREASURY_OWNER).stream()
-                .filter(account -> !account.isArchived())
-                .toList();
-        Account account;
-        if (existing.isEmpty()) {
-            account = api.createAccount(AccountType.SYSTEM, TREASURY_OWNER, TREASURY_NAME);
-            log.info("Created the Treasury account '" + TREASURY_NAME + "' (#" + account.getAccountId()
-                    + ") to hold instalments until a sale finishes");
-        } else {
-            account = existing.getFirst();
-        }
-        if (account.isAllowOverdraft()) {
-            account.setAllowOverdraft(false);
-            api.updateAccount(account);
-            log.warning("The Treasury account '" + TREASURY_NAME + "' (#" + account.getAccountId()
-                    + ") allowed overdraft; it has been turned off, so it can never pay out more than it holds");
-        }
-        Party holding = Party.account(account.getAccountId(), AccountKind.SYSTEM);
-        return new HoldingAccount(() -> Optional.of(holding));
+    public static @NotNull HoldingAccount of(@NotNull Party party) {
+        Optional<Party> fixed = Optional.of(party);
+        return new HoldingAccount(() -> fixed);
     }
 
     /**

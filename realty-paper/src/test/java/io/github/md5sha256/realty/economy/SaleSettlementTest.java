@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Handler;
@@ -33,8 +34,6 @@ import java.util.logging.Logger;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -131,7 +130,7 @@ class SaleSettlementTest {
     @Test
     void payout_paysEachLineFromHolding_firesFeePaidForFees() {
         when(backend.duePayouts()).thenReturn(List.of(PROCEEDS, AGENT_FEE));
-        when(backend.claimPayout(anyInt())).thenReturn(true);
+        when(backend.claimPayout(anyInt())).thenReturn(OptionalInt.of(0));
 
         settlement.payOutDue();
 
@@ -153,7 +152,7 @@ class SaleSettlementTest {
     void payout_oneRecipientFails_lineFailed_othersPaid_retriedLater() {
         economy.failingRecipients.add(AGENT);
         when(backend.duePayouts()).thenReturn(List.of(PROCEEDS, AGENT_FEE));
-        when(backend.claimPayout(anyInt())).thenReturn(true);
+        when(backend.claimPayout(anyInt())).thenReturn(OptionalInt.of(0));
 
         settlement.payOutDue();
 
@@ -175,7 +174,7 @@ class SaleSettlementTest {
     @Test
     void payout_lockedLinesAfterRestart_paidOnce() {
         when(backend.duePayouts()).thenReturn(List.of(PROCEEDS));
-        when(backend.claimPayout(1)).thenReturn(true, false);
+        when(backend.claimPayout(1)).thenReturn(OptionalInt.of(0), OptionalInt.empty());
 
         settlement.payOutDue();
         settlement.payOutDue();
@@ -189,7 +188,7 @@ class SaleSettlementTest {
         economy.failingRecipients.add(GOV);
         when(backend.duePayouts()).thenReturn(List.of(
                 new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 23)));
-        when(backend.claimPayout(3)).thenReturn(true);
+        when(backend.claimPayout(3)).thenReturn(OptionalInt.of(23));
 
         settlement.payOutDue();
 
@@ -203,7 +202,7 @@ class SaleSettlementTest {
         economy.failingRecipients.add(GOV);
         when(backend.duePayouts()).thenReturn(List.of(
                 new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5)));
-        when(backend.claimPayout(3)).thenReturn(true);
+        when(backend.claimPayout(3)).thenReturn(OptionalInt.of(5));
 
         settlement.payOutDue();
 
@@ -211,10 +210,22 @@ class SaleSettlementTest {
     }
 
     @Test
+    void payout_staleList_usesTheAttemptsReadUnderTheClaim() {
+        economy.failingRecipients.add(GOV);
+        when(backend.duePayouts()).thenReturn(List.of(
+                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5)));
+        when(backend.claimPayout(3)).thenReturn(OptionalInt.of(23));
+
+        settlement.payOutDue();
+
+        Assertions.assertEquals(1, severe().size(), "the 24th attempt, by the claim's count");
+    }
+
+    @Test
     void payout_zeroLine_isMarkedPaidWithoutATransfer() {
         when(backend.duePayouts()).thenReturn(List.of(
                 new DuePayout(4, "proceeds", "proceeds", SELLER, 0, "plot", WORLD_ID, BUYER_ID, 0)));
-        when(backend.claimPayout(4)).thenReturn(true);
+        when(backend.claimPayout(4)).thenReturn(OptionalInt.of(0));
 
         settlement.payOutDue();
 
@@ -235,18 +246,20 @@ class SaleSettlementTest {
 
     @Test
     void expiry_refundsFromHolding_eventSaysPaid() {
-        SaleSettlement.ExpiryRefund refund = settlement.refundExpired(BUYER_ID, 300, false, "plot", WORLD_ID,
+        when(backend.claimRefund(7)).thenReturn(OptionalInt.of(0));
+
+        SaleSettlement.ExpiryRefund refund = settlement.settleExpiry(7, BUYER_ID, 300, "plot", WORLD_ID,
                 "bid-expired");
 
         Assertions.assertTrue(refund.paid());
         Assertions.assertEquals(300, refund.amount(), 0.001);
         Assertions.assertEquals(List.of(new RecordingEconomy.Transfer(HOLDING, BUYER, 300,
                 "Sale refund (bid-expired): plot")), economy.transfers);
+        verify(backend).markRefundPaid(7);
         ArgumentCaptor<RefundPaidEvent> fired = ArgumentCaptor.forClass(RefundPaidEvent.class);
         verify(events).fireSync(fired.capture());
         Assertions.assertEquals(BUYER_ID, fired.getValue().getBuyerId());
         Assertions.assertEquals("bid-expired", fired.getValue().getReason());
-        verify(backend, never()).recordPendingRefund(any(), any(Double.class), any(), any(), any(), any());
         Assertions.assertTrue(new AuctionPaymentExpiredEvent("plot", WORLD_ID, null, BUYER_ID,
                 refund.amount(), refund.paid()).isRefundPaid());
     }
@@ -254,39 +267,43 @@ class SaleSettlementTest {
     @Test
     void expiry_refundFails_recordsPendingRefund_eventSaysNotPaid() {
         economy.failingRecipients.add(BUYER);
+        when(backend.claimRefund(7)).thenReturn(OptionalInt.of(0));
 
-        SaleSettlement.ExpiryRefund refund = settlement.refundExpired(BUYER_ID, 300, false, "plot", WORLD_ID,
+        SaleSettlement.ExpiryRefund refund = settlement.settleExpiry(7, BUYER_ID, 300, "plot", WORLD_ID,
                 "offer-expired");
 
         Assertions.assertFalse(refund.paid());
         Assertions.assertEquals(300, refund.amount(), 0.001);
-        verify(backend).recordPendingRefund(BUYER_ID, 300, "plot", WORLD_ID, "offer-expired",
-                "Account #42 is archived");
+        // The row the expiry recorded stays pending, counting this attempt.
+        verify(backend).markRefundFailed(7, "Account #42 is archived");
+        verify(backend, never()).markRefundPaid(anyInt());
         verify(events, never()).fireSync(any(RefundPaidEvent.class));
         Assertions.assertFalse(new OfferPaymentExpiredEvent("plot", WORLD_ID, null, BUYER_ID,
                 refund.amount(), refund.paid()).isRefundPaid());
     }
 
     @Test
-    void expiry_oldRules_refundsNothing() {
-        SaleSettlement.ExpiryRefund refund = settlement.refundExpired(BUYER_ID, 300, true, "plot", WORLD_ID,
+    void expiry_withoutARefundRow_refundsNothing() {
+        SaleSettlement.ExpiryRefund refund = settlement.settleExpiry(null, BUYER_ID, 300, "plot", WORLD_ID,
                 "bid-expired");
 
         Assertions.assertFalse(refund.paid());
         Assertions.assertEquals(0, refund.amount(), 0.001);
         Assertions.assertTrue(economy.transfers.isEmpty());
-        verify(backend, never()).recordPendingRefund(any(), any(Double.class), any(), any(), any(), any());
+        verify(backend, never()).claimRefund(anyInt());
     }
 
     @Test
-    void refund_withoutHolding_isRecorded() {
+    void expiry_withoutHolding_leavesTheRefundPending() {
         settlement = new SaleSettlement(economy, backend, HoldingAccount.vault(DefaultParties::unresolved), events,
                 Logger.getAnonymousLogger());
 
-        Assertions.assertFalse(settlement.refund(BUYER_ID, 300, "plot", WORLD_ID, "bid-expired"));
+        SaleSettlement.ExpiryRefund refund = settlement.settleExpiry(7, BUYER_ID, 300, "plot", WORLD_ID,
+                "bid-expired");
 
-        verify(backend).recordPendingRefund(eq(BUYER_ID), eq(300.0), eq("plot"), eq(WORLD_ID), eq("bid-expired"),
-                anyString());
+        Assertions.assertFalse(refund.paid());
+        Assertions.assertEquals(300, refund.amount(), 0.001);
+        verify(backend, never()).claimRefund(anyInt());
         Assertions.assertTrue(economy.transfers.isEmpty());
     }
 
@@ -298,7 +315,8 @@ class SaleSettlementTest {
                 "region-deleted", 23);
         economy.failingRecipients.add(other);
         when(backend.dueRefunds()).thenReturn(List.of(owed, failing));
-        when(backend.claimRefund(anyInt())).thenReturn(true);
+        when(backend.claimRefund(7)).thenReturn(OptionalInt.of(0));
+        when(backend.claimRefund(8)).thenReturn(OptionalInt.of(23));
 
         settlement.retryRefunds();
 
@@ -314,7 +332,7 @@ class SaleSettlementTest {
     void retryRefunds_claimedElsewhere_isSkipped() {
         when(backend.dueRefunds()).thenReturn(List.of(new DueRefund(7, BUYER_ID, 300, "plot", WORLD_ID,
                 "region-deleted", 0)));
-        when(backend.claimRefund(7)).thenReturn(false);
+        when(backend.claimRefund(7)).thenReturn(OptionalInt.empty());
 
         settlement.retryRefunds();
 

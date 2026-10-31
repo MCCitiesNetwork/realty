@@ -254,6 +254,7 @@ public final class MessageKeys {
     public static final String PAY_BID_ERROR = "pay-bid.error";
     public static final String PAY_BID_TRANSFER_FAILED = "pay-bid.transfer-failed";
     public static final String PAY_BID_TRANSFER_SUCCESS = "pay-bid.transfer-success";
+    public static final String PAY_BID_FINALIZE_PENDING = "pay-bid.finalize-pending";
 
     // pay-offer
     public static final String PAY_OFFER_INSUFFICIENT_FUNDS = "pay-offer.insufficient-funds";
@@ -266,6 +267,7 @@ public final class MessageKeys {
     public static final String PAY_OFFER_ERROR = "pay-offer.error";
     public static final String PAY_OFFER_TRANSFER_FAILED = "pay-offer.transfer-failed";
     public static final String PAY_OFFER_TRANSFER_SUCCESS = "pay-offer.transfer-success";
+    public static final String PAY_OFFER_FINALIZE_PENDING = "pay-offer.finalize-pending";
 
     // reject-offer
     public static final String REJECT_OFFER_SUCCESS = "reject-offer.success";

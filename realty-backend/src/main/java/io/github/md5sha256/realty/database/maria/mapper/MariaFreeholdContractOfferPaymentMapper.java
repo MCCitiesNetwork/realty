@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.ResultMap;
+import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
@@ -32,6 +34,7 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
+    @Results(id = "offerPaymentRow")
     @ConstructorArgs({
             @Arg(column = "offerId", javaType = int.class),
             @Arg(column = "realtyRegionId", javaType = int.class),
@@ -65,6 +68,29 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
             @Arg(column = "acceptedBy", javaType = UUID.class)
     })
     @NotNull List<FreeholdContractOfferPaymentEntity> selectAllExpired();
+
+    @Override
+    @Select("""
+            SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy
+            FROM FreeholdContractOfferPayment scop
+            WHERE scop.offerId = #{offerId}
+            AND scop.paymentDeadline < NOW()
+            """)
+    @ResultMap("offerPaymentRow")
+    @Nullable FreeholdContractOfferPaymentEntity selectExpiredById(@Param("offerId") int offerId);
+
+    @Override
+    @Select("""
+            SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy
+            FROM FreeholdContractOfferPayment scop
+            WHERE scop.oldRules = FALSE
+            AND scop.currentPayment >= scop.totalDue - 0.005
+            ORDER BY scop.offerId
+            """)
+    @ResultMap("offerPaymentRow")
+    @NotNull List<FreeholdContractOfferPaymentEntity> selectFullyPaidUnfinalized();
 
     @Override
     @Insert("""

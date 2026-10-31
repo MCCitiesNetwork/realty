@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.ResultMap;
+import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
@@ -32,6 +34,7 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             """)
+    @Results(id = "bidPaymentRow")
     @ConstructorArgs({
             @Arg(column = "bidId", javaType = int.class),
             @Arg(column = "freeholdContractAuctionId", javaType = int.class),
@@ -65,6 +68,29 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
             @Arg(column = "oldRules", javaType = boolean.class)
     })
     @NotNull List<FreeholdContractBidPaymentEntity> selectAllExpired();
+
+    @Override
+    @Select("""
+            SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules
+            FROM FreeholdContractBidPayment scbp
+            WHERE scbp.bidId = #{bidId}
+            AND scbp.paymentDeadline < NOW()
+            """)
+    @ResultMap("bidPaymentRow")
+    @Nullable FreeholdContractBidPaymentEntity selectExpiredById(@Param("bidId") int bidId);
+
+    @Override
+    @Select("""
+            SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules
+            FROM FreeholdContractBidPayment scbp
+            WHERE scbp.oldRules = FALSE
+            AND scbp.currentPayment >= scbp.totalDue - 0.005
+            ORDER BY scbp.bidId
+            """)
+    @ResultMap("bidPaymentRow")
+    @NotNull List<FreeholdContractBidPaymentEntity> selectFullyPaidUnfinalized();
 
     @Override
     @Insert("""

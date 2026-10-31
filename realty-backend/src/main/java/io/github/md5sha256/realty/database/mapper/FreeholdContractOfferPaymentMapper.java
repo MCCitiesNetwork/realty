@@ -20,6 +20,15 @@ public interface FreeholdContractOfferPaymentMapper {
 
     @NotNull List<FreeholdContractOfferPaymentEntity> selectAllExpired();
 
+    /** The payment, if it is still there and its deadline has passed by the database clock. */
+    @Nullable FreeholdContractOfferPaymentEntity selectExpiredById(int offerId);
+
+    /**
+     * Payments under the new rules that are paid in full but whose sale was never finalized, as when
+     * the finalize failed or the server stopped after the final transfer.
+     */
+    @NotNull List<FreeholdContractOfferPaymentEntity> selectFullyPaidUnfinalized();
+
     /**
      * @param totalDue   what the offerer owes in all: the price plus any buyer-paid fees
      * @param acceptedBy the player who accepted the offer

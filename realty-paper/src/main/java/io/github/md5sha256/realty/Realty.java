@@ -118,6 +118,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.HoldingAccount;
 import io.github.md5sha256.realty.economy.SaleSettlement;
+import io.github.md5sha256.realty.economy.TreasuryHoldingAccount;
 import io.github.md5sha256.realty.economy.PartyWallets;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.economy.TreasuryEconomyProvider;
@@ -186,6 +187,8 @@ public final class Realty extends JavaPlugin {
     private EconomyProvider economyProvider;
     /** Where instalments wait until a sale finishes; set once the economy is chosen. */
     private volatile @Nullable HoldingAccount holdingAccount;
+    /** Why Treasury's holding account could not be set up, or null when it was or Vault is used. */
+    private volatile @Nullable String treasuryHoldingFailure;
     private SaleSettlement settlement;
     /** Treasury's API when Treasury provides the economy, else {@code null}. */
     private @Nullable io.paradaux.treasury.api.TreasuryApi treasury;
@@ -201,7 +204,7 @@ public final class Realty extends JavaPlugin {
     private DatabaseSettings databaseSettings;
     private Database database;
     private SignTextApplicator signTextApplicator;
-    private RealtyPaperApi paperApi;
+    private RealtyPaperApiImpl paperApi;
     private RealtyEventDispatch eventDispatch;
     private ModuleLifecycleManager<Realty> moduleManager;
     private boolean failedLoad = false;
@@ -566,43 +569,27 @@ public final class Realty extends JavaPlugin {
                     }
                 });
             }
-            // Each refund is paid here, off the main thread, before its event is fired there.
-            List<RealtyBackend.ExpiredBidPayment> expiredBidPayments = this.logic.clearExpiredBidPayments();
-            if (!expiredBidPayments.isEmpty()) {
-                List<SaleSettlement.ExpiryRefund> bidRefunds = expiredBidPayments.stream()
-                        .map(payment -> this.settlement.refundExpired(payment.bidderId(), payment.refundAmount(),
-                                payment.oldRules(), payment.regionId(), payment.worldId(), "bid-expired"))
-                        .toList();
-                scheduler.runTask(this, () -> {
-                    for (int i = 0; i < expiredBidPayments.size(); i++) {
-                        RealtyBackend.ExpiredBidPayment payment = expiredBidPayments.get(i);
-                        SaleSettlement.ExpiryRefund refund = bidRefunds.get(i);
-                        this.eventDispatch.fireSync(new AuctionPaymentExpiredEvent(payment.regionId(),
-                                payment.worldId(),
-                                WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
-                                payment.bidderId(), refund.amount(), refund.paid()));
-                    }
-                });
+            // Each expiry recorded its refund with the expiry itself. It is tried here at once, off
+            // the main thread, and its event fired there; a failure is retried like any refund.
+            for (RealtyBackend.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
+                SaleSettlement.ExpiryRefund refund = settleExpiry(payment.refundId(), payment.bidderId(),
+                        payment.refundAmount(), payment.regionId(), payment.worldId(), "bid-expired");
+                scheduler.runTask(this, () -> this.eventDispatch.fireSync(new AuctionPaymentExpiredEvent(
+                        payment.regionId(), payment.worldId(),
+                        WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
+                        payment.bidderId(), refund.amount(), refund.paid())));
             }
-            List<RealtyBackend.ExpiredOfferPayment> expiredOfferPayments = this.logic.clearExpiredOfferPayments();
-            if (!expiredOfferPayments.isEmpty()) {
-                List<SaleSettlement.ExpiryRefund> offerRefunds = expiredOfferPayments.stream()
-                        .map(payment -> this.settlement.refundExpired(payment.offererId(), payment.refundAmount(),
-                                payment.oldRules(), payment.regionId(), payment.worldId(), "offer-expired"))
-                        .toList();
-                scheduler.runTask(this, () -> {
-                    for (int i = 0; i < expiredOfferPayments.size(); i++) {
-                        RealtyBackend.ExpiredOfferPayment payment = expiredOfferPayments.get(i);
-                        SaleSettlement.ExpiryRefund refund = offerRefunds.get(i);
-                        this.eventDispatch.fireSync(new OfferPaymentExpiredEvent(payment.regionId(),
-                                payment.worldId(),
-                                WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
-                                payment.offererId(), refund.amount(), refund.paid()));
-                    }
-                });
+            for (RealtyBackend.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
+                SaleSettlement.ExpiryRefund refund = settleExpiry(payment.refundId(), payment.offererId(),
+                        payment.refundAmount(), payment.regionId(), payment.worldId(), "offer-expired");
+                scheduler.runTask(this, () -> this.eventDispatch.fireSync(new OfferPaymentExpiredEvent(
+                        payment.regionId(), payment.worldId(),
+                        WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
+                        payment.offererId(), refund.amount(), refund.paid())));
             }
-            // Payouts of completed sales and refunds that failed before. Both are cheap when
-            // nothing is due.
+            // Sales paid in full whose finalize failed or never ran, then the payouts of completed
+            // sales and refunds that failed before. Each is cheap when nothing is due.
+            this.paperApi.finishPendingSales();
             this.settlement.payOutDue();
             this.settlement.retryRefunds();
             List<RealtyBackend.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
@@ -741,10 +728,32 @@ public final class Realty extends JavaPlugin {
                 getLogger().log(Level.SEVERE, "Failed to resolve the default parties", ex);
                 resolved = DefaultParties.unresolved();
             }
-            this.defaultParties.set(resolved);
+            DefaultParties previous = this.defaultParties.getAndSet(resolved);
             resolved.errors().forEach(error -> getLogger().severe(error));
+            warnIfEscrowChanged(previous, resolved);
             warnIfNoHoldingAccount();
         });
+    }
+
+    /**
+     * On Vault the escrow player is the holding account. Money it already holds stays in that
+     * player's account when another is named, and later payouts and refunds come from the new one.
+     */
+    private void warnIfEscrowChanged(@NotNull DefaultParties previous, @NotNull DefaultParties resolved) {
+        if (this.treasury != null || previous.escrow() == null
+                || java.util.Objects.equals(previous.escrow(), resolved.escrow())) {
+            return;
+        }
+        try {
+            if (this.logic.holdsSaleMoney()) {
+                getLogger().warning("The escrow player changed from " + previous.escrow() + " to "
+                        + resolved.escrow() + " while sales are holding money. The money already held stays with "
+                        + previous.escrow() + "; move it to the new escrow player by hand, or payouts and"
+                        + " refunds from the new one may fail.");
+            }
+        } catch (RuntimeException ex) {
+            getLogger().log(Level.WARNING, "Could not check whether the previous escrow player holds sale money", ex);
+        }
     }
 
     /**
@@ -756,8 +765,9 @@ public final class Realty extends JavaPlugin {
             return HoldingAccount.vault(this::defaultParties);
         }
         try {
-            return HoldingAccount.treasury(this.treasury, getLogger());
+            return TreasuryHoldingAccount.create(this.treasury, getLogger());
         } catch (RuntimeException ex) {
+            this.treasuryHoldingFailure = ex.getMessage() != null ? ex.getMessage() : ex.toString();
             getLogger().log(Level.SEVERE, "Could not find or create Realty's Treasury holding account", ex);
             return HoldingAccount.none();
         }
@@ -765,9 +775,33 @@ public final class Realty extends JavaPlugin {
 
     private void warnIfNoHoldingAccount() {
         HoldingAccount holding = this.holdingAccount;
-        if (holding != null && holding.party().isEmpty()) {
+        if (holding == null || holding.party().isPresent()) {
+            return;
+        }
+        String treasuryFailure = this.treasuryHoldingFailure;
+        if (this.treasury != null) {
+            getLogger().warning("Could not set up Realty's Treasury holding account: "
+                    + (treasuryFailure != null ? treasuryFailure : "unknown reason")
+                    + ". Auctions will not move to payment and offers cannot be accepted.");
+        } else {
             getLogger().warning("No holding account: on Vault, set 'escrow' in settings.yml. Auctions will not move"
                     + " to payment and offers cannot be accepted until it is set.");
+        }
+    }
+
+    /**
+     * Tries an expiry's refund at once. A failure here, even an unexpected one, leaves the refund
+     * row pending for the next run, and the event says it was not paid.
+     */
+    private @NotNull SaleSettlement.ExpiryRefund settleExpiry(@Nullable Integer refundId, @NotNull UUID buyerId,
+                                                              double amount, @NotNull String regionName,
+                                                              @Nullable UUID worldId, @NotNull String reason) {
+        try {
+            return this.settlement.settleExpiry(refundId, buyerId, amount, regionName, worldId, reason);
+        } catch (RuntimeException ex) {
+            getLogger().log(Level.WARNING, "The refund for the expired payment on " + regionName
+                    + " could not be tried now; it will be tried again", ex);
+            return new SaleSettlement.ExpiryRefund(refundId == null ? 0 : amount, false);
         }
     }
 

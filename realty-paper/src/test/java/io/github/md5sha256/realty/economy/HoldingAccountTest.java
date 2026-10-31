@@ -42,7 +42,7 @@ class HoldingAccountTest {
         Account existing = systemAccount(17, true);
         when(treasury.getAccountsByTypeAndOwner(AccountType.SYSTEM, OWNER)).thenReturn(List.of(existing));
 
-        HoldingAccount holding = HoldingAccount.treasury(treasury, LOG);
+        HoldingAccount holding = TreasuryHoldingAccount.create(treasury, LOG);
 
         Assertions.assertEquals(Optional.of(Party.account(17, AccountKind.SYSTEM)), holding.party());
         verify(treasury, never()).createAccount(any(AccountType.class), any(), any());
@@ -56,7 +56,7 @@ class HoldingAccountTest {
     void holdingAccount_treasury_existingWithoutOverdraft_isLeftAlone() {
         when(treasury.getAccountsByTypeAndOwner(AccountType.SYSTEM, OWNER)).thenReturn(List.of(systemAccount(17, false)));
 
-        HoldingAccount holding = HoldingAccount.treasury(treasury, LOG);
+        HoldingAccount holding = TreasuryHoldingAccount.create(treasury, LOG);
 
         Assertions.assertEquals(Optional.of(Party.account(17, AccountKind.SYSTEM)), holding.party());
         verify(treasury, never()).updateAccount(any());
@@ -67,7 +67,7 @@ class HoldingAccountTest {
         when(treasury.getAccountsByTypeAndOwner(AccountType.SYSTEM, OWNER)).thenReturn(List.of());
         when(treasury.createAccount(AccountType.SYSTEM, OWNER, "Realty Holding")).thenReturn(systemAccount(23, false));
 
-        HoldingAccount holding = HoldingAccount.treasury(treasury, LOG);
+        HoldingAccount holding = TreasuryHoldingAccount.create(treasury, LOG);
 
         Assertions.assertEquals(Optional.of(Party.account(23, AccountKind.SYSTEM)), holding.party());
     }

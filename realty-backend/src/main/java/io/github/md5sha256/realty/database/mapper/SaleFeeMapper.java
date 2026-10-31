@@ -47,11 +47,22 @@ public interface SaleFeeMapper {
     @NotNull List<SaleFeeEntity> selectPaying();
 
     /**
-     * Claims the line for payout, moving it from {@code locked} or {@code failed} to {@code paying}.
+     * How many things the holding account holds money for: payments under the new rules with
+     * something paid, payout lines of completed auctions and offers not yet paid, and refunds not
+     * yet paid.
+     */
+    int countHeldForSales();
+
+    /**
+     * Claims the line for payout, moving it to {@code paying}, if it is still due as
+     * {@link #selectDue} defines it.
      *
      * @return 1 if this call claimed the line, 0 if it was not claimable
      */
-    int claim(int saleFeeId);
+    int claim(int saleFeeId, int retryAfterMinutes, int maxAttempts);
+
+    /** The line's failed attempts so far. */
+    int selectAttempts(int saleFeeId);
 
     int markPaid(int saleFeeId);
 

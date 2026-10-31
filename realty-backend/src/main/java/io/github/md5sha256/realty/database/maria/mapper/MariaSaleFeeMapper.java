@@ -128,13 +128,30 @@ public interface MariaSaleFeeMapper extends SaleFeeMapper {
     @NotNull List<SaleFeeEntity> selectPaying();
 
     @Override
+    @Select("""
+            SELECT (SELECT COUNT(*) FROM FreeholdContractBidPayment WHERE oldRules = FALSE AND currentPayment > 0)
+                 + (SELECT COUNT(*) FROM FreeholdContractOfferPayment WHERE oldRules = FALSE AND currentPayment > 0)
+                 + (SELECT COUNT(*) FROM SaleFee
+                    WHERE saleKind <> 'buy' AND status <> 'paid' AND completedAt IS NOT NULL)
+                 + (SELECT COUNT(*) FROM PendingRefund)
+            """)
+    int countHeldForSales();
+
+    @Override
     @Update("""
             UPDATE SaleFee
             SET status = 'paying'
             WHERE saleFeeId = #{saleFeeId}
-            AND status IN ('locked', 'failed')
+            AND attempts < #{maxAttempts}
+            AND ((status = 'locked' AND completedAt IS NOT NULL)
+                 OR (status = 'failed' AND lastAttemptAt < NOW() - INTERVAL #{retryAfterMinutes} MINUTE))
             """)
-    int claim(@Param("saleFeeId") int saleFeeId);
+    int claim(@Param("saleFeeId") int saleFeeId, @Param("retryAfterMinutes") int retryAfterMinutes,
+              @Param("maxAttempts") int maxAttempts);
+
+    @Override
+    @Select("SELECT attempts FROM SaleFee WHERE saleFeeId = #{saleFeeId}")
+    int selectAttempts(@Param("saleFeeId") int saleFeeId);
 
     @Override
     @Update("""

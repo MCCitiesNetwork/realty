@@ -20,6 +20,15 @@ public interface FreeholdContractBidPaymentMapper {
 
     @NotNull List<FreeholdContractBidPaymentEntity> selectAllExpired();
 
+    /** The payment, if it is still there and its deadline has passed by the database clock. */
+    @Nullable FreeholdContractBidPaymentEntity selectExpiredById(int bidId);
+
+    /**
+     * Payments under the new rules that are paid in full but whose sale was never finalized, as when
+     * the finalize failed or the server stopped after the final transfer.
+     */
+    @NotNull List<FreeholdContractBidPaymentEntity> selectFullyPaidUnfinalized();
+
     /** @param totalDue what the bidder owes in all: the price plus any buyer-paid fees */
     int insertPayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId, double bidPrice,
                       @NotNull LocalDateTime paymentDeadline, double totalDue);

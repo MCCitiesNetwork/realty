@@ -90,7 +90,7 @@ public final class RealtyEventDispatch {
      */
     public boolean fireSync(@NotNull FeePaidEvent event) {
         return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
-                "Cancellable synchronous events must be fired from the main thread: ");
+                "FeePaidEvent is never cancellable, so it should never need this message: ");
     }
 
     /**
@@ -99,7 +99,7 @@ public final class RealtyEventDispatch {
      */
     public boolean fireSync(@NotNull RefundPaidEvent event) {
         return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
-                "Cancellable synchronous events must be fired from the main thread: ");
+                "RefundPaidEvent is never cancellable, so it should never need this message: ");
     }
 
     /**

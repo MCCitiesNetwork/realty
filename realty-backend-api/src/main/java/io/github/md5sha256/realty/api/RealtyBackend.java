@@ -18,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -1140,8 +1141,10 @@ public interface RealtyBackend {
      * Commit the ownership transfer for a fully-paid offer purchase. Called ONLY
      * after the economy payment has succeeded, so the region is never handed over
      * before the money moves. Idempotent and a no-op if the record isn't fully paid.
+     *
+     * @return whether the transfer was applied by this call
      */
-    void finalizeOfferPurchase(@NotNull String worldGuardRegionId,
+    boolean finalizeOfferPurchase(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
                                @NotNull UUID offererId);
 
@@ -1180,8 +1183,10 @@ public interface RealtyBackend {
      * Commit the ownership transfer for a fully-paid auction bid. Called ONLY
      * after the economy payment has succeeded, so the region is never handed over
      * before the money moves. Idempotent and a no-op if the record isn't fully paid.
+     *
+     * @return whether the transfer was applied by this call
      */
-    void finalizeBidPurchase(@NotNull String worldGuardRegionId,
+    boolean finalizeBidPurchase(@NotNull String worldGuardRegionId,
                              @NotNull UUID worldId,
                              @NotNull UUID bidderId);
 
@@ -1199,22 +1204,28 @@ public interface RealtyBackend {
     // --- Expired Bid Payments ---
 
     /**
-     * @param worldId  null if the region row has already been deleted
-     * @param oldRules whether the payment began before sale fees, so its instalments went to the seller
+     * @param refundAmount what the bidder had paid
+     * @param worldId      null if the region row has already been deleted
+     * @param oldRules     whether the payment began before sale fees, so its instalments went to the seller
+     * @param refundId     the {@link DueRefund} recorded for what was paid, in the transaction that
+     *                     expired the payment; null when nothing is owed back
      */
     record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId,
-                              @Nullable UUID worldId, boolean oldRules) {}
+                              @Nullable UUID worldId, boolean oldRules, @Nullable Integer refundId) {}
 
     @NotNull List<ExpiredBidPayment> clearExpiredBidPayments();
 
     // --- Expired Offer Payments ---
 
     /**
-     * @param worldId  null if the region row has already been deleted
-     * @param oldRules whether the payment began before sale fees, so its instalments went to the seller
+     * @param refundAmount what the offerer had paid
+     * @param worldId      null if the region row has already been deleted
+     * @param oldRules     whether the payment began before sale fees, so its instalments went to the seller
+     * @param refundId     the {@link DueRefund} recorded for what was paid, in the transaction that
+     *                     expired the payment; null when nothing is owed back
      */
     record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount, @NotNull String regionId,
-                                @Nullable UUID worldId, boolean oldRules) {}
+                                @Nullable UUID worldId, boolean oldRules, @Nullable Integer refundId) {}
 
     @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments();
 
@@ -1248,33 +1259,30 @@ public interface RealtyBackend {
     @NotNull List<DuePayout> duePayouts();
 
     /**
-     * Claims a payout line for this caller, so that no other run pays it too.
+     * Claims a payout line for this caller, so that no other run pays it too. The line must still
+     * be due: claimed by nobody, paid by nobody, with attempts left and its retry interval passed.
      *
-     * @return {@code false} when the line was already claimed or paid
+     * @return the line's failed attempts so far, read under the claim, or empty when it was not
+     *         claimed
      */
-    boolean claimPayout(int id);
+    @NotNull OptionalInt claimPayout(int id);
 
     void markPayoutPaid(int id);
 
     /** Records a failed payout attempt; the line is retried after the retry interval. */
     void markPayoutFailed(int id, @NotNull String error);
 
-    /**
-     * Records a refund that could not be paid, counting the failed attempt, so that it is retried
-     * after the retry interval.
-     */
-    void recordPendingRefund(@NotNull UUID buyerId, double amount, @NotNull String regionName,
-                             @Nullable UUID worldId, @NotNull String reason, @NotNull String error);
-
     /** The pending refunds due now: never tried, or failed with the retry interval passed. */
     @NotNull List<DueRefund> dueRefunds();
 
     /**
-     * Claims a pending refund for this caller, so that no other run pays it too.
+     * Claims a pending refund for this caller, so that no other run pays it too. The refund must
+     * still be due: claimed by nobody, with attempts left and its retry interval passed.
      *
-     * @return {@code false} when the refund was already claimed or paid
+     * @return the refund's failed attempts so far, read under the claim, or empty when it was not
+     *         claimed
      */
-    boolean claimRefund(int id);
+    @NotNull OptionalInt claimRefund(int id);
 
     /** Removes a refund that has been paid. */
     void markRefundPaid(int id);
@@ -1290,6 +1298,32 @@ public interface RealtyBackend {
 
     /** The refunds claimed and never marked paid or failed; see {@link #stuckPayouts()}. */
     @NotNull List<DueRefund> stuckRefunds();
+
+    /**
+     * Whether the holding account holds money for any sale: instalments paid under the new rules,
+     * payouts of completed sales not yet made, or refunds not yet paid.
+     */
+    boolean holdsSaleMoney();
+
+    /**
+     * A sale paid in full, under the new rules, whose ownership transfer was never applied: its
+     * finalize failed, or the server stopped after the final transfer. The money is in the holding
+     * account.
+     *
+     * @param kind          an auction or an accepted offer
+     * @param titleHolderId the titleholder selling, or null when the authority sells
+     * @param price         the sale's price
+     * @param fees          the fees locked for the sale
+     */
+    record PendingFinalize(@NotNull Kind kind, @NotNull String regionId, @NotNull UUID worldId,
+                           @NotNull UUID buyerId, @Nullable UUID titleHolderId, double price,
+                           @NotNull FeeQuote fees) {
+
+        public enum Kind { BID, OFFER }
+    }
+
+    /** Every sale {@link PendingFinalize} describes, for the scheduler to finish. */
+    @NotNull List<PendingFinalize> listFullyPaidUnfinalized();
 
     // --- Expired Leaseholds ---
 

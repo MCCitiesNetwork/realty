@@ -85,8 +85,37 @@ public interface MariaPendingRefundMapper extends PendingRefundMapper {
             SET status = 'paying'
             WHERE pendingRefundId = #{pendingRefundId}
             AND status = 'pending'
+            AND attempts < #{maxAttempts}
+            AND (lastAttemptAt IS NULL OR lastAttemptAt < NOW() - INTERVAL #{retryAfterMinutes} MINUTE)
             """)
-    int claim(@Param("pendingRefundId") int pendingRefundId);
+    int claim(@Param("pendingRefundId") int pendingRefundId, @Param("retryAfterMinutes") int retryAfterMinutes,
+              @Param("maxAttempts") int maxAttempts);
+
+    @Override
+    @Select("SELECT attempts FROM PendingRefund WHERE pendingRefundId = #{pendingRefundId}")
+    int selectAttempts(@Param("pendingRefundId") int pendingRefundId);
+
+    @Override
+    @Select("""
+            SELECT pendingRefundId, buyerId, amount, regionName, worldId, reason, status, attempts,
+                   lastAttemptAt, lastError
+            FROM PendingRefund
+            WHERE status = 'pending'
+            AND buyerId = #{buyerId}
+            AND regionName = #{regionName}
+            AND worldId <=> #{worldId}
+            ORDER BY pendingRefundId DESC
+            LIMIT 1
+            FOR UPDATE
+            """)
+    @ResultMap("pendingRefundRow")
+    @Nullable PendingRefundEntity selectPendingForUpdate(@Param("buyerId") @NotNull UUID buyerId,
+                                                         @Param("regionName") @NotNull String regionName,
+                                                         @Param("worldId") @Nullable UUID worldId);
+
+    @Override
+    @Update("UPDATE PendingRefund SET amount = #{amount} WHERE pendingRefundId = #{pendingRefundId}")
+    int updateAmount(@Param("pendingRefundId") int pendingRefundId, @Param("amount") double amount);
 
     @Override
     @Delete("""

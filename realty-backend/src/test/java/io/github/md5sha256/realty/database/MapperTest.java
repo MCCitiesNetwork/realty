@@ -1886,8 +1886,11 @@ class MapperTest extends AbstractDatabaseTest {
                 session.commit();
                 Assertions.assertTrue(saleFeeId > 0);
 
-                Assertions.assertEquals(1, wrapper.saleFeeMapper().claim(saleFeeId));
-                Assertions.assertEquals(0, wrapper.saleFeeMapper().claim(saleFeeId));
+                Assertions.assertEquals(0, wrapper.saleFeeMapper().claim(saleFeeId, 60, 24),
+                        "a line of an uncompleted sale is not claimable");
+                Assertions.assertEquals(1, wrapper.saleFeeMapper().markCompleted("bid", 11));
+                Assertions.assertEquals(1, wrapper.saleFeeMapper().claim(saleFeeId, 60, 24));
+                Assertions.assertEquals(0, wrapper.saleFeeMapper().claim(saleFeeId, 60, 24));
                 session.commit();
             }
         }

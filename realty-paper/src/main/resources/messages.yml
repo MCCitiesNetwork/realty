@@ -240,6 +240,8 @@ pay-bid:
         not available.'
     transfer-success: <prefix> The title for region <gold><region></gold> has been
         <green>successfully transferred</green> to you. <green>:)</green>
+    finalize-pending: <prefix> Your payment for region <gold><region></gold> is complete
+        and held safely. The title will be transferred to you shortly.
 pay-offer:
     insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
     payment-failed: '<prefix> Payment failed: <error>'
@@ -260,6 +262,8 @@ pay-offer:
     transfer-failed: 'Failed to transfer region: WorldGuard region manager not available.'
     transfer-success: <prefix> The title for region <gold><region></gold> has been
         <green>successfully transferred</green> to you. <green>:)</green>
+    finalize-pending: <prefix> Your payment for region <gold><region></gold> is complete
+        and held safely. The title will be transferred to you shortly.
 help:
     main:
     - <prefix> Commands
