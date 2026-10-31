@@ -108,6 +108,39 @@ class FeesConfigTest {
     }
 
     @Test
+    @DisplayName("a levy with an out-of-range tier is dropped")
+    void invalidTier_dropsThatLevy() throws IOException {
+        FeeSettings settings = parse("""
+                levies:
+                  - { name: neg, enabled: true, paid-by: buyer, rules: [{ tiers: [{ from-plots: 0, percent: -1 }] }] }
+                  - { name: big, enabled: true, paid-by: buyer, rules: [{ tiers: [{ from-plots: 0, percent: 101 }] }] }
+                  - { name: nan, enabled: true, paid-by: buyer, rules: [{ tiers: [{ from-plots: 0, percent: .nan }] }] }
+                  - { name: from, enabled: true, paid-by: buyer, rules: [{ tiers: [{ from-plots: -1, percent: 5 }] }] }
+                  - { name: ok, enabled: true, paid-by: buyer, rules: [{ tiers: [{ from-plots: 0, percent: 100 }] }] }
+                """);
+        LevyCatalog catalog = ConfiguredLevyCatalog.compile(settings, resolver(), LOG);
+        Assertions.assertEquals(1, catalog.all().size());
+        Assertions.assertTrue(catalog.find("ok").isPresent());
+    }
+
+    @Test
+    @DisplayName("a recipient that names nothing usable drops the levy instead of paying the authority")
+    void malformedRecipient_dropsThatLevy() throws IOException {
+        FeeSettings settings = parse("""
+                levies:
+                  - { name: typo, enabled: true, paid-by: buyer, recipient: { nmae: Known } }
+                  - { name: empty, enabled: true, paid-by: buyer, recipient: {} }
+                  - { name: auth, enabled: true, paid-by: buyer, recipient: authority }
+                  - { name: omitted, enabled: true, paid-by: buyer }
+                """);
+        LevyCatalog catalog = ConfiguredLevyCatalog.compile(settings, resolver(), LOG);
+        Assertions.assertTrue(catalog.find("typo").isEmpty());
+        Assertions.assertTrue(catalog.find("empty").isEmpty());
+        Assertions.assertTrue(catalog.find("auth").isPresent());
+        Assertions.assertTrue(catalog.find("omitted").isPresent());
+    }
+
+    @Test
     @DisplayName("a levy whose recipient does not resolve is dropped")
     void unknownRecipient_dropsThatLevy() throws IOException {
         FeeSettings settings = parse("""

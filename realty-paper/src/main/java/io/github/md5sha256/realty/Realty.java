@@ -178,6 +178,7 @@ public final class Realty extends JavaPlugin {
     private final AtomicReference<TaxSettings> taxSettings = new AtomicReference<>();
     private final AtomicReference<FeeSettings> feeSettings = new AtomicReference<>();
     private final AtomicReference<LevyCatalog> levyCatalog = new AtomicReference<>(LevyCatalog.EMPTY);
+    private final java.util.concurrent.atomic.AtomicLong levyCatalogGeneration = new java.util.concurrent.atomic.AtomicLong();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
     private EconomyProvider economyProvider;
@@ -722,6 +723,7 @@ public final class Realty extends JavaPlugin {
     private void compileLevyCatalog() {
         FeeSettings current = this.feeSettings.get();
         PartyResolver resolver = this.partyResolver;
+        long generation = this.levyCatalogGeneration.incrementAndGet();
         this.executorState.dbExec().execute(() -> {
             LevyCatalog compiled;
             try {
@@ -730,7 +732,12 @@ public final class Realty extends JavaPlugin {
                 getLogger().log(Level.SEVERE, "Failed to compile the levies of fees.yml", ex);
                 compiled = LevyCatalog.EMPTY;
             }
-            this.levyCatalog.set(compiled);
+            // dbExec has several threads, so an older compile can finish after a newer one.
+            synchronized (this.levyCatalogGeneration) {
+                if (this.levyCatalogGeneration.get() == generation) {
+                    this.levyCatalog.set(compiled);
+                }
+            }
         });
     }
 

@@ -72,7 +72,7 @@ public record DefaultParties(@Nullable Party freeholdAuthority,
 
     /** Resolves one named party; a failure is added to {@code errors} and gives {@code null}. */
     public static @Nullable Party resolveSetting(@NotNull String key, @NotNull PartySetting setting,
-                                                  @NotNull PartyResolver resolver, @NotNull List<String> errors) {
+                                                 @NotNull PartyResolver resolver, @NotNull List<String> errors) {
         PartyFlag type = setting.type();
         if (type == null && setting.uuid() != null) {
             return Party.personal(setting.uuid());

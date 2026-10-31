@@ -11,6 +11,7 @@ import io.github.md5sha256.realty.settings.DefaultParties;
 import io.github.md5sha256.realty.settings.FeeSettings;
 import io.github.md5sha256.realty.settings.LevyRuleSetting;
 import io.github.md5sha256.realty.settings.LevySetting;
+import io.github.md5sha256.realty.settings.LevyTierSetting;
 import io.github.md5sha256.realty.settings.PartySetting;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -19,6 +20,7 @@ import org.spongepowered.configurate.serialize.SerializationException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -118,11 +120,19 @@ public final class ConfiguredLevyCatalog implements LevyCatalog {
         }
         List<LevyRule> rules = new ArrayList<>();
         for (LevyRuleSetting rule : setting.rules()) {
-            List<LevyTier> tiers = rule.tiers().stream()
-                    .map(tier -> new LevyTier(tier.fromPlots(), tier.percent()))
-                    .toList();
-            rules.add(new LevyRule(new java.util.LinkedHashSet<>(rule.match().all()),
-                    new java.util.LinkedHashSet<>(rule.match().any()), tiers));
+            List<LevyTier> tiers = new ArrayList<>();
+            for (LevyTierSetting tier : rule.tiers()) {
+                double percent = tier.percent();
+                if (Double.isNaN(percent) || percent < 0 || percent > 100 || tier.fromPlots() < 0) {
+                    logger.severe("fees.yml levy '" + name + "' has a tier with from-plots " + tier.fromPlots()
+                            + " and percent " + percent + "; from-plots must be 0 or more and percent from 0 to 100."
+                            + " The levy is dropped");
+                    return null;
+                }
+                tiers.add(new LevyTier(tier.fromPlots(), percent));
+            }
+            rules.add(new LevyRule(new LinkedHashSet<>(rule.match().all()),
+                    new LinkedHashSet<>(rule.match().any()), tiers));
         }
         return new LevyDefinition(name, setting.enabled(), setting.isDefault(), paidBy, recipient,
                 setting.authorityKind(), rules);
@@ -135,13 +145,13 @@ public final class ConfiguredLevyCatalog implements LevyCatalog {
      */
     private static @Nullable PartySetting recipientSetting(@Nullable ConfigurationNode node)
             throws SerializationException {
-        if (node == null || node.virtual() || node.empty() && !node.isMap()) {
+        if (node == null || node.virtual() || node.raw() == null) {
             return null;
         }
         if (node.isMap()) {
             PartySetting party = node.get(PartySetting.class);
             if (party == null || party.name() == null && party.uuid() == null && party.type() == null) {
-                return null;
+                throw new SerializationException("it needs a name or a uuid (or write 'authority')");
             }
             if (party.type() == null && party.uuid() == null && party.name() != null
                     && party.name().trim().equalsIgnoreCase("authority")) {
@@ -150,7 +160,9 @@ public final class ConfiguredLevyCatalog implements LevyCatalog {
             return party;
         }
         String text = node.getString();
-        return text == null || text.isBlank() || text.trim().equalsIgnoreCase("authority")
-                ? null : new PartySetting(text.trim(), null, null);
+        if (text == null || text.isBlank()) {
+            throw new SerializationException("it is not a name or a map");
+        }
+        return text.trim().equalsIgnoreCase("authority") ? null : new PartySetting(text.trim(), null, null);
     }
 }
