@@ -5,6 +5,10 @@ import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaPartyMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaRegionFeeMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaLevyChoiceMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaSaleFeeMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaPendingRefundMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdContractMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaLeaseholdModificationMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyRegionMapper;
@@ -119,6 +123,10 @@ public class MariaDatabase implements Database {
         configuration.addMapper(MariaStatisticsMapper.class);
         configuration.addMapper(MariaRealtyWorldMapper.class);
         configuration.addMapper(MariaRealtySchematicMapper.class);
+        configuration.addMapper(MariaRegionFeeMapper.class);
+        configuration.addMapper(MariaLevyChoiceMapper.class);
+        configuration.addMapper(MariaSaleFeeMapper.class);
+        configuration.addMapper(MariaPendingRefundMapper.class);
         return new SqlSessionFactoryBuilder().build(configuration);
     }
 

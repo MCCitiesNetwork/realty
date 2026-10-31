@@ -23,6 +23,10 @@ import io.github.md5sha256.realty.database.mapper.StatisticsMapper;
 import io.github.md5sha256.realty.database.mapper.SearchMapper;
 import io.github.md5sha256.realty.database.mapper.RealtySchematicMapper;
 import io.github.md5sha256.realty.database.mapper.RealtyWorldMapper;
+import io.github.md5sha256.realty.database.mapper.RegionFeeMapper;
+import io.github.md5sha256.realty.database.mapper.LevyChoiceMapper;
+import io.github.md5sha256.realty.database.mapper.SaleFeeMapper;
+import io.github.md5sha256.realty.database.mapper.PendingRefundMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -77,6 +81,14 @@ public interface SqlSessionWrapper extends Closeable {
     @NotNull RealtyWorldMapper realtyWorldMapper();
 
     @NotNull RealtySchematicMapper realtySchematicMapper();
+
+    @NotNull RegionFeeMapper regionFeeMapper();
+
+    @NotNull LevyChoiceMapper levyChoiceMapper();
+
+    @NotNull SaleFeeMapper saleFeeMapper();
+
+    @NotNull PendingRefundMapper pendingRefundMapper();
 
     @Override
     void close();

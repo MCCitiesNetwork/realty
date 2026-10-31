@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database;
 
 import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.ActorContext;
+import io.github.md5sha256.realty.api.FeeSide;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
@@ -16,6 +17,8 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdContractOfferPaymentEntity;
 import io.github.md5sha256.realty.database.entity.FreeholdHistoryEntity;
+import io.github.md5sha256.realty.database.entity.RegionFeeEntity;
+import io.github.md5sha256.realty.database.entity.SaleFeeEntity;
 import org.apache.ibatis.session.SqlSession;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -1814,6 +1817,124 @@ class MapperTest extends AbstractDatabaseTest {
                 Assertions.assertTrue(resultSet.next());
                 Assertions.assertEquals("SET_PRICE", resultSet.getString("eventType"));
                 Assertions.assertEquals(PLAYER_A, resultSet.getObject("buyerId", UUID.class));
+            }
+        }
+    }
+
+    // ==================== Sale fee mappers ====================
+
+    @Nested
+    @DisplayName("Sale fee mappers")
+    class SaleFeeMapperTests {
+
+        private int registerRegion(String regionId) {
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                int id = wrapper.realtyRegionMapper().registerWorldGuardRegion(regionId, WORLD_ID);
+                session.commit();
+                return id;
+            }
+        }
+
+        private int personalParty(UUID player) {
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                int id = wrapper.partyMapper().findOrInsert(Party.personal(player));
+                session.commit();
+                return id;
+            }
+        }
+
+        private SaleFeeEntity lockedLine(int realtyRegionId, String regionName, int saleRef, int recipientPartyId) {
+            return new SaleFeeEntity(0, "bid", saleRef, realtyRegionId, regionName, WORLD_ID, PLAYER_B,
+                    "fee", "levy:stamp-duty", recipientPartyId, FeeSide.BUYER, 5.0, 50.0,
+                    "locked", null, 0, null, null);
+        }
+
+        @Test
+        @DisplayName("upsert of the same recipient replaces its fee")
+        void regionFee_upsertReplacesSameRecipient() {
+            int regionId = registerRegion(uniqueRegionId());
+            int recipient = personalParty(PLAYER_A);
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                wrapper.regionFeeMapper().upsert(regionId, recipient, FeeSide.SELLER, 3.0, "titleholder", PLAYER_A, true);
+                wrapper.regionFeeMapper().upsert(regionId, recipient, FeeSide.BUYER, 7.5, "agent", PLAYER_C, false);
+                session.commit();
+
+                List<RegionFeeEntity> fees = wrapper.regionFeeMapper().selectByRegion(regionId);
+                Assertions.assertEquals(1, fees.size());
+                RegionFeeEntity fee = fees.getFirst();
+                Assertions.assertEquals(recipient, fee.recipientPartyId());
+                Assertions.assertEquals(FeeSide.BUYER, fee.side());
+                Assertions.assertEquals(7.5, fee.percent(), 0.0001);
+                Assertions.assertEquals("agent", fee.role());
+                Assertions.assertEquals(PLAYER_C, fee.setBy());
+                Assertions.assertFalse(fee.approved());
+            }
+        }
+
+        @Test
+        @DisplayName("a line is claimed only once")
+        void saleFee_claimOnlyOnce() {
+            String regionName = uniqueRegionId();
+            int regionId = registerRegion(regionName);
+            int recipient = personalParty(PLAYER_A);
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                int saleFeeId = wrapper.saleFeeMapper().insert(lockedLine(regionId, regionName, 11, recipient));
+                session.commit();
+                Assertions.assertTrue(saleFeeId > 0);
+
+                Assertions.assertEquals(1, wrapper.saleFeeMapper().claim(saleFeeId));
+                Assertions.assertEquals(0, wrapper.saleFeeMapper().claim(saleFeeId));
+                session.commit();
+            }
+        }
+
+        @Test
+        @DisplayName("selectDue skips locked lines of a sale that has not completed")
+        void saleFee_selectDue_skipsUncompletedLocked() {
+            String regionName = uniqueRegionId();
+            int regionId = registerRegion(regionName);
+            int recipient = personalParty(PLAYER_A);
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                int pending = wrapper.saleFeeMapper().insert(lockedLine(regionId, regionName, 21, recipient));
+                int completed = wrapper.saleFeeMapper().insert(lockedLine(regionId, regionName, 22, recipient));
+                Assertions.assertEquals(1, wrapper.saleFeeMapper().markCompleted("bid", 22));
+                session.commit();
+
+                List<Integer> due = wrapper.saleFeeMapper()
+                        .selectDue(LocalDateTime.now().plusMinutes(1), 5)
+                        .stream().map(SaleFeeEntity::saleFeeId).toList();
+                Assertions.assertTrue(due.contains(completed), "a completed sale's line is due");
+                Assertions.assertFalse(due.contains(pending), "an uncompleted sale's line is not due");
+            }
+        }
+
+        @Test
+        @DisplayName("a line outlives its region, with the region id cleared")
+        void saleFee_survivesRegionDelete() {
+            String regionName = uniqueRegionId();
+            int regionId = registerRegion(regionName);
+            int recipient = personalParty(PLAYER_A);
+            int saleFeeId;
+            try (SqlSessionWrapper wrapper = database.openSession();
+                 SqlSession session = wrapper.session()) {
+                saleFeeId = wrapper.saleFeeMapper().insert(lockedLine(regionId, regionName, 31, recipient));
+                session.commit();
+            }
+
+            Assertions.assertEquals(1, logic.deleteRegion(regionName, WORLD_ID));
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                List<SaleFeeEntity> lines = wrapper.saleFeeMapper().selectBySale("bid", 31);
+                Assertions.assertEquals(1, lines.size());
+                SaleFeeEntity line = lines.getFirst();
+                Assertions.assertEquals(saleFeeId, line.saleFeeId());
+                Assertions.assertNull(line.realtyRegionId());
+                Assertions.assertEquals(regionName, line.regionName());
             }
         }
     }

@@ -26,7 +26,7 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
     @Override
     @Select("""
             SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
-                   scop.paymentDeadline, scop.currentPayment
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy
             FROM FreeholdContractOfferPayment scop
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scop.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -38,7 +38,10 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
             @Arg(column = "offererId", javaType = UUID.class),
             @Arg(column = "offerPrice", javaType = double.class),
             @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
-            @Arg(column = "currentPayment", javaType = double.class)
+            @Arg(column = "currentPayment", javaType = double.class),
+            @Arg(column = "totalDue", javaType = double.class),
+            @Arg(column = "oldRules", javaType = boolean.class),
+            @Arg(column = "acceptedBy", javaType = UUID.class)
     })
     @Nullable FreeholdContractOfferPaymentEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                              @Param("worldId") @NotNull UUID worldId);
@@ -46,7 +49,7 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
     @Override
     @Select("""
             SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
-                   scop.paymentDeadline, scop.currentPayment
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy
             FROM FreeholdContractOfferPayment scop
             WHERE scop.paymentDeadline < NOW()
             """)
@@ -56,14 +59,17 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
             @Arg(column = "offererId", javaType = UUID.class),
             @Arg(column = "offerPrice", javaType = double.class),
             @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
-            @Arg(column = "currentPayment", javaType = double.class)
+            @Arg(column = "currentPayment", javaType = double.class),
+            @Arg(column = "totalDue", javaType = double.class),
+            @Arg(column = "oldRules", javaType = boolean.class),
+            @Arg(column = "acceptedBy", javaType = UUID.class)
     })
     @NotNull List<FreeholdContractOfferPaymentEntity> selectAllExpired();
 
     @Override
     @Insert("""
-            INSERT INTO FreeholdContractOfferPayment (offerId, realtyRegionId, offererId, offerPrice, paymentDeadline, currentPayment)
-            SELECT sco.offerId, rr.realtyRegionId, sco.offererId, sco.offerPrice, #{paymentDeadline}, 0
+            INSERT INTO FreeholdContractOfferPayment (offerId, realtyRegionId, offererId, offerPrice, paymentDeadline, currentPayment, totalDue)
+            SELECT sco.offerId, rr.realtyRegionId, sco.offererId, sco.offerPrice, #{paymentDeadline}, 0, sco.offerPrice
             FROM FreeholdContractOffer sco
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sco.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}

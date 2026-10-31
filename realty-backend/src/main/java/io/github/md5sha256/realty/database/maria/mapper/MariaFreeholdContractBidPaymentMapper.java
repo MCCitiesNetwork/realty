@@ -26,7 +26,7 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
     @Override
     @Select("""
             SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
-                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules
             FROM FreeholdContractBidPayment scbp
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scbp.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -39,7 +39,9 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
             @Arg(column = "bidderId", javaType = UUID.class),
             @Arg(column = "bidPrice", javaType = double.class),
             @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
-            @Arg(column = "currentPayment", javaType = double.class)
+            @Arg(column = "currentPayment", javaType = double.class),
+            @Arg(column = "totalDue", javaType = double.class),
+            @Arg(column = "oldRules", javaType = boolean.class)
     })
     @Nullable FreeholdContractBidPaymentEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                            @Param("worldId") @NotNull UUID worldId);
@@ -47,7 +49,7 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
     @Override
     @Select("""
             SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
-                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules
             FROM FreeholdContractBidPayment scbp
             WHERE scbp.paymentDeadline < NOW()
             """)
@@ -58,14 +60,16 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
             @Arg(column = "bidderId", javaType = UUID.class),
             @Arg(column = "bidPrice", javaType = double.class),
             @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
-            @Arg(column = "currentPayment", javaType = double.class)
+            @Arg(column = "currentPayment", javaType = double.class),
+            @Arg(column = "totalDue", javaType = double.class),
+            @Arg(column = "oldRules", javaType = boolean.class)
     })
     @NotNull List<FreeholdContractBidPaymentEntity> selectAllExpired();
 
     @Override
     @Insert("""
-            INSERT INTO FreeholdContractBidPayment (bidId, freeholdContractAuctionId, realtyRegionId, bidderId, bidPrice, paymentDeadline, currentPayment)
-            SELECT scb.bidId, scb.freeholdContractAuctionId, sca.realtyRegionId, scb.bidderId, scb.bidPrice, #{paymentDeadline}, 0
+            INSERT INTO FreeholdContractBidPayment (bidId, freeholdContractAuctionId, realtyRegionId, bidderId, bidPrice, paymentDeadline, currentPayment, totalDue)
+            SELECT scb.bidId, scb.freeholdContractAuctionId, sca.realtyRegionId, scb.bidderId, scb.bidPrice, #{paymentDeadline}, 0, scb.bidPrice
             FROM FreeholdContractBid scb
             INNER JOIN FreeholdContractAuction sca ON sca.freeholdContractAuctionId = scb.freeholdContractAuctionId
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
@@ -83,8 +87,8 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
 
     @Override
     @Insert("""
-            INSERT INTO FreeholdContractBidPayment (bidId, freeholdContractAuctionId, realtyRegionId, bidderId, bidPrice, paymentDeadline, currentPayment)
-            SELECT scb.bidId, scb.freeholdContractAuctionId, sca.realtyRegionId, scb.bidderId, scb.bidPrice, #{paymentDeadline}, 0
+            INSERT INTO FreeholdContractBidPayment (bidId, freeholdContractAuctionId, realtyRegionId, bidderId, bidPrice, paymentDeadline, currentPayment, totalDue)
+            SELECT scb.bidId, scb.freeholdContractAuctionId, sca.realtyRegionId, scb.bidderId, scb.bidPrice, #{paymentDeadline}, 0, scb.bidPrice
             FROM FreeholdContractBid scb
             INNER JOIN FreeholdContractAuction sca ON sca.freeholdContractAuctionId = scb.freeholdContractAuctionId
             WHERE scb.freeholdContractAuctionId = #{freeholdContractAuctionId}
