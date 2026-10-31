@@ -144,8 +144,6 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     private static final String PAYMENT_IN_PROGRESS = "an earlier payment is still being processed";
-    private static final String OLD_RULES_NOT_FINALIZED =
-            "your payment was made, but the title could not be transferred; an admin has been alerted";
 
     /** Why an instalment is refused while no holding account is configured. */
     private static final String NO_HOLDING_ACCOUNT = "no holding account";
@@ -759,7 +757,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<PayBidResult> payBid(@NotNull WorldGuardRegion region,
                                                             @NotNull UUID bidderId,
-                                                            double amount) {
+                                                            double requested) {
+        // Money moves in whole cents: what is counted is exactly what is transferred.
+        double amount = Money.cents(requested);
+        if (amount <= 0) {
+            return CompletableFuture.completedFuture(new PayBidResult.InvalidAmount(requested));
+        }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // DB-first: atomically update payment record before withdrawing economy.
@@ -780,6 +783,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             case RealtyBackend.PayBidResult.PaymentExpired ignored ->
                     CompletableFuture.completedFuture(
                             (PayBidResult) new PayBidResult.PaymentExpired(regionId));
+            case RealtyBackend.PayBidResult.InvalidAmount ignored ->
+                    CompletableFuture.completedFuture((PayBidResult) new PayBidResult.InvalidAmount(requested));
             case RealtyBackend.PayBidResult.PaymentInProgress ignored ->
                     CompletableFuture.completedFuture(
                             (PayBidResult) new PayBidResult.PaymentFailed(PAYMENT_IN_PROGRESS));
@@ -854,10 +859,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Money has cleared — now (and only now) commit the ownership transfer.
         if (!finalized(RealtyBackend.PendingFinalize.Kind.BID, regionId, worldId, bidderId, amount,
                 fullyPaid.oldRules(), true)) {
-            // Under the old rules the money went to the seller and nothing retries the sale.
-            return CompletableFuture.completedFuture(fullyPaid.oldRules()
-                    ? new PayBidResult.Error(OLD_RULES_NOT_FINALIZED)
-                    : new PayBidResult.FinalizePending(amount, regionId));
+            // The scheduler finishes it, under either rules.
+            return CompletableFuture.completedFuture(
+                    new PayBidResult.FinalizePending(amount, regionId, fullyPaid.oldRules()));
         }
         completeSale(region, RealtyBackend.PendingFinalize.Kind.BID, bidderId, fullyPaid.titleHolderId(),
                 fullyPaid.fees().price(), fullyPaid.fees(), !fullyPaid.oldRules(),
@@ -886,7 +890,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<PayOfferResult> payOffer(@NotNull WorldGuardRegion region,
                                                                 @NotNull UUID offererId,
-                                                                double amount) {
+                                                                double requested) {
+        // Money moves in whole cents: what is counted is exactly what is transferred.
+        double amount = Money.cents(requested);
+        if (amount <= 0) {
+            return CompletableFuture.completedFuture(new PayOfferResult.InvalidAmount(requested));
+        }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // DB-first: atomically update payment record before withdrawing economy.
@@ -907,6 +916,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             case RealtyBackend.PayOfferResult.PaymentExpired ignored ->
                     CompletableFuture.completedFuture(
                             (PayOfferResult) new PayOfferResult.PaymentExpired(regionId));
+            case RealtyBackend.PayOfferResult.InvalidAmount ignored ->
+                    CompletableFuture.completedFuture((PayOfferResult) new PayOfferResult.InvalidAmount(requested));
             case RealtyBackend.PayOfferResult.PaymentInProgress ignored ->
                     CompletableFuture.completedFuture(
                             (PayOfferResult) new PayOfferResult.PaymentFailed(PAYMENT_IN_PROGRESS));
@@ -981,9 +992,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Money has cleared — now (and only now) commit the ownership transfer.
         if (!finalized(RealtyBackend.PendingFinalize.Kind.OFFER, regionId, worldId, offererId, amount,
                 fullyPaid.oldRules(), true)) {
-            return CompletableFuture.completedFuture(fullyPaid.oldRules()
-                    ? new PayOfferResult.Error(OLD_RULES_NOT_FINALIZED)
-                    : new PayOfferResult.FinalizePending(amount, regionId));
+            return CompletableFuture.completedFuture(
+                    new PayOfferResult.FinalizePending(amount, regionId, fullyPaid.oldRules()));
         }
         completeSale(region, RealtyBackend.PendingFinalize.Kind.OFFER, offererId, fullyPaid.titleHolderId(),
                 fullyPaid.fees().price(), fullyPaid.fees(), !fullyPaid.oldRules(),
@@ -994,8 +1004,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     /**
      * Applies the ownership transfer of a sale whose final payment has been made. A finalize that
-     * throws or applies nothing leaves the money held: under the new rules the scheduler finishes
-     * the sale later.
+     * throws or applies nothing leaves the sale for the scheduler to finish later: under the new
+     * rules its money stays held, under the old rules it already went to the seller.
      *
      * @return whether the transfer was applied, so the world may change
      */
@@ -1051,8 +1061,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     private static @NotNull String finishLater(boolean oldRules) {
         return oldRules
-                ? "The payment began before sale fees and went to the seller, so it is not retried; finish the"
-                        + " sale by hand."
+                ? "The payment began before sale fees and went to the seller; the title will be transferred on"
+                        + " the next scheduler run."
                 : "The money is held, and the sale will be finished on the next scheduler run.";
     }
 
@@ -1105,8 +1115,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private @NotNull CompletableFuture<Void> finishPendingSale(@NotNull RealtyBackend.PendingFinalize sale) {
         java.util.concurrent.atomic.AtomicBoolean finalizedNow = new java.util.concurrent.atomic.AtomicBoolean();
         return serializeByRegion(sale.regionId(), sale.worldId(), () -> CompletableFuture.supplyAsync(() -> {
-            if (!finalized(sale.kind(), sale.regionId(), sale.worldId(), sale.buyerId(), sale.price(), false,
-                    false)) {
+            if (!finalized(sale.kind(), sale.regionId(), sale.worldId(), sale.buyerId(), sale.price(),
+                    sale.oldRules(), false)) {
                 return null;
             }
             finalizedNow.set(true);
@@ -1119,11 +1129,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             if (region == null) {
                 logger.warning("The sale of " + sale.regionId() + " to " + sale.buyerId() + " was finished, but"
                         + " WorldGuard does not know the region, so its owners and signs were not updated.");
-                payOutInBackground();
+                if (!sale.oldRules()) {
+                    payOutInBackground();
+                }
                 return;
             }
+            // Under the old rules the seller was paid as the instalments came in: nothing is paid out.
             completeSale(region, sale.kind(), sale.buyerId(), sale.titleHolderId(), sale.price(), sale.fees(),
-                    true, placeholders);
+                    !sale.oldRules(), placeholders);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             if (finalizedNow.get()) {
                 logger.log(Level.SEVERE, "The sale of " + sale.regionId() + " to " + sale.buyerId() + " was"
@@ -1196,6 +1209,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetTitleHolderResult) new SetTitleHolderResult.NotAuthorized(regionId);
             case RealtyBackend.SetTitleHolderResult.NoChange ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NoChange(regionId);
+            case RealtyBackend.SetTitleHolderResult.SaleInPayment ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.SaleInPayment(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -1245,6 +1260,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetTitleHolderResult) new SetTitleHolderResult.NotAuthorized(regionId);
             case RealtyBackend.SetTitleHolderResult.NoChange ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NoChange(regionId);
+            case RealtyBackend.SetTitleHolderResult.SaleInPayment ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.SaleInPayment(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {

@@ -120,6 +120,14 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         return payment;
     }
 
+    /** Marks the region's bid payment, and no other, as begun before sale fees. */
+    private static void markOldRules(String regionId) {
+        Assertions.assertEquals(1, update("""
+                UPDATE FreeholdContractBidPayment SET oldRules = TRUE
+                WHERE realtyRegionId = (SELECT realtyRegionId FROM RealtyRegion WHERE worldGuardRegionId = ?)
+                """, regionId));
+    }
+
     private static void expirePayment(String regionId) {
         update("""
                 UPDATE FreeholdContractBidPayment SET paymentDeadline = NOW() - INTERVAL 1 DAY
@@ -294,7 +302,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         String regionId = freehold();
         inPayment(regionId);
         payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
-        update("UPDATE FreeholdContractBidPayment SET oldRules = TRUE WHERE ? IS NOT NULL", "x");
+        markOldRules(regionId);
 
         Assertions.assertEquals(1, logic.cancelAuction(regionId, WORLD_ID).deleted());
 
@@ -494,19 +502,38 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     }
 
     @Test
-    void listFullyPaidUnfinalized_skipsPartialAndOldRulesPayments() {
+    void listFullyPaidUnfinalized_skipsPartialPayments_listsOldRulesOnes() {
         String partial = freehold();
         inPayment(partial);
         payBidConfirmed(partial, WORLD_ID, BUYER, 300);
         String oldRules = freehold();
         inPayment(oldRules);
+        markOldRules(oldRules);
         payBidConfirmed(oldRules, WORLD_ID, BUYER, 1050);
-        update("""
-                UPDATE FreeholdContractBidPayment SET oldRules = TRUE
-                WHERE realtyRegionId = (SELECT realtyRegionId FROM RealtyRegion WHERE worldGuardRegionId = ?)
-                """, oldRules);
 
-        Assertions.assertTrue(logic.listFullyPaidUnfinalized().isEmpty());
+        List<PendingFinalize> pending = logic.listFullyPaidUnfinalized();
+
+        Assertions.assertEquals(1, pending.size(), pending.toString());
+        Assertions.assertEquals(oldRules, pending.getFirst().regionId());
+        Assertions.assertTrue(pending.getFirst().oldRules());
+    }
+
+    @Test
+    void oldRulesExpiry_withoutHolding_isStillProcessed() {
+        String regionId = freehold();
+        FreeholdContractBidPaymentEntity first = inPayment(regionId);
+        markOldRules(regionId);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
+        expirePayment(regionId);
+        holdingAvailable = false;
+
+        List<ExpiredBidPayment> expired = logic.clearExpiredBidPayments();
+
+        Assertions.assertEquals(1, expired.size());
+        Assertions.assertTrue(expired.getFirst().oldRules());
+        Assertions.assertNull(expired.getFirst().refundId(), "old-rules money went to the seller");
+        Assertions.assertNotEquals(first.bidId(), bidPayment(regionId).bidId());
+        Assertions.assertEquals(0, count("SELECT COUNT(*) FROM PendingRefund"));
     }
 
     private static void movePendingBack(int minutes) {
@@ -655,7 +682,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void confirm_ofAnOldRulesInstalmentAfterTheSaleEnded_refundsNothing() {
         String regionId = freehold();
         inPayment(regionId);
-        update("UPDATE FreeholdContractBidPayment SET oldRules = TRUE WHERE ? IS NOT NULL", "x");
+        markOldRules(regionId);
         PayBidResult.Success counted = Assertions.assertInstanceOf(PayBidResult.Success.class,
                 logic.payBid(regionId, WORLD_ID, BUYER, 200));
         Assertions.assertTrue(counted.oldRules());

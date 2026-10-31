@@ -22,6 +22,8 @@ import io.github.md5sha256.realty.api.RealtyBackend.InviteAgentResult;
 import io.github.md5sha256.realty.api.RealtyBackend.OfferListing;
 import io.github.md5sha256.realty.api.RealtyBackend.OfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.PayBidResult;
+import io.github.md5sha256.realty.api.RealtyBackend.PayOfferResult;
+import io.github.md5sha256.realty.api.RealtyBackend.SetTitleHolderResult;
 import io.github.md5sha256.realty.api.RealtyBackend.ResolveFeeResult;
 import io.github.md5sha256.realty.api.RealtyBackend.SetFeeResult;
 import io.github.md5sha256.realty.database.entity.FreeholdContractBidPaymentEntity;
@@ -529,5 +531,155 @@ class SaleFeeLockingTest extends AbstractDatabaseTest {
         Assertions.assertEquals(0, count("SELECT COUNT(*) FROM SaleFee"));
         Assertions.assertEquals(0, count("SELECT COUNT(*) FROM FreeholdContractBidPayment"));
         Assertions.assertEquals(0, count("SELECT COUNT(*) FROM FreeholdContractOfferPayment"));
+    }
+
+    @Test
+    void previewFees_duringAnAuction_includesTheAuctioneersAgentFee() {
+        String regionId = freehold();
+        makeAgent(regionId, AGENT_A);
+        agentFee(regionId, AGENT_A);
+        Assertions.assertTrue(logic.previewFees(regionId, WORLD_ID, BUYER, 1000).lines().isEmpty(),
+                "with no auction, no agent runs the sale");
+
+        auction(regionId, AGENT_A);
+        FeeQuote quote = logic.previewFees(regionId, WORLD_ID, BUYER, 1000);
+
+        Assertions.assertEquals(1, quote.lines().size(), quote.toString());
+        FeeLine agent = quote.lines().getFirst();
+        Assertions.assertEquals("agent fee", agent.source());
+        Assertions.assertEquals(Party.personal(AGENT_A), agent.recipient());
+        Assertions.assertEquals(30, agent.amount(), 0.001);
+        Assertions.assertEquals(970, quote.sellerReceives(), 0.001);
+    }
+
+    @Test
+    void payBid_zeroOrNegative_refusedBeforeAnyWrite() {
+        String regionId = freehold();
+        lockedAuction(regionId);
+
+        Assertions.assertInstanceOf(PayBidResult.InvalidAmount.class, logic.payBid(regionId, WORLD_ID, BUYER, 0));
+        Assertions.assertInstanceOf(PayBidResult.InvalidAmount.class, logic.payBid(regionId, WORLD_ID, BUYER, -5));
+        Assertions.assertInstanceOf(PayBidResult.InvalidAmount.class,
+                logic.payBid(regionId, WORLD_ID, BUYER, 0.004), "less than a cent rounds to nothing");
+
+        FreeholdContractBidPaymentEntity payment = bidPayment(regionId);
+        Assertions.assertEquals(0, payment.pendingPayment(), 0.0);
+        Assertions.assertEquals(0, payment.currentPayment(), 0.0);
+    }
+
+    @Test
+    void payOffer_zeroOrNegative_refusedBeforeAnyWrite() {
+        String regionId = freehold();
+        openToOffers(regionId, WORLD_ID);
+        Assertions.assertInstanceOf(OfferResult.Success.class,
+                logic.placeOffer(regionId, WORLD_ID, player(BUYER), 1000, false));
+        Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
+                logic.acceptOffer(regionId, WORLD_ID, player(TITLE_HOLDER), BUYER));
+
+        Assertions.assertInstanceOf(PayOfferResult.InvalidAmount.class,
+                logic.payOffer(regionId, WORLD_ID, BUYER, 0));
+        Assertions.assertInstanceOf(PayOfferResult.InvalidAmount.class,
+                logic.payOffer(regionId, WORLD_ID, BUYER, -1));
+
+        Assertions.assertEquals(0, offerPayment(regionId).pendingPayment(), 0.0);
+    }
+
+    @Test
+    void payBid_subCentUnderpayment_cannotMarkFullyPaid() {
+        String regionId = freehold();
+        lockedAuction(regionId);
+
+        PayBidResult.Success partial = Assertions.assertInstanceOf(PayBidResult.Success.class,
+                payBidConfirmed(regionId, WORLD_ID, BUYER, 1049.994));
+        Assertions.assertEquals(1049.99, partial.newTotal(), 0.0);
+        Assertions.assertEquals(0.01, partial.remaining(), 1e-9);
+        Assertions.assertInstanceOf(PayBidResult.InvalidAmount.class,
+                payBidConfirmed(regionId, WORLD_ID, BUYER, 0.004), "0.004 rounds to nothing");
+        Assertions.assertEquals(1049.99, bidPayment(regionId).currentPayment(), 0.0);
+
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 0.01));
+    }
+
+    @Test
+    void payouts_sumExactlyToWhatWasPaid() {
+        levies = only(STAMP_DUTY);
+        String regionId = freehold();
+        auction(regionId, TITLE_HOLDER);
+        bid(regionId, BUYER, 1000.374);
+        Assertions.assertEquals(1, endBidding(regionId).size());
+        FreeholdContractBidPaymentEntity payment = bidPayment(regionId);
+        Assertions.assertEquals(1000.37, payment.bidPrice(), 0.0, "a bid is rounded to cents");
+        // 5% of 1000.37 is 50.0185, charged as 50.01.
+        Assertions.assertEquals(1050.38, payment.totalDue(), 1e-9);
+
+        Assertions.assertInstanceOf(PayBidResult.Success.class,
+                payBidConfirmed(regionId, WORLD_ID, BUYER, 500.004));
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class,
+                payBidConfirmed(regionId, WORLD_ID, BUYER, 550.376));
+        Assertions.assertTrue(logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER));
+
+        java.math.BigDecimal paidOut = logic.duePayouts().stream()
+                .map(p -> java.math.BigDecimal.valueOf(p.amount()))
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        // The instalments as moved: 500.00 + 550.38.
+        Assertions.assertEquals(0, new java.math.BigDecimal("1050.38").compareTo(paidOut), paidOut.toString());
+    }
+
+    @Test
+    void setPriceAndOffer_roundedToCents() {
+        String regionId = freehold();
+        Assertions.assertInstanceOf(io.github.md5sha256.realty.api.RealtyBackend.SetPriceResult.Success.class,
+                logic.setPrice(regionId, WORLD_ID, 999.999, player(TITLE_HOLDER), false));
+        Assertions.assertEquals(1000.0, logic.getFreeholdContract(regionId, WORLD_ID).price(), 0.0);
+
+        openToOffers(regionId, WORLD_ID);
+        Assertions.assertInstanceOf(OfferResult.Success.class,
+                logic.placeOffer(regionId, WORLD_ID, player(BUYER), 800.126, false));
+        Assertions.assertEquals(800.13, logic.listOutboundOffers(BUYER).getFirst().offerPrice(), 0.0);
+    }
+
+    @Test
+    void performBid_afterTheBiddingWindow_refused() {
+        String regionId = freehold();
+        auction(regionId, TITLE_HOLDER);
+        bid(regionId, BUYER, 1000);
+        update("""
+                UPDATE FreeholdContractBid SET bidTime = bidTime - INTERVAL 2 HOUR
+                WHERE freeholdContractAuctionId IN (
+                    SELECT a.freeholdContractAuctionId FROM FreeholdContractAuction a
+                    INNER JOIN RealtyRegion rr ON rr.realtyRegionId = a.realtyRegionId
+                    WHERE rr.worldGuardRegionId = ?)
+                """, regionId);
+
+        Assertions.assertInstanceOf(BidResult.BiddingClosed.class,
+                logic.performBid(regionId, WORLD_ID, player(RUNNER_UP), 2000, false));
+        Assertions.assertEquals(1, count("SELECT COUNT(*) FROM FreeholdContractBid"));
+    }
+
+    @Test
+    void titleHolderChange_refusedWhileAnAuctionPaymentExists() {
+        String regionId = freehold();
+        lockedAuction(regionId);
+
+        Assertions.assertInstanceOf(SetTitleHolderResult.SaleInPayment.class,
+                logic.setTitleHolder(regionId, WORLD_ID, RUNNER_UP, player(TITLE_HOLDER)));
+        Assertions.assertInstanceOf(SetTitleHolderResult.SaleInPayment.class,
+                logic.transferTitleHolder(regionId, WORLD_ID, RUNNER_UP));
+        Assertions.assertEquals(TITLE_HOLDER, logic.getFreeholdContract(regionId, WORLD_ID).titleHolderId());
+    }
+
+    @Test
+    void titleHolderChange_refusedWhileAnOfferPaymentExists() {
+        String regionId = freehold();
+        openToOffers(regionId, WORLD_ID);
+        Assertions.assertInstanceOf(OfferResult.Success.class,
+                logic.placeOffer(regionId, WORLD_ID, player(BUYER), 1000, false));
+        Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
+                logic.acceptOffer(regionId, WORLD_ID, player(TITLE_HOLDER), BUYER));
+
+        Assertions.assertInstanceOf(SetTitleHolderResult.SaleInPayment.class,
+                logic.setTitleHolder(regionId, WORLD_ID, null, player(TITLE_HOLDER)));
+        Assertions.assertInstanceOf(SetTitleHolderResult.SaleInPayment.class,
+                logic.transferTitleHolder(regionId, WORLD_ID, RUNNER_UP));
     }
 }

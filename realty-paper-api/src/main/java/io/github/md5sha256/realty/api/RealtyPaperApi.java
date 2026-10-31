@@ -189,10 +189,16 @@ public interface RealtyPaperApi {
         record FullyPaid(double amount, @NotNull String regionId,
                          @Nullable Party previousTitleHolder, @NotNull FeeQuote fees) implements PayBidResult {}
         /**
-         * The final instalment was paid and is held, but the ownership transfer could not be
-         * applied now. Realty finishes the sale on a later scheduler run; nothing more is owed.
+         * The final instalment was paid, but the ownership transfer could not be applied now.
+         * Realty finishes the sale on a later scheduler run; nothing more is owed.
+         *
+         * @param paidToSeller whether the payment began before sale fees, so its money went to the
+         *                     seller; otherwise it is held until the sale finishes
          */
-        record FinalizePending(double amount, @NotNull String regionId) implements PayBidResult {}
+        record FinalizePending(double amount, @NotNull String regionId, boolean paidToSeller)
+                implements PayBidResult {}
+        /** The amount is zero or less once rounded to cents. Nothing was recorded or moved. */
+        record InvalidAmount(double amount) implements PayBidResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayBidResult {}
         record PaymentExpired(@NotNull String regionId) implements PayBidResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
@@ -204,8 +210,8 @@ public interface RealtyPaperApi {
     }
 
     /**
-     * Pays towards a won auction. The payment that clears the amount owed transfers the title
-     * and fires {@link io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent}.
+     * Pays towards a won auction. The amount is rounded to cents, half up. The payment that clears
+     * the amount owed transfers the title and fires {@link io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent}.
      */
     @NotNull CompletableFuture<PayBidResult> payBid(@NotNull WorldGuardRegion region,
                                                      @NotNull UUID bidderId,
@@ -222,10 +228,16 @@ public interface RealtyPaperApi {
         record FullyPaid(double amount, @NotNull String regionId,
                          @Nullable Party previousTitleHolder, @NotNull FeeQuote fees) implements PayOfferResult {}
         /**
-         * The final instalment was paid and is held, but the ownership transfer could not be
-         * applied now. Realty finishes the sale on a later scheduler run; nothing more is owed.
+         * The final instalment was paid, but the ownership transfer could not be applied now.
+         * Realty finishes the sale on a later scheduler run; nothing more is owed.
+         *
+         * @param paidToSeller whether the payment began before sale fees, so its money went to the
+         *                     seller; otherwise it is held until the sale finishes
          */
-        record FinalizePending(double amount, @NotNull String regionId) implements PayOfferResult {}
+        record FinalizePending(double amount, @NotNull String regionId, boolean paidToSeller)
+                implements PayOfferResult {}
+        /** The amount is zero or less once rounded to cents. Nothing was recorded or moved. */
+        record InvalidAmount(double amount) implements PayOfferResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayOfferResult {}
         record PaymentExpired(@NotNull String regionId) implements PayOfferResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
@@ -237,8 +249,8 @@ public interface RealtyPaperApi {
     }
 
     /**
-     * Pays towards an accepted offer. The payment that clears the amount owed transfers the title
-     * and fires {@link io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent}.
+     * Pays towards an accepted offer. The amount is rounded to cents, half up. The payment that
+     * clears the amount owed transfers the title and fires {@link io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent}.
      */
     @NotNull CompletableFuture<PayOfferResult> payOffer(@NotNull WorldGuardRegion region,
                                                          @NotNull UUID offererId,
@@ -257,6 +269,11 @@ public interface RealtyPaperApi {
          * {@code setTitleHolder} was asked to clear a title nobody holds.
          */
         record NoChange(@NotNull String regionId) implements SetTitleHolderResult {}
+        /**
+         * A buyer is paying for the region through a won auction or an accepted offer, so the
+         * title may not change hands until that sale finishes or falls through.
+         */
+        record SaleInPayment(@NotNull String regionId) implements SetTitleHolderResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTitleHolderResult {}
         record Error(@NotNull String message) implements SetTitleHolderResult {}
     }

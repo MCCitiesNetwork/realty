@@ -2385,7 +2385,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        void payBid_oldRulesFinalizeFails_isAnError_notPending() {
+        void payBid_oldRulesFinalizeFails_isPending_paidToSeller() {
             paidInFull(1000.0, FeeQuote.none(1000), true);
             when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(false);
             when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
@@ -2393,8 +2393,58 @@ class RealtyPaperApiImplTest {
 
             RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
 
-            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Error.class, result);
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.FinalizePending(1000, REGION_ID, true), result);
             Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+        }
+
+        @Test
+        void payBid_zeroOrNegative_refusedBeforeTheBackend() {
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.InvalidAmount(0),
+                    api.payBid(wgRegion, BUYER_ID, 0).join());
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.InvalidAmount(-3),
+                    api.payBid(wgRegion, BUYER_ID, -3).join());
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.InvalidAmount(0.004),
+                    api.payBid(wgRegion, BUYER_ID, 0.004).join());
+            Assertions.assertEquals(new RealtyPaperApi.PayOfferResult.InvalidAmount(0),
+                    api.payOffer(wgRegion, BUYER_ID, 0).join());
+            verify(realtyApi, never()).payBid(any(), any(), any(), anyDouble());
+            verify(realtyApi, never()).payOffer(any(), any(), any(), anyDouble());
+        }
+
+        @Test
+        void payBid_subCentAmount_isCountedAndMovedInCents() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0, false)).thenReturn(true);
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 299.996).join();
+
+            RealtyPaperApi.PayBidResult.Success success =
+                    Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Success.class, result);
+            Assertions.assertEquals(300.0, success.amount(), 0.0);
+            verify(economyProvider).transfer(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID));
+        }
+
+        @Test
+        void finishPendingSales_oldRules_transfersTheTitle_paysNothingOut() {
+            RegionManager regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            when(regionContainer.get(any())).thenReturn(regionManager);
+            when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            when(server.getWorld(WORLD_ID)).thenReturn(world);
+            when(realtyApi.listFullyPaidUnfinalized()).thenReturn(List.of(new RealtyBackend.PendingFinalize(
+                    RealtyBackend.PendingFinalize.Kind.BID, REGION_ID, WORLD_ID, BUYER_ID, TITLE_HOLDER_ID,
+                    1000, FeeQuote.none(1000), true)));
+            when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+
+            api.finishPendingSales().join();
+
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(realtyApi, never()).duePayouts();
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
         }
 
         private RealtyBackend.BuyResult.Success reservedWith(FeeQuote quote) {
@@ -2472,7 +2522,7 @@ class RealtyPaperApiImplTest {
 
             RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
 
-            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.FinalizePending(1000, REGION_ID), result);
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.FinalizePending(1000, REGION_ID, false), result);
             Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
             verify(realtyApi, never()).duePayouts();
             verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
@@ -2491,7 +2541,7 @@ class RealtyPaperApiImplTest {
 
             RealtyPaperApi.PayOfferResult result = api.payOffer(wgRegion, BUYER_ID, 1000).join();
 
-            Assertions.assertEquals(new RealtyPaperApi.PayOfferResult.FinalizePending(1000, REGION_ID), result);
+            Assertions.assertEquals(new RealtyPaperApi.PayOfferResult.FinalizePending(1000, REGION_ID, false), result);
             Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
             verify(realtyApi, never()).rollbackPayOffer(any(), any(), any(), anyDouble());
         }
@@ -2504,7 +2554,7 @@ class RealtyPaperApiImplTest {
             when(server.getWorld(WORLD_ID)).thenReturn(world);
             when(realtyApi.listFullyPaidUnfinalized()).thenReturn(List.of(new RealtyBackend.PendingFinalize(
                     RealtyBackend.PendingFinalize.Kind.BID, REGION_ID, WORLD_ID, BUYER_ID, TITLE_HOLDER_ID,
-                    1000, AGENT_QUOTE)));
+                    1000, AGENT_QUOTE, false)));
             when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
             payoutsDue(PROCEEDS_LINE);
@@ -2527,7 +2577,7 @@ class RealtyPaperApiImplTest {
         void finishPendingSales_finalizeAppliesNothing_leavesTheWorld() {
             when(realtyApi.listFullyPaidUnfinalized()).thenReturn(List.of(new RealtyBackend.PendingFinalize(
                     RealtyBackend.PendingFinalize.Kind.OFFER, REGION_ID, WORLD_ID, BUYER_ID, null, 1000,
-                    AGENT_QUOTE)));
+                    AGENT_QUOTE, false)));
             when(realtyApi.finalizeOfferPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(false);
 
             api.finishPendingSales().join();

@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.FeeQuote;
 import io.github.md5sha256.realty.api.FeeSide;
+import io.github.md5sha256.realty.api.Money;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
@@ -420,6 +421,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                          double bidAmount,
                                          boolean bypassConflict) {
         UUID bidderId = bidder.requirePlayer();
+        bidAmount = Money.cents(bidAmount);
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractAuctionMapper auctionMapper = wrapper.freeholdContractAuctionMapper();
             FreeholdContractBidMapper bidMapper = wrapper.freeholdContractBidMapper();
@@ -437,6 +439,13 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)) {
                 return new BidResult.NoAuction();
             }
+            // The sliding bidding window, as settlement checks it: once it has passed, the auction
+            // only waits for the scheduler to settle it, and a late bid must not reopen it.
+            FreeholdContractBid highestBid = bidMapper.selectHighestBid(worldGuardRegionId, worldId);
+            LocalDateTime windowStart = highestBid != null ? highestBid.bidTime() : auction.startDate();
+            if (!LocalDateTime.now().isBefore(windowStart.plusSeconds(auction.biddingDurationSeconds()))) {
+                return new BidResult.BiddingClosed();
+            }
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper().selectByRegion(worldGuardRegionId, worldId);
             if (freehold != null && (conflictsWithAuthority(freehold.authority(), bidder, bypassConflict)
                     || bidderId.equals(freehold.titleHolderId())
@@ -446,7 +455,6 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (bidAmount < auction.minBid()) {
                 return new BidResult.BidTooLowMinimum(auction.minBid());
             }
-            FreeholdContractBid highestBid = bidMapper.selectHighestBid(worldGuardRegionId, worldId);
             if (highestBid != null) {
                 if (highestBid.bidderId().equals(bidderId)) {
                     return new BidResult.AlreadyHighestBidder();
@@ -589,6 +597,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                              double price,
                                              @NotNull ActorContext ctx,
                                              boolean vacantOnly) {
+        price = Money.cents(price);
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractEntity freehold = freeholdMapper.selectByRegion(worldGuardRegionId, worldId);
@@ -890,6 +899,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (Objects.equals(titleHolderId, previousTitleHolder)) {
                 return new SetTitleHolderResult.NoChange();
             }
+            if (saleInPayment(wrapper, worldGuardRegionId, worldId)) {
+                return new SetTitleHolderResult.SaleInPayment();
+            }
             int authorityPartyId = namedPartyId(wrapper, freehold.authority());
             boolean guardTitleHolder = !ctx.bypass();
             Integer requiredAuthorityPartyId = requiredAuthorityPartyId(ctx, freehold, authorityPartyId);
@@ -921,6 +933,16 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+    /**
+     * Whether a buyer is paying for the region through a won auction or an accepted offer. Its
+     * proceeds line is locked to the seller of the moment, so the title must not change hands.
+     */
+    private static boolean saleInPayment(@NotNull SqlSessionWrapper wrapper, @NotNull String worldGuardRegionId,
+                                         @NotNull UUID worldId) {
+        return wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId)
+                || wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId);
+    }
+
     // --- Transfer Title Holder ---
 
     @Override
@@ -936,6 +958,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             UUID previousTitleHolder = freehold.titleHolderId();
             if (titleHolderId != null && titleHolderId.equals(previousTitleHolder)) {
                 return new SetTitleHolderResult.NoChange();
+            }
+            if (saleInPayment(wrapper, worldGuardRegionId, worldId)) {
+                return new SetTitleHolderResult.SaleInPayment();
             }
             int updated = freeholdMapper.updateTitleHolderByRegion(worldGuardRegionId, worldId, titleHolderId,
                     false, null, null);
@@ -1150,7 +1175,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 deleteAgentFees(wrapper, realtyRegionId);
                 onTitleChanged(wrapper, realtyRegionId, Party.playerUuidOf(seller).orElse(null), buyerId);
             }
-            wrapper.session().commit();
+            // Forced: the fee lines are INSERT ... RETURNING statements mapped as selects, and
+            // MyBatis does not commit a session it believes only read.
+            wrapper.session().commit(true);
         }
     }
 
@@ -1165,8 +1192,12 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (freehold == null) {
                 return FeeQuote.none(price);
             }
+            // The auction's end locks the fees with its auctioneer as the agent, so a preview
+            // during one shows their fee too.
+            FreeholdContractAuctionEntity auction = wrapper.freeholdContractAuctionMapper()
+                    .selectActiveByRegion(worldGuardRegionId, worldId);
             return feeResolver.resolve(wrapper, requireRegion(wrapper, worldGuardRegionId, worldId),
-                    freehold, buyerId, price, null);
+                    freehold, buyerId, price, auction != null ? auction.auctioneerId() : null);
         }
     }
 
@@ -2274,6 +2305,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                            double price,
                                            boolean bypassConflict) {
         UUID offererId = offerer.requirePlayer();
+        price = Money.cents(price);
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractMapper freeholdMapper = wrapper.freeholdContractMapper();
             FreeholdContractOfferMapper offerMapper = wrapper.freeholdContractOfferMapper();
@@ -2462,9 +2494,6 @@ public class RealtyBackendImpl implements RealtyBackend {
     // --- Pay Offer ---
 
 
-    /** Currency drift tolerance (half a cent) for "fully paid" comparisons on DOUBLE columns. */
-    private static final double PAYMENT_EPSILON = 0.005;
-
     /** The {@code SaleFee.saleKind} values. */
     private static final String SALE_BUY = "buy";
     private static final String SALE_BID = "bid";
@@ -2484,6 +2513,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                                              @NotNull UUID worldId,
                                              @NotNull UUID offererId,
                                              double amount) {
+        amount = Money.cents(amount);
+        if (amount <= 0) {
+            return new PayOfferResult.InvalidAmount();
+        }
         try (SqlSessionWrapper wrapper = database.openSession()) {
             // Lock the freehold row first (per-region serialization point) so the payment
             // read-and-increment cannot interleave with accept/finalize on the same region.
@@ -2502,11 +2535,12 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
                 return new PayOfferResult.PaymentExpired();
             }
-            double amountOwed = payment.totalDue() - payment.currentPayment();
-            if (amount > amountOwed + PAYMENT_EPSILON) {
+            // In whole cents, so that a fraction of a cent can neither exceed nor complete it.
+            double amountOwed = Money.minus(payment.totalDue(), payment.currentPayment());
+            if (amount > amountOwed) {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);
             }
-            double newTotal = payment.currentPayment() + amount;
+            double newTotal = Money.plus(payment.currentPayment(), amount);
             // Counted as pending until the paper layer confirms that its money moved. Optimistic
             // lock: the row must be unchanged and have nothing else pending.
             int updated = paymentMapper.recordPending(payment.offerId(), payment.currentPayment(), amount);
@@ -2519,7 +2553,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // finalizeOfferPurchase, which the paper layer calls ONLY after the
             // economy payment succeeds. Committing the transfer here (before the
             // money moved) handed the region over for free when payment failed.
-            if (newTotal >= payment.totalDue() - PAYMENT_EPSILON) {
+            if (Money.atLeast(newTotal, payment.totalDue())) {
                 FeeQuote fees = payment.oldRules()
                         ? FeeQuote.none(payment.offerPrice())
                         : SaleFeeResolver.lockedQuote(wrapper, SALE_OFFER, payment.offerId(),
@@ -2528,7 +2562,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new PayOfferResult.FullyPaid(authority, titleHolderId, fees, payment.oldRules(), payment.offerId());
             }
             wrapper.session().commit();
-            return new PayOfferResult.Success(newTotal, payment.totalDue() - newTotal, authority, titleHolderId,
+            return new PayOfferResult.Success(newTotal, Money.minus(payment.totalDue(), newTotal), authority, titleHolderId,
                     payment.oldRules());
         }
     }
@@ -2548,7 +2582,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // a second call (or one after rollback) finds nothing/under-paid and no-ops.
             if (freehold == null || payment == null || !payment.offererId().equals(offererId)
                     || payment.pendingPayment() > 0
-                    || payment.currentPayment() < payment.totalDue() - PAYMENT_EPSILON) {
+                    || !Money.atLeast(payment.currentPayment(), payment.totalDue())) {
                 return false;
             }
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.offerPrice(), offererId);
@@ -2572,6 +2606,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                   @NotNull UUID worldId,
                                   @NotNull UUID offererId,
                                   double amount) {
+        amount = Money.cents(amount);
         try (SqlSessionWrapper wrapper = database.openSession()) {
             // Lock the freehold row (per-region serialization point) so the payment
             // read-and-decrement cannot interleave with accept/finalize on the same region.
@@ -2587,6 +2622,7 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public boolean confirmPayOffer(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
                                    @NotNull UUID offererId, double amount, boolean oldRules) {
+        amount = Money.cents(amount);
         try (SqlSessionWrapper wrapper = database.openSession()) {
             wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
             FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
@@ -2646,6 +2682,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                                          @NotNull UUID worldId,
                                          @NotNull UUID bidderId,
                                          double amount) {
+        amount = Money.cents(amount);
+        if (amount <= 0) {
+            return new PayBidResult.InvalidAmount();
+        }
         try (SqlSessionWrapper wrapper = database.openSession()) {
             // The freehold first (the per-region serialization point), as payOffer does, so that a
             // cancel or a deletion reading what has been paid sees this instalment or waits for it.
@@ -2663,11 +2703,12 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
                 return new PayBidResult.PaymentExpired();
             }
-            double amountOwed = payment.totalDue() - payment.currentPayment();
-            if (amount > amountOwed + PAYMENT_EPSILON) {
+            // In whole cents, so that a fraction of a cent can neither exceed nor complete it.
+            double amountOwed = Money.minus(payment.totalDue(), payment.currentPayment());
+            if (amount > amountOwed) {
                 return new PayBidResult.ExceedsAmountOwed(amountOwed);
             }
-            double newTotal = payment.currentPayment() + amount;
+            double newTotal = Money.plus(payment.currentPayment(), amount);
             // Counted as pending until the paper layer confirms that its money moved. Optimistic
             // lock: the row must be unchanged and have nothing else pending.
             int updated = paymentMapper.recordPending(payment.bidId(), payment.currentPayment(), amount);
@@ -2680,7 +2721,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // finalizeBidPurchase, called by the paper layer ONLY after the
             // economy payment succeeds — so a failed/insufficient payment can
             // never hand over the region (previously it did, for free).
-            if (newTotal >= payment.totalDue() - PAYMENT_EPSILON) {
+            if (Money.atLeast(newTotal, payment.totalDue())) {
                 FeeQuote fees = payment.oldRules()
                         ? FeeQuote.none(payment.bidPrice())
                         : SaleFeeResolver.lockedQuote(wrapper, SALE_BID, payment.bidId(),
@@ -2689,7 +2730,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new PayBidResult.FullyPaid(authority, titleHolderId, fees, payment.oldRules(), payment.bidId());
             }
             wrapper.session().commit();
-            return new PayBidResult.Success(newTotal, payment.totalDue() - newTotal, authority, titleHolderId,
+            return new PayBidResult.Success(newTotal, Money.minus(payment.totalDue(), newTotal), authority, titleHolderId,
                     payment.oldRules());
         }
     }
@@ -2709,7 +2750,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // a second call (or one after rollback) finds nothing/under-paid and no-ops.
             if (freehold == null || payment == null || !payment.bidderId().equals(bidderId)
                     || payment.pendingPayment() > 0
-                    || payment.currentPayment() < payment.totalDue() - PAYMENT_EPSILON) {
+                    || !Money.atLeast(payment.currentPayment(), payment.totalDue())) {
                 return false;
             }
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
@@ -2732,6 +2773,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                 @NotNull UUID worldId,
                                 @NotNull UUID bidderId,
                                 double amount) {
+        amount = Money.cents(amount);
         try (SqlSessionWrapper wrapper = database.openSession()) {
             // The freehold first, as payBid, cancelAuction and the expiry take it.
             wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
@@ -2744,6 +2786,7 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public boolean confirmPayBid(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
                                  @NotNull UUID bidderId, double amount, boolean oldRules) {
+        amount = Money.cents(amount);
         try (SqlSessionWrapper wrapper = database.openSession()) {
             wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
             FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
@@ -2869,10 +2912,12 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
         List<ExpiredBidPayment> results = new ArrayList<>();
         for (FreeholdContractBidPaymentEntity candidate : expired) {
-            if (!holdingAvailable.getAsBoolean()) {
-                // The next bidder's instalments would have nowhere to wait. The expired payment is
-                // left as it is: nobody can pay it, and each run looks at it again, so it hands
-                // over and refunds once a holding account is configured.
+            if (!candidate.oldRules() && !holdingAvailable.getAsBoolean()) {
+                // Its refund comes from the holding account, and the next bidder's instalments
+                // would have nowhere to wait. The expired payment is left as it is: nobody can pay
+                // it, and each run looks at it again, so it hands over and refunds once a holding
+                // account is configured. An old-rules payment touches no holding account, so it
+                // ends now.
                 if (warnedNoHolding.add(candidate.freeholdContractAuctionId())) {
                     logger.warning("A payment for an auction has expired, but no holding account is configured,"
                             + " so the next bidder cannot be offered it yet (bid #" + candidate.bidId()
@@ -2916,7 +2961,7 @@ public class RealtyBackendImpl implements RealtyBackend {
         FreeholdContractBidPaymentEntity payment = paymentMapper.selectExpiredById(candidate.bidId());
         // Not while an instalment is pending: its money may yet arrive, or be stuck for an admin.
         if (payment == null || payment.pendingPayment() > 0
-                || payment.currentPayment() >= payment.totalDue() - PAYMENT_EPSILON) {
+                || Money.atLeast(payment.currentPayment(), payment.totalDue())) {
             return null;
         }
         paymentMapper.deleteByBidId(payment.bidId());
@@ -2997,7 +3042,7 @@ public class RealtyBackendImpl implements RealtyBackend {
         FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
         FreeholdContractOfferPaymentEntity payment = paymentMapper.selectExpiredById(candidate.offerId());
         if (payment == null || payment.pendingPayment() > 0
-                || payment.currentPayment() >= payment.totalDue() - PAYMENT_EPSILON) {
+                || Money.atLeast(payment.currentPayment(), payment.totalDue())) {
             return null;
         }
         paymentMapper.deleteByOfferId(payment.offerId());
@@ -3055,8 +3100,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                         .selectByRegion(region.worldGuardRegionId(), region.worldId());
                 pending.add(new PendingFinalize(PendingFinalize.Kind.BID, region.worldGuardRegionId(),
                         region.worldId(), payment.bidderId(), freehold != null ? freehold.titleHolderId() : null,
-                        payment.bidPrice(), SaleFeeResolver.lockedQuote(wrapper, SALE_BID, payment.bidId(),
-                                payment.bidPrice(), payment.totalDue())));
+                        payment.bidPrice(), payment.oldRules() ? FeeQuote.none(payment.bidPrice())
+                                : SaleFeeResolver.lockedQuote(wrapper, SALE_BID, payment.bidId(),
+                                        payment.bidPrice(), payment.totalDue()),
+                        payment.oldRules()));
             }
             for (FreeholdContractOfferPaymentEntity payment
                     : wrapper.freeholdContractOfferPaymentMapper().selectFullyPaidUnfinalized()) {
@@ -3068,8 +3115,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                         .selectByRegion(region.worldGuardRegionId(), region.worldId());
                 pending.add(new PendingFinalize(PendingFinalize.Kind.OFFER, region.worldGuardRegionId(),
                         region.worldId(), payment.offererId(), freehold != null ? freehold.titleHolderId() : null,
-                        payment.offerPrice(), SaleFeeResolver.lockedQuote(wrapper, SALE_OFFER, payment.offerId(),
-                                payment.offerPrice(), payment.totalDue())));
+                        payment.offerPrice(), payment.oldRules() ? FeeQuote.none(payment.offerPrice())
+                                : SaleFeeResolver.lockedQuote(wrapper, SALE_OFFER, payment.offerId(),
+                                        payment.offerPrice(), payment.totalDue()),
+                        payment.oldRules()));
             }
         }
         return pending;

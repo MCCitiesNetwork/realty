@@ -93,8 +93,7 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
                    scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules,
                    scbp.pendingPayment, scbp.pendingSince
             FROM FreeholdContractBidPayment scbp
-            WHERE scbp.oldRules = FALSE
-            AND scbp.currentPayment >= scbp.totalDue - 0.005
+            WHERE ROUND(scbp.currentPayment, 2) >= ROUND(scbp.totalDue, 2)
             AND scbp.pendingPayment = 0
             ORDER BY scbp.bidId
             """)

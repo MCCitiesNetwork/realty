@@ -24,8 +24,8 @@ public interface FreeholdContractOfferPaymentMapper {
     @Nullable FreeholdContractOfferPaymentEntity selectExpiredById(int offerId);
 
     /**
-     * Payments under the new rules that are paid in full but whose sale was never finalized, as when
-     * the finalize failed or the server stopped after the final transfer.
+     * Payments, under either rules, that are paid in full (in whole cents) but whose sale was never
+     * finalized, as when the finalize failed or the server stopped after the final transfer.
      */
     @NotNull List<FreeholdContractOfferPaymentEntity> selectFullyPaidUnfinalized();
 

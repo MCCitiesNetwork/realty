@@ -93,8 +93,7 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
                    scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy,
                    scop.pendingPayment, scop.pendingSince
             FROM FreeholdContractOfferPayment scop
-            WHERE scop.oldRules = FALSE
-            AND scop.currentPayment >= scop.totalDue - 0.005
+            WHERE ROUND(scop.currentPayment, 2) >= ROUND(scop.totalDue, 2)
             AND scop.pendingPayment = 0
             ORDER BY scop.offerId
             """)

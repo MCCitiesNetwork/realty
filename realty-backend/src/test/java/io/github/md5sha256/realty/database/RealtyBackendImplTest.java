@@ -1015,7 +1015,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false);
             insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusMinutes(1));
 
-            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 0.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 100.0);
             Assertions.assertInstanceOf(PayOfferResult.PaymentExpired.class, result);
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 Assertions.assertEquals(0.0, wrapper.freeholdContractOfferPaymentMapper()

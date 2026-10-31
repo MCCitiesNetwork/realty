@@ -166,6 +166,8 @@ public interface RealtyBackend {
         record BidTooLowMinimum(double minBid) implements BidResult {}
         record BidTooLowCurrent(double currentHighest) implements BidResult {}
         record AlreadyHighestBidder() implements BidResult {}
+        /** The bidding window has passed: the auction waits to be settled and takes no more bids. */
+        record BiddingClosed() implements BidResult {}
         /** A listener cancelled the {@code AuctionBidEvent}. Only {@code RealtyPaperApi} returns this. */
         record Cancelled() implements BidResult {}
     }
@@ -377,6 +379,12 @@ public interface RealtyBackend {
          * {@code setTitleHolder} was asked to clear a title nobody holds.
          */
         record NoChange() implements SetTitleHolderResult {}
+        /**
+         * A buyer is paying for the region, through a won auction or an accepted offer. Its
+         * proceeds are locked to the current seller, so the title may not change hands until
+         * that sale finishes or falls through.
+         */
+        record SaleInPayment() implements SetTitleHolderResult {}
     }
 
     /** Sets the title holder with no check of who is acting. */
@@ -529,7 +537,8 @@ public interface RealtyBackend {
 
     /**
      * The fees a sale of the freehold to {@code buyerId} at {@code price} would carry now, worked
-     * out as a sale would lock them, with no agent running it. Nothing is saved.
+     * out as a sale would lock them. While an auction runs, its auctioneer is the agent running the
+     * sale, so their agent fee applies; otherwise no agent runs it. Nothing is saved.
      *
      * @return the quote, or {@link FeeQuote#none(double)} when the region has no freehold
      */
@@ -1111,6 +1120,7 @@ public interface RealtyBackend {
     /**
      * Payments are counted against the payment's total due: the price plus any buyer-paid fees.
      * {@code oldRules} marks a payment begun before sale fees, which pays the seller directly.
+     * Amounts are rounded to cents, half up, and compared in whole cents.
      */
     sealed interface PayOfferResult {
         record Success(double newTotal, double remaining,
@@ -1127,6 +1137,8 @@ public interface RealtyBackend {
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
         /** An earlier instalment is still pending: its money has not been confirmed as moved. */
         record PaymentInProgress() implements PayOfferResult {}
+        /** The amount is zero or less once rounded to cents. Nothing was recorded. */
+        record InvalidAmount() implements PayOfferResult {}
     }
 
     @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
@@ -1171,6 +1183,7 @@ public interface RealtyBackend {
     /**
      * Payments are counted against the payment's total due: the price plus any buyer-paid fees.
      * {@code oldRules} marks a payment begun before sale fees, which pays the seller directly.
+     * Amounts are rounded to cents, half up, and compared in whole cents.
      */
     sealed interface PayBidResult {
         record Success(double newTotal, double remaining,
@@ -1187,6 +1200,8 @@ public interface RealtyBackend {
         record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
         /** An earlier instalment is still pending: its money has not been confirmed as moved. */
         record PaymentInProgress() implements PayBidResult {}
+        /** The amount is zero or less once rounded to cents. Nothing was recorded. */
+        record InvalidAmount() implements PayBidResult {}
     }
 
     @NotNull PayBidResult payBid(@NotNull String worldGuardRegionId,
@@ -1331,18 +1346,19 @@ public interface RealtyBackend {
     boolean holdsSaleMoney();
 
     /**
-     * A sale paid in full, under the new rules, whose ownership transfer was never applied: its
-     * finalize failed, or the server stopped after the final transfer. The money is in the holding
-     * account.
+     * A sale paid in full whose ownership transfer was never applied: its finalize failed, or the
+     * server stopped after the final transfer. Under the new rules the money is in the holding
+     * account; under the old rules it went to the seller, and only the title is left to pass.
      *
      * @param kind          an auction or an accepted offer
      * @param titleHolderId the titleholder selling, or null when the authority sells
      * @param price         the sale's price
-     * @param fees          the fees locked for the sale
+     * @param fees          the fees locked for the sale; {@link FeeQuote#none(double)} under the old rules
+     * @param oldRules      whether the payment began before sale fees, so nothing is paid out
      */
     record PendingFinalize(@NotNull Kind kind, @NotNull String regionId, @NotNull UUID worldId,
                            @NotNull UUID buyerId, @Nullable UUID titleHolderId, double price,
-                           @NotNull FeeQuote fees) {
+                           @NotNull FeeQuote fees, boolean oldRules) {
 
         public enum Kind { BID, OFFER }
     }

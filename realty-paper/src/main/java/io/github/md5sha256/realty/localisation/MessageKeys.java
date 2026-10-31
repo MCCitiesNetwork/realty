@@ -105,6 +105,7 @@ public final class MessageKeys {
 
     // bid
     public static final String BID_NO_AUCTION = "bid.no-auction";
+    public static final String BID_BIDDING_CLOSED = "bid.bidding-closed";
     public static final String BID_IS_OWNER = "bid.is-owner";
     public static final String BID_TOO_LOW_MINIMUM = "bid.too-low-minimum";
     public static final String BID_TOO_LOW_CURRENT = "bid.too-low-current";
@@ -255,6 +256,8 @@ public final class MessageKeys {
     public static final String PAY_BID_TRANSFER_FAILED = "pay-bid.transfer-failed";
     public static final String PAY_BID_TRANSFER_SUCCESS = "pay-bid.transfer-success";
     public static final String PAY_FINALIZE_PENDING = "pay.finalize-pending";
+    public static final String PAY_FINALIZE_PENDING_PAID_TO_SELLER = "pay.finalize-pending-paid-to-seller";
+    public static final String PAY_INVALID_AMOUNT = "pay.invalid-amount";
 
     // pay-offer
     public static final String PAY_OFFER_INSUFFICIENT_FUNDS = "pay-offer.insufficient-funds";
@@ -411,6 +414,7 @@ public final class MessageKeys {
     public static final String SET_TITLEHOLDER_UPDATE_FAILED = "set-titleholder.update-failed";
     public static final String SET_TITLEHOLDER_ERROR = "set-titleholder.error";
     public static final String SET_TITLEHOLDER_ALREADY_TITLEHOLDER = "set-titleholder.already-titleholder";
+    public static final String SET_TITLEHOLDER_SALE_IN_PAYMENT = "set-titleholder.sale-in-payment";
 
     // transfer
     public static final String TRANSFER_SUCCESS = "transfer.success";
@@ -419,6 +423,7 @@ public final class MessageKeys {
     public static final String TRANSFER_ERROR = "transfer.error";
     public static final String TRANSFER_NO_PERMISSION = "transfer.no-permission";
     public static final String TRANSFER_ALREADY_TITLEHOLDER = "transfer.already-titleholder";
+    public static final String TRANSFER_SALE_IN_PAYMENT = "transfer.sale-in-payment";
 
     // unset (shared)
     public static final String UNSET_NO_PERMISSION = "unset.no-permission";
@@ -445,6 +450,7 @@ public final class MessageKeys {
     public static final String UNSET_TITLEHOLDER_UPDATE_FAILED = "unset-titleholder.update-failed";
     public static final String UNSET_TITLEHOLDER_ERROR = "unset-titleholder.error";
     public static final String UNSET_TITLEHOLDER_NO_TITLEHOLDER = "unset-titleholder.no-titleholder";
+    public static final String UNSET_TITLEHOLDER_SALE_IN_PAYMENT = "unset-titleholder.sale-in-payment";
 
     // withdraw-offer
     public static final String WITHDRAW_OFFER_NO_OFFER = "withdraw-offer.no-offer";

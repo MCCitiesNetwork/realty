@@ -358,8 +358,12 @@ public record OfferCommandGroup(
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                                 Placeholder.unparsed("region", fullyPaid.regionId())));
                 case RealtyPaperApi.PayOfferResult.FinalizePending pending ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_FINALIZE_PENDING,
+                        sender.sendMessage(messages.messageFor(pending.paidToSeller()
+                                        ? MessageKeys.PAY_FINALIZE_PENDING_PAID_TO_SELLER
+                                        : MessageKeys.PAY_FINALIZE_PENDING,
                                 Placeholder.unparsed("region", pending.regionId())));
+                case RealtyPaperApi.PayOfferResult.InvalidAmount ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_INVALID_AMOUNT));
                 case RealtyPaperApi.PayOfferResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", noPayment.regionId())));

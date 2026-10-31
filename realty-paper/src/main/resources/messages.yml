@@ -115,6 +115,8 @@ bid:
     too-low-current: <prefix> Your proposed bid is too low, the next highest bid is
         <green><amount>.</green>
     already-highest: <prefix> You are already the highest bidder for this region.
+    bidding-closed: <prefix> Bidding on this region has closed. The auction is being
+        settled.
     success: <prefix> You have <green>successfully placed a bid of <amount></green>
         on region <gold><region>.</gold>
     error: '<prefix> Failed to perform bid: <error>'
@@ -229,6 +231,10 @@ offer:
 pay:
     finalize-pending: <prefix> Your payment for <gold><region></gold> is complete and
         held safely. The title will be transferred to you within a minute.
+    finalize-pending-paid-to-seller: <prefix> Your payment for <gold><region></gold>
+        is complete and went to the seller. The title will be transferred to you within
+        a minute.
+    invalid-amount: <prefix> <red>Pay at least <green>0.01</green>.</red>
 pay-bid:
     insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
     payment-failed: '<prefix> <red>Payment failed:</red> <error>'
@@ -460,6 +466,8 @@ set-titleholder:
     already-titleholder: <prefix> <green><titleholder></green> already holds region <yellow><region></yellow>.
     no-freehold-contract: <prefix> Region <yellow><region></yellow> is for lease,
         and accordingly cannot have a titleholder.
+    sale-in-payment: <prefix> <red>A buyer is paying for <yellow><region></yellow>. The
+        title cannot change hands until that sale finishes or falls through.</red>
 set-tenant:
     success: <prefix> You have set the tenant for region <yellow><region></yellow>
         to <green><tenant>.</green>
@@ -473,6 +481,8 @@ unset-titleholder:
     update-failed: <prefix> Failed to clear titleholder for region <region>.
     error: '<prefix> Failed to unset titleholder: <error>'
     no-titleholder: <prefix> Region <yellow><region></yellow> has no titleholder to clear.
+    sale-in-payment: <prefix> <red>A buyer is paying for <yellow><region></yellow>. The
+        title cannot be cleared until that sale finishes or falls through.</red>
     no-freehold-contract: <prefix> Region <yellow><region></yellow> is for lease,
         and accordingly cannot have a titleholder.
 unset-tenant:
@@ -914,6 +924,8 @@ transfer:
     error: 'Failed to transfer region: <error>'
     no-permission: You do not have permission to transfer this region.
     already-titleholder: <titleholder> already holds region <region>.
+    sale-in-payment: A buyer is paying for region <region>. The title cannot change hands
+        until that sale finishes or falls through.
 fees:
     breakdown:
         header-bid: <gray>If you win you will owe:</gray>
