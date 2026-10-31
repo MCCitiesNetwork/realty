@@ -338,7 +338,8 @@ public final class Realty extends JavaPlugin {
                                 .thenApply(name -> name.orElse(personal.playerUuid().toString()))
                         : CompletableFuture.completedFuture(this.partyNames.display(party)),
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
-                () -> this.settings.get().offerPaymentDurationSeconds());
+                () -> this.settings.get().offerPaymentDurationSeconds(),
+                this.levyCatalog::get);
         EconomyProvider economyProvider = resolveEconomyProvider();
         this.economyProvider = economyProvider;
         if (economyProvider == null) {

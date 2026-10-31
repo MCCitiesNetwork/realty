@@ -1263,6 +1263,153 @@ public interface RealtyBackend {
                                          int limit,
                                          int offset);
 
+    // --- Player Fees ---
+
+    sealed interface SetFeeResult {
+        /**
+         * @param recipient       who the fee is paid to
+         * @param needsApproval   whether the fee waits for the seller's approval before it applies
+         * @param previousPercent the recipient's fee it replaced, or {@code null} if it had none
+         */
+        record Success(@NotNull Party recipient, boolean needsApproval, @Nullable Double previousPercent)
+                implements SetFeeResult {}
+        record NoFreehold() implements SetFeeResult {}
+        /** The actor holds no role on the region: not its titleholder, an agent, or its authority. */
+        record NotAllowed() implements SetFeeResult {}
+        /** The fee was to be set for the authority by someone who does not manage it. */
+        record NotAuthorityManager() implements SetFeeResult {}
+        /** The recipient already has this fee, on the same side at the same percentage. */
+        record NoChange() implements SetFeeResult {}
+    }
+
+    /**
+     * Sets the actor's fee on a freehold, replacing any fee the same recipient already has there.
+     * The fee is paid to the actor personally, or with {@code asAuthority} to the authority. It is
+     * recorded under the role the actor holds: {@code titleholder}, else {@code agent}, else
+     * {@code authority} when the actor personally is the authority. A buyer-paid fee applies at
+     * once; a seller-paid fee applies at once only when the seller sets it or receives it, and
+     * otherwise waits for the seller's approval.
+     *
+     * @param percent     the percentage of the price; must be greater than 0
+     * @param asAuthority whether the fee is paid to the authority, which the actor must manage
+     * @throws IllegalArgumentException when {@code percent} is not greater than 0
+     */
+    @NotNull SetFeeResult setFee(@NotNull String worldGuardRegionId,
+                                 @NotNull UUID worldId,
+                                 @NotNull ActorContext ctx,
+                                 double percent,
+                                 @NotNull FeeSide side,
+                                 boolean asAuthority);
+
+    sealed interface RemoveFeeResult {
+        record Success() implements RemoveFeeResult {}
+        record NoFreehold() implements RemoveFeeResult {}
+        /** The recipient has no fee on the region. */
+        record NoFee() implements RemoveFeeResult {}
+        record NotAuthorityManager() implements RemoveFeeResult {}
+    }
+
+    /**
+     * Removes the fee paid to the actor, or with {@code asAuthority} the fee paid to the authority.
+     */
+    @NotNull RemoveFeeResult removeFee(@NotNull String worldGuardRegionId,
+                                       @NotNull UUID worldId,
+                                       @NotNull ActorContext ctx,
+                                       boolean asAuthority);
+
+    sealed interface ResolveFeeResult {
+        record Success(@NotNull FeeSide side, double percent) implements ResolveFeeResult {}
+        record NoFreehold() implements ResolveFeeResult {}
+        /** The actor is not the seller: the titleholder, or a manager of the authority while there is none. */
+        record NotSeller() implements ResolveFeeResult {}
+        /** The recipient has no seller-paid fee awaiting approval on the region. */
+        record NoPendingFee() implements ResolveFeeResult {}
+    }
+
+    /** The seller approves the seller-paid fee paid to {@code recipient}, so it applies to sales. */
+    @NotNull ResolveFeeResult approveFee(@NotNull String worldGuardRegionId,
+                                         @NotNull UUID worldId,
+                                         @NotNull ActorContext ctx,
+                                         @NotNull Party recipient);
+
+    /** The seller refuses the seller-paid fee paid to {@code recipient}, which deletes it. */
+    @NotNull ResolveFeeResult rejectFee(@NotNull String worldGuardRegionId,
+                                        @NotNull UUID worldId,
+                                        @NotNull ActorContext ctx,
+                                        @NotNull Party recipient);
+
+    /**
+     * One fee that may apply to a sale of a region.
+     *
+     * @param source    the levy's name, or for a player fee its role followed by "fee", such as {@code agent fee}
+     * @param recipient who receives it; {@code null} for a levy paid to the region's authority
+     * @param side      who pays it
+     * @param rate      the rate for display, such as {@code 3%} or {@code 2–8% by plots held}
+     * @param approved  whether it applies to sales; a levy always does
+     * @param role      the role a player fee was set under, or {@code null} for the levy
+     */
+    record FeeListing(@NotNull String source,
+                      @Nullable Party recipient,
+                      @NotNull FeeSide side,
+                      @NotNull String rate,
+                      boolean approved,
+                      @Nullable String role) {}
+
+    /**
+     * The fees on a freehold: the levy that applies first, when one does, then the player fees
+     * in the order they were set. Empty when the region has no freehold.
+     */
+    @NotNull List<FeeListing> listFees(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    // --- Levies ---
+
+    sealed interface SetLevyResult {
+        /** @param previous the levy chosen before, or {@code null} if there was none */
+        record Success(@Nullable String previous) implements SetLevyResult {}
+        record NoFreehold() implements SetLevyResult {}
+        record NotAuthorityManager() implements SetLevyResult {}
+        /** No levy of that name is defined. */
+        record UnknownLevy() implements SetLevyResult {}
+        /** That levy is already chosen, or there is no choice to clear. */
+        record NoChange() implements SetLevyResult {}
+    }
+
+    /**
+     * Chooses the levy for one freehold. The actor must manage its authority, or bypass. The name
+     * is matched without regard to case, and the levy's own name is stored.
+     */
+    @NotNull SetLevyResult setRegionLevy(@NotNull String worldGuardRegionId,
+                                         @NotNull UUID worldId,
+                                         @NotNull ActorContext ctx,
+                                         @NotNull String levyName);
+
+    /** Clears one freehold's levy choice, so it falls back to its authority's choice or the default. */
+    @NotNull SetLevyResult clearRegionLevy(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId,
+                                           @NotNull ActorContext ctx);
+
+    /**
+     * Chooses the levy for every freehold of {@code authority}, including those it gains later.
+     * The actor must manage the authority, or bypass.
+     */
+    @NotNull SetLevyResult setAuthorityLevy(@NotNull Party authority,
+                                            @NotNull ActorContext ctx,
+                                            @NotNull String levyName);
+
+    /** Clears the authority's levy choice, so its freeholds use their own choice or the default. */
+    @NotNull SetLevyResult clearAuthorityLevy(@NotNull Party authority, @NotNull ActorContext ctx);
+
+    /** Every levy the server defines. */
+    @NotNull List<LevyDefinition> listLevies();
+
+    /**
+     * The levy a freehold uses: its own choice, else its authority's choice, else the default
+     * levy. A choice naming a levy that is no longer defined is skipped.
+     *
+     * @return the levy's name, or {@code null} when none applies or the region has no freehold
+     */
+    @Nullable String chosenLevy(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
     // --- Schematics ---
 
     /**

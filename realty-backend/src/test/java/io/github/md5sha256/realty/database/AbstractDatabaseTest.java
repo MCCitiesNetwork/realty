@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.LevyCatalog;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.DatabaseSettings;
@@ -32,6 +33,9 @@ abstract class AbstractDatabaseTest {
 
     protected static Database database;
     protected static RealtyBackend logic;
+
+    /** The levies {@link #logic} reads; a test may replace it, and each test starts with none. */
+    protected static volatile LevyCatalog levies = LevyCatalog.EMPTY;
 
     private static volatile boolean migrated;
 
@@ -66,13 +70,14 @@ abstract class AbstractDatabaseTest {
         logic = new RealtyBackendImpl(database,
                 party -> CompletableFuture.completedFuture(party instanceof Party.Personal personal
                         ? personal.playerUuid().toString() : party.toString()),
-                java.time.LocalDateTime::toString, () -> 86400);
+                java.time.LocalDateTime::toString, () -> 86400, () -> levies);
     }
 
     private static String truncateUrl;
 
     @BeforeEach
     void truncateTables() throws SQLException {
+        levies = LevyCatalog.EMPTY;
         if (truncateUrl == null) {
             String baseJdbcUrl = CONTAINER.getJdbcUrl();
             truncateUrl = baseJdbcUrl + (baseJdbcUrl.contains("?") ? "&" : "?") + "allowMultiQueries=true";

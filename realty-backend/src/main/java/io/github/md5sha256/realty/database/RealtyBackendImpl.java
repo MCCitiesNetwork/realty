@@ -3,9 +3,14 @@ package io.github.md5sha256.realty.database;
 import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.FeeSide;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
+import io.github.md5sha256.realty.api.LevyCatalog;
+import io.github.md5sha256.realty.api.LevyDefinition;
+import io.github.md5sha256.realty.api.LevyRule;
+import io.github.md5sha256.realty.api.LevyTier;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RegionState;
 import io.github.md5sha256.realty.api.RealtyBackend;
@@ -26,6 +31,7 @@ import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OfferListingRow;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
+import io.github.md5sha256.realty.database.entity.RegionFeeEntity;
 import io.github.md5sha256.realty.database.entity.TagCountEntity;
 import io.github.md5sha256.realty.database.entity.StatisticsEntity;
 import io.github.md5sha256.realty.database.entity.ActiveAuctionRow;
@@ -45,26 +51,32 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferPaymentMapper;
 import io.github.md5sha256.realty.database.mapper.PartyMapper;
+import io.github.md5sha256.realty.database.mapper.RegionFeeMapper;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class RealtyBackendImpl implements RealtyBackend {
 
@@ -72,15 +84,21 @@ public class RealtyBackendImpl implements RealtyBackend {
     private final Function<Party, CompletableFuture<String>> partyNameResolver;
     private final Function<LocalDateTime, String> dateFormatter;
     private final LongSupplier offerPaymentDurationSeconds;
+    private final Supplier<LevyCatalog> levies;
 
+    /**
+     * @param levies the levies the server defines, read on each use so that a reload takes effect
+     */
     public RealtyBackendImpl(@NotNull Database database,
                              @NotNull Function<Party, CompletableFuture<String>> partyNameResolver,
                              @NotNull Function<LocalDateTime, String> dateFormatter,
-                             @NotNull LongSupplier offerPaymentDurationSeconds) {
+                             @NotNull LongSupplier offerPaymentDurationSeconds,
+                             @NotNull Supplier<LevyCatalog> levies) {
         this.database = database;
         this.partyNameResolver = partyNameResolver;
         this.dateFormatter = dateFormatter;
         this.offerPaymentDurationSeconds = offerPaymentDurationSeconds;
+        this.levies = levies;
     }
 
     // --- Parties ---
@@ -136,6 +154,10 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (rows > 0) {
                 wrapper.agentHistoryMapper().insert(worldGuardRegionId, worldId,
                         HistoryEventType.AGENT_REMOVE.name(), auctioneerId, actorId);
+                Integer realtyRegionId = realtyRegionIdOf(wrapper, worldGuardRegionId, worldId);
+                if (realtyRegionId != null) {
+                    wrapper.regionFeeMapper().deleteBySetByAndRole(realtyRegionId, auctioneerId, ROLE_AGENT);
+                }
             }
             session.commit();
             return rows;
@@ -851,6 +873,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                         HistoryEventType.UNSET_TITLEHOLDER.name(),
                         previousTitleHolder, authorityPartyId, historyPrice);
             }
+            onTitleChanged(wrapper, requireRealtyRegionId(wrapper, worldGuardRegionId, worldId),
+                    previousTitleHolder, titleHolderId);
             wrapper.session().commit();
             return new SetTitleHolderResult.Success(previousTitleHolder);
         }
@@ -888,6 +912,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                         HistoryEventType.UNSET_TITLEHOLDER.name(),
                         previousTitleHolder, namedPartyId(wrapper, freehold.authority()), historyPrice);
             }
+            onTitleChanged(wrapper, requireRealtyRegionId(wrapper, worldGuardRegionId, worldId),
+                    previousTitleHolder, titleHolderId);
             wrapper.session().commit();
             return new SetTitleHolderResult.Success(previousTitleHolder);
         }
@@ -1020,6 +1046,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                     .selectByRegion(worldGuardRegionId, worldId));
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
+            // The fees are left as they are: rollbackBuy cannot put deleted fees back, and a buy
+            // that fails must leave the seller's fees standing. The fee clean-up for a buy runs
+            // once its money has moved.
             int historyId = wrapper.freeholdHistoryMapper().insertReturningId(worldGuardRegionId, worldId,
                     HistoryEventType.BUY.name(), buyerId,
                     namedPartyId(wrapper, authority), freehold.price());
@@ -2375,6 +2404,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdContractOfferMapper().deleteOffers(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            deleteAgentFees(wrapper, realtyRegionId);
+            onTitleChanged(wrapper, realtyRegionId, freehold.titleHolderId(), offererId);
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.OFFER_BUY.name(),
                     offererId, namedPartyId(wrapper, freehold.authority()), payment.offerPrice());
             wrapper.session().commit();
@@ -2463,6 +2495,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            deleteAgentFees(wrapper, realtyRegionId);
+            onTitleChanged(wrapper, realtyRegionId, freehold.titleHolderId(), bidderId);
             wrapper.freeholdHistoryMapper().insert(worldGuardRegionId, worldId, HistoryEventType.AUCTION_BUY.name(),
                     bidderId, namedPartyId(wrapper, freehold.authority()), payment.bidPrice());
             wrapper.session().commit();
@@ -2896,6 +2931,447 @@ public class RealtyBackendImpl implements RealtyBackend {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             return wrapper.regionTagMapper().countByTagId(tagId);
         }
+    }
+
+    // --- Player Fees ---
+
+    /** The {@code RegionFee.role} of a fee set by the authority, through a manager or in person. */
+    private static final String ROLE_AUTHORITY = "authority";
+    /** The {@code RegionFee.role} of a fee set by the titleholder. */
+    private static final String ROLE_TITLEHOLDER = "titleholder";
+    /** The {@code RegionFee.role} of a fee set by a sanctioned auctioneer. */
+    private static final String ROLE_AGENT = "agent";
+
+    @Override
+    public @NotNull SetFeeResult setFee(@NotNull String worldGuardRegionId,
+                                        @NotNull UUID worldId,
+                                        @NotNull ActorContext ctx,
+                                        double percent,
+                                        @NotNull FeeSide side,
+                                        boolean asAuthority) {
+        if (!(percent > 0) || Double.isInfinite(percent)) {
+            throw new IllegalArgumentException("a fee must be a positive percentage, not " + percent);
+        }
+        UUID playerId = ctx.requirePlayer();
+        Party personal = Party.personal(playerId);
+        // Made before the transaction, as partyIdCreatingIfAbsent requires. A player who turns out
+        // to hold no role is left with a party row that nothing names, which does no harm.
+        Integer personalPartyId = asAuthority ? null : partyIdCreatingIfAbsent(personal);
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            // Locked, so that the title cannot change hands between the role check and the write.
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegionForUpdate(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new SetFeeResult.NoFreehold();
+            }
+            Party authority = freehold.authority();
+            UUID titleHolderId = freehold.titleHolderId();
+            Party recipient;
+            String role;
+            int recipientPartyId;
+            if (asAuthority) {
+                if (!ctx.mayManage(authority)) {
+                    return new SetFeeResult.NotAuthorityManager();
+                }
+                recipient = authority;
+                role = ROLE_AUTHORITY;
+                recipientPartyId = namedPartyId(wrapper, authority);
+            } else {
+                recipient = personal;
+                if (playerId.equals(titleHolderId)) {
+                    role = ROLE_TITLEHOLDER;
+                } else if (wrapper.freeholdContractSanctionedAuctioneerMapper()
+                        .existsByRegionAndAuctioneer(worldGuardRegionId, worldId, playerId)) {
+                    role = ROLE_AGENT;
+                } else if (personal.equals(authority)) {
+                    role = ROLE_AUTHORITY;
+                } else {
+                    return new SetFeeResult.NotAllowed();
+                }
+                recipientPartyId = personalPartyId;
+            }
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            RegionFeeEntity existing = findFee(wrapper, realtyRegionId, recipientPartyId);
+            if (existing != null && existing.side() == side && Double.compare(existing.percent(), percent) == 0) {
+                return new SetFeeResult.NoChange();
+            }
+            boolean setterIsSeller = titleHolderId != null
+                    ? playerId.equals(titleHolderId)
+                    : ctx.manages().contains(authority);
+            boolean approved = side == FeeSide.BUYER
+                    || recipient.equals(freeholdHolder(freehold))
+                    || setterIsSeller;
+            wrapper.regionFeeMapper().upsert(realtyRegionId, recipientPartyId, side, percent, role, playerId, approved);
+            wrapper.session().commit();
+            return new SetFeeResult.Success(recipient, !approved, existing == null ? null : existing.percent());
+        }
+    }
+
+    @Override
+    public @NotNull RemoveFeeResult removeFee(@NotNull String worldGuardRegionId,
+                                              @NotNull UUID worldId,
+                                              @NotNull ActorContext ctx,
+                                              boolean asAuthority) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegionForUpdate(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new RemoveFeeResult.NoFreehold();
+            }
+            Party recipient;
+            if (asAuthority) {
+                if (!ctx.mayManage(freehold.authority())) {
+                    return new RemoveFeeResult.NotAuthorityManager();
+                }
+                recipient = freehold.authority();
+            } else {
+                recipient = Party.personal(ctx.requirePlayer());
+            }
+            Integer recipientPartyId = wrapper.partyMapper().findId(recipient);
+            if (recipientPartyId == null) {
+                return new RemoveFeeResult.NoFee();
+            }
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            if (wrapper.regionFeeMapper().delete(realtyRegionId, recipientPartyId) == 0) {
+                return new RemoveFeeResult.NoFee();
+            }
+            wrapper.session().commit();
+            return new RemoveFeeResult.Success();
+        }
+    }
+
+    @Override
+    public @NotNull ResolveFeeResult approveFee(@NotNull String worldGuardRegionId,
+                                                @NotNull UUID worldId,
+                                                @NotNull ActorContext ctx,
+                                                @NotNull Party recipient) {
+        return resolvePendingFee(worldGuardRegionId, worldId, ctx, recipient, true);
+    }
+
+    @Override
+    public @NotNull ResolveFeeResult rejectFee(@NotNull String worldGuardRegionId,
+                                               @NotNull UUID worldId,
+                                               @NotNull ActorContext ctx,
+                                               @NotNull Party recipient) {
+        return resolvePendingFee(worldGuardRegionId, worldId, ctx, recipient, false);
+    }
+
+    /**
+     * The seller approves the recipient's pending seller-paid fee, or rejects it, which deletes it.
+     * The seller is whoever acts for the freehold: its titleholder, or a manager of its authority
+     * while it has none.
+     */
+    private @NotNull ResolveFeeResult resolvePendingFee(@NotNull String worldGuardRegionId,
+                                                        @NotNull UUID worldId,
+                                                        @NotNull ActorContext ctx,
+                                                        @NotNull Party recipient,
+                                                        boolean approve) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegionForUpdate(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new ResolveFeeResult.NoFreehold();
+            }
+            if (!ctx.mayManage(freeholdHolder(freehold))) {
+                return new ResolveFeeResult.NotSeller();
+            }
+            Integer recipientPartyId = wrapper.partyMapper().findId(recipient);
+            if (recipientPartyId == null) {
+                return new ResolveFeeResult.NoPendingFee();
+            }
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            RegionFeeEntity fee = findFee(wrapper, realtyRegionId, recipientPartyId);
+            if (fee == null || fee.side() != FeeSide.SELLER || fee.approved()) {
+                return new ResolveFeeResult.NoPendingFee();
+            }
+            if (approve) {
+                wrapper.regionFeeMapper().setApproved(realtyRegionId, recipientPartyId, true);
+            } else {
+                wrapper.regionFeeMapper().delete(realtyRegionId, recipientPartyId);
+            }
+            wrapper.session().commit();
+            return new ResolveFeeResult.Success(fee.side(), fee.percent());
+        }
+    }
+
+    @Override
+    public @NotNull List<FeeListing> listFees(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return List.of();
+            }
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            List<FeeListing> listings = new ArrayList<>();
+            LevyDefinition levy = resolveLevy(wrapper, this.levies.get(), realtyRegionId, freehold.authority());
+            if (levy != null) {
+                Set<String> tags = new HashSet<>();
+                for (String tag : wrapper.regionTagMapper().selectTagIdsByRegionId(worldGuardRegionId)) {
+                    tags.add(tag.toLowerCase(Locale.ROOT));
+                }
+                String rate = levyRate(levy, tags, freehold.authority());
+                if (rate != null) {
+                    listings.add(new FeeListing(levy.name(), levy.recipient(), levy.paidBy(), rate, true, null));
+                }
+            }
+            for (RegionFeeEntity fee : wrapper.regionFeeMapper().selectByRegion(realtyRegionId)) {
+                Party recipient = wrapper.partyMapper().selectById(fee.recipientPartyId());
+                listings.add(new FeeListing(fee.role() + " fee", recipient, fee.side(),
+                        formatPercent(fee.percent()) + "%", fee.approved(), fee.role()));
+            }
+            return listings;
+        }
+    }
+
+    /**
+     * The levy's rate on a region for display: the range of the first matching rule's tiers, such
+     * as {@code 2–8% by plots held}, or one percentage when they are all the same. {@code null}
+     * when the levy charges nothing there: it is off, the authority's kind may not use it, or no
+     * rule matches.
+     */
+    private static @Nullable String levyRate(@NotNull LevyDefinition levy,
+                                             @NotNull Set<String> lowerCasedTags,
+                                             @NotNull Party authority) {
+        if (!levy.enabled() || (levy.authorityKind() != null && levy.authorityKind() != authority.partyKind())) {
+            return null;
+        }
+        for (LevyRule rule : levy.rules()) {
+            if (!rule.matches(lowerCasedTags)) {
+                continue;
+            }
+            if (rule.tiers().isEmpty()) {
+                return null;
+            }
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (LevyTier tier : rule.tiers()) {
+                min = Math.min(min, tier.percent());
+                max = Math.max(max, tier.percent());
+            }
+            if (Double.compare(min, max) == 0) {
+                return formatPercent(min) + "%";
+            }
+            return formatPercent(min) + "–" + formatPercent(max) + "% by plots held";
+        }
+        return null;
+    }
+
+    /** A percentage with up to two decimals and no trailing zeros: {@code 3}, {@code 2.5}. */
+    private static @NotNull String formatPercent(double percent) {
+        return BigDecimal.valueOf(percent).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+    }
+
+    private static @Nullable RegionFeeEntity findFee(@NotNull SqlSessionWrapper wrapper,
+                                                     int realtyRegionId,
+                                                     int recipientPartyId) {
+        for (RegionFeeEntity fee : wrapper.regionFeeMapper().selectByRegion(realtyRegionId)) {
+            if (fee.recipientPartyId() == recipientPartyId) {
+                return fee;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Clears the fees a change of titleholder leaves without their basis, in the caller's
+     * transaction: the previous titleholder's fees go, and the seller-paid fees the new seller
+     * did not set wait for the new seller's approval. When nobody holds the title afterwards, the
+     * authority is the seller, so the fees it receives stay approved.
+     */
+    private static void onTitleChanged(@NotNull SqlSessionWrapper wrapper,
+                                       int realtyRegionId,
+                                       @Nullable UUID previous,
+                                       @Nullable UUID next) {
+        if (Objects.equals(previous, next)) {
+            return;
+        }
+        RegionFeeMapper fees = wrapper.regionFeeMapper();
+        if (previous != null) {
+            fees.deleteBySetByAndRole(realtyRegionId, previous, ROLE_TITLEHOLDER);
+        }
+        if (next != null) {
+            fees.unapproveSellerFeesNotSetBy(realtyRegionId, next);
+            return;
+        }
+        // A fee set under the authority role is always paid to the authority.
+        for (RegionFeeEntity fee : fees.selectByRegion(realtyRegionId)) {
+            if (fee.side() == FeeSide.SELLER && fee.approved() && !ROLE_AUTHORITY.equals(fee.role())) {
+                fees.setApproved(realtyRegionId, fee.recipientPartyId(), false);
+            }
+        }
+    }
+
+    /** Deletes every agent's fee on the region, when all its agents are cleared. */
+    private static void deleteAgentFees(@NotNull SqlSessionWrapper wrapper, int realtyRegionId) {
+        RegionFeeMapper fees = wrapper.regionFeeMapper();
+        for (RegionFeeEntity fee : fees.selectByRegion(realtyRegionId)) {
+            if (ROLE_AGENT.equals(fee.role())) {
+                fees.delete(realtyRegionId, fee.recipientPartyId());
+            }
+        }
+    }
+
+    private static @Nullable Integer realtyRegionIdOf(@NotNull SqlSessionWrapper wrapper,
+                                                      @NotNull String worldGuardRegionId,
+                                                      @NotNull UUID worldId) {
+        RealtyRegionEntity region = wrapper.realtyRegionMapper().selectByWorldGuardRegion(worldGuardRegionId, worldId);
+        return region == null ? null : region.realtyRegionId();
+    }
+
+    /** The region's id, for a region a contract was just read for, so it is registered. */
+    private static int requireRealtyRegionId(@NotNull SqlSessionWrapper wrapper,
+                                             @NotNull String worldGuardRegionId,
+                                             @NotNull UUID worldId) {
+        Integer realtyRegionId = realtyRegionIdOf(wrapper, worldGuardRegionId, worldId);
+        if (realtyRegionId == null) {
+            throw new IllegalStateException("no RealtyRegion row for " + worldGuardRegionId + ", although a contract names it");
+        }
+        return realtyRegionId;
+    }
+
+    // --- Levies ---
+
+    @Override
+    public @NotNull SetLevyResult setRegionLevy(@NotNull String worldGuardRegionId,
+                                                @NotNull UUID worldId,
+                                                @NotNull ActorContext ctx,
+                                                @NotNull String levyName) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new SetLevyResult.NoFreehold();
+            }
+            if (!ctx.mayManage(freehold.authority())) {
+                return new SetLevyResult.NotAuthorityManager();
+            }
+            LevyDefinition levy = this.levies.get().find(levyName).orElse(null);
+            if (levy == null) {
+                return new SetLevyResult.UnknownLevy();
+            }
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            String previous = wrapper.levyChoiceMapper().selectRegionLevy(realtyRegionId);
+            if (levy.name().equalsIgnoreCase(previous)) {
+                return new SetLevyResult.NoChange();
+            }
+            wrapper.levyChoiceMapper().upsertRegionLevy(realtyRegionId, levy.name(), ctx.player());
+            wrapper.session().commit();
+            return new SetLevyResult.Success(previous);
+        }
+    }
+
+    @Override
+    public @NotNull SetLevyResult clearRegionLevy(@NotNull String worldGuardRegionId,
+                                                  @NotNull UUID worldId,
+                                                  @NotNull ActorContext ctx) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return new SetLevyResult.NoFreehold();
+            }
+            if (!ctx.mayManage(freehold.authority())) {
+                return new SetLevyResult.NotAuthorityManager();
+            }
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            String previous = wrapper.levyChoiceMapper().selectRegionLevy(realtyRegionId);
+            if (previous == null) {
+                return new SetLevyResult.NoChange();
+            }
+            wrapper.levyChoiceMapper().deleteRegionLevy(realtyRegionId);
+            wrapper.session().commit();
+            return new SetLevyResult.Success(previous);
+        }
+    }
+
+    @Override
+    public @NotNull SetLevyResult setAuthorityLevy(@NotNull Party authority,
+                                                   @NotNull ActorContext ctx,
+                                                   @NotNull String levyName) {
+        if (!ctx.mayManage(authority)) {
+            return new SetLevyResult.NotAuthorityManager();
+        }
+        LevyDefinition levy = this.levies.get().find(levyName).orElse(null);
+        if (levy == null) {
+            return new SetLevyResult.UnknownLevy();
+        }
+        int authorityPartyId = partyIdCreatingIfAbsent(authority);
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            String previous = wrapper.levyChoiceMapper().selectAuthorityLevy(authorityPartyId);
+            if (levy.name().equalsIgnoreCase(previous)) {
+                return new SetLevyResult.NoChange();
+            }
+            wrapper.levyChoiceMapper().upsertAuthorityLevy(authorityPartyId, levy.name(), ctx.player());
+            wrapper.session().commit();
+            return new SetLevyResult.Success(previous);
+        }
+    }
+
+    @Override
+    public @NotNull SetLevyResult clearAuthorityLevy(@NotNull Party authority, @NotNull ActorContext ctx) {
+        if (!ctx.mayManage(authority)) {
+            return new SetLevyResult.NotAuthorityManager();
+        }
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            Integer authorityPartyId = wrapper.partyMapper().findId(authority);
+            String previous = authorityPartyId == null
+                    ? null
+                    : wrapper.levyChoiceMapper().selectAuthorityLevy(authorityPartyId);
+            if (previous == null) {
+                return new SetLevyResult.NoChange();
+            }
+            wrapper.levyChoiceMapper().deleteAuthorityLevy(authorityPartyId);
+            wrapper.session().commit();
+            return new SetLevyResult.Success(previous);
+        }
+    }
+
+    @Override
+    public @NotNull List<LevyDefinition> listLevies() {
+        return this.levies.get().all();
+    }
+
+    @Override
+    public @Nullable String chosenLevy(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (freehold == null) {
+                return null;
+            }
+            int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
+            LevyDefinition levy = resolveLevy(wrapper, this.levies.get(), realtyRegionId, freehold.authority());
+            return levy == null ? null : levy.name();
+        }
+    }
+
+    /**
+     * The levy a region uses: its own choice, else its authority's choice, else the default. A
+     * choice naming a levy the catalog no longer has is skipped and left in place.
+     */
+    private static @Nullable LevyDefinition resolveLevy(@NotNull SqlSessionWrapper wrapper,
+                                                        @NotNull LevyCatalog catalog,
+                                                        int realtyRegionId,
+                                                        @NotNull Party authority) {
+        String regionChoice = wrapper.levyChoiceMapper().selectRegionLevy(realtyRegionId);
+        if (regionChoice != null) {
+            Optional<LevyDefinition> levy = catalog.find(regionChoice);
+            if (levy.isPresent()) {
+                return levy.get();
+            }
+        }
+        Integer authorityPartyId = wrapper.partyMapper().findId(authority);
+        if (authorityPartyId != null) {
+            String authorityChoice = wrapper.levyChoiceMapper().selectAuthorityLevy(authorityPartyId);
+            if (authorityChoice != null) {
+                Optional<LevyDefinition> levy = catalog.find(authorityChoice);
+                if (levy.isPresent()) {
+                    return levy.get();
+                }
+            }
+        }
+        return catalog.defaultLevy().orElse(null);
     }
 
     // --- Schematics ---
