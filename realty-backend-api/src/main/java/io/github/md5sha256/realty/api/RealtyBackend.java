@@ -1218,6 +1218,79 @@ public interface RealtyBackend {
 
     @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments();
 
+    // --- Sale payouts and refunds ---
+
+    /**
+     * A line of money a completed sale owes from the holding account, due to be paid now.
+     *
+     * @param lineKind {@code fee} or {@code proceeds}
+     * @param source   what the line is for, such as a levy's name or a fee's role
+     * @param worldId  the region's world
+     * @param attempts the failed payout attempts so far
+     */
+    record DuePayout(int id, @NotNull String lineKind, @NotNull String source, @NotNull Party recipient,
+                     double amount, @NotNull String regionName, @Nullable UUID worldId, @NotNull UUID buyerId,
+                     int attempts) {}
+
+    /**
+     * A refund owed to a buyer from the holding account.
+     *
+     * @param reason   why it is owed, such as {@code bid-expired} or {@code region-deleted}
+     * @param attempts the failed payout attempts so far
+     */
+    record DueRefund(int id, @NotNull UUID buyerId, double amount, @NotNull String regionName,
+                     @Nullable UUID worldId, @NotNull String reason, int attempts) {}
+
+    /**
+     * The payout lines due now: those of a completed sale not yet tried, and failed ones whose
+     * retry interval has passed and that have attempts left.
+     */
+    @NotNull List<DuePayout> duePayouts();
+
+    /**
+     * Claims a payout line for this caller, so that no other run pays it too.
+     *
+     * @return {@code false} when the line was already claimed or paid
+     */
+    boolean claimPayout(int id);
+
+    void markPayoutPaid(int id);
+
+    /** Records a failed payout attempt; the line is retried after the retry interval. */
+    void markPayoutFailed(int id, @NotNull String error);
+
+    /**
+     * Records a refund that could not be paid, counting the failed attempt, so that it is retried
+     * after the retry interval.
+     */
+    void recordPendingRefund(@NotNull UUID buyerId, double amount, @NotNull String regionName,
+                             @Nullable UUID worldId, @NotNull String reason, @NotNull String error);
+
+    /** The pending refunds due now: never tried, or failed with the retry interval passed. */
+    @NotNull List<DueRefund> dueRefunds();
+
+    /**
+     * Claims a pending refund for this caller, so that no other run pays it too.
+     *
+     * @return {@code false} when the refund was already claimed or paid
+     */
+    boolean claimRefund(int id);
+
+    /** Removes a refund that has been paid. */
+    void markRefundPaid(int id);
+
+    /** Records a failed refund attempt; the refund is retried after the retry interval. */
+    void markRefundFailed(int id, @NotNull String error);
+
+    /**
+     * The payout lines claimed and never marked paid or failed, as after a crash mid-payout. Whether
+     * their money moved is unknown, so they are left for an admin and never retried automatically.
+     */
+    @NotNull List<DuePayout> stuckPayouts();
+
+    /** The refunds claimed and never marked paid or failed; see {@link #stuckPayouts()}. */
+    @NotNull List<DueRefund> stuckRefunds();
+
     // --- Expired Leaseholds ---
 
     record ExpiredLeasehold(

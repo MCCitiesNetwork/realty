@@ -494,7 +494,7 @@ class SaleFeeLockingTest extends AbstractDatabaseTest {
 
         List<PendingRefundEntity> refunds;
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            refunds = wrapper.pendingRefundMapper().selectDue(LocalDateTime.now().plusDays(1), 100);
+            refunds = wrapper.pendingRefundMapper().selectDue(60, 100);
         }
         Assertions.assertEquals(1, refunds.size());
         PendingRefundEntity refund = refunds.getFirst();

@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.ResultMap;
+import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
@@ -47,9 +49,10 @@ public interface MariaPendingRefundMapper extends PendingRefundMapper {
             FROM PendingRefund
             WHERE status = 'pending'
             AND attempts < #{maxAttempts}
-            AND (lastAttemptAt IS NULL OR lastAttemptAt < #{retryBefore})
+            AND (lastAttemptAt IS NULL OR lastAttemptAt < NOW() - INTERVAL #{retryAfterMinutes} MINUTE)
             ORDER BY pendingRefundId
             """)
+    @Results(id = "pendingRefundRow")
     @ConstructorArgs({
             @Arg(column = "pendingRefundId", javaType = int.class),
             @Arg(column = "buyerId", javaType = UUID.class),
@@ -62,8 +65,19 @@ public interface MariaPendingRefundMapper extends PendingRefundMapper {
             @Arg(column = "lastAttemptAt", javaType = LocalDateTime.class),
             @Arg(column = "lastError", javaType = String.class)
     })
-    @NotNull List<PendingRefundEntity> selectDue(@Param("retryBefore") @NotNull LocalDateTime retryBefore,
+    @NotNull List<PendingRefundEntity> selectDue(@Param("retryAfterMinutes") int retryAfterMinutes,
                                                  @Param("maxAttempts") int maxAttempts);
+
+    @Override
+    @Select("""
+            SELECT pendingRefundId, buyerId, amount, regionName, worldId, reason, status, attempts,
+                   lastAttemptAt, lastError
+            FROM PendingRefund
+            WHERE status = 'paying'
+            ORDER BY pendingRefundId
+            """)
+    @ResultMap("pendingRefundRow")
+    @NotNull List<PendingRefundEntity> selectPaying();
 
     @Override
     @Update("""

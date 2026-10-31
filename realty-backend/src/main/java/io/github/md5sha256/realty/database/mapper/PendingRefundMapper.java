@@ -4,7 +4,6 @@ import io.github.md5sha256.realty.database.entity.PendingRefundEntity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,10 +22,17 @@ public interface PendingRefundMapper {
                @Nullable UUID worldId, @NotNull String reason);
 
     /**
-     * The refunds due for payout: pending refunds never tried or last tried before
-     * {@code retryBefore}, with fewer than {@code maxAttempts} attempts.
+     * The refunds due for payout: pending refunds never tried or last tried more than
+     * {@code retryAfterMinutes} ago by the database clock, with fewer than {@code maxAttempts}
+     * attempts.
      */
-    @NotNull List<PendingRefundEntity> selectDue(@NotNull LocalDateTime retryBefore, int maxAttempts);
+    @NotNull List<PendingRefundEntity> selectDue(int retryAfterMinutes, int maxAttempts);
+
+    /**
+     * The refunds claimed for payout and never deleted or marked failed, as after a crash
+     * mid-payout. Whether their money moved is unknown, so they are never retried automatically.
+     */
+    @NotNull List<PendingRefundEntity> selectPaying();
 
     /**
      * Claims the refund for payout, moving it from {@code pending} to {@code paying}.

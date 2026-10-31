@@ -109,12 +109,23 @@ public interface MariaSaleFeeMapper extends SaleFeeMapper {
             FROM SaleFee
             WHERE attempts < #{maxAttempts}
             AND ((status = 'locked' AND completedAt IS NOT NULL)
-                 OR (status = 'failed' AND lastAttemptAt < #{retryBefore}))
+                 OR (status = 'failed' AND lastAttemptAt < NOW() - INTERVAL #{retryAfterMinutes} MINUTE))
             ORDER BY saleFeeId
             """)
     @ResultMap("saleFeeRow")
-    @NotNull List<SaleFeeEntity> selectDue(@Param("retryBefore") @NotNull LocalDateTime retryBefore,
+    @NotNull List<SaleFeeEntity> selectDue(@Param("retryAfterMinutes") int retryAfterMinutes,
                                            @Param("maxAttempts") int maxAttempts);
+
+    @Override
+    @Select("""
+            SELECT saleFeeId, saleKind, saleRef, realtyRegionId, regionName, worldId, buyerId, lineKind, source,
+                   recipientPartyId, side, percent, amount, status, completedAt, attempts, lastAttemptAt, lastError
+            FROM SaleFee
+            WHERE status = 'paying'
+            ORDER BY saleFeeId
+            """)
+    @ResultMap("saleFeeRow")
+    @NotNull List<SaleFeeEntity> selectPaying();
 
     @Override
     @Update("""

@@ -1906,7 +1906,7 @@ class MapperTest extends AbstractDatabaseTest {
                 session.commit();
 
                 List<Integer> due = wrapper.saleFeeMapper()
-                        .selectDue(LocalDateTime.now().plusMinutes(1), 5)
+                        .selectDue(60, 5)
                         .stream().map(SaleFeeEntity::saleFeeId).toList();
                 Assertions.assertTrue(due.contains(completed), "a completed sale's line is due");
                 Assertions.assertFalse(due.contains(pending), "an uncompleted sale's line is not due");

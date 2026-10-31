@@ -3,7 +3,6 @@ package io.github.md5sha256.realty.database.mapper;
 import io.github.md5sha256.realty.database.entity.SaleFeeEntity;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -35,10 +34,17 @@ public interface SaleFeeMapper {
     int markCompleted(@NotNull String saleKind, int saleRef);
 
     /**
-     * The lines due for payout: locked lines of a completed sale, and failed lines last tried
-     * before {@code retryBefore}, in both cases with fewer than {@code maxAttempts} attempts.
+     * The lines due for payout: locked lines of a completed sale, and failed lines last tried more
+     * than {@code retryAfterMinutes} ago by the database clock, in both cases with fewer than
+     * {@code maxAttempts} attempts.
      */
-    @NotNull List<SaleFeeEntity> selectDue(@NotNull LocalDateTime retryBefore, int maxAttempts);
+    @NotNull List<SaleFeeEntity> selectDue(int retryAfterMinutes, int maxAttempts);
+
+    /**
+     * The lines claimed for payout and never marked paid or failed, as after a crash mid-payout.
+     * Whether their money moved is unknown, so they are never retried automatically.
+     */
+    @NotNull List<SaleFeeEntity> selectPaying();
 
     /**
      * Claims the line for payout, moving it from {@code locked} or {@code failed} to {@code paying}.
