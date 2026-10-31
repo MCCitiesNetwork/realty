@@ -46,18 +46,6 @@ public class RefundPaidEvent extends Event {
     }
 
     /**
-     * @deprecated says nothing of whether the refund was paid on a retry; use the constructor that does.
-     */
-    @Deprecated
-    public RefundPaidEvent(@NotNull UUID buyerId,
-                           double amount,
-                           @NotNull String regionId,
-                           @Nullable UUID worldId,
-                           @NotNull String reason) {
-        this(buyerId, amount, regionId, worldId, reason, false);
-    }
-
-    /**
      * Whether the refund was paid on a retry, after an earlier attempt failed. A refund paid on the
      * first attempt, as when a payment deadline passes, is {@code false}: the buyer was already
      * told of it with the expiry.

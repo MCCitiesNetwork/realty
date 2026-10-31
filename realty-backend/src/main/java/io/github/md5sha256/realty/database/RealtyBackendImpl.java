@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.database;
 import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.FeeLine;
 import io.github.md5sha256.realty.api.FeeQuote;
 import io.github.md5sha256.realty.api.FeeSide;
 import io.github.md5sha256.realty.api.Money;
@@ -73,6 +74,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
@@ -2454,7 +2456,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             feeResolver.lockFees(wrapper, SALE_OFFER, offer.offerId(), region, offererId, freeholdHolder(freehold), fees);
             offerMapper.deleteOtherOffers(worldGuardRegionId, worldId, offererId);
             wrapper.session().commit();
-            return new AcceptOfferResult.Success();
+            return new AcceptOfferResult.Success(offer.offerPrice(), fees.buyerTotal(), paymentDeadline);
         }
     }
 
@@ -2851,7 +2853,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     auctionMapper.markEnded(auction.freeholdContractAuctionId());
                     wrapper.session().commit();
                     results.add(new ExpiredBiddingAuction(region.worldGuardRegionId(), region.worldId(),
-                            null, auction.auctioneerId()));
+                            null, auction.auctioneerId(), 0, 0, null));
                 } else {
                     if (!holdingAvailable.getAsBoolean()) {
                         // The winner's instalments would have nowhere to wait. The auction is left
@@ -2889,7 +2891,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                     wrapper.session().commit();
                     warnedNoHolding.remove(auction.freeholdContractAuctionId());
                     results.add(new ExpiredBiddingAuction(region.worldGuardRegionId(), region.worldId(),
-                            highestBid.bidderId(), auction.auctioneerId()));
+                            highestBid.bidderId(), auction.auctioneerId(), highestBid.bidAmount(),
+                            fees.buyerTotal(), deadline));
                 }
             } catch (RuntimeException ex) {
                 // Such as two sales creating the same new party at once. Rolled back, so the
@@ -3147,6 +3150,7 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     private @NotNull List<DuePayout> toPayouts(@NotNull SqlSessionWrapper wrapper, @NotNull List<SaleFeeEntity> rows) {
         List<DuePayout> payouts = new ArrayList<>(rows.size());
+        Map<String, Double> salePrices = new HashMap<>();
         for (SaleFeeEntity row : rows) {
             Party recipient = wrapper.partyMapper().selectById(row.recipientPartyId());
             if (recipient == null) {
@@ -3154,10 +3158,27 @@ public class RealtyBackendImpl implements RealtyBackend {
                         + ", which does not exist; it cannot be paid out.");
                 continue;
             }
+            double salePrice = row.saleRef() == null ? row.amount()
+                    : salePrices.computeIfAbsent(row.saleKind() + "#" + row.saleRef(),
+                            key -> salePrice(wrapper, row.saleKind(), row.saleRef()));
             payouts.add(new DuePayout(row.saleFeeId(), row.lineKind(), row.source(), recipient, row.amount(),
-                    row.regionName(), row.worldId(), row.buyerId(), row.attempts()));
+                    row.regionName(), row.worldId(), row.buyerId(), row.attempts(), salePrice));
         }
         return payouts;
+    }
+
+    /**
+     * The price a sale was locked at, from its lines: the seller's proceeds and the fees the seller
+     * pays come out of the price, so together they are the price.
+     */
+    private static double salePrice(@NotNull SqlSessionWrapper wrapper, @NotNull String saleKind, int saleRef) {
+        BigDecimal price = BigDecimal.ZERO;
+        for (SaleFeeEntity line : wrapper.saleFeeMapper().selectBySale(saleKind, saleRef)) {
+            if (SaleFeeResolver.LINE_PROCEEDS.equals(line.lineKind()) || line.side() == FeeSide.SELLER) {
+                price = price.add(BigDecimal.valueOf(line.amount()));
+            }
+        }
+        return price.doubleValue();
     }
 
     @Override
@@ -3720,7 +3741,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             for (RegionFeeEntity fee : wrapper.regionFeeMapper().selectByRegion(realtyRegionId)) {
                 Party recipient = wrapper.partyMapper().selectById(fee.recipientPartyId());
-                listings.add(new FeeListing(fee.role() + " fee", recipient, fee.side(),
+                listings.add(new FeeListing(FeeLine.playerFeeSource(fee.role()), recipient, fee.side(),
                         formatPercent(fee.percent()) + "%", fee.approved(), fee.role()));
             }
             return listings;

@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.Deadlines;
 import io.github.md5sha256.realty.command.util.FeePreview;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -21,6 +22,7 @@ import io.github.md5sha256.realty.settings.Settings;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -31,7 +33,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -313,7 +314,7 @@ public record AuctionCommandGroup(
                                         Placeholder.unparsed("due", CurrencyFormatter.format(
                                                 success.newTotal() + success.remaining())),
                                         Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining())),
-                                        Placeholder.unparsed("deadline", deadline))));
+                                        deadline)));
                 case RealtyPaperApi.PayBidResult.FullyPaid fullyPaid ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                                 Placeholder.unparsed("region", fullyPaid.regionId())));
@@ -351,10 +352,11 @@ public record AuctionCommandGroup(
     }
 
     /**
-     * The winner's payment deadline on {@code region}, formatted, or "the deadline" when it cannot
-     * be found. It is the payment's deadline, which a handover to a runner-up moves.
+     * The {@code <deadline>} of the winner's payment on {@code region}, in the configured date
+     * format, as an offer's is; {@code pay.deadline-unknown} when it cannot be found. It is the
+     * payment's deadline, which a handover to a runner-up moves.
      */
-    private @NotNull CompletableFuture<String> paymentDeadline(@NotNull WorldGuardRegion region) {
+    private @NotNull CompletableFuture<TagResolver> paymentDeadline(@NotNull WorldGuardRegion region) {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         return api.listActiveAuctions().thenApply(auctions -> auctions.stream()
@@ -362,10 +364,9 @@ public record AuctionCommandGroup(
                         .map(RealtyBackend.ActiveAuction::paymentDeadline)
                         .filter(Objects::nonNull)
                         .findFirst()
-                        .map(deadline -> DateFormatter.format(settings.get().dateFormat(),
-                                LocalDateTime.ofInstant(deadline, ZoneId.systemDefault())))
-                        .orElse("the deadline"))
-                .exceptionally(ex -> "the deadline");
+                        .orElse(null))
+                .exceptionally(ex -> null)
+                .thenApply(deadline -> Deadlines.placeholder(messages, settings.get().dateFormat(), deadline));
     }
 
 }

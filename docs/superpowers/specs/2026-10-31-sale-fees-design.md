@@ -150,7 +150,7 @@ One fee resolver works out the fee lines for a sale. They are saved in the `Sale
 - the handover to a runner-up, again, because the buyer and their plot count changed;
 - the acceptance of an offer.
 
-Each line holds the recipient, the side, the rate, the amount, the source (the levy's name, or the player fee's recipient), and whether it has been paid out. Changing a plot's levy does not affect a sale already locked.
+Each line holds the recipient, the side, the rate, the amount, the source (the levy's name, or for a player fee its role label, such as "agent fee"), and whether it has been paid out. Changing a plot's levy does not affect a sale already locked.
 
 Each fee rounds down to the cent. The seller receives whatever remains, so the payouts always add up exactly to what the buyer paid. A fee whose recipient is the buyer is left out.
 
@@ -194,6 +194,8 @@ record FeeLine(String source, Party recipient, FeeSide side, double percent, dou
 enum FeeSide { BUYER, SELLER }
 record FeeQuote(double price, List<FeeLine> lines, double buyerTotal, double sellerReceives) {}
 ```
+
+A `FeeLine`'s `source` is a levy's name for a levy, and the role label of a fee a player set, such as "agent fee".
 
 New methods on `RealtyPaperApi`, returning `CompletableFuture` like the rest:
 

@@ -1791,8 +1791,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         ? thenFire(regionId, worldId,
                                 () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
                                 (region, result) -> {
-                                    if (result instanceof RealtyBackend.AcceptOfferResult.Success) {
-                                        events.fireSync(new OfferAcceptedEvent(region, accepterId, offererId));
+                                    if (result instanceof RealtyBackend.AcceptOfferResult.Success accepted) {
+                                        events.fireSync(new OfferAcceptedEvent(region, accepterId, offererId,
+                                                accepted.price(), accepted.totalDue(),
+                                                toInstant(accepted.paymentDeadline())));
                                     }
                                 })
                         : CompletableFuture.completedFuture(new RealtyBackend.AcceptOfferResult.Cancelled()),

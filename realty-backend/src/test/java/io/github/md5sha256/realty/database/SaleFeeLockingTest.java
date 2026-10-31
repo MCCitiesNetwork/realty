@@ -682,4 +682,55 @@ class SaleFeeLockingTest extends AbstractDatabaseTest {
         Assertions.assertInstanceOf(SetTitleHolderResult.SaleInPayment.class,
                 logic.transferTitleHolder(regionId, WORLD_ID, RUNNER_UP));
     }
+
+    @Test
+    void auctionEnd_reportsTheLockedTotalAndDeadline() {
+        levies = only(STAMP_DUTY);
+        String regionId = freehold();
+        auction(regionId, TITLE_HOLDER);
+        bid(regionId, BUYER, 1000);
+
+        ExpiredBiddingAuction ended = endBidding(regionId).getFirst();
+
+        Assertions.assertEquals(BUYER, ended.winnerId());
+        Assertions.assertEquals(1000, ended.price(), 0.0);
+        Assertions.assertEquals(1050, ended.totalDue(), 0.001);
+        Assertions.assertTrue(java.time.Duration.between(bidPayment(regionId).paymentDeadline(), ended.paymentDeadline()).abs().getSeconds() <= 1,
+                bidPayment(regionId).paymentDeadline() + " vs " + ended.paymentDeadline());
+    }
+
+    @Test
+    void acceptOffer_reportsTheLockedTotalAndDeadline() {
+        levies = only(STAMP_DUTY);
+        String regionId = freehold();
+        openToOffers(regionId, WORLD_ID);
+        Assertions.assertInstanceOf(OfferResult.Success.class,
+                logic.placeOffer(regionId, WORLD_ID, player(BUYER), 1000, false));
+
+        AcceptOfferResult.Success accepted = Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
+                logic.acceptOffer(regionId, WORLD_ID, player(TITLE_HOLDER), BUYER));
+
+        Assertions.assertEquals(1000, accepted.price(), 0.0);
+        Assertions.assertEquals(1050, accepted.totalDue(), 0.001);
+        Assertions.assertTrue(java.time.Duration.between(offerPayment(regionId).paymentDeadline(), accepted.paymentDeadline()).abs().getSeconds() <= 1,
+                offerPayment(regionId).paymentDeadline() + " vs " + accepted.paymentDeadline());
+    }
+
+    @Test
+    void duePayouts_carryTheSalePrice() {
+        String regionId = freehold();
+        makeAgent(regionId, AGENT_A);
+        agentFee(regionId, AGENT_A);
+        levies = only(STAMP_DUTY);
+        auction(regionId, AGENT_A);
+        bid(regionId, BUYER, 1000);
+        Assertions.assertEquals(1, endBidding(regionId).size());
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 1050));
+        Assertions.assertTrue(logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER));
+
+        var due = logic.duePayouts();
+
+        Assertions.assertEquals(3, due.size(), due.toString());
+        Assertions.assertTrue(due.stream().allMatch(p -> p.salePrice() == 1000.0), due.toString());
+    }
 }

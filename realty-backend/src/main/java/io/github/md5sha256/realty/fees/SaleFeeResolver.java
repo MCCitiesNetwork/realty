@@ -85,7 +85,7 @@ public final class SaleFeeResolver {
             if (recipient == null) {
                 continue;
             }
-            playerFees.add(new FeeCalculator.PlayerFeeInput(fee.role() + " fee", recipient, fee.side(), fee.percent()));
+            playerFees.add(new FeeCalculator.PlayerFeeInput(FeeLine.playerFeeSource(fee.role()), recipient, fee.side(), fee.percent()));
         }
         return FeeCalculator.quote(price, buyerId, levyInput, tags, buyerPlots, playerFees);
     }

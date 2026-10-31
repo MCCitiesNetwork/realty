@@ -109,7 +109,7 @@ public final class SaleSettlement {
                             payout.recipient(), payout.amount(), payout.buyerId()));
                 } else if (SaleFeeResolver.LINE_PROCEEDS.equals(payout.lineKind())) {
                     this.events.fireSync(new SaleProceedsPaidEvent(payout.regionName(), payout.worldId(),
-                            payout.recipient(), payout.amount(), payout.buyerId()));
+                            payout.recipient(), payout.salePrice(), payout.amount(), payout.buyerId()));
                 }
             }
             case PaymentResult.Failure failure -> {

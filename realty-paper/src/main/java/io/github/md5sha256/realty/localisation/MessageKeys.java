@@ -258,6 +258,7 @@ public final class MessageKeys {
     public static final String PAY_FINALIZE_PENDING = "pay.finalize-pending";
     public static final String PAY_FINALIZE_PENDING_PAID_TO_SELLER = "pay.finalize-pending-paid-to-seller";
     public static final String PAY_INVALID_AMOUNT = "pay.invalid-amount";
+    public static final String PAY_DEADLINE_UNKNOWN = "pay.deadline-unknown";
 
     // pay-offer
     public static final String PAY_OFFER_INSUFFICIENT_FUNDS = "pay-offer.insufficient-funds";
@@ -513,8 +514,10 @@ public final class MessageKeys {
     public static final String NOTIFICATION_AUCTION_ENDED_NO_BIDS = "notification.auction-ended-no-bids";
     public static final String NOTIFICATION_REGION_BOUGHT = "notification.region-bought";
     public static final String NOTIFICATION_REGION_RENTED = "notification.region-rented";
-    public static final String NOTIFICATION_BID_PAYMENT_EXPIRED = "notification.bid-payment-expired";
-    public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED = "notification.offer-payment-expired";
+    public static final String NOTIFICATION_BID_PAYMENT_EXPIRED_OLD_RULES = "notification.bid-payment-expired-old-rules";
+    public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED_OLD_RULES =
+            "notification.offer-payment-expired-old-rules";
+    public static final String NOTIFICATION_PAYMENT_EXPIRED_NOTHING_PAID = "notification.payment-expired-nothing-paid";
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED = "notification.leasehold-expired";
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD = "notification.leasehold-expired-landlord";
     public static final String NOTIFICATION_REGION_UNRENTED = "notification.region-unrented";
@@ -618,8 +621,10 @@ public final class MessageKeys {
     public static final String FEES_BREAKDOWN_LEVY_LINE = "fees.breakdown.levy-line";
     public static final String FEES_BREAKDOWN_TOTAL = "fees.breakdown.total";
     public static final String FEES_BREAKDOWN_SELLER_PAYS = "fees.breakdown.seller-pays";
+    public static final String FEES_BREAKDOWN_AGENT_IF_ACCEPTS = "fees.breakdown.agent-if-accepts";
     public static final String FEES_BREAKDOWN_SELLER_LINE = "fees.breakdown.seller-line";
     public static final String BUY_CONFIRM_FEES = "buy.confirm-fees";
+    public static final String BUY_TOTAL_CHANGED = "buy.total-changed";
     public static final String OFFER_NO_HOLDING_ACCOUNT = "offer.no-holding-account";
     public static final String INFO_FEES = "info.fees";
     public static final String INFO_FEE_ENTRY = "info.fee-entry";
@@ -629,6 +634,7 @@ public final class MessageKeys {
     // sale fees: notifications
     public static final String NOTIFICATION_SALE_PAYOUT = "notification.sale-payout";
     public static final String NOTIFICATION_SALE_PROCEEDS = "notification.sale-proceeds";
+    public static final String NOTIFICATION_SALE_PROCEEDS_NO_FEES = "notification.sale-proceeds-no-fees";
     public static final String NOTIFICATION_REFUND_PAID = "notification.refund-paid";
     public static final String NOTIFICATION_PAYMENT_EXPIRED_REFUNDED = "notification.payment-expired-refunded";
     public static final String NOTIFICATION_REFUND_PENDING = "notification.refund-pending";
@@ -663,7 +669,7 @@ public final class MessageKeys {
     public static final String LEVY_UNKNOWN = "levy.unknown";
     public static final String LEVY_WRONG_AUTHORITY_KIND = "levy.wrong-authority-kind";
     public static final String LEVY_NO_CHANGE = "levy.no-change";
-    public static final String LEVY_ALL_NEEDS_AUTHORITY = "levy.all-needs-authority";
+    public static final String LEVY_NEEDS_AUTHORITY = "levy.needs-authority";
     public static final String LEVY_LIST_HEADER = "levy.list-header";
     public static final String LEVY_LIST_ENTRY = "levy.list-entry";
     public static final String LEVY_LIST_EMPTY = "levy.list-empty";

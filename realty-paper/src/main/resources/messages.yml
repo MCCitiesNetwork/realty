@@ -95,7 +95,9 @@ auction:
     error: '<prefix> Failed to create auction: <error>'
 buy:
     confirm-fees: '<prefix> This sale carries fees. <click:run_command:<command>><hover:show_text:"Buy at this total"><green><u>Click here to confirm the purchase</u></green></hover></click>,
-        or run the command again with <yellow>--confirm</yellow>.'
+        or run the command again with <yellow>--confirm</yellow> and the total.'
+    total-changed: <prefix> <yellow>The total has changed since you looked.</yellow>
+        Nothing was bought; here is the new total.
     success: <prefix> You bought region <yellow><region></yellow> for <price>.
     no-freehold-contract: <prefix> Region <yellow><region></yellow> does not have
         a freehold contract.
@@ -235,6 +237,7 @@ pay:
         is complete and went to the seller. The title will be transferred to you within
         a minute.
     invalid-amount: <prefix> <red>Pay at least <green>0.01</green>.</red>
+    deadline-unknown: the deadline
 pay-bid:
     insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
     payment-failed: '<prefix> <red>Payment failed:</red> <error>'
@@ -393,9 +396,9 @@ help:
     - <blue>/realty fee list [region]</blue> <gray>- List the fees on a sale of the region</gray>
     - <blue>/realty fee approve|reject <recipient> [region] [type flag]</blue> <gray>- As
         the seller, accept or refuse a fee paid out of your price</gray>
-    - <blue>/realty levy set <levy> [region] [--all --authority]</blue> <gray>- Choose
+    - <blue>/realty levy set <levy> [region] --authority [--all]</blue> <gray>- Choose
         the levy for a plot, or for every plot of its authority</gray>
-    - <blue>/realty levy clear [region] [--all --authority]</blue> <gray>- Clear a levy
+    - <blue>/realty levy clear [region] --authority [--all]</blue> <gray>- Clear a levy
         choice</gray>
     - <blue>/realty levy list</blue> <gray>- List the levies and their rates</gray>
 extend:
@@ -513,7 +516,8 @@ notification:
     offer-placed: <prefix> <gray></gray> <#00aaff><player></#00aaff> placed an offer
         of <green>$<price></green> on <yellow><region></yellow>
     offer-accepted: <prefix> <gray></gray> Your offer for <yellow><region></yellow>
-        was <green>accepted</green>
+        was <green>accepted</green>. You owe <green>$<total></green> (price $<price>
+        + fees) by <yellow><deadline></yellow>.
     offer-rejected: <prefix> <gray></gray> Your offer for <yellow><region></yellow>
         was <red>rejected</red>
     offer-withdrawn: <prefix> <gray></gray> <#00aaff><player></#00aaff> withdrew their
@@ -528,12 +532,14 @@ notification:
         <yellow><region></yellow> for <green>$<price></green>
     region-rented: <prefix> <gray></gray> <#00aaff><player></#00aaff> rented <yellow><region></yellow>
         for <green>$<price></green>
-    bid-payment-expired: <prefix> Your payment deadline for <yellow><region></yellow>
+    bid-payment-expired-old-rules: <prefix> Your payment deadline for <yellow><region></yellow>
         passed. Realty refunds nothing, because under the rules when you began paying
-        your payments went to the seller.
-    offer-payment-expired: <prefix> Your payment deadline for <yellow><region></yellow>
+        any payments you made went to the seller.
+    offer-payment-expired-old-rules: <prefix> Your payment deadline for <yellow><region></yellow>
         passed. Realty refunds nothing, because under the rules when you began paying
-        your payments went to the seller.
+        any payments you made went to the seller.
+    payment-expired-nothing-paid: <prefix> Your payment deadline for <yellow><region></yellow>
+        passed. You had paid nothing, so nothing is refunded.
     payment-expired-refunded: <prefix> Your payment deadline for <yellow><region></yellow>
         passed. <green>$<amount></green> was refunded.
     refund-paid: <prefix> Your pending refund of <green>$<amount></green> for <yellow><region></yellow>
@@ -541,8 +547,10 @@ notification:
     refund-pending: <prefix> Your payment deadline for <yellow><region></yellow> passed.
         Your refund of <green>$<amount></green> could not be paid yet. It is pending
         and will be retried.
-    sale-proceeds: <prefix> You received <green>$<received></green> from the sale of
-        <yellow><region></yellow>, after fees.
+    sale-proceeds: <prefix> <yellow><region></yellow> sold for <green>$<price></green>.
+        You received <green>$<received></green> after fees.
+    sale-proceeds-no-fees: <prefix> <yellow><region></yellow> sold for <green>$<price></green>.
+        You received <green>$<received></green>.
     sale-payout: <prefix> You were paid <green>$<amount></green> (<source>) from the
         sale of <yellow><region></yellow>.
     fee-awaiting-approval: <prefix> <#00aaff><player></#00aaff> set a <yellow><percent>%</yellow>
@@ -559,8 +567,8 @@ notification:
     agent-removed: <prefix> <gray><time></gray> <#00aaff><player></#00aaff> removed
         you as agent for <yellow><region></yellow>
     region-unrented: '<prefix> <player> unrented region <region>. Refund: <refund>.'
-    auction-won: <prefix> You have won the auction for region <region>! Please pay
-        within the payment deadline.
+    auction-won: <prefix> You won <yellow><region></yellow>. You owe <green>$<total></green>
+        (price $<price> + fees) by <yellow><deadline></yellow>.
     auction-ended-no-bids: <prefix> The auction for region <region> has ended with
         no bids.
     leasehold-expired: <prefix> Your lease on region <region> has expired.
@@ -938,6 +946,8 @@ fees:
         total: '<gray>  Total</gray> <green><amount></green>'
         seller-pays: '<gray>The seller also pays:</gray> <lines>'
         seller-line: <source> <amount> (<percent>%, to <recipient>)
+        agent-if-accepts: '<gray>  If <agent> accepts, their <side>-paid fee of <percent>
+            applies.</gray>'
 fee:
     set: <prefix> Your fee on <yellow><region></yellow> is now <green><percent>%</green>,
         paid by the <side>, to <#00aaff><recipient></#00aaff>.
@@ -982,7 +992,7 @@ levy:
     wrong-authority-kind: <prefix> <red>The levy <yellow><levy></yellow> is for another
         kind of authority.
     no-change: <prefix> Nothing changed.
-    all-needs-authority: <prefix> <red><yellow>--all</yellow> works only with <yellow>--authority</yellow>.
+    needs-authority: '<prefix> <red>A levy is chosen for the authority: add <yellow>--authority</yellow>.</red>'
     list-header: <prefix> Levies
     list-entry: ' <dark_grey>-</dark_grey> <yellow><levy></yellow>: paid by the <side>,
         <green><rate></green>, <state><default>'

@@ -55,4 +55,33 @@ class InfoCommandFeesTest {
     void noFees_saysNone() {
         assertEquals("None", plain(List.of()));
     }
+
+    @Test
+    void feesThatCannotBeListed_showAsNone_andAreLoggedFine() {
+        java.util.logging.Logger logger = java.util.logging.Logger.getAnonymousLogger();
+        logger.setUseParentHandlers(false);
+        logger.setLevel(java.util.logging.Level.ALL);
+        List<java.util.logging.LogRecord> logged = new java.util.ArrayList<>();
+        logger.addHandler(new java.util.logging.Handler() {
+            @Override
+            public void publish(java.util.logging.LogRecord record) {
+                logged.add(record);
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        });
+
+        List<RealtyBackend.FeeListing> fees = InfoCommand.feesOrNone(
+                java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("db down")), logger).join();
+
+        assertEquals(List.of(), fees);
+        assertEquals(1, logged.size());
+        assertEquals(java.util.logging.Level.FINE, logged.getFirst().getLevel());
+    }
 }

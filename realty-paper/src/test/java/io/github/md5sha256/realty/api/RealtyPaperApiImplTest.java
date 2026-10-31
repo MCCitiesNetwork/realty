@@ -2145,9 +2145,9 @@ class RealtyPaperApiImplTest {
                 List.of(new FeeLine("stamp-duty", GOVERNMENT, FeeSide.BUYER, 5, 50),
                         new FeeLine("agent", AGENT, FeeSide.SELLER, 3, 30)), 1050, 970);
         private static final RealtyBackend.DuePayout PROCEEDS_LINE = new RealtyBackend.DuePayout(
-                1, "proceeds", "proceeds", TITLE_HOLDER, 970, REGION_ID, WORLD_ID, BUYER_ID, 0);
+                1, "proceeds", "proceeds", TITLE_HOLDER, 970, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000);
         private static final RealtyBackend.DuePayout AGENT_LINE = new RealtyBackend.DuePayout(
-                2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 0);
+                2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000);
 
         private RealtyPaperApiImpl withoutHolding() {
             HoldingAccount none = HoldingAccount.vault(DefaultParties::unresolved);
@@ -2283,7 +2283,7 @@ class RealtyPaperApiImplTest {
             verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
 
             when(realtyApi.duePayouts()).thenReturn(List.of(new RealtyBackend.DuePayout(
-                    2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 1)));
+                    2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 1, 1000)));
             settlement.payOutDue();
 
             verify(realtyApi).markPayoutPaid(2);

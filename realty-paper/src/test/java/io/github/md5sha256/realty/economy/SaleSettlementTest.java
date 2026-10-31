@@ -52,9 +52,9 @@ class SaleSettlementTest {
     private static final UUID WORLD_ID = UUID.randomUUID();
 
     private static final DuePayout PROCEEDS =
-            new DuePayout(1, "proceeds", "proceeds", SELLER, 970, "plot", WORLD_ID, BUYER_ID, 0);
+            new DuePayout(1, "proceeds", "proceeds", SELLER, 970, "plot", WORLD_ID, BUYER_ID, 0, 1000);
     private static final DuePayout AGENT_FEE =
-            new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 0);
+            new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 0, 1000);
 
     @Mock
     private RealtyBackend backend;
@@ -151,6 +151,7 @@ class SaleSettlementTest {
         verify(events).fireSync(proceeds.capture());
         Assertions.assertEquals(SELLER, proceeds.getValue().getSeller());
         Assertions.assertEquals(970, proceeds.getValue().getAmount(), 0.001);
+        Assertions.assertEquals(1000, proceeds.getValue().getPrice(), 0.001, "the sale price, for the notice");
         Assertions.assertEquals(BUYER_ID, proceeds.getValue().getBuyerId());
         Assertions.assertEquals("plot", proceeds.getValue().getRegionId());
     }
@@ -170,7 +171,7 @@ class SaleSettlementTest {
 
         economy.failingRecipients.clear();
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 1)));
+                new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 1, 1000)));
         settlement.payOutDue();
 
         verify(backend).markPayoutPaid(2);
@@ -194,7 +195,7 @@ class SaleSettlementTest {
     void payout_lastAttemptFails_logsSevere() {
         economy.failingRecipients.add(GOV);
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 23)));
+                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 23, 1000)));
         when(backend.claimPayout(3)).thenReturn(OptionalInt.of(23));
 
         settlement.payOutDue();
@@ -208,7 +209,7 @@ class SaleSettlementTest {
     void payout_earlierFailure_logsNoSevere() {
         economy.failingRecipients.add(GOV);
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5)));
+                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5, 1000)));
         when(backend.claimPayout(3)).thenReturn(OptionalInt.of(5));
 
         settlement.payOutDue();
@@ -220,7 +221,7 @@ class SaleSettlementTest {
     void payout_staleList_usesTheAttemptsReadUnderTheClaim() {
         economy.failingRecipients.add(GOV);
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5)));
+                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5, 1000)));
         when(backend.claimPayout(3)).thenReturn(OptionalInt.of(23));
 
         settlement.payOutDue();
@@ -231,7 +232,7 @@ class SaleSettlementTest {
     @Test
     void payout_zeroLine_isMarkedPaidWithoutATransfer() {
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(4, "proceeds", "proceeds", SELLER, 0, "plot", WORLD_ID, BUYER_ID, 0)));
+                new DuePayout(4, "proceeds", "proceeds", SELLER, 0, "plot", WORLD_ID, BUYER_ID, 0, 1000)));
         when(backend.claimPayout(4)).thenReturn(OptionalInt.of(0));
 
         settlement.payOutDue();
@@ -269,7 +270,7 @@ class SaleSettlementTest {
         Assertions.assertEquals("bid-expired", fired.getValue().getReason());
         Assertions.assertFalse(fired.getValue().isRetry(), "the first attempt is told with the expiry");
         Assertions.assertTrue(new AuctionPaymentExpiredEvent("plot", WORLD_ID, null, BUYER_ID,
-                refund.amount(), refund.paid()).isRefundPaid());
+                refund.amount(), refund.paid(), false).isRefundPaid());
     }
 
     @Test
@@ -287,7 +288,7 @@ class SaleSettlementTest {
         verify(backend, never()).markRefundPaid(anyInt());
         verify(events, never()).fireSync(any(RefundPaidEvent.class));
         Assertions.assertFalse(new OfferPaymentExpiredEvent("plot", WORLD_ID, null, BUYER_ID,
-                refund.amount(), refund.paid()).isRefundPaid());
+                refund.amount(), refund.paid(), false).isRefundPaid());
     }
 
     @Test

@@ -14,7 +14,6 @@ import org.jetbrains.annotations.NotNull;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -22,9 +21,6 @@ import java.util.function.Function;
  * the fees the seller pays out of the price.
  */
 public final class FeeQuoteFormatter {
-
-    /** The sources of player fees: their role followed by "fee". Every other source is a levy. */
-    private static final Set<String> PLAYER_FEE_SOURCES = Set.of("titleholder fee", "agent fee", "authority fee");
 
     private FeeQuoteFormatter() {}
 
@@ -45,7 +41,7 @@ public final class FeeQuoteFormatter {
         builder.append(messages.messageFor(MessageKeys.FEES_BREAKDOWN_PRICE,
                 Placeholder.unparsed("amount", CurrencyFormatter.format(quote.price()))));
         for (FeeLine line : quote.buyerLines()) {
-            String key = isLevy(line) ? MessageKeys.FEES_BREAKDOWN_LEVY_LINE : MessageKeys.FEES_BREAKDOWN_BUYER_LINE;
+            String key = line.isLevy() ? MessageKeys.FEES_BREAKDOWN_LEVY_LINE : MessageKeys.FEES_BREAKDOWN_BUYER_LINE;
             builder.appendNewline().append(messages.messageFor(key,
                     Placeholder.unparsed("source", line.source()),
                     Placeholder.unparsed("amount", CurrencyFormatter.format(line.amount())),
@@ -72,11 +68,6 @@ public final class FeeQuoteFormatter {
                     Placeholder.component("lines", lines.build())));
         }
         return builder.build();
-    }
-
-    /** Whether the line is a levy rather than a fee a player set. */
-    public static boolean isLevy(@NotNull FeeLine line) {
-        return !PLAYER_FEE_SOURCES.contains(line.source());
     }
 
     /** A percentage with up to two decimals and no trailing zeros: {@code 3}, {@code 2.5}. */

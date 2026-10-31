@@ -76,6 +76,7 @@ import io.github.md5sha256.realty.command.TransferCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
+import io.github.md5sha256.realty.command.util.Deadlines;
 import io.github.md5sha256.realty.command.util.PartyFlags;
 import io.github.md5sha256.realty.command.util.PartyNameParser;
 import io.github.md5sha256.realty.command.util.PartyResolver;
@@ -554,7 +555,11 @@ public final class Realty extends JavaPlugin {
                                     List.of(auction.winnerId()),
                                     MessageKeys.NOTIFICATION_AUCTION_WON,
                                     this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
-                                            Placeholder.unparsed("region", auction.worldGuardRegionId())),
+                                            Placeholder.unparsed("region", auction.worldGuardRegionId()),
+                                            Placeholder.unparsed("total", CurrencyFormatter.format(auction.totalDue())),
+                                            Placeholder.unparsed("price", CurrencyFormatter.format(auction.price())),
+                                            Deadlines.placeholder(this.messageContainer,
+                                                    this.settings.get().dateFormat(), auction.paymentDeadline())),
                                     wgRegion));
                         } else {
                             this.eventDispatch.fireSync(new RealtyNotificationEvent(
@@ -579,7 +584,7 @@ public final class Realty extends JavaPlugin {
                 scheduler.runTask(this, () -> this.eventDispatch.fireSync(new AuctionPaymentExpiredEvent(
                         payment.regionId(), payment.worldId(),
                         WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
-                        payment.bidderId(), refund.amount(), refund.paid())));
+                        payment.bidderId(), refund.amount(), refund.paid(), payment.oldRules())));
             }
             for (RealtyBackend.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 SaleSettlement.ExpiryRefund refund = settleExpiry(payment.refundId(), payment.offererId(),
@@ -587,7 +592,7 @@ public final class Realty extends JavaPlugin {
                 scheduler.runTask(this, () -> this.eventDispatch.fireSync(new OfferPaymentExpiredEvent(
                         payment.regionId(), payment.worldId(),
                         WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
-                        payment.offererId(), refund.amount(), refund.paid())));
+                        payment.offererId(), refund.amount(), refund.paid(), payment.oldRules())));
             }
             // Sales paid in full whose finalize failed or never ran, then the payouts of completed
             // sales and refunds that failed before. Each is cheap when nothing is due.
@@ -1108,7 +1113,7 @@ public final class Realty extends JavaPlugin {
                 new PartyRecipients(getServer(), this.treasury, resolveVaultPermission(), this.settings);
         pluginManager.registerEvents(
                 new RegionNotificationListener(this.eventDispatch, messageContainer, this.partyNames,
-                        partyRecipients, executorState, getLogger()), this);
+                        partyRecipients, executorState, this.settings, getLogger()), this);
 
         SuggestionProvider<Source> partySuggestions =
                 PartyFlags.suggestions(this.treasury, this.logic, executorState.dbExec());
@@ -1147,7 +1152,8 @@ public final class Realty extends JavaPlugin {
                         this.database,
                         this.realtyTags,
                         messageContainer,
-                        this.partyNames),
+                        this.partyNames,
+                        getLogger()),
                 new ListCommand(paperApi, this.partyResolver, partySuggestions, executorState,
                         messageContainer, this.partyNames),
                 new OfferCommandGroup(getServer(),
@@ -1155,7 +1161,8 @@ public final class Realty extends JavaPlugin {
                         this.actorContexts,
                         executorState,
                         messageContainer,
-                        this.partyNames),
+                        this.partyNames,
+                        this.settings),
                 new FeeCommandGroup(paperApi, this.actorContexts, this.partyResolver, partySuggestions,
                         executorState, messageContainer, this.partyNames, partyRecipients, this.eventDispatch,
                         getLogger()),

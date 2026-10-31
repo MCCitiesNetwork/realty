@@ -1094,7 +1094,13 @@ public interface RealtyBackend {
                                              boolean acceptingOffers);
 
     sealed interface AcceptOfferResult {
-        record Success() implements AcceptOfferResult {}
+        /**
+         * @param price           the offer's price
+         * @param totalDue        what the offerer now owes: the price plus the buyer's fees, as locked
+         * @param paymentDeadline when the offerer must have paid by
+         */
+        record Success(double price, double totalDue, @NotNull LocalDateTime paymentDeadline)
+                implements AcceptOfferResult {}
         record NotSanctioned() implements AcceptOfferResult {}
         record NoOffer() implements AcceptOfferResult {}
         record AuctionExists() implements AcceptOfferResult {}
@@ -1232,11 +1238,22 @@ public interface RealtyBackend {
 
     // --- Expired Bidding Auctions ---
 
+    /**
+     * An auction whose bidding has closed.
+     *
+     * @param winnerId        the highest bidder, now asked to pay, or null when nobody bid
+     * @param price           the winning bid, or 0 when nobody bid
+     * @param totalDue        what the winner owes: the price plus the buyer's fees, as locked; 0 when nobody bid
+     * @param paymentDeadline when the winner must have paid by, or null when nobody bid
+     */
     record ExpiredBiddingAuction(
             @NotNull String worldGuardRegionId,
             @NotNull UUID worldId,
             @Nullable UUID winnerId,
-            @NotNull UUID auctioneerId
+            @NotNull UUID auctioneerId,
+            double price,
+            double totalDue,
+            @Nullable LocalDateTime paymentDeadline
     ) {}
 
     @NotNull List<ExpiredBiddingAuction> clearExpiredBiddingAuctions();
@@ -1277,11 +1294,12 @@ public interface RealtyBackend {
      * @param lineKind {@code fee} or {@code proceeds}
      * @param source   what the line is for, such as a levy's name or a fee's role
      * @param worldId  the region's world
-     * @param attempts the failed payout attempts so far
+     * @param attempts  the failed payout attempts so far
+     * @param salePrice the price the region sold for
      */
     record DuePayout(int id, @NotNull String lineKind, @NotNull String source, @NotNull Party recipient,
                      double amount, @NotNull String regionName, @Nullable UUID worldId, @NotNull UUID buyerId,
-                     int attempts) {}
+                     int attempts, double salePrice) {}
 
     /**
      * A refund owed to a buyer from the holding account.
@@ -1563,7 +1581,8 @@ public interface RealtyBackend {
     /**
      * One fee that may apply to a sale of a region.
      *
-     * @param source    the levy's name, or for a player fee its role followed by "fee", such as {@code agent fee}
+     * @param source    the levy's name, or for a player fee its role label, such as {@code agent fee}
+     *                  (see {@link FeeLine#playerFeeSource(String)})
      * @param recipient who receives it; {@code null} for a levy paid to the region's authority
      * @param side      who pays it
      * @param rate      the rate for display, such as {@code 3%} or {@code 2–8% by plots held}

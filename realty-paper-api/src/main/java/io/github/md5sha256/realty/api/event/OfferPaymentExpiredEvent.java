@@ -21,8 +21,9 @@ public class OfferPaymentExpiredEvent extends PaymentExpiredEvent {
                                     @Nullable WorldGuardRegion region,
                                     @NotNull UUID offererId,
                                     double refundAmount,
-                                    boolean refundPaid) {
-        super(regionId, worldId, region, refundAmount, refundPaid);
+                                    boolean refundPaid,
+                                    boolean oldRules) {
+        super(regionId, worldId, region, refundAmount, refundPaid, oldRules);
         this.offererId = offererId;
     }
 
@@ -35,7 +36,7 @@ public class OfferPaymentExpiredEvent extends PaymentExpiredEvent {
                                     @Nullable WorldGuardRegion region,
                                     @NotNull UUID offererId,
                                     double refundAmount) {
-        this(regionId, worldId, region, offererId, refundAmount, false);
+        this(regionId, worldId, region, offererId, refundAmount, false, false);
     }
 
     /**

@@ -90,4 +90,38 @@ class FeeQuoteFormatterTest {
         assertEquals(Component.empty(),
                 FeeQuoteFormatter.breakdown(FeeQuote.none(1000), 4, MESSAGES, party -> "x"));
     }
+
+    @Test
+    void playerFeeSources_areTheRoleLabels_everyOtherSourceIsALevy() {
+        Party anyone = Party.personal(UUID.randomUUID());
+        for (String role : FeeLine.PLAYER_FEE_ROLES) {
+            assertTrue(!new FeeLine(FeeLine.playerFeeSource(role), anyone, FeeSide.SELLER, 1, 1).isLevy(), role);
+        }
+        assertEquals("agent fee", FeeLine.playerFeeSource("agent"));
+        assertTrue(new FeeLine("townville-levy", anyone, FeeSide.BUYER, 1, 1).isLevy());
+    }
+
+    @Test
+    void offerPreview_listsEachApprovedAgentFee_asApplyingIfThatAgentAccepts() {
+        Party agent = Party.personal(UUID.randomUUID());
+        List<io.github.md5sha256.realty.api.RealtyBackend.FeeListing> fees = List.of(
+                new io.github.md5sha256.realty.api.RealtyBackend.FeeListing("townville-levy", null, FeeSide.BUYER,
+                        "5%", true, null),
+                new io.github.md5sha256.realty.api.RealtyBackend.FeeListing("agent fee", agent, FeeSide.SELLER,
+                        "3%", true, "agent"),
+                new io.github.md5sha256.realty.api.RealtyBackend.FeeListing("agent fee",
+                        Party.personal(UUID.randomUUID()), FeeSide.SELLER, "4%", false, "agent"),
+                new io.github.md5sha256.realty.api.RealtyBackend.FeeListing("titleholder fee", agent, FeeSide.BUYER,
+                        "1%", true, "titleholder"));
+
+        var agentFees = FeePreview.approvedAgentFees(fees);
+
+        assertEquals(1, agentFees.size(), agentFees.toString());
+        assertEquals(agent, agentFees.getFirst().recipient());
+        String line = plain(MESSAGES.messageFor(io.github.md5sha256.realty.localisation.MessageKeys.FEES_BREAKDOWN_AGENT_IF_ACCEPTS,
+                net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed("agent", "Servalot"),
+                net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed("side", "seller"),
+                net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed("percent", "3%")));
+        assertEquals("  If Servalot accepts, their seller-paid fee of 3% applies.", line);
+    }
 }

@@ -37,4 +37,11 @@ class LevyCommandGroupTest {
     void noTiers_saysSo() {
         assertEquals("no rate", LevyCommandGroup.rateRange(levy(List.of())));
     }
+
+    @Test
+    void change_withoutAuthority_isRefused_evenForAdmins() {
+        org.junit.jupiter.api.Assertions.assertFalse(LevyCommandGroup.mayChange(false),
+                "one plot or all, with or without the bypass, a levy change takes --authority");
+        org.junit.jupiter.api.Assertions.assertTrue(LevyCommandGroup.mayChange(true));
+    }
 }

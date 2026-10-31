@@ -6,6 +6,7 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
+import io.github.md5sha256.realty.command.util.Deadlines;
 import io.github.md5sha256.realty.command.util.FeePreview;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -14,9 +15,11 @@ import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.settings.Settings;
 import io.github.md5sha256.realty.util.PartyNames;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
@@ -32,6 +35,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Groups all offer-related subcommands under {@code /realty offer}.
@@ -51,7 +55,8 @@ public record OfferCommandGroup(
         @NotNull ActorContexts actors,
         @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
-        @NotNull PartyNames partyNames
+        @NotNull PartyNames partyNames,
+        @NotNull AtomicReference<Settings> settings
 ) implements CustomCommandBean {
 
     @Override
@@ -145,7 +150,7 @@ public record OfferCommandGroup(
                                     Placeholder.unparsed("price", CurrencyFormatter.format(price)),
                                     Placeholder.unparsed("region", regionId));
                             // The offer stands either way; a failed preview only leaves out the breakdown.
-                            FeePreview.of(api, region, sender.getUniqueId(), price)
+                            FeePreview.ofOffer(api, region, sender.getUniqueId(), price)
                                     .thenAccept(preview -> sender.sendMessage(preview.appendTo(placed,
                                             MessageKeys.FEES_BREAKDOWN_HEADER_OFFER, messages, partyNames)))
                                     .exceptionally(ex -> {
@@ -353,7 +358,7 @@ public record OfferCommandGroup(
                                         Placeholder.unparsed("due", CurrencyFormatter.format(
                                                 success.newTotal() + success.remaining())),
                                         Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining())),
-                                        Placeholder.unparsed("deadline", deadline))));
+                                        deadline)));
                 case RealtyPaperApi.PayOfferResult.FullyPaid fullyPaid ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                                 Placeholder.unparsed("region", fullyPaid.regionId())));
@@ -391,11 +396,11 @@ public record OfferCommandGroup(
     }
 
     /**
-     * The payment deadline of the player's accepted offer on {@code region}, formatted, or
-     * "the deadline" when it cannot be found.
+     * The {@code <deadline>} of the player's accepted offer on {@code region}, in the configured
+     * date format, as an auction's is; {@code pay.deadline-unknown} when it cannot be found.
      */
-    private @NotNull CompletableFuture<String> paymentDeadline(@NotNull Player player,
-                                                               @NotNull WorldGuardRegion region) {
+    private @NotNull CompletableFuture<TagResolver> paymentDeadline(@NotNull Player player,
+                                                                    @NotNull WorldGuardRegion region) {
         String regionId = region.region().getId();
         java.util.UUID worldId = region.world().getUID();
         return api.listOutboundOffers(player.getUniqueId()).thenApply(offers -> offers.stream()
@@ -403,9 +408,9 @@ public record OfferCommandGroup(
                         .map(OutboundOfferView::paymentDeadline)
                         .filter(java.util.Objects::nonNull)
                         .findFirst()
-                        .map(deadline -> deadline.format(DateTimeFormatters.DATE_TIME))
-                        .orElse("the deadline"))
-                .exceptionally(ex -> "the deadline");
+                        .orElse(null))
+                .exceptionally(ex -> null)
+                .thenApply(deadline -> Deadlines.placeholder(messages, settings.get().dateFormat(), deadline));
     }
 
     // ── /realty offer withdraw [region] ──

@@ -32,7 +32,10 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -48,7 +51,20 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                           @NotNull Database database,
                           @NotNull AtomicReference<RealtyTags> realtyTags,
                           @NotNull MessageContainer messages,
-                          @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
+                          @NotNull PartyNames partyNames,
+                          @NotNull Logger logger) implements CustomCommandBean.Single {
+
+    /**
+     * The region's fees, or none when they cannot be looked up: the fees line is one line of the
+     * info, and a failure there must not cost the player the rest of it.
+     */
+    static @NotNull CompletableFuture<List<RealtyBackend.FeeListing>> feesOrNone(
+            @NotNull CompletableFuture<List<RealtyBackend.FeeListing>> fees, @NotNull Logger logger) {
+        return fees.exceptionally(ex -> {
+            logger.log(Level.FINE, "Could not list the fees for /realty info; showing none", ex);
+            return List.of();
+        });
+    }
 
     private @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
         Set<UUID> memberUuids = region.region().getMembers().getUniqueIds();
@@ -95,7 +111,7 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
         // resolveMembers reads WG data and must run on the main thread
         String membersStr = resolveMembers(region);
 
-        api.getRegionInfo(regionId, worldId).thenCombine(api.listFees(region), FeesAndInfo::new).thenAccept(both -> {
+        api.getRegionInfo(regionId, worldId).thenCombine(feesOrNone(api.listFees(region), logger), FeesAndInfo::new).thenAccept(both -> {
             RealtyBackend.RegionInfo info = both.info();
             TextComponent.Builder builder = Component.text();
             builder.append(messages.messageFor(MessageKeys.INFO_HEADER,

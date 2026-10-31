@@ -20,6 +20,7 @@ import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
 import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
 import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
@@ -104,10 +105,10 @@ class RegionNotificationListenerTest {
         };
         Settings settings = new Settings(null, null, null, null, new SimpleDateFormat("yyyy"),
                 0, 0, 0, 0, List.of(), null, 0, 0, 0, 0, AccountManagers.MEMBERS);
-        listener = new RegionNotificationListener(events, new MessageContainer(),
+        listener = new RegionNotificationListener(events, shippedMessages(),
                 new PartyNames(server, null, Clock.systemUTC()),
                 new PartyRecipients(server, treasury, vaultPermission, new AtomicReference<>(settings)),
-                new ExecutorState(Runnable::run, sameThread, sameThread), logger);
+                new ExecutorState(Runnable::run, sameThread, sameThread), new AtomicReference<>(settings), logger);
         ProtectedRegion protectedRegion = mock(ProtectedRegion.class);
         // Unused by the account-landlord case, which returns before rendering any text.
         lenient().when(protectedRegion.getId()).thenReturn("region-1");
@@ -194,6 +195,25 @@ class RegionNotificationListenerTest {
         Assertions.assertEquals(List.of(TENANT), captor.getValue().getTargets());
     }
 
+    private static MessageContainer shippedMessages() {
+        MessageContainer messages = new MessageContainer();
+        try (java.io.InputStream in = RegionNotificationListenerTest.class.getResourceAsStream("/messages.yml")) {
+            Assertions.assertNotNull(in);
+            messages.load(org.spongepowered.configurate.yaml.YamlConfigurationLoader.builder()
+                    .source(() -> new java.io.BufferedReader(new java.io.InputStreamReader(in,
+                            java.nio.charset.StandardCharsets.UTF_8)))
+                    .build()
+                    .load());
+        } catch (java.io.IOException ex) {
+            throw new java.io.UncheckedIOException(ex);
+        }
+        return messages;
+    }
+
+    private static String plain(RealtyNotificationEvent notice) {
+        return PlainTextComponentSerializer.plainText().serialize(notice.getMessage());
+    }
+
     private List<RealtyNotificationEvent> notices(int count) {
         ArgumentCaptor<RealtyNotificationEvent> captor = ArgumentCaptor.forClass(RealtyNotificationEvent.class);
         verify(events, times(count)).fireSync(captor.capture());
@@ -258,7 +278,7 @@ class RegionNotificationListenerTest {
 
     @Test
     void bidPaymentExpired_notifiesTheBidderEvenWhenTheRegionIsGone() {
-        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("gone", null, null, TENANT, 250, true));
+        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("gone", null, null, TENANT, 250, true, false));
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
@@ -267,7 +287,7 @@ class RegionNotificationListenerTest {
 
     @Test
     void offerPaymentExpired_notifiesTheOfferer() {
-        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250, true));
+        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250, true, false));
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
@@ -276,19 +296,82 @@ class RegionNotificationListenerTest {
 
     @Test
     void paymentExpiredWithAFailedRefund_saysTheRefundIsPending() {
-        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250, false));
+        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250, false, false));
 
         Assertions.assertEquals(MessageKeys.NOTIFICATION_REFUND_PENDING, notices(1).getFirst().getMessageKey());
     }
 
     @Test
     void paymentExpiredUnderTheOldRules_saysNothingIsRefunded() {
-        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("region-1", null, region, TENANT, 0, false));
+        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("region-1", null, region, TENANT, 0, false,
+                true));
 
         RealtyNotificationEvent notice = notices(1).getFirst();
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED, notice.getMessageKey());
-        Assertions.assertFalse(PlainTextComponentSerializer.plainText().serialize(notice.getMessage())
-                .contains("refunded 0"));
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED_OLD_RULES, notice.getMessageKey());
+        Assertions.assertTrue(plain(notice).contains("went to the seller"), plain(notice));
+    }
+
+    @Test
+    void offerPaymentExpiredUnderTheOldRules_usesTheOfferOldRulesNotice() {
+        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 0, false,
+                true));
+
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED_OLD_RULES,
+                notices(1).getFirst().getMessageKey());
+    }
+
+    @Test
+    void paymentExpiredWithNothingPaid_underTheNewRules_saysNothingWasPaid() {
+        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("region-1", null, region, TENANT, 0, false,
+                false));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_NOTHING_PAID, notice.getMessageKey());
+        Assertions.assertTrue(plain(notice).contains("You had paid nothing, so nothing is refunded."), plain(notice));
+        Assertions.assertFalse(plain(notice).contains("seller"), plain(notice));
+    }
+
+    @Test
+    void offerAccepted_tellsTheOffererWhatTheyOweAndBy() {
+        java.time.LocalDateTime deadline = java.time.LocalDateTime.of(2026, 11, 2, 18, 30);
+
+        listener.onOfferAccepted(new OfferAcceptedEvent(region, LANDLORD, TENANT, 1000, 1050,
+                deadline.atZone(java.time.ZoneId.systemDefault()).toInstant()));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_ACCEPTED, notice.getMessageKey());
+        Assertions.assertTrue(plain(notice).contains("1,050") || plain(notice).contains("1050"), plain(notice));
+        Assertions.assertTrue(plain(notice).contains("2026"), "the deadline, in the configured format: "
+                + plain(notice));
+    }
+
+    @Test
+    void proceedsWithSellerFees_sayTheSalePriceAndWhatWasLeft() {
+        listener.onSaleProceedsPaid(new SaleProceedsPaidEvent("region-1", null, Party.personal(LANDLORD), 1000, 970,
+                TENANT));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_SALE_PROCEEDS, notice.getMessageKey());
+        Assertions.assertTrue(plain(notice).contains("region-1 sold for"), plain(notice));
+        Assertions.assertTrue(plain(notice).contains("after fees"), plain(notice));
+    }
+
+    @Test
+    void proceedsWithNoSellerFees_leaveOutAfterFees() {
+        listener.onSaleProceedsPaid(new SaleProceedsPaidEvent("region-1", null, Party.personal(LANDLORD), 1000, 1000,
+                TENANT));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_SALE_PROCEEDS_NO_FEES, notice.getMessageKey());
+        Assertions.assertFalse(plain(notice).contains("after fees"), plain(notice));
+    }
+
+    @Test
+    void proceedsOfNothing_tellNobody() {
+        listener.onSaleProceedsPaid(new SaleProceedsPaidEvent("region-1", null, Party.personal(LANDLORD), 1000, 0,
+                TENANT));
+
+        verify(events, never()).fireSync(any(RealtyNotificationEvent.class));
     }
 
     @Test
@@ -304,7 +387,7 @@ class RegionNotificationListenerTest {
 
     @Test
     void proceedsPaidToAPlayer_tellsThatPlayer() {
-        listener.onSaleProceedsPaid(new SaleProceedsPaidEvent("region-1", null, Party.personal(LANDLORD), 970, TENANT));
+        listener.onSaleProceedsPaid(new SaleProceedsPaidEvent("region-1", null, Party.personal(LANDLORD), 1000, 970, TENANT));
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(MessageKeys.NOTIFICATION_SALE_PROCEEDS, notice.getMessageKey());
@@ -318,7 +401,7 @@ class RegionNotificationListenerTest {
         when(treasury.getMembers(42)).thenReturn(List.of());
 
         listener.onSaleProceedsPaid(new SaleProceedsPaidEvent("region-1", null,
-                Party.account(42, AccountKind.GOVERNMENT), 970, TENANT));
+                Party.account(42, AccountKind.GOVERNMENT), 1000, 970, TENANT));
 
         Assertions.assertEquals(List.of(authorizer), notices(1).getFirst().getTargets());
     }

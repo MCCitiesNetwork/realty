@@ -24,17 +24,20 @@ public class SaleProceedsPaidEvent extends Event {
     private final String regionId;
     private final UUID worldId;
     private final Party seller;
+    private final double price;
     private final double amount;
     private final UUID buyerId;
 
     public SaleProceedsPaidEvent(@NotNull String regionId,
                                  @Nullable UUID worldId,
                                  @NotNull Party seller,
+                                 double price,
                                  double amount,
                                  @NotNull UUID buyerId) {
         this.regionId = regionId;
         this.worldId = worldId;
         this.seller = seller;
+        this.price = price;
         this.amount = amount;
         this.buyerId = buyerId;
     }
@@ -61,7 +64,14 @@ public class SaleProceedsPaidEvent extends Event {
     }
 
     /**
-     * How much the seller was paid.
+     * The price the region sold for.
+     */
+    public double getPrice() {
+        return this.price;
+    }
+
+    /**
+     * How much the seller was paid: the price less the fees the seller pays.
      */
     public double getAmount() {
         return this.amount;

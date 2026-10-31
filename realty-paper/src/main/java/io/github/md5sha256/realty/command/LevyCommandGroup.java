@@ -35,14 +35,14 @@ import java.util.concurrent.CompletableFuture;
  * Groups the levy subcommands under {@code /realty levy}.
  *
  * <ul>
- *   <li>{@code /realty levy set <levy> [region] [--all] [--authority]}</li>
- *   <li>{@code /realty levy clear [region] [--all] [--authority]}</li>
+ *   <li>{@code /realty levy set <levy> [region] --authority [--all]}</li>
+ *   <li>{@code /realty levy clear [region] --authority [--all]}</li>
  *   <li>{@code /realty levy list}</li>
  * </ul>
  *
- * <p>A levy is chosen for the authority: the actor must manage the region's authority, unless they
- * hold {@code realty.command.levy.bypass}. {@code --all} makes the choice for every plot of the
- * region's authority, and is accepted only with {@code --authority}.</p>
+ * <p>A levy is chosen for the authority, so both forms take {@code --authority}, admins included:
+ * the actor must manage the region's authority, unless they hold {@code realty.command.levy.bypass}.
+ * {@code --all} makes the choice for every plot of the region's authority.</p>
  */
 public record LevyCommandGroup(
         @NotNull RealtyPaperApi api,
@@ -111,7 +111,7 @@ public record LevyCommandGroup(
         return FeeQuoteFormatter.percent(min) + "–" + FeeQuoteFormatter.percent(max) + "% by plots held";
     }
 
-    // ── /realty levy set <levy> | clear [region] [--all] [--authority] ──
+    // ── /realty levy set <levy> | clear [region] --authority [--all] ──
 
     /** @param levyName the levy to choose, or {@code null} to clear the choice */
     private void executeChange(@NotNull CommandContext<Source> ctx, @Nullable String levyName) {
@@ -120,8 +120,8 @@ public record LevyCommandGroup(
             return;
         }
         boolean all = ctx.flags().hasFlag(ALL_FLAG);
-        if (all && !ctx.flags().hasFlag(AUTHORITY_FLAG)) {
-            sender.sendMessage(messages.messageFor(MessageKeys.LEVY_ALL_NEEDS_AUTHORITY));
+        if (!mayChange(ctx.flags().hasFlag(AUTHORITY_FLAG))) {
+            sender.sendMessage(messages.messageFor(MessageKeys.LEVY_NEEDS_AUTHORITY));
             return;
         }
         WorldGuardRegion region = FeeCommandGroup.regionOf(ctx, sender);
@@ -159,6 +159,14 @@ public record LevyCommandGroup(
                             Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
                     return null;
                 });
+    }
+
+    /**
+     * Whether a levy change may go ahead: only with {@code --authority}, for one plot or for all,
+     * and for an admin who bypasses the authority check too, so that nobody sets a levy by accident.
+     */
+    static boolean mayChange(boolean authorityFlag) {
+        return authorityFlag;
     }
 
     private record Outcome(@NotNull RealtyBackend.SetLevyResult result, @Nullable Party authority) {}

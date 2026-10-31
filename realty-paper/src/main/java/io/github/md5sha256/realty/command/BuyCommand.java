@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
+import io.github.md5sha256.realty.api.Money;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
@@ -16,6 +17,7 @@ import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.util.PartyNames;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
@@ -23,8 +25,12 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
+import org.incendo.cloud.parser.standard.DoubleParser;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -34,7 +40,9 @@ import java.util.function.Function;
  *
  * <p>Performs a fixed-price purchase at the listed price without requiring
  * approval from the current title holder. When the sale carries fees, the buyer is first shown
- * the breakdown and a link that runs the command again with {@code --confirm}.</p>
+ * the breakdown and a link that runs the command again with {@code --confirm <total>}, the total
+ * they saw. The confirmed buy looks at the fees again, and buys only if the total is still the
+ * same; otherwise it shows the new breakdown and a fresh link.</p>
  *
  * <p>Permission: {@code realty.command.buy}.</p>
  */
@@ -58,12 +66,36 @@ public record BuyCommand(
                 .build();
     }
 
-    /** Confirms a buy that carries fees, after the buyer has seen the breakdown. */
-    static final CommandFlag<Void> CONFIRM_FLAG = CommandFlag.<Source>builder("confirm").build();
+    /** Confirms a buy that carries fees at the total the buyer was shown. */
+    static final CommandFlag<Double> CONFIRM_FLAG = CommandFlag.<Source>builder("confirm")
+            .withComponent(DoubleParser.doubleParser(0, Double.MAX_VALUE))
+            .build();
 
-    /** The command the confirmation link runs: this buy again, confirmed. */
-    static @NotNull String confirmCommand(@NotNull String regionId) {
-        return "/realty buy " + regionId + " --confirm";
+    /** The command the confirmation link runs: this buy again, confirmed at {@code total}. */
+    static @NotNull String confirmCommand(@NotNull String regionId, double total) {
+        return "/realty buy " + regionId + " --confirm "
+                + BigDecimal.valueOf(Money.cents(total)).setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    /** What a buy does once the fees are looked up. */
+    enum Step {
+        /** Buy now. */
+        BUY,
+        /** Show the breakdown and a link to confirm it. */
+        SHOW,
+        /** The total confirmed is no longer the total: show the new one and a fresh link. */
+        SHOW_CHANGED
+    }
+
+    /**
+     * @param confirmedTotal the total of {@code --confirm}, or null when the buyer has not confirmed
+     * @param preview        the fees as they stand now
+     */
+    static @NotNull Step step(@Nullable Double confirmedTotal, @NotNull FeePreview preview) {
+        if (confirmedTotal == null) {
+            return preview.hasFees() ? Step.SHOW : Step.BUY;
+        }
+        return Money.cents(confirmedTotal) == Money.cents(preview.quote().buyerTotal()) ? Step.BUY : Step.SHOW_CHANGED;
     }
 
     /** The post-event for a completed buy, carrying the fees the sale paid. */
@@ -87,29 +119,33 @@ public record BuyCommand(
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
-        if (ctx.flags().hasFlag(CONFIRM_FLAG)) {
-            buy(sender, region);
-            return;
-        }
-        // A sale with fees is shown first and bought only once confirmed; one without goes through.
+        Double confirmedTotal = ctx.flags().getValue(CONFIRM_FLAG, null);
+        // A sale with fees is shown first and bought only once confirmed at the total shown; one
+        // without goes through. A confirmed buy is looked at again, in case the fees changed.
         String regionId = region.region().getId();
         api.getFreeholdContract(regionId, region.world().getUID())
                 .thenCompose(freehold -> freehold == null || freehold.price() == null
                         ? CompletableFuture.<FeePreview>completedFuture(null)
                         : FeePreview.of(api, region, sender.getUniqueId(), freehold.price()))
                 .thenAcceptAsync(preview -> {
-                    if (preview == null || !preview.hasFees()) {
+                    // No asking price: the buy itself says why it cannot go ahead.
+                    Step step = preview == null ? Step.BUY : step(confirmedTotal, preview);
+                    if (step == Step.BUY) {
                         buy(sender, region);
                         return;
                     }
-                    sender.sendMessage(messages.messageFor(MessageKeys.FEES_BREAKDOWN_HEADER_BUY,
+                    Component breakdown = messages.messageFor(MessageKeys.FEES_BREAKDOWN_HEADER_BUY,
                                     Placeholder.unparsed("region", regionId),
                                     Placeholder.unparsed("price", CurrencyFormatter.format(preview.quote().price())))
                             .appendNewline()
                             .append(FeeQuoteFormatter.breakdown(preview.quote(), preview.buyerPlots(), messages,
                                     partyNames::display))
                             .appendNewline()
-                            .append(messages.commandLink(MessageKeys.BUY_CONFIRM_FEES, confirmCommand(regionId))));
+                            .append(messages.commandLink(MessageKeys.BUY_CONFIRM_FEES,
+                                    confirmCommand(regionId, preview.quote().buyerTotal())));
+                    sender.sendMessage(step == Step.SHOW_CHANGED
+                            ? messages.messageFor(MessageKeys.BUY_TOTAL_CHANGED).appendNewline().append(breakdown)
+                            : breakdown);
                 }, executorState.mainThreadExec())
                 .exceptionally(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
