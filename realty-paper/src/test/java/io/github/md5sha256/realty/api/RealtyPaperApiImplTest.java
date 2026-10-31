@@ -218,6 +218,9 @@ class RealtyPaperApiImplTest {
                 actorContexts, events, holding, settlement, LOG);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
+        // An instalment whose money moved is confirmed, as the backend does while its payment exists.
+        lenient().when(realtyApi.confirmPayBid(any(), any(), any(), anyDouble())).thenReturn(true);
+        lenient().when(realtyApi.confirmPayOffer(any(), any(), any(), anyDouble())).thenReturn(true);
 
         protectedRegion = new ProtectedCuboidRegion(REGION_ID,
                 BlockVector3.at(0, 0, 0), BlockVector3.at(100, 100, 100));
@@ -2297,9 +2300,88 @@ class RealtyPaperApiImplTest {
                     eq("Purchase Offer Payment (partial): " + REGION_ID), eq(BUYER_ID));
             verify(economyProvider).transfer(eq(BUYER), eq(HOLDING), eq(600.0),
                     eq("Purchase Offer Payment (final): " + REGION_ID), eq(BUYER_ID));
+            verify(realtyApi).confirmPayOffer(REGION_ID, WORLD_ID, BUYER_ID, 400.0);
+            verify(realtyApi).confirmPayOffer(REGION_ID, WORLD_ID, BUYER_ID, 600.0);
             verify(realtyApi).finalizeOfferPurchase(REGION_ID, WORLD_ID, BUYER_ID);
             verify(realtyApi).markPayoutPaid(1);
             Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+            ArgumentCaptor<io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent> fired =
+                    ArgumentCaptor.forClass(io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent.class);
+            verify(events).fireSync(fired.capture());
+            Assertions.assertEquals(1000, fired.getValue().getAmount(), 0.001, "the sale price, not the instalment");
+        }
+
+        @Test
+        void payBid_final_confirmsBeforeFinalizing() {
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            payoutsDue();
+
+            api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            InOrder order = inOrder(realtyApi, economyProvider);
+            order.verify(economyProvider).transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID));
+            order.verify(realtyApi).confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 1000.0);
+            order.verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
+        }
+
+        @Test
+        void payBid_saleEndedWhileTheMoneyMoved_failsAndSaysItIsRefunded() {
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 1000.0)).thenReturn(false);
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            RealtyPaperApi.PayBidResult.PaymentFailed failed =
+                    Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
+            Assertions.assertTrue(failed.error().contains("refunded"), failed.error());
+            verify(realtyApi, never()).finalizeBidPurchase(any(), any(), any());
+            verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
+        }
+
+        @Test
+        void payBid_confirmThrows_leavesItPending_andSaysAnAdminWasAlerted() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0))
+                    .thenThrow(new IllegalStateException("connection lost"));
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 300).join();
+
+            RealtyPaperApi.PayBidResult.PaymentFailed failed =
+                    Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
+            Assertions.assertTrue(failed.error().contains("admin"), failed.error());
+            verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
+        }
+
+        @Test
+        void payBid_whileAnInstalmentIsPending_isRefused() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0))
+                    .thenReturn(new RealtyBackend.PayBidResult.PaymentInProgress());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 300).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+        }
+
+        @Test
+        void payBid_oldRulesFinalizeFails_isAnError_notPending() {
+            paidInFull(1000.0, FeeQuote.none(1000), true);
+            when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(false);
+            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Error.class, result);
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
         }
 
         private RealtyBackend.BuyResult.Success reservedWith(FeeQuote quote) {

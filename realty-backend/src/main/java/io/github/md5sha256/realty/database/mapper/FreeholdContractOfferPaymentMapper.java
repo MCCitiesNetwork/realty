@@ -30,6 +30,23 @@ public interface FreeholdContractOfferPaymentMapper {
     @NotNull List<FreeholdContractOfferPaymentEntity> selectFullyPaidUnfinalized();
 
     /**
+     * Counts an instalment as pending, before its money moves, if nothing else is pending and the
+     * confirmed payment is still {@code expectedCurrent}.
+     *
+     * @return 1 if recorded, 0 if the row changed or another instalment is pending
+     */
+    int recordPending(int offerId, double expectedCurrent, double amount);
+
+    /** Moves the pending instalment of {@code amount} into the confirmed payment. */
+    int confirmPending(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double amount);
+
+    /** Drops the pending instalment of {@code amount}, as when its transfer failed. */
+    int clearPending(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId, double amount);
+
+    /** Payments with an instalment pending for more than {@code minutes} by the database clock. */
+    @NotNull List<FreeholdContractOfferPaymentEntity> selectStuckPending(int minutes);
+
+    /**
      * @param totalDue   what the offerer owes in all: the price plus any buyer-paid fees
      * @param acceptedBy the player who accepted the offer
      */

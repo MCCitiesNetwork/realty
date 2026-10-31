@@ -78,11 +78,16 @@ UPDATE FreeholdContractBidPayment SET totalDue = bidPrice;
 ALTER TABLE FreeholdContractBidPayment
     ADD COLUMN oldRules BOOLEAN NOT NULL DEFAULT FALSE;
 UPDATE FreeholdContractBidPayment SET oldRules = TRUE;
+-- An instalment is pending from when it is counted until its money has moved: confirmed money is
+-- in currentPayment, an instalment whose transfer has not finished is in pendingPayment.
 ALTER TABLE FreeholdContractBidPayment
     MODIFY COLUMN totalDue DOUBLE NOT NULL,
+    ADD COLUMN pendingPayment DOUBLE NOT NULL DEFAULT 0,
+    ADD COLUMN pendingSince DATETIME NULL,
     DROP CONSTRAINT chk_valid_bid_payment_currentPayment,
     ADD CONSTRAINT chk_valid_bid_payment_currentPayment
-        CHECK (currentPayment >= 0 AND currentPayment <= totalDue + 0.005);
+        CHECK (currentPayment >= 0 AND pendingPayment >= 0
+               AND currentPayment + pendingPayment <= totalDue + 0.005);
 
 ALTER TABLE FreeholdContractOfferPayment
     ADD COLUMN totalDue DOUBLE NULL;
@@ -93,6 +98,9 @@ UPDATE FreeholdContractOfferPayment SET oldRules = TRUE;
 ALTER TABLE FreeholdContractOfferPayment
     MODIFY COLUMN totalDue DOUBLE NOT NULL,
     ADD COLUMN acceptedBy UUID NULL,
+    ADD COLUMN pendingPayment DOUBLE NOT NULL DEFAULT 0,
+    ADD COLUMN pendingSince DATETIME NULL,
     DROP CONSTRAINT chk_valid_currentPayment,
     ADD CONSTRAINT chk_valid_currentPayment
-        CHECK (currentPayment >= 0 AND currentPayment <= totalDue + 0.005);
+        CHECK (currentPayment >= 0 AND pendingPayment >= 0
+               AND currentPayment + pendingPayment <= totalDue + 0.005);

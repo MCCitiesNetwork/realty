@@ -94,6 +94,16 @@ class SaleFeesMigrationTest extends AbstractDatabaseTest {
                     () -> insertBidPaymentWithTotal(statement, overRegion, 1000.0, 1050.0, 1060.0),
                     "currentPayment above totalDue breaks the check");
 
+            Assertions.assertEquals(0.0, fetchDouble(statement,
+                            "SELECT pendingPayment FROM FreeholdContractBidPayment WHERE realtyRegionId = " + newRegion),
+                    0.0001, "a payment starts with nothing pending");
+            Assertions.assertThrows(SQLException.class, () -> statement.executeUpdate(
+                            "UPDATE FreeholdContractBidPayment SET pendingPayment = 10 WHERE realtyRegionId = " + newRegion),
+                    "a pending instalment beyond totalDue breaks the check");
+            Assertions.assertThrows(SQLException.class, () -> statement.executeUpdate(
+                            "UPDATE FreeholdContractBidPayment SET pendingPayment = -1 WHERE realtyRegionId = " + newRegion),
+                    "a negative pending instalment breaks the check");
+
             int newOfferRegion = insertFreehold(statement, partyId, "plot_over_offer");
             int newOfferId = insertOffer(statement, newOfferRegion, 500.0);
             Assertions.assertThrows(SQLException.class, () -> statement.executeUpdate("""
@@ -179,6 +189,13 @@ class SaleFeesMigrationTest extends AbstractDatabaseTest {
         try (ResultSet rs = statement.executeQuery(sql)) {
             rs.next();
             return rs.getInt(1);
+        }
+    }
+
+    private static double fetchDouble(Statement statement, String sql) throws SQLException {
+        try (ResultSet rs = statement.executeQuery(sql)) {
+            Assertions.assertTrue(rs.next());
+            return rs.getDouble(1);
         }
     }
 

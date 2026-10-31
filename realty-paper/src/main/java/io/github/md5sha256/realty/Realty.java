@@ -592,6 +592,11 @@ public final class Realty extends JavaPlugin {
             this.paperApi.finishPendingSales();
             this.settlement.payOutDue();
             this.settlement.retryRefunds();
+            try {
+                this.settlement.reportStuckInstalments();
+            } catch (RuntimeException ex) {
+                getLogger().log(Level.WARNING, "Could not check for stuck instalments", ex);
+            }
             List<RealtyBackend.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
             if (!expiredLeaseholds.isEmpty()) {
                 Map<String, Map<String, String>> leaseholdPlaceholders = new HashMap<>();
@@ -799,8 +804,12 @@ public final class Realty extends JavaPlugin {
         try {
             return this.settlement.settleExpiry(refundId, buyerId, amount, regionName, worldId, reason);
         } catch (RuntimeException ex) {
-            getLogger().log(Level.WARNING, "The refund for the expired payment on " + regionName
-                    + " could not be tried now; it will be tried again", ex);
+            // The refund row was written with the expiry. If the failure came before its claim, it is
+            // still pending and is retried; after it, the row stays claimed and is never retried.
+            getLogger().log(Level.SEVERE, "Settling refund #" + refundId + " of " + CurrencyFormatter.format(amount)
+                    + " to " + buyerId + " for " + regionName + " failed. If it was already claimed it is stuck"
+                    + " as 'paying' and needs an admin (it is listed at the next startup); otherwise it is tried"
+                    + " again.", ex);
             return new SaleSettlement.ExpiryRefund(refundId == null ? 0 : amount, false);
         }
     }

@@ -28,7 +28,8 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
     @Override
     @Select("""
             SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
-                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules,
+                   scbp.pendingPayment, scbp.pendingSince
             FROM FreeholdContractBidPayment scbp
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scbp.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -44,7 +45,9 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
             @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
             @Arg(column = "currentPayment", javaType = double.class),
             @Arg(column = "totalDue", javaType = double.class),
-            @Arg(column = "oldRules", javaType = boolean.class)
+            @Arg(column = "oldRules", javaType = boolean.class),
+            @Arg(column = "pendingPayment", javaType = double.class),
+            @Arg(column = "pendingSince", javaType = LocalDateTime.class)
     })
     @Nullable FreeholdContractBidPaymentEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                            @Param("worldId") @NotNull UUID worldId);
@@ -52,7 +55,8 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
     @Override
     @Select("""
             SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
-                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules,
+                   scbp.pendingPayment, scbp.pendingSince
             FROM FreeholdContractBidPayment scbp
             WHERE scbp.paymentDeadline < NOW()
             """)
@@ -65,14 +69,17 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
             @Arg(column = "paymentDeadline", javaType = LocalDateTime.class),
             @Arg(column = "currentPayment", javaType = double.class),
             @Arg(column = "totalDue", javaType = double.class),
-            @Arg(column = "oldRules", javaType = boolean.class)
+            @Arg(column = "oldRules", javaType = boolean.class),
+            @Arg(column = "pendingPayment", javaType = double.class),
+            @Arg(column = "pendingSince", javaType = LocalDateTime.class)
     })
     @NotNull List<FreeholdContractBidPaymentEntity> selectAllExpired();
 
     @Override
     @Select("""
             SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
-                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules,
+                   scbp.pendingPayment, scbp.pendingSince
             FROM FreeholdContractBidPayment scbp
             WHERE scbp.bidId = #{bidId}
             AND scbp.paymentDeadline < NOW()
@@ -83,14 +90,75 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
     @Override
     @Select("""
             SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
-                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules,
+                   scbp.pendingPayment, scbp.pendingSince
             FROM FreeholdContractBidPayment scbp
             WHERE scbp.oldRules = FALSE
             AND scbp.currentPayment >= scbp.totalDue - 0.005
+            AND scbp.pendingPayment = 0
             ORDER BY scbp.bidId
             """)
     @ResultMap("bidPaymentRow")
     @NotNull List<FreeholdContractBidPaymentEntity> selectFullyPaidUnfinalized();
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContractBidPayment
+            SET pendingPayment = #{amount}, pendingSince = NOW()
+            WHERE bidId = #{bidId}
+            AND pendingPayment = 0
+            AND currentPayment = #{expectedCurrent}
+            """)
+    int recordPending(@Param("bidId") int bidId, @Param("expectedCurrent") double expectedCurrent,
+                      @Param("amount") double amount);
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContractBidPayment scbp
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scbp.realtyRegionId
+            SET scbp.currentPayment = scbp.currentPayment + scbp.pendingPayment,
+                scbp.pendingPayment = 0,
+                scbp.pendingSince = NULL
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND scbp.bidderId = #{bidderId}
+            AND scbp.pendingPayment > 0
+            AND ABS(scbp.pendingPayment - #{amount}) < 0.005
+            """)
+    int confirmPending(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                       @Param("worldId") @NotNull UUID worldId,
+                       @Param("bidderId") @NotNull UUID bidderId,
+                       @Param("amount") double amount);
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContractBidPayment scbp
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scbp.realtyRegionId
+            SET scbp.pendingPayment = 0,
+                scbp.pendingSince = NULL
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND scbp.bidderId = #{bidderId}
+            AND scbp.pendingPayment > 0
+            AND ABS(scbp.pendingPayment - #{amount}) < 0.005
+            """)
+    int clearPending(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                     @Param("worldId") @NotNull UUID worldId,
+                     @Param("bidderId") @NotNull UUID bidderId,
+                     @Param("amount") double amount);
+
+    @Override
+    @Select("""
+            SELECT scbp.bidId, scbp.freeholdContractAuctionId, scbp.realtyRegionId, scbp.bidderId,
+                   scbp.bidPrice, scbp.paymentDeadline, scbp.currentPayment, scbp.totalDue, scbp.oldRules,
+                   scbp.pendingPayment, scbp.pendingSince
+            FROM FreeholdContractBidPayment scbp
+            WHERE scbp.pendingPayment > 0
+            AND scbp.pendingSince < NOW() - INTERVAL #{minutes} MINUTE
+            ORDER BY scbp.bidId
+            """)
+    @ResultMap("bidPaymentRow")
+    @NotNull List<FreeholdContractBidPaymentEntity> selectStuckPending(@Param("minutes") int minutes);
 
     @Override
     @Insert("""

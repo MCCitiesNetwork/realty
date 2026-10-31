@@ -15,7 +15,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -190,6 +192,35 @@ public final class SaleSettlement {
                 }
                 return false;
             }
+        }
+    }
+
+    /** How long an instalment may stay pending before it is reported as stuck, by the database clock. */
+    public static final int STUCK_INSTALMENT_MINUTES = 10;
+
+    /** The stuck instalments already reported, so each is reported once. */
+    private final Set<String> reportedStuck = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Logs SEVERE, once each, the instalments pending for longer than
+     * {@link #STUCK_INSTALMENT_MINUTES}: counted, but never confirmed or rolled back, as after a
+     * crash while the money moved. They are never credited or refunded automatically.
+     */
+    public void reportStuckInstalments() {
+        for (RealtyBackend.StuckInstalment stuck : this.backend.stuckInstalments(STUCK_INSTALMENT_MINUTES)) {
+            String key = stuck.kind() + ":" + stuck.saleId() + ":" + stuck.pendingSince();
+            if (!this.reportedStuck.add(key)) {
+                continue;
+            }
+            String table = stuck.kind() == RealtyBackend.PendingFinalize.Kind.BID
+                    ? "FreeholdContractBidPayment (bidId " : "FreeholdContractOfferPayment (offerId ";
+            this.log.severe("An instalment of " + CurrencyFormatter.format(stuck.amount()) + " by "
+                    + stuck.buyerId() + " towards " + stuck.regionId() + " has been pending since "
+                    + stuck.pendingSince() + ": its transfer may or may not have gone through. It is not credited"
+                    + " or refunded automatically, and the payment deadline is suspended until an admin clears it."
+                    + " Check the economy's ledger, then in " + table + stuck.saleId() + ") either add"
+                    + " pendingPayment to currentPayment (the money arrived) or set it to 0 (it did not), and"
+                    + " clear pendingSince.");
         }
     }
 

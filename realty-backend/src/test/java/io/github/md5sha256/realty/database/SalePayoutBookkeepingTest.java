@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.api.RealtyBackend.DuePayout;
 import io.github.md5sha256.realty.api.RealtyBackend.DueRefund;
 import io.github.md5sha256.realty.api.RealtyBackend.ExpiredBidPayment;
 import io.github.md5sha256.realty.api.RealtyBackend.ExpiredOfferPayment;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptOfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.OfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.PayOfferResult;
@@ -173,7 +174,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         String regionId = freehold();
         inPayment(regionId);
         Assertions.assertTrue(logic.duePayouts().isEmpty(), "an uncompleted sale owes nothing yet");
-        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, logic.payBid(regionId, WORLD_ID, BUYER, 1050));
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 1050));
         logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER);
 
         List<DuePayout> due = logic.duePayouts();
@@ -196,7 +197,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void claimPayout_onlyOnce_thenPaidLineIsNoLongerDue() {
         String regionId = freehold();
         inPayment(regionId);
-        logic.payBid(regionId, WORLD_ID, BUYER, 1050);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 1050);
         logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER);
         DuePayout line = logic.duePayouts().getFirst();
 
@@ -213,7 +214,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void failedPayout_waitsTheRetryInterval_untilAttemptsRunOut() {
         String regionId = freehold();
         inPayment(regionId);
-        logic.payBid(regionId, WORLD_ID, BUYER, 1050);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 1050);
         logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER);
         DuePayout line = logic.duePayouts().getFirst();
         Assertions.assertTrue(logic.claimPayout(line.id()).isPresent());
@@ -276,7 +277,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void cancelAuction_duringPayment_recordsPendingRefund() {
         String regionId = freehold();
         FreeholdContractBidPaymentEntity payment = inPayment(regionId);
-        Assertions.assertInstanceOf(PayBidResult.Success.class, logic.payBid(regionId, WORLD_ID, BUYER, 300));
+        Assertions.assertInstanceOf(PayBidResult.Success.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 300));
 
         Assertions.assertEquals(1, logic.cancelAuction(regionId, WORLD_ID).deleted());
 
@@ -292,7 +293,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void cancelAuction_oldRulesPayment_recordsNoRefund() {
         String regionId = freehold();
         inPayment(regionId);
-        logic.payBid(regionId, WORLD_ID, BUYER, 300);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
         update("UPDATE FreeholdContractBidPayment SET oldRules = TRUE WHERE ? IS NOT NULL", "x");
 
         Assertions.assertEquals(1, logic.cancelAuction(regionId, WORLD_ID).deleted());
@@ -320,7 +321,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void deleteRegion_waitsForAnInstalmentCommittingUnderTheFreeholdLock() throws Exception {
         String regionId = freehold();
         inPayment(regionId);
-        logic.payBid(regionId, WORLD_ID, BUYER, 300);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
         CompletableFuture<Integer> deletion;
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
@@ -329,7 +330,8 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
                     .atomicUpdatePayment(regionId, WORLD_ID, BUYER, 300, 500));
             deletion = CompletableFuture.supplyAsync(() -> logic.deleteRegion(regionId, WORLD_ID));
             Assertions.assertThrows(TimeoutException.class, () -> deletion.get(500, TimeUnit.MILLISECONDS));
-            session.commit();
+            // Forced: a session that only locked is not dirty, and a plain commit would not end it.
+            session.commit(true);
         }
 
         Assertions.assertEquals(1, deletion.get(10, TimeUnit.SECONDS));
@@ -348,7 +350,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
             wrapper.freeholdContractMapper().selectByRegionForUpdate(regionId, WORLD_ID);
             paying = CompletableFuture.supplyAsync(() -> logic.payBid(regionId, WORLD_ID, BUYER, 100));
             Assertions.assertThrows(TimeoutException.class, () -> paying.get(500, TimeUnit.MILLISECONDS));
-            session.commit();
+            session.commit(true);
         }
 
         Assertions.assertInstanceOf(PayBidResult.Success.class, paying.get(10, TimeUnit.SECONDS));
@@ -411,7 +413,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void bidExpiry_recordsTheRefundInTheSameTransaction_andReturnsItsId() {
         String regionId = freehold();
         inPayment(regionId);
-        logic.payBid(regionId, WORLD_ID, BUYER, 300);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
         expirePayment(regionId);
 
         List<ExpiredBidPayment> expired = logic.clearExpiredBidPayments();
@@ -443,7 +445,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void offerExpiry_recordsTheRefundInTheSameTransaction() {
         String regionId = freehold();
         acceptedOffer(regionId);
-        Assertions.assertInstanceOf(PayOfferResult.Success.class, logic.payOffer(regionId, WORLD_ID, BUYER, 400));
+        Assertions.assertInstanceOf(PayOfferResult.Success.class, payOfferConfirmed(regionId, WORLD_ID, BUYER, 400));
         expireOfferPayment(regionId);
 
         List<ExpiredOfferPayment> expired = logic.clearExpiredOfferPayments();
@@ -458,12 +460,12 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void expiry_ofAPaymentPaidInFull_isLeftForItsFinalize() {
         String bidRegion = freehold();
         inPayment(bidRegion);
-        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, logic.payBid(bidRegion, WORLD_ID, BUYER, 1050));
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, payBidConfirmed(bidRegion, WORLD_ID, BUYER, 1050));
         expirePayment(bidRegion);
         String offerRegion = freehold();
         acceptedOffer(offerRegion);
         Assertions.assertInstanceOf(PayOfferResult.FullyPaid.class,
-                logic.payOffer(offerRegion, WORLD_ID, BUYER, 1050));
+                payOfferConfirmed(offerRegion, WORLD_ID, BUYER, 1050));
         expireOfferPayment(offerRegion);
 
         Assertions.assertTrue(logic.clearExpiredBidPayments().isEmpty());
@@ -495,10 +497,10 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
     void listFullyPaidUnfinalized_skipsPartialAndOldRulesPayments() {
         String partial = freehold();
         inPayment(partial);
-        logic.payBid(partial, WORLD_ID, BUYER, 300);
+        payBidConfirmed(partial, WORLD_ID, BUYER, 300);
         String oldRules = freehold();
         inPayment(oldRules);
-        logic.payBid(oldRules, WORLD_ID, BUYER, 1050);
+        payBidConfirmed(oldRules, WORLD_ID, BUYER, 1050);
         update("""
                 UPDATE FreeholdContractBidPayment SET oldRules = TRUE
                 WHERE realtyRegionId = (SELECT realtyRegionId FROM RealtyRegion WHERE worldGuardRegionId = ?)
@@ -507,42 +509,135 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         Assertions.assertTrue(logic.listFullyPaidUnfinalized().isEmpty());
     }
 
+    private static void movePendingBack(int minutes) {
+        update("UPDATE FreeholdContractBidPayment SET pendingSince = pendingSince - INTERVAL " + minutes
+                + " MINUTE WHERE ? IS NOT NULL", "x");
+    }
+
     @Test
-    void rollbackPayBid_afterTheSaleFellThrough_reducesItsRefund() {
+    void crashBeforeConfirm_notFinalized_notRefunded_reportedAsStuckAfterTenMinutes() {
+        String regionId = freehold();
+        FreeholdContractBidPaymentEntity payment = inPayment(regionId);
+        // Counted, then the server stops before the transfer's outcome is confirmed.
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, logic.payBid(regionId, WORLD_ID, BUYER, 1050));
+
+        Assertions.assertTrue(logic.listFullyPaidUnfinalized().isEmpty(), "unconfirmed money finishes nothing");
+        Assertions.assertFalse(logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER));
+        expirePayment(regionId);
+        Assertions.assertTrue(logic.clearExpiredBidPayments().isEmpty(), "a pending row never expires");
+        Assertions.assertEquals(0, count("SELECT COUNT(*) FROM PendingRefund"), "nor is it refunded");
+        Assertions.assertInstanceOf(PayBidResult.PaymentInProgress.class, logic.payBid(regionId, WORLD_ID, BUYER, 1));
+        Assertions.assertTrue(logic.stuckInstalments(10).isEmpty(), "not yet stuck");
+
+        movePendingBack(11);
+
+        List<RealtyBackend.StuckInstalment> stuck = logic.stuckInstalments(10);
+        Assertions.assertEquals(1, stuck.size());
+        Assertions.assertEquals(RealtyBackend.PendingFinalize.Kind.BID, stuck.getFirst().kind());
+        Assertions.assertEquals(payment.bidId(), stuck.getFirst().saleId());
+        Assertions.assertEquals(regionId, stuck.getFirst().regionId());
+        Assertions.assertEquals(BUYER, stuck.getFirst().buyerId());
+        Assertions.assertEquals(1050, stuck.getFirst().amount(), 0.001);
+        Assertions.assertNotNull(bidPayment(regionId), "it is left for an admin");
+    }
+
+    @Test
+    void confirm_movesThePendingInstalmentIntoThePayment() {
         String regionId = freehold();
         inPayment(regionId);
-        logic.payBid(regionId, WORLD_ID, BUYER, 300);
-        // The second instalment is counted, then the auction is cancelled before its transfer fails.
+        Assertions.assertInstanceOf(PayBidResult.Success.class, logic.payBid(regionId, WORLD_ID, BUYER, 300));
+        FreeholdContractBidPaymentEntity pending = bidPayment(regionId);
+        Assertions.assertEquals(0, pending.currentPayment(), 0.001);
+        Assertions.assertEquals(300, pending.pendingPayment(), 0.001);
+        Assertions.assertNotNull(pending.pendingSince());
+
+        Assertions.assertTrue(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 300));
+
+        FreeholdContractBidPaymentEntity confirmed = bidPayment(regionId);
+        Assertions.assertEquals(300, confirmed.currentPayment(), 0.001);
+        Assertions.assertEquals(0, confirmed.pendingPayment(), 0.001);
+        Assertions.assertNull(confirmed.pendingSince());
+        Assertions.assertFalse(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 300), "only once");
+    }
+
+    @Test
+    void confirmOffer_movesThePendingInstalmentIntoThePayment() {
+        String regionId = freehold();
+        acceptedOffer(regionId);
+        Assertions.assertInstanceOf(PayOfferResult.Success.class, logic.payOffer(regionId, WORLD_ID, BUYER, 400));
+
+        Assertions.assertTrue(logic.confirmPayOffer(regionId, WORLD_ID, BUYER, 400));
+
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            var payment = wrapper.freeholdContractOfferPaymentMapper().selectByRegion(regionId, WORLD_ID);
+            Assertions.assertEquals(400, payment.currentPayment(), 0.001);
+            Assertions.assertEquals(0, payment.pendingPayment(), 0.001);
+        }
+    }
+
+    @Test
+    void rollback_dropsThePendingInstalment() {
+        String regionId = freehold();
+        inPayment(regionId);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
         logic.payBid(regionId, WORLD_ID, BUYER, 200);
-        logic.cancelAuction(regionId, WORLD_ID);
-        Assertions.assertEquals(500, refundsFor(regionId).getFirst().amount(), 0.001);
 
         logic.rollbackPayBid(regionId, WORLD_ID, BUYER, 200);
 
+        FreeholdContractBidPaymentEntity payment = bidPayment(regionId);
+        Assertions.assertEquals(300, payment.currentPayment(), 0.001, "confirmed money stays");
+        Assertions.assertEquals(0, payment.pendingPayment(), 0.001);
+        Assertions.assertInstanceOf(PayBidResult.Success.class, logic.payBid(regionId, WORLD_ID, BUYER, 200),
+                "the buyer may pay again");
+    }
+
+    @Test
+    void expiry_waitsForAPendingInstalment_thenRefundsOnlyConfirmedMoney() {
+        String regionId = freehold();
+        inPayment(regionId);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
+        logic.payBid(regionId, WORLD_ID, BUYER, 200);
+        expirePayment(regionId);
+
+        Assertions.assertTrue(logic.clearExpiredBidPayments().isEmpty());
+
+        logic.rollbackPayBid(regionId, WORLD_ID, BUYER, 200);
+        List<ExpiredBidPayment> expired = logic.clearExpiredBidPayments();
+        Assertions.assertEquals(1, expired.size());
+        Assertions.assertEquals(300, expired.getFirst().refundAmount(), 0.001);
         Assertions.assertEquals(300, refundsFor(regionId).getFirst().amount(), 0.001);
     }
 
     @Test
-    void rollbackPayOffer_ofTheOnlyInstalment_deletesTheRefund() {
+    void confirm_afterTheAuctionWasCancelled_recordsTheInstalmentAsARefund() {
         String regionId = freehold();
-        acceptedOffer(regionId);
-        logic.payOffer(regionId, WORLD_ID, BUYER, 400);
-        expireOfferPayment(regionId);
-        Assertions.assertEquals(1, logic.clearExpiredOfferPayments().size());
+        inPayment(regionId);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
+        logic.payBid(regionId, WORLD_ID, BUYER, 200);
+        logic.cancelAuction(regionId, WORLD_ID);
+        Assertions.assertEquals(List.of(300.0), refundsFor(regionId).stream().map(DueRefund::amount).toList(),
+                "the cancel refunds confirmed money only");
 
-        logic.rollbackPayOffer(regionId, WORLD_ID, BUYER, 400);
+        Assertions.assertFalse(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 200));
 
-        Assertions.assertEquals(0, count("SELECT COUNT(*) FROM PendingRefund"));
+        List<DueRefund> refunds = refundsFor(regionId);
+        Assertions.assertEquals(2, refunds.size());
+        DueRefund late = refunds.getLast();
+        Assertions.assertEquals(200, late.amount(), 0.001);
+        Assertions.assertEquals("sale-ended", late.reason());
     }
 
     @Test
-    void rollbackPayBid_withNoRefundToReduce_changesNothing() {
+    void rollback_afterTheAuctionWasCancelled_changesNoRefund() {
         String regionId = freehold();
         inPayment(regionId);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
+        logic.payBid(regionId, WORLD_ID, BUYER, 200);
         logic.cancelAuction(regionId, WORLD_ID);
 
-        Assertions.assertDoesNotThrow(() -> logic.rollbackPayBid(regionId, WORLD_ID, BUYER, 200));
-        Assertions.assertEquals(0, count("SELECT COUNT(*) FROM PendingRefund"));
+        logic.rollbackPayBid(regionId, WORLD_ID, BUYER, 200);
+
+        Assertions.assertEquals(List.of(300.0), refundsFor(regionId).stream().map(DueRefund::amount).toList());
     }
 
     @Test
@@ -551,7 +646,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         inPayment(regionId);
         Assertions.assertFalse(logic.holdsSaleMoney(), "nothing paid yet");
 
-        logic.payBid(regionId, WORLD_ID, BUYER, 300);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
 
         Assertions.assertTrue(logic.holdsSaleMoney());
     }

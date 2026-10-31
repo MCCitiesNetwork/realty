@@ -67,7 +67,8 @@ public class AuctionWonPurchaseEvent extends RealtyRegionEvent {
     }
 
     /**
-     * The amount paid.
+     * The sale price: the winning bid or the accepted offer, without any fees. The buyer may have
+     * paid it in several instalments, and buyer-paid fees on top.
      */
     public double getAmount() {
         return this.amount;

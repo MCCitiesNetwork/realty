@@ -438,15 +438,15 @@ class SaleFeeLockingTest extends AbstractDatabaseTest {
                 logic.payBid(regionId, WORLD_ID, BUYER, 50));
         Assertions.assertEquals(1000, partial.remaining(), 0.001);
         Assertions.assertFalse(partial.oldRules());
-        Assertions.assertEquals(1000, Assertions.assertInstanceOf(PayBidResult.ExceedsAmountOwed.class,
-                logic.payBid(regionId, WORLD_ID, BUYER, 1001)).amountOwed(), 0.001);
+        Assertions.assertInstanceOf(PayBidResult.PaymentInProgress.class, logic.payBid(regionId, WORLD_ID, BUYER, 10),
+                "nothing more is counted while an instalment is pending");
         logic.rollbackPayBid(regionId, WORLD_ID, BUYER, 50);
 
         PayBidResult.ExceedsAmountOwed exceeds = Assertions.assertInstanceOf(PayBidResult.ExceedsAmountOwed.class,
-                logic.payBid(regionId, WORLD_ID, BUYER, 1051));
+                payBidConfirmed(regionId, WORLD_ID, BUYER, 1051));
         Assertions.assertEquals(1050, exceeds.amountOwed(), 0.001);
         PayBidResult.FullyPaid paid = Assertions.assertInstanceOf(PayBidResult.FullyPaid.class,
-                logic.payBid(regionId, WORLD_ID, BUYER, 1050));
+                payBidConfirmed(regionId, WORLD_ID, BUYER, 1050));
         Assertions.assertFalse(paid.oldRules());
         Assertions.assertEquals(payment.bidId(), paid.saleRef());
         Assertions.assertEquals(1050, paid.fees().buyerTotal(), 0.001);
@@ -475,7 +475,7 @@ class SaleFeeLockingTest extends AbstractDatabaseTest {
                 """, regionId);
 
         PayBidResult.FullyPaid paid = Assertions.assertInstanceOf(PayBidResult.FullyPaid.class,
-                logic.payBid(regionId, WORLD_ID, BUYER, 1000));
+                payBidConfirmed(regionId, WORLD_ID, BUYER, 1000));
 
         Assertions.assertTrue(paid.oldRules());
         Assertions.assertEquals(FeeQuote.none(1000), paid.fees());
@@ -488,7 +488,7 @@ class SaleFeeLockingTest extends AbstractDatabaseTest {
     void deleteRegion_withHeldInstalments_recordsPendingRefund() {
         String regionId = freehold();
         FreeholdContractBidPaymentEntity payment = lockedAuction(regionId);
-        Assertions.assertInstanceOf(PayBidResult.Success.class, logic.payBid(regionId, WORLD_ID, BUYER, 300));
+        Assertions.assertInstanceOf(PayBidResult.Success.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 300));
 
         Assertions.assertEquals(1, logic.deleteRegion(regionId, WORLD_ID));
 

@@ -129,8 +129,10 @@ public interface MariaSaleFeeMapper extends SaleFeeMapper {
 
     @Override
     @Select("""
-            SELECT (SELECT COUNT(*) FROM FreeholdContractBidPayment WHERE oldRules = FALSE AND currentPayment > 0)
-                 + (SELECT COUNT(*) FROM FreeholdContractOfferPayment WHERE oldRules = FALSE AND currentPayment > 0)
+            SELECT (SELECT COUNT(*) FROM FreeholdContractBidPayment
+                    WHERE oldRules = FALSE AND (currentPayment > 0 OR pendingPayment > 0))
+                 + (SELECT COUNT(*) FROM FreeholdContractOfferPayment
+                    WHERE oldRules = FALSE AND (currentPayment > 0 OR pendingPayment > 0))
                  + (SELECT COUNT(*) FROM SaleFee
                     WHERE saleKind <> 'buy' AND status <> 'paid' AND completedAt IS NOT NULL)
                  + (SELECT COUNT(*) FROM PendingRefund)

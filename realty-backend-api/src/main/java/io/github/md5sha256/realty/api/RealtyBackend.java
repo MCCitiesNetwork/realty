@@ -1125,6 +1125,8 @@ public interface RealtyBackend {
         record NoPaymentRecord() implements PayOfferResult {}
         record PaymentExpired() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
+        /** An earlier instalment is still pending: its money has not been confirmed as moved. */
+        record PaymentInProgress() implements PayOfferResult {}
     }
 
     @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
@@ -1132,6 +1134,18 @@ public interface RealtyBackend {
                                      @NotNull UUID offererId,
                                      double amount);
 
+    /**
+     * Confirms an instalment {@link #payOffer} counted as pending, once its money has moved into
+     * the holding account (or, under the old rules, to the seller). Only confirmed money counts
+     * towards a refund or a finalize.
+     *
+     * @return {@code false} when the payment is gone, as when the region was deleted while the money
+     *         moved; under the new rules the amount is then recorded as a refund owed to the buyer
+     */
+    boolean confirmPayOffer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId,
+                            double amount);
+
+    /** Drops an instalment {@link #payOffer} counted as pending whose money did not move. */
     void rollbackPayOffer(@NotNull String worldGuardRegionId,
                           @NotNull UUID worldId,
                           @NotNull UUID offererId,
@@ -1167,6 +1181,8 @@ public interface RealtyBackend {
         record NoPaymentRecord() implements PayBidResult {}
         record PaymentExpired() implements PayBidResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
+        /** An earlier instalment is still pending: its money has not been confirmed as moved. */
+        record PaymentInProgress() implements PayBidResult {}
     }
 
     @NotNull PayBidResult payBid(@NotNull String worldGuardRegionId,
@@ -1174,6 +1190,11 @@ public interface RealtyBackend {
                                  @NotNull UUID bidderId,
                                  double amount);
 
+    /** As {@link #confirmPayOffer}, for an auction payment. */
+    boolean confirmPayBid(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId,
+                          double amount);
+
+    /** Drops an instalment {@link #payBid} counted as pending whose money did not move. */
     void rollbackPayBid(@NotNull String worldGuardRegionId,
                         @NotNull UUID worldId,
                         @NotNull UUID bidderId,
@@ -1324,6 +1345,21 @@ public interface RealtyBackend {
 
     /** Every sale {@link PendingFinalize} describes, for the scheduler to finish. */
     @NotNull List<PendingFinalize> listFullyPaidUnfinalized();
+
+    /**
+     * An instalment counted as pending long ago and never confirmed or rolled back, as after a crash
+     * while its money moved. Whether the money moved is unknown, so it is never credited or refunded
+     * automatically, and its payment cannot expire until an admin clears it.
+     *
+     * @param kind   an auction or an accepted offer
+     * @param saleId the bidId or offerId
+     */
+    record StuckInstalment(@NotNull PendingFinalize.Kind kind, int saleId, @NotNull String regionId,
+                           @NotNull UUID worldId, @NotNull UUID buyerId, double amount,
+                           @NotNull LocalDateTime pendingSince) {}
+
+    /** The instalments pending for longer than {@code minutes} by the database clock. */
+    @NotNull List<StuckInstalment> stuckInstalments(int minutes);
 
     // --- Expired Leaseholds ---
 

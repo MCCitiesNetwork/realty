@@ -55,6 +55,35 @@ abstract class AbstractDatabaseTest {
         }
     }
 
+    /**
+     * Pays towards a won auction as the Paper plugin does when the money moves: the instalment
+     * {@link RealtyBackend#payBid} counts as pending is confirmed at once.
+     */
+    protected static RealtyBackend.PayBidResult payBidConfirmed(String regionId, UUID worldId, UUID bidderId,
+                                                                double amount) {
+        RealtyBackend.PayBidResult result = logic.payBid(regionId, worldId, bidderId, amount);
+        if (result instanceof RealtyBackend.PayBidResult.Success
+                || result instanceof RealtyBackend.PayBidResult.FullyPaid) {
+            if (!logic.confirmPayBid(regionId, worldId, bidderId, amount)) {
+                throw new IllegalStateException("the instalment just counted could not be confirmed");
+            }
+        }
+        return result;
+    }
+
+    /** As {@link #payBidConfirmed}, for an accepted offer. */
+    protected static RealtyBackend.PayOfferResult payOfferConfirmed(String regionId, UUID worldId, UUID offererId,
+                                                                    double amount) {
+        RealtyBackend.PayOfferResult result = logic.payOffer(regionId, worldId, offererId, amount);
+        if (result instanceof RealtyBackend.PayOfferResult.Success
+                || result instanceof RealtyBackend.PayOfferResult.FullyPaid) {
+            if (!logic.confirmPayOffer(regionId, worldId, offererId, amount)) {
+                throw new IllegalStateException("the instalment just counted could not be confirmed");
+            }
+        }
+        return result;
+    }
+
     @BeforeAll
     static void initDatabase() throws IOException, SQLException {
         if (!migrated) {

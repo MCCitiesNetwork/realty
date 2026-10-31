@@ -379,7 +379,7 @@ class SaleFeeLogicTest extends AbstractDatabaseTest {
                 logic.placeOffer(regionId, WORLD_ID, player(BUYER), 500.0, false));
         Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
                 logic.acceptOffer(regionId, WORLD_ID, player(TITLE_HOLDER), BUYER));
-        Assertions.assertInstanceOf(PayOfferResult.FullyPaid.class, logic.payOffer(regionId, WORLD_ID, BUYER, 500.0));
+        Assertions.assertInstanceOf(PayOfferResult.FullyPaid.class, payOfferConfirmed(regionId, WORLD_ID, BUYER, 500.0));
 
         logic.finalizeOfferPurchase(regionId, WORLD_ID, BUYER);
 
@@ -399,7 +399,7 @@ class SaleFeeLogicTest extends AbstractDatabaseTest {
                     LocalDateTime.now().plusDays(1), 500.0);
             wrapper.session().commit();
         }
-        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, logic.payBid(regionId, WORLD_ID, BUYER, 500.0));
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 500.0));
 
         logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER);
 

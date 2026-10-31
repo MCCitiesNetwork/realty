@@ -2470,6 +2470,8 @@ public class RealtyBackendImpl implements RealtyBackend {
     /** The {@code PendingRefund.reason} of instalments held for a payment that expired. */
     private static final String REFUND_BID_EXPIRED = "bid-expired";
     private static final String REFUND_OFFER_EXPIRED = "offer-expired";
+    /** The {@code PendingRefund.reason} of an instalment whose money arrived after its sale ended. */
+    private static final String REFUND_SALE_ENDED = "sale-ended";
 
     @Override
     public @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
@@ -2487,6 +2489,10 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment == null || !payment.offererId().equals(offererId)) {
                 return new PayOfferResult.NoPaymentRecord();
             }
+            if (payment.pendingPayment() > 0) {
+                // The money of an earlier instalment has not been confirmed as moved.
+                return new PayOfferResult.PaymentInProgress();
+            }
             if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
                 return new PayOfferResult.PaymentExpired();
             }
@@ -2495,9 +2501,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new PayOfferResult.ExceedsAmountOwed(amountOwed);
             }
             double newTotal = payment.currentPayment() + amount;
-            // Optimistic lock: WHERE currentPayment = expected prevents concurrent updates
-            int updated = paymentMapper.atomicUpdatePayment(worldGuardRegionId, worldId, offererId,
-                    payment.currentPayment(), newTotal);
+            // Counted as pending until the paper layer confirms that its money moved. Optimistic
+            // lock: the row must be unchanged and have nothing else pending.
+            int updated = paymentMapper.recordPending(payment.offerId(), payment.currentPayment(), amount);
             if (updated == 0) {
                 return new PayOfferResult.NoPaymentRecord();
             }
@@ -2535,6 +2541,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // Only finalize a real, fully-paid record for this offerer. Idempotent:
             // a second call (or one after rollback) finds nothing/under-paid and no-ops.
             if (freehold == null || payment == null || !payment.offererId().equals(offererId)
+                    || payment.pendingPayment() > 0
                     || payment.currentPayment() < payment.totalDue() - PAYMENT_EPSILON) {
                 return false;
             }
@@ -2564,39 +2571,46 @@ public class RealtyBackendImpl implements RealtyBackend {
             // read-and-decrement cannot interleave with accept/finalize on the same region.
             wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
             FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
+            // Nothing was confirmed, so only the pending instalment is dropped. A payment gone
+            // meanwhile refunded only confirmed money, so there is nothing more to undo.
+            paymentMapper.clearPending(worldGuardRegionId, worldId, offererId, amount);
+            wrapper.session().commit(true);
+        }
+    }
+
+    @Override
+    public boolean confirmPayOffer(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
+                                   @NotNull UUID offererId, double amount) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
+            FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
             FreeholdContractOfferPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
-            if (payment != null && payment.offererId().equals(offererId)) {
-                double rolledBack = Math.max(0, payment.currentPayment() - amount);
-                paymentMapper.updatePayment(worldGuardRegionId, worldId, offererId, rolledBack);
-            } else {
-                reduceHeldRefund(wrapper, offererId, worldGuardRegionId, worldId, amount);
+            boolean oldRules = payment != null && payment.offererId().equals(offererId) && payment.oldRules();
+            boolean confirmed = paymentMapper.confirmPending(worldGuardRegionId, worldId, offererId, amount) == 1;
+            if (!confirmed) {
+                instalmentWithoutSale(wrapper, offererId, worldGuardRegionId, worldId, amount, oldRules);
             }
-            wrapper.session().commit();
+            wrapper.session().commit(true);
+            return confirmed;
         }
     }
 
     /**
-     * Takes a failed instalment back out of the refund recorded for it. The payment was counted
-     * before its transfer ran, and in that gap the sale fell through: cancelled, expired or its
-     * region deleted. The refund then recorded includes money that never arrived.
+     * An instalment's money moved, but its payment is gone: cancelled or its region deleted while
+     * the money moved. Those refunded only confirmed money, so this amount is recorded as owed
+     * back. Under the old rules it went to the seller, and only a log is left for an admin.
      */
-    private void reduceHeldRefund(@NotNull SqlSessionWrapper wrapper, @NotNull UUID buyerId,
-                                  @NotNull String worldGuardRegionId, @NotNull UUID worldId, double amount) {
-        PendingRefundEntity refund = wrapper.pendingRefundMapper()
-                .selectPendingForUpdate(buyerId, worldGuardRegionId, worldId);
-        if (refund == null) {
-            logger.severe("A failed instalment of " + CurrencyFormatter.format(amount) + " by " + buyerId
-                    + " towards " + worldGuardRegionId + " was rolled back after its sale fell through, but no"
-                    + " unpaid refund for it was found. If a refund was already paid, it included this amount,"
-                    + " which never reached the holding account.");
+    private void instalmentWithoutSale(@NotNull SqlSessionWrapper wrapper, @NotNull UUID buyerId,
+                                       @NotNull String worldGuardRegionId, @NotNull UUID worldId, double amount,
+                                       boolean oldRules) {
+        if (oldRules) {
+            logger.severe("An instalment of " + CurrencyFormatter.format(amount) + " by " + buyerId + " towards "
+                    + worldGuardRegionId + " was paid to the seller, but its payment is gone. Settle it by hand.");
             return;
         }
-        double left = refund.amount() - amount;
-        if (left <= PAYMENT_EPSILON) {
-            wrapper.pendingRefundMapper().delete(refund.pendingRefundId());
-        } else {
-            wrapper.pendingRefundMapper().updateAmount(refund.pendingRefundId(), left);
-        }
+        wrapper.pendingRefundMapper().insert(buyerId, amount, worldGuardRegionId, worldId, REFUND_SALE_ENDED);
+        logger.warning("An instalment of " + CurrencyFormatter.format(amount) + " by " + buyerId + " towards "
+                + worldGuardRegionId + " arrived after its sale had ended; it is recorded as a refund");
     }
 
     // --- Pay Bid ---
@@ -2617,6 +2631,10 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (payment == null || freehold == null || !payment.bidderId().equals(bidderId)) {
                 return new PayBidResult.NoPaymentRecord();
             }
+            if (payment.pendingPayment() > 0) {
+                // The money of an earlier instalment has not been confirmed as moved.
+                return new PayBidResult.PaymentInProgress();
+            }
             if (payment.paymentDeadline().isBefore(LocalDateTime.now())) {
                 return new PayBidResult.PaymentExpired();
             }
@@ -2625,9 +2643,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new PayBidResult.ExceedsAmountOwed(amountOwed);
             }
             double newTotal = payment.currentPayment() + amount;
-            // Optimistic lock: WHERE currentPayment = expected prevents concurrent updates
-            int updated = paymentMapper.atomicUpdatePayment(worldGuardRegionId, worldId, bidderId,
-                    payment.currentPayment(), newTotal);
+            // Counted as pending until the paper layer confirms that its money moved. Optimistic
+            // lock: the row must be unchanged and have nothing else pending.
+            int updated = paymentMapper.recordPending(payment.bidId(), payment.currentPayment(), amount);
             if (updated == 0) {
                 return new PayBidResult.NoPaymentRecord();
             }
@@ -2665,6 +2683,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             // Only finalize a real, fully-paid record for this bidder. Idempotent:
             // a second call (or one after rollback) finds nothing/under-paid and no-ops.
             if (freehold == null || payment == null || !payment.bidderId().equals(bidderId)
+                    || payment.pendingPayment() > 0
                     || payment.currentPayment() < payment.totalDue() - PAYMENT_EPSILON) {
                 return false;
             }
@@ -2692,14 +2711,25 @@ public class RealtyBackendImpl implements RealtyBackend {
             // The freehold first, as payBid, cancelAuction and the expiry take it.
             wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
             FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
+            paymentMapper.clearPending(worldGuardRegionId, worldId, bidderId, amount);
+            wrapper.session().commit(true);
+        }
+    }
+
+    @Override
+    public boolean confirmPayBid(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
+                                 @NotNull UUID bidderId, double amount) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
+            FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
             FreeholdContractBidPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
-            if (payment != null && payment.bidderId().equals(bidderId)) {
-                double rolledBack = Math.max(0, payment.currentPayment() - amount);
-                paymentMapper.updatePayment(worldGuardRegionId, worldId, bidderId, rolledBack);
-            } else {
-                reduceHeldRefund(wrapper, bidderId, worldGuardRegionId, worldId, amount);
+            boolean oldRules = payment != null && payment.bidderId().equals(bidderId) && payment.oldRules();
+            boolean confirmed = paymentMapper.confirmPending(worldGuardRegionId, worldId, bidderId, amount) == 1;
+            if (!confirmed) {
+                instalmentWithoutSale(wrapper, bidderId, worldGuardRegionId, worldId, amount, oldRules);
             }
-            wrapper.session().commit();
+            wrapper.session().commit(true);
+            return confirmed;
         }
     }
 
@@ -2861,7 +2891,9 @@ public class RealtyBackendImpl implements RealtyBackend {
         wrapper.freeholdContractMapper().selectByRegionForUpdate(region.worldGuardRegionId(), region.worldId());
         FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
         FreeholdContractBidPaymentEntity payment = paymentMapper.selectExpiredById(candidate.bidId());
-        if (payment == null || payment.currentPayment() >= payment.totalDue() - PAYMENT_EPSILON) {
+        // Not while an instalment is pending: its money may yet arrive, or be stuck for an admin.
+        if (payment == null || payment.pendingPayment() > 0
+                || payment.currentPayment() >= payment.totalDue() - PAYMENT_EPSILON) {
             return null;
         }
         paymentMapper.deleteByBidId(payment.bidId());
@@ -2941,7 +2973,8 @@ public class RealtyBackendImpl implements RealtyBackend {
         wrapper.freeholdContractMapper().selectByRegionForUpdate(region.worldGuardRegionId(), region.worldId());
         FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
         FreeholdContractOfferPaymentEntity payment = paymentMapper.selectExpiredById(candidate.offerId());
-        if (payment == null || payment.currentPayment() >= payment.totalDue() - PAYMENT_EPSILON) {
+        if (payment == null || payment.pendingPayment() > 0
+                || payment.currentPayment() >= payment.totalDue() - PAYMENT_EPSILON) {
             return null;
         }
         paymentMapper.deleteByOfferId(payment.offerId());
@@ -2953,6 +2986,34 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
         return new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), region.worldGuardRegionId(),
                 region.worldId(), payment.oldRules(), refundId);
+    }
+
+    // --- Instalments stuck pending ---
+
+    @Override
+    public @NotNull List<StuckInstalment> stuckInstalments(int minutes) {
+        List<StuckInstalment> stuck = new ArrayList<>();
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            for (FreeholdContractBidPaymentEntity payment
+                    : wrapper.freeholdContractBidPaymentMapper().selectStuckPending(minutes)) {
+                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
+                if (region != null) {
+                    stuck.add(new StuckInstalment(PendingFinalize.Kind.BID, payment.bidId(),
+                            region.worldGuardRegionId(), region.worldId(), payment.bidderId(),
+                            payment.pendingPayment(), Objects.requireNonNull(payment.pendingSince())));
+                }
+            }
+            for (FreeholdContractOfferPaymentEntity payment
+                    : wrapper.freeholdContractOfferPaymentMapper().selectStuckPending(minutes)) {
+                RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(payment.realtyRegionId());
+                if (region != null) {
+                    stuck.add(new StuckInstalment(PendingFinalize.Kind.OFFER, payment.offerId(),
+                            region.worldGuardRegionId(), region.worldId(), payment.offererId(),
+                            payment.pendingPayment(), Objects.requireNonNull(payment.pendingSince())));
+                }
+            }
+        }
+        return stuck;
     }
 
     // --- Sales paid in full but not finalized ---

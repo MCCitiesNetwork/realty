@@ -45,14 +45,6 @@ public interface PendingRefundMapper {
     /** The refund's failed attempts so far. */
     int selectAttempts(int pendingRefundId);
 
-    /**
-     * The newest unclaimed refund owed to the buyer for the region, locked for update, or
-     * {@code null} when there is none.
-     */
-    @Nullable PendingRefundEntity selectPendingForUpdate(@NotNull UUID buyerId, @NotNull String regionName,
-                                                         @Nullable UUID worldId);
-
-    int updateAmount(int pendingRefundId, double amount);
 
     int delete(int pendingRefundId);
 

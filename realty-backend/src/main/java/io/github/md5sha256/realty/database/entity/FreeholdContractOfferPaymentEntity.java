@@ -18,6 +18,8 @@ import java.util.UUID;
  * @param totalDue        Total the offerer owes: the price plus any buyer-side fees
  * @param oldRules        Whether the payment began before sale fees, and so pays the seller directly
  * @param acceptedBy      The player who accepted the offer; null for payments from before sale fees
+ * @param pendingPayment  An instalment counted but whose money has not yet moved; not yet paid
+ * @param pendingSince    When the pending instalment was counted, by the database clock
  */
 public record FreeholdContractOfferPaymentEntity(
         int offerId,
@@ -28,6 +30,8 @@ public record FreeholdContractOfferPaymentEntity(
         double currentPayment,
         double totalDue,
         boolean oldRules,
-        @Nullable UUID acceptedBy
+        @Nullable UUID acceptedBy,
+        double pendingPayment,
+        @Nullable LocalDateTime pendingSince
 ) {
 }

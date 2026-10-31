@@ -362,4 +362,20 @@ class SaleSettlementTest {
 
         Assertions.assertTrue(logged.isEmpty());
     }
+
+    @Test
+    void stuckInstalment_isReportedOnce_withTheSuspendedDeadline() {
+        RealtyBackend.StuckInstalment stuck = new RealtyBackend.StuckInstalment(RealtyBackend.PendingFinalize.Kind.BID,
+                9, "plot", WORLD_ID, BUYER_ID, 1050, java.time.LocalDateTime.of(2026, 10, 31, 23, 0));
+        when(backend.stuckInstalments(10)).thenReturn(List.of(stuck));
+
+        settlement.reportStuckInstalments();
+        settlement.reportStuckInstalments();
+
+        Assertions.assertEquals(1, severe().size(), "once per row");
+        String message = severe().getFirst().getMessage();
+        Assertions.assertTrue(message.contains("plot") && message.contains(BUYER_ID.toString())
+                && message.contains("deadline is suspended"), message);
+        Assertions.assertTrue(economy.transfers.isEmpty(), "nothing is credited or refunded");
+    }
 }

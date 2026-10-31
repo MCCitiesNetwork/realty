@@ -28,7 +28,8 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
     @Override
     @Select("""
             SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
-                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy,
+                   scop.pendingPayment, scop.pendingSince
             FROM FreeholdContractOfferPayment scop
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scop.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
@@ -44,7 +45,9 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
             @Arg(column = "currentPayment", javaType = double.class),
             @Arg(column = "totalDue", javaType = double.class),
             @Arg(column = "oldRules", javaType = boolean.class),
-            @Arg(column = "acceptedBy", javaType = UUID.class)
+            @Arg(column = "acceptedBy", javaType = UUID.class),
+            @Arg(column = "pendingPayment", javaType = double.class),
+            @Arg(column = "pendingSince", javaType = LocalDateTime.class)
     })
     @Nullable FreeholdContractOfferPaymentEntity selectByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                                              @Param("worldId") @NotNull UUID worldId);
@@ -52,7 +55,8 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
     @Override
     @Select("""
             SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
-                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy,
+                   scop.pendingPayment, scop.pendingSince
             FROM FreeholdContractOfferPayment scop
             WHERE scop.paymentDeadline < NOW()
             """)
@@ -65,14 +69,17 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
             @Arg(column = "currentPayment", javaType = double.class),
             @Arg(column = "totalDue", javaType = double.class),
             @Arg(column = "oldRules", javaType = boolean.class),
-            @Arg(column = "acceptedBy", javaType = UUID.class)
+            @Arg(column = "acceptedBy", javaType = UUID.class),
+            @Arg(column = "pendingPayment", javaType = double.class),
+            @Arg(column = "pendingSince", javaType = LocalDateTime.class)
     })
     @NotNull List<FreeholdContractOfferPaymentEntity> selectAllExpired();
 
     @Override
     @Select("""
             SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
-                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy,
+                   scop.pendingPayment, scop.pendingSince
             FROM FreeholdContractOfferPayment scop
             WHERE scop.offerId = #{offerId}
             AND scop.paymentDeadline < NOW()
@@ -83,14 +90,75 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
     @Override
     @Select("""
             SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
-                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy,
+                   scop.pendingPayment, scop.pendingSince
             FROM FreeholdContractOfferPayment scop
             WHERE scop.oldRules = FALSE
             AND scop.currentPayment >= scop.totalDue - 0.005
+            AND scop.pendingPayment = 0
             ORDER BY scop.offerId
             """)
     @ResultMap("offerPaymentRow")
     @NotNull List<FreeholdContractOfferPaymentEntity> selectFullyPaidUnfinalized();
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContractOfferPayment
+            SET pendingPayment = #{amount}, pendingSince = NOW()
+            WHERE offerId = #{offerId}
+            AND pendingPayment = 0
+            AND currentPayment = #{expectedCurrent}
+            """)
+    int recordPending(@Param("offerId") int offerId, @Param("expectedCurrent") double expectedCurrent,
+                      @Param("amount") double amount);
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContractOfferPayment scop
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scop.realtyRegionId
+            SET scop.currentPayment = scop.currentPayment + scop.pendingPayment,
+                scop.pendingPayment = 0,
+                scop.pendingSince = NULL
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND scop.offererId = #{offererId}
+            AND scop.pendingPayment > 0
+            AND ABS(scop.pendingPayment - #{amount}) < 0.005
+            """)
+    int confirmPending(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                       @Param("worldId") @NotNull UUID worldId,
+                       @Param("offererId") @NotNull UUID offererId,
+                       @Param("amount") double amount);
+
+    @Override
+    @Update("""
+            UPDATE FreeholdContractOfferPayment scop
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = scop.realtyRegionId
+            SET scop.pendingPayment = 0,
+                scop.pendingSince = NULL
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND scop.offererId = #{offererId}
+            AND scop.pendingPayment > 0
+            AND ABS(scop.pendingPayment - #{amount}) < 0.005
+            """)
+    int clearPending(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                     @Param("worldId") @NotNull UUID worldId,
+                     @Param("offererId") @NotNull UUID offererId,
+                     @Param("amount") double amount);
+
+    @Override
+    @Select("""
+            SELECT scop.offerId, scop.realtyRegionId, scop.offererId, scop.offerPrice,
+                   scop.paymentDeadline, scop.currentPayment, scop.totalDue, scop.oldRules, scop.acceptedBy,
+                   scop.pendingPayment, scop.pendingSince
+            FROM FreeholdContractOfferPayment scop
+            WHERE scop.pendingPayment > 0
+            AND scop.pendingSince < NOW() - INTERVAL #{minutes} MINUTE
+            ORDER BY scop.offerId
+            """)
+    @ResultMap("offerPaymentRow")
+    @NotNull List<FreeholdContractOfferPaymentEntity> selectStuckPending(@Param("minutes") int minutes);
 
     @Override
     @Insert("""
