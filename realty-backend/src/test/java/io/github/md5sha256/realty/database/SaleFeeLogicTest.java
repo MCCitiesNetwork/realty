@@ -8,9 +8,16 @@ import io.github.md5sha256.realty.api.LevyDefinition;
 import io.github.md5sha256.realty.api.LevyRule;
 import io.github.md5sha256.realty.api.LevyTier;
 import io.github.md5sha256.realty.api.Party;
+import io.github.md5sha256.realty.api.PartyKind;
 import io.github.md5sha256.realty.api.RealtyBackend.AcceptAgentInviteResult;
+import io.github.md5sha256.realty.api.RealtyBackend.AcceptOfferResult;
+import io.github.md5sha256.realty.api.RealtyBackend.BidResult;
+import io.github.md5sha256.realty.api.RealtyBackend.CreateAuctionResult;
 import io.github.md5sha256.realty.api.RealtyBackend.FeeListing;
 import io.github.md5sha256.realty.api.RealtyBackend.InviteAgentResult;
+import io.github.md5sha256.realty.api.RealtyBackend.OfferResult;
+import io.github.md5sha256.realty.api.RealtyBackend.PayBidResult;
+import io.github.md5sha256.realty.api.RealtyBackend.PayOfferResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RemoveFeeResult;
 import io.github.md5sha256.realty.api.RealtyBackend.ResolveFeeResult;
 import io.github.md5sha256.realty.api.RealtyBackend.SetFeeResult;
@@ -20,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,6 +46,7 @@ class SaleFeeLogicTest extends AbstractDatabaseTest {
     private static final UUID MANAGER_ID = UUID.randomUUID();
     private static final UUID STRANGER = UUID.randomUUID();
     private static final UUID NEW_HOLDER = UUID.randomUUID();
+    private static final UUID BUYER = UUID.randomUUID();
 
     private static final Party GOV = Party.account(42, AccountKind.GOVERNMENT);
     private static final ActorContext MANAGER = new ActorContext(MANAGER_ID, Set.of(GOV), Set.of(), false);
@@ -50,7 +59,11 @@ class SaleFeeLogicTest extends AbstractDatabaseTest {
     private static final AtomicInteger REGION_COUNTER = new AtomicInteger();
 
     private static LevyDefinition levy(String name, boolean isDefault, List<LevyTier> tiers) {
-        return new LevyDefinition(name, true, isDefault, FeeSide.BUYER, null, null,
+        return levy(name, isDefault, tiers, null);
+    }
+
+    private static LevyDefinition levy(String name, boolean isDefault, List<LevyTier> tiers, PartyKind authorityKind) {
+        return new LevyDefinition(name, true, isDefault, FeeSide.BUYER, null, authorityKind,
                 List.of(new LevyRule(Set.of(), Set.of(), tiers)));
     }
 
@@ -333,5 +346,109 @@ class SaleFeeLogicTest extends AbstractDatabaseTest {
             Assertions.assertEquals("region-levy",
                     wrapper.levyChoiceMapper().selectRegionLevy(realtyRegionId(regionId)));
         }
+    }
+
+    /**
+     * A titleholder's seller fee, an approved agent's seller fee and an approved seller fee paid
+     * to the authority, ready for a sale to clean up.
+     */
+    private static String freeholdWithSellerFees() {
+        String regionId = freehold(TITLE_HOLDER);
+        makeAgent(regionId, AGENT);
+        logic.setFee(regionId, WORLD_ID, player(TITLE_HOLDER), 3, FeeSide.SELLER, false);
+        logic.setFee(regionId, WORLD_ID, player(AGENT), 2, FeeSide.SELLER, false);
+        logic.approveFee(regionId, WORLD_ID, player(TITLE_HOLDER), Party.personal(AGENT));
+        logic.setFee(regionId, WORLD_ID, MANAGER, 1, FeeSide.SELLER, true);
+        logic.approveFee(regionId, WORLD_ID, player(TITLE_HOLDER), GOV);
+        Assertions.assertEquals(3, logic.listFees(regionId, WORLD_ID).stream().filter(FeeListing::approved).count());
+        return regionId;
+    }
+
+    private static void assertSaleCleanedUp(String regionId) {
+        List<FeeListing> fees = logic.listFees(regionId, WORLD_ID);
+        Assertions.assertEquals(1, fees.size(), "the titleholder's and the agent's fees are gone");
+        Assertions.assertEquals(GOV, fees.getFirst().recipient());
+        Assertions.assertFalse(fees.getFirst().approved(), "the new seller has not approved it");
+    }
+
+    @Test
+    void offerCompletion_deletesAgentAndOldTitleholderFees_unapprovesOtherSellerFees() {
+        String regionId = freeholdWithSellerFees();
+        openToOffers(regionId, WORLD_ID);
+        Assertions.assertInstanceOf(OfferResult.Success.class,
+                logic.placeOffer(regionId, WORLD_ID, player(BUYER), 500.0, false));
+        Assertions.assertInstanceOf(AcceptOfferResult.Success.class,
+                logic.acceptOffer(regionId, WORLD_ID, player(TITLE_HOLDER), BUYER));
+        Assertions.assertInstanceOf(PayOfferResult.FullyPaid.class, logic.payOffer(regionId, WORLD_ID, BUYER, 500.0));
+
+        logic.finalizeOfferPurchase(regionId, WORLD_ID, BUYER);
+
+        Assertions.assertEquals(BUYER, logic.getFreeholdContract(regionId, WORLD_ID).titleHolderId());
+        assertSaleCleanedUp(regionId);
+    }
+
+    @Test
+    void auctionFinalise_deletesAgentAndOldTitleholderFees_unapprovesOtherSellerFees() {
+        String regionId = freeholdWithSellerFees();
+        Assertions.assertInstanceOf(CreateAuctionResult.Success.class,
+                logic.createAuction(regionId, WORLD_ID, player(TITLE_HOLDER), 3600, 3600, 100.0, 10.0));
+        Assertions.assertInstanceOf(BidResult.Success.class,
+                logic.performBid(regionId, WORLD_ID, player(BUYER), 500.0, false));
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, WORLD_ID, BUYER, 500.0,
+                    LocalDateTime.now().plusDays(1));
+            wrapper.session().commit();
+        }
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, logic.payBid(regionId, WORLD_ID, BUYER, 500.0));
+
+        logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER);
+
+        Assertions.assertEquals(BUYER, logic.getFreeholdContract(regionId, WORLD_ID).titleHolderId());
+        assertSaleCleanedUp(regionId);
+    }
+
+    @Test
+    void removedAgent_laterSetFee_notAllowed() {
+        String regionId = freehold(TITLE_HOLDER);
+        makeAgent(regionId, AGENT);
+        logic.removeSanctionedAuctioneer(regionId, WORLD_ID, AGENT, TITLE_HOLDER);
+
+        Assertions.assertInstanceOf(SetFeeResult.NotAllowed.class,
+                logic.setFee(regionId, WORLD_ID, player(AGENT), 2, FeeSide.SELLER, false));
+    }
+
+    @Test
+    void sameFee_underNewRole_updatesRoleAndApproval() {
+        String regionId = freehold(TITLE_HOLDER);
+        makeAgent(regionId, AGENT);
+        logic.setFee(regionId, WORLD_ID, player(AGENT), 2, FeeSide.SELLER, false);
+        logic.setTitleHolder(regionId, WORLD_ID, AGENT, player(TITLE_HOLDER));
+        Assertions.assertFalse(feeTo(regionId, Party.personal(AGENT)).approved());
+
+        SetFeeResult result = logic.setFee(regionId, WORLD_ID, player(AGENT), 2, FeeSide.SELLER, false);
+
+        SetFeeResult.Success success = Assertions.assertInstanceOf(SetFeeResult.Success.class, result);
+        Assertions.assertFalse(success.needsApproval());
+        FeeListing fee = feeTo(regionId, Party.personal(AGENT));
+        Assertions.assertEquals("titleholder", fee.role());
+        Assertions.assertTrue(fee.approved());
+    }
+
+    @Test
+    void levyForAnotherAuthorityKind_refused() {
+        LevyDefinition businessLevy = levy("business-levy", false, List.of(new LevyTier(0, 4)), PartyKind.BUSINESS);
+        LevyDefinition governmentLevy = levy("government-levy", false, List.of(new LevyTier(0, 4)), PartyKind.GOVERNMENT);
+        levies = catalog(DEFAULT_LEVY, businessLevy, governmentLevy);
+        String regionId = freehold(TITLE_HOLDER);
+
+        Assertions.assertInstanceOf(SetLevyResult.WrongAuthorityKind.class,
+                logic.setRegionLevy(regionId, WORLD_ID, MANAGER, "business-levy"));
+        Assertions.assertInstanceOf(SetLevyResult.WrongAuthorityKind.class,
+                logic.setAuthorityLevy(GOV, MANAGER, "business-levy"));
+        Assertions.assertEquals("national-levy", logic.chosenLevy(regionId, WORLD_ID));
+        Assertions.assertInstanceOf(SetLevyResult.Success.class,
+                logic.setRegionLevy(regionId, WORLD_ID, MANAGER, "government-levy"));
+        Assertions.assertInstanceOf(SetLevyResult.Success.class,
+                logic.setAuthorityLevy(GOV, MANAGER, "government-levy"));
     }
 }

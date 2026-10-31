@@ -104,4 +104,24 @@ public interface MariaRegionFeeMapper extends RegionFeeMapper {
     int unapproveSellerFeesNotSetBy(@Param("realtyRegionId") int realtyRegionId,
                                     @Param("keep") @NotNull UUID keep);
 
+    @Override
+    @Delete("""
+            DELETE FROM RegionFee
+            WHERE realtyRegionId = #{realtyRegionId}
+            AND role = #{role}
+            """)
+    int deleteByRole(@Param("realtyRegionId") int realtyRegionId,
+                     @Param("role") @NotNull String role);
+
+    @Override
+    @Update("""
+            UPDATE RegionFee
+            SET approved = FALSE
+            WHERE realtyRegionId = #{realtyRegionId}
+            AND side = 'SELLER'
+            AND role <> #{keepRole}
+            """)
+    int unapproveSellerFeesNotOfRole(@Param("realtyRegionId") int realtyRegionId,
+                                     @Param("keepRole") @NotNull String keepRole);
+
 }

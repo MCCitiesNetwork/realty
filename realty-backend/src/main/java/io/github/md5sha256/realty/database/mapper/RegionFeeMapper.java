@@ -33,4 +33,10 @@ public interface RegionFeeMapper {
     /** Withdraws approval from the region's seller-side fees, except those set by {@code keep}. */
     int unapproveSellerFeesNotSetBy(int realtyRegionId, @NotNull UUID keep);
 
+    /** Removes every fee on the region set under {@code role}. */
+    int deleteByRole(int realtyRegionId, @NotNull String role);
+
+    /** Withdraws approval from the region's seller-side fees, except those set under {@code keepRole}. */
+    int unapproveSellerFeesNotOfRole(int realtyRegionId, @NotNull String keepRole);
+
 }

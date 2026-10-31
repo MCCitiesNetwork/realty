@@ -1278,7 +1278,7 @@ public interface RealtyBackend {
         record NotAllowed() implements SetFeeResult {}
         /** The fee was to be set for the authority by someone who does not manage it. */
         record NotAuthorityManager() implements SetFeeResult {}
-        /** The recipient already has this fee, on the same side at the same percentage. */
+        /** The recipient already has this fee, on the same side at the same percentage, under the same role. */
         record NoChange() implements SetFeeResult {}
     }
 
@@ -1370,6 +1370,8 @@ public interface RealtyBackend {
         record NotAuthorityManager() implements SetLevyResult {}
         /** No levy of that name is defined. */
         record UnknownLevy() implements SetLevyResult {}
+        /** The levy is limited to another kind of authority than the one it would apply to. */
+        record WrongAuthorityKind() implements SetLevyResult {}
         /** That levy is already chosen, or there is no choice to clear. */
         record NoChange() implements SetLevyResult {}
     }
