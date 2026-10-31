@@ -17,6 +17,13 @@ import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
 import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.api.event.FeeApprovedEvent;
+import io.github.md5sha256.realty.api.event.FeeChangeEvent;
+import io.github.md5sha256.realty.api.event.FeeChangedEvent;
+import io.github.md5sha256.realty.api.event.FeeRejectedEvent;
+import io.github.md5sha256.realty.api.event.FeeRemovedEvent;
+import io.github.md5sha256.realty.api.event.LevyChangeEvent;
+import io.github.md5sha256.realty.api.event.LevyChangedEvent;
 import io.github.md5sha256.realty.api.event.OfferAcceptEvent;
 import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
 import io.github.md5sha256.realty.api.event.OfferPlaceEvent;
@@ -310,7 +317,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), buyerId);
-        BuyResult success = new BuyResult.Success(price, regionId, playerParty(reserved.titleHolderId()));
+        BuyResult success = new BuyResult.Success(price, regionId, playerParty(reserved.titleHolderId()), fees);
         // Within the region's turn, so nothing acts on it before its fees are cleaned up.
         return CompletableFuture.runAsync(
                 () -> realtyApi.recordBuyFees(regionId, worldId, buyerId, seller, fees),
@@ -853,9 +860,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     : new PayBidResult.FinalizePending(amount, regionId));
         }
         completeSale(region, RealtyBackend.PendingFinalize.Kind.BID, bidderId, fullyPaid.titleHolderId(),
-                fullyPaid.fees().price(), !fullyPaid.oldRules(), realtyApi.getRegionPlaceholders(regionId, worldId));
+                fullyPaid.fees().price(), fullyPaid.fees(), !fullyPaid.oldRules(),
+                realtyApi.getRegionPlaceholders(regionId, worldId));
         return CompletableFuture.completedFuture(
-                new PayBidResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
+                new PayBidResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId()), fullyPaid.fees()));
     }
 
     private @NotNull CompletableFuture<Void> rollbackPayBidAsync(@NotNull String regionId,
@@ -978,9 +986,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     : new PayOfferResult.FinalizePending(amount, regionId));
         }
         completeSale(region, RealtyBackend.PendingFinalize.Kind.OFFER, offererId, fullyPaid.titleHolderId(),
-                fullyPaid.fees().price(), !fullyPaid.oldRules(), realtyApi.getRegionPlaceholders(regionId, worldId));
+                fullyPaid.fees().price(), fullyPaid.fees(), !fullyPaid.oldRules(),
+                realtyApi.getRegionPlaceholders(regionId, worldId));
         return CompletableFuture.completedFuture(
-                new PayOfferResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
+                new PayOfferResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId()), fullyPaid.fees()));
     }
 
     /**
@@ -1055,7 +1064,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      */
     private void completeSale(@NotNull WorldGuardRegion region, @NotNull RealtyBackend.PendingFinalize.Kind kind,
                               @NotNull UUID buyerId, @Nullable UUID previousTitleHolderId, double amount,
-                              boolean newRules, @NotNull Map<String, String> placeholders) {
+                              @NotNull FeeQuote fees, boolean newRules, @NotNull Map<String, String> placeholders) {
         String regionId = region.region().getId();
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.getOwners().clear();
@@ -1069,9 +1078,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             payOutInBackground();
         }
         if (kind == RealtyBackend.PendingFinalize.Kind.BID) {
-            events.fireSync(new AuctionWonPurchaseEvent(region, buyerId, previousTitleHolderId, amount));
+            events.fireSync(new AuctionWonPurchaseEvent(region, buyerId, previousTitleHolderId, amount, fees));
         } else {
-            events.fireSync(new OfferPurchaseCompletedEvent(region, buyerId, previousTitleHolderId, amount));
+            events.fireSync(new OfferPurchaseCompletedEvent(region, buyerId, previousTitleHolderId, amount, fees));
         }
     }
 
@@ -1113,8 +1122,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 payOutInBackground();
                 return;
             }
-            completeSale(region, sale.kind(), sale.buyerId(), sale.titleHolderId(), sale.price(), true,
-                    placeholders);
+            completeSale(region, sale.kind(), sale.buyerId(), sale.titleHolderId(), sale.price(), sale.fees(),
+                    true, placeholders);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             if (finalizedNow.get()) {
                 logger.log(Level.SEVERE, "The sale of " + sale.regionId() + " to " + sale.buyerId() + " was"
@@ -1825,6 +1834,178 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         events.fireSync(new OffersToggledEvent(region, accepting, ctx.player()));
                     }
                 });
+    }
+
+    // --- Sale fees ---
+
+    @Override
+    public @NotNull CompletableFuture<FeeQuote> previewFees(@NotNull WorldGuardRegion region,
+                                                            @NotNull UUID buyerId, double price) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.previewFees(regionId, worldId, buyerId, price), executorState.dbExec());
+    }
+
+    /**
+     * Who a fee set or removed by {@code ctx} is paid to: the freehold's authority, or the acting
+     * player. Empty when there is none to name, such as the console acting for itself; the backend
+     * then decides the outcome. Runs on the database executor.
+     */
+    private @NotNull Optional<Party> feeRecipient(@NotNull String regionId, @NotNull UUID worldId,
+                                                  @NotNull ActorContext ctx, boolean asAuthority) {
+        if (asAuthority) {
+            FreeholdContractEntity contract = realtyApi.getFreeholdContract(regionId, worldId);
+            return Optional.ofNullable(contract).map(FreeholdContractEntity::authority);
+        }
+        return Optional.ofNullable(ctx.player()).map(Party::personal);
+    }
+
+    /** A backend result, with the party the fee concerned when it could be named. */
+    private record FeeCall<R>(@NotNull R result, @Nullable Party recipient) {}
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetFeeResult> setFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx,
+            double percent, @NotNull FeeSide side, boolean asAuthority) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        UUID actorId = ctx.player();
+        return CompletableFuture.supplyAsync(
+                        () -> feeRecipient(regionId, worldId, ctx, asAuthority), executorState.dbExec())
+                .thenComposeAsync(recipient -> {
+                    if (recipient.isPresent() && !events.fireSync(
+                            new FeeChangeEvent(region, recipient.get(), side, percent, null, actorId))) {
+                        return CompletableFuture.completedFuture(
+                                (RealtyBackend.SetFeeResult) new RealtyBackend.SetFeeResult.Cancelled());
+                    }
+                    return CompletableFuture.supplyAsync(
+                            () -> realtyApi.setFee(regionId, worldId, ctx, percent, side, asAuthority),
+                            executorState.dbExec()
+                    ).thenApplyAsync(result -> {
+                        if (result instanceof RealtyBackend.SetFeeResult.Success success) {
+                            events.fireSync(new FeeChangedEvent(region, success.recipient(), side, percent,
+                                    success.previousPercent(), actorId));
+                        }
+                        return result;
+                    }, executorState.mainThreadExec());
+                }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.RemoveFeeResult> removeFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, boolean asAuthority) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(() -> {
+            Party recipient = feeRecipient(regionId, worldId, ctx, asAuthority).orElse(null);
+            return new FeeCall<>(realtyApi.removeFee(regionId, worldId, ctx, asAuthority), recipient);
+        }, executorState.dbExec()).thenApplyAsync(call -> {
+            if (call.result() instanceof RealtyBackend.RemoveFeeResult.Success && call.recipient() != null) {
+                events.fireSync(new FeeRemovedEvent(region, call.recipient()));
+            }
+            return call.result();
+        }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.ResolveFeeResult> approveFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull Party recipient) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.approveFee(regionId, worldId, ctx, recipient), executorState.dbExec()
+        ).thenApplyAsync(result -> {
+            if (result instanceof RealtyBackend.ResolveFeeResult.Success success && ctx.player() != null) {
+                events.fireSync(new FeeApprovedEvent(region, recipient, success.side(), success.percent(),
+                        ctx.player()));
+            }
+            return result;
+        }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.ResolveFeeResult> rejectFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull Party recipient) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.rejectFee(regionId, worldId, ctx, recipient), executorState.dbExec()
+        ).thenApplyAsync(result -> {
+            if (result instanceof RealtyBackend.ResolveFeeResult.Success success && ctx.player() != null) {
+                events.fireSync(new FeeRejectedEvent(region, recipient, success.side(), success.percent(),
+                        ctx.player()));
+            }
+            return result;
+        }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<RealtyBackend.FeeListing>> listFees(@NotNull WorldGuardRegion region) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(() -> realtyApi.listFees(regionId, worldId), executorState.dbExec());
+    }
+
+    /**
+     * Fires the {@link LevyChangeEvent} on the main thread, makes the change on the database
+     * executor unless a listener cancelled it, then fires the {@link LevyChangedEvent} on the main
+     * thread once the choice stands.
+     */
+    private @NotNull CompletableFuture<RealtyBackend.SetLevyResult> changeLevy(
+            @Nullable WorldGuardRegion region, @Nullable Party authority, @Nullable String newLevy,
+            @NotNull Supplier<RealtyBackend.SetLevyResult> change) {
+        return CompletableFuture.supplyAsync(
+                        () -> events.fireSync(new LevyChangeEvent(region, authority, newLevy, null)),
+                        executorState.mainThreadExec())
+                .thenComposeAsync(proceed -> {
+                    if (!proceed) {
+                        return CompletableFuture.completedFuture(
+                                (RealtyBackend.SetLevyResult) new RealtyBackend.SetLevyResult.Cancelled());
+                    }
+                    return CompletableFuture.supplyAsync(change, executorState.dbExec())
+                            .thenApplyAsync(result -> {
+                                if (result instanceof RealtyBackend.SetLevyResult.Success success) {
+                                    events.fireSync(new LevyChangedEvent(region, authority, newLevy,
+                                            success.previous()));
+                                }
+                                return result;
+                            }, executorState.mainThreadExec());
+                }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetLevyResult> setRegionLevy(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull String levyName) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return changeLevy(region, null, levyName,
+                () -> realtyApi.setRegionLevy(regionId, worldId, ctx, levyName));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetLevyResult> clearRegionLevy(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return changeLevy(region, null, null, () -> realtyApi.clearRegionLevy(regionId, worldId, ctx));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetLevyResult> setAuthorityLevy(
+            @NotNull Party authority, @NotNull ActorContext ctx, @NotNull String levyName) {
+        return changeLevy(null, authority, levyName, () -> realtyApi.setAuthorityLevy(authority, ctx, levyName));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetLevyResult> clearAuthorityLevy(
+            @NotNull Party authority, @NotNull ActorContext ctx) {
+        return changeLevy(null, authority, null, () -> realtyApi.clearAuthorityLevy(authority, ctx));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<LevyDefinition>> listLevies() {
+        return CompletableFuture.supplyAsync(realtyApi::listLevies, executorState.dbExec());
     }
 
     @Override

@@ -75,8 +75,11 @@ public interface RealtyPaperApi {
     // --- Buy ---
 
     sealed interface BuyResult {
+        /**
+         * @param fees the fees on the sale, as paid
+         */
         record Success(double price, @NotNull String regionId,
-                       @Nullable Party previousTitleHolder) implements BuyResult {}
+                       @Nullable Party previousTitleHolder, @NotNull FeeQuote fees) implements BuyResult {}
         record NoFreeholdContract(@NotNull String regionId) implements BuyResult {}
         record NotForSale(@NotNull String regionId) implements BuyResult {}
         record IsAuthority() implements BuyResult {}
@@ -180,8 +183,11 @@ public interface RealtyPaperApi {
     sealed interface PayBidResult {
         record Success(double amount, double newTotal, double remaining,
                        @NotNull String regionId) implements PayBidResult {}
+        /**
+         * @param fees the fees on the sale, as locked when the winner began paying
+         */
         record FullyPaid(double amount, @NotNull String regionId,
-                         @Nullable Party previousTitleHolder) implements PayBidResult {}
+                         @Nullable Party previousTitleHolder, @NotNull FeeQuote fees) implements PayBidResult {}
         /**
          * The final instalment was paid and is held, but the ownership transfer could not be
          * applied now. Realty finishes the sale on a later scheduler run; nothing more is owed.
@@ -210,8 +216,11 @@ public interface RealtyPaperApi {
     sealed interface PayOfferResult {
         record Success(double amount, double newTotal, double remaining,
                        @NotNull String regionId) implements PayOfferResult {}
+        /**
+         * @param fees the fees on the sale, as locked when the offer was accepted
+         */
         record FullyPaid(double amount, @NotNull String regionId,
-                         @Nullable Party previousTitleHolder) implements PayOfferResult {}
+                         @Nullable Party previousTitleHolder, @NotNull FeeQuote fees) implements PayOfferResult {}
         /**
          * The final instalment was paid and is held, but the ownership transfer could not be
          * applied now. Realty finishes the sale on a later scheduler run; nothing more is owed.
@@ -647,6 +656,75 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<List<OutboundOfferView>> listOutboundOffers(@NotNull UUID offererId);
 
     @NotNull CompletableFuture<List<InboundOfferView>> listInboundOffers(@NotNull UUID titleHolderId);
+
+    // --- Sale fees ---
+
+    /**
+     * The fees a sale of the freehold to {@code buyerId} at {@code price} would carry now. Nothing
+     * is saved. {@link FeeQuote#none(double)} when the region has no freehold.
+     */
+    @NotNull CompletableFuture<FeeQuote> previewFees(@NotNull WorldGuardRegion region,
+                                                     @NotNull UUID buyerId,
+                                                     double price);
+
+    /**
+     * Sets the actor's fee on the freehold, or with {@code asAuthority} the authority's. Fires
+     * {@link io.github.md5sha256.realty.api.event.FeeChangeEvent} first, returning
+     * {@link RealtyBackend.SetFeeResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.FeeChangedEvent} once the fee stands. See
+     * {@link RealtyBackend#setFee}.
+     */
+    @NotNull CompletableFuture<RealtyBackend.SetFeeResult> setFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx,
+            double percent, @NotNull FeeSide side, boolean asAuthority);
+
+    /**
+     * Removes the actor's fee, or with {@code asAuthority} the authority's. Fires
+     * {@link io.github.md5sha256.realty.api.event.FeeRemovedEvent}.
+     */
+    @NotNull CompletableFuture<RealtyBackend.RemoveFeeResult> removeFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, boolean asAuthority);
+
+    /**
+     * The seller approves the seller-paid fee paid to {@code recipient}. Fires
+     * {@link io.github.md5sha256.realty.api.event.FeeApprovedEvent}.
+     */
+    @NotNull CompletableFuture<RealtyBackend.ResolveFeeResult> approveFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull Party recipient);
+
+    /**
+     * The seller refuses the seller-paid fee paid to {@code recipient}. Fires
+     * {@link io.github.md5sha256.realty.api.event.FeeRejectedEvent}.
+     */
+    @NotNull CompletableFuture<RealtyBackend.ResolveFeeResult> rejectFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull Party recipient);
+
+    /** The fees on the freehold. See {@link RealtyBackend#listFees}. */
+    @NotNull CompletableFuture<List<RealtyBackend.FeeListing>> listFees(@NotNull WorldGuardRegion region);
+
+    /**
+     * Chooses the levy for one freehold. Fires
+     * {@link io.github.md5sha256.realty.api.event.LevyChangeEvent} first, returning
+     * {@link RealtyBackend.SetLevyResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.LevyChangedEvent} once the choice stands.
+     */
+    @NotNull CompletableFuture<RealtyBackend.SetLevyResult> setRegionLevy(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull String levyName);
+
+    /** Clears one freehold's levy choice. Fires the same events as {@link #setRegionLevy}. */
+    @NotNull CompletableFuture<RealtyBackend.SetLevyResult> clearRegionLevy(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx);
+
+    /** Chooses the levy for every freehold of {@code authority}. Fires the same events as {@link #setRegionLevy}. */
+    @NotNull CompletableFuture<RealtyBackend.SetLevyResult> setAuthorityLevy(
+            @NotNull Party authority, @NotNull ActorContext ctx, @NotNull String levyName);
+
+    /** Clears the authority's levy choice. Fires the same events as {@link #setRegionLevy}. */
+    @NotNull CompletableFuture<RealtyBackend.SetLevyResult> clearAuthorityLevy(
+            @NotNull Party authority, @NotNull ActorContext ctx);
+
+    /** Every levy the server defines. */
+    @NotNull CompletableFuture<List<LevyDefinition>> listLevies();
 
     // --- Property Config ---
 

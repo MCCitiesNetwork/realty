@@ -18,6 +18,15 @@ import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
 import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.api.event.FeeApprovedEvent;
+import io.github.md5sha256.realty.api.event.FeeChangeEvent;
+import io.github.md5sha256.realty.api.event.FeeChangedEvent;
+import io.github.md5sha256.realty.api.event.FeeRejectedEvent;
+import io.github.md5sha256.realty.api.event.FeeRemovedEvent;
+import io.github.md5sha256.realty.api.event.LevyChangeEvent;
+import io.github.md5sha256.realty.api.event.LevyChangedEvent;
+import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
 import io.github.md5sha256.realty.api.event.OfferAcceptEvent;
 import io.github.md5sha256.realty.api.event.OfferPlaceEvent;
 import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
@@ -2564,6 +2573,227 @@ class RealtyPaperApiImplTest {
                     Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
             Assertions.assertTrue(failed.error().contains("seller") && !failed.error().contains("refunded"),
                     failed.error());
+        }
+
+        @Test
+        void buySuccess_resultCarriesFees() {
+            reservedWith(BUY_QUOTE);
+            when(economyProvider.getBalance(BUYER)).thenReturn(1050.0);
+            when(economyProvider.transfer(eq(BUYER), any(), anyDouble(), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.BuyResult.Success success = Assertions.assertInstanceOf(
+                    RealtyPaperApi.BuyResult.Success.class, api.buy(wgRegion, BUYER_CTX, false).join());
+
+            Assertions.assertEquals(BUY_QUOTE, success.fees());
+        }
+
+        @Test
+        void payBidAndOfferFullyPaid_carryFeesToResultAndEvent() {
+            lenient().when(events.fireSync(any(RealtyRegionEvent.class))).thenReturn(true);
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            payoutsDue();
+            when(realtyApi.payOffer(REGION_ID, WORLD_ID, BUYER_ID, 1000.0)).thenReturn(
+                    new RealtyBackend.PayOfferResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, AGENT_QUOTE, false, 4));
+            when(realtyApi.finalizeOfferPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
+
+            RealtyPaperApi.PayBidResult.FullyPaid bid = Assertions.assertInstanceOf(
+                    RealtyPaperApi.PayBidResult.FullyPaid.class, api.payBid(wgRegion, BUYER_ID, 1000).join());
+            RealtyPaperApi.PayOfferResult.FullyPaid offer = Assertions.assertInstanceOf(
+                    RealtyPaperApi.PayOfferResult.FullyPaid.class, api.payOffer(wgRegion, BUYER_ID, 1000).join());
+
+            Assertions.assertEquals(AGENT_QUOTE, bid.fees());
+            Assertions.assertEquals(AGENT_QUOTE, offer.fees());
+            ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
+            verify(events, org.mockito.Mockito.atLeast(0)).fireSync(captor.capture());
+            Assertions.assertEquals(AGENT_QUOTE, captor.getAllValues().stream()
+                    .filter(AuctionWonPurchaseEvent.class::isInstance)
+                    .map(AuctionWonPurchaseEvent.class::cast).findFirst().orElseThrow().getFees());
+            Assertions.assertEquals(AGENT_QUOTE, captor.getAllValues().stream()
+                    .filter(OfferPurchaseCompletedEvent.class::isInstance)
+                    .map(OfferPurchaseCompletedEvent.class::cast).findFirst().orElseThrow().getFees());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // fee and levy methods and events
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("fees and levies")
+    class FeesAndLevies {
+
+        private final Party.Personal recipient = Party.personal(BUYER_ID);
+
+        @BeforeEach
+        void regionIsKnownToWorldGuard() {
+            RegionManager regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            lenient().when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
+            lenient().when(events.fireSync(any(RealtyRegionEvent.class))).thenReturn(true);
+            lenient().when(events.fireSync(any(LevyChangeEvent.class))).thenReturn(true);
+        }
+
+        private List<RealtyRegionEvent> firedRegionEvents() {
+            ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
+            verify(events, org.mockito.Mockito.atLeast(0)).fireSync(captor.capture());
+            return captor.getAllValues();
+        }
+
+        @Test
+        void setFee_cancelledByListener_writesNothing() {
+            when(events.fireSync(any(FeeChangeEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.SetFeeResult.Cancelled.class,
+                    api.setFee(wgRegion, BUYER_CTX, 3, FeeSide.SELLER, false).join());
+
+            verify(realtyApi, never()).setFee(any(), any(), any(), anyDouble(), any(),
+                    org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
+        void setFee_firesChangedWithPrevious() {
+            when(realtyApi.setFee(REGION_ID, WORLD_ID, BUYER_CTX, 3, FeeSide.SELLER, false))
+                    .thenReturn(new RealtyBackend.SetFeeResult.Success(recipient, false, 2.0));
+
+            api.setFee(wgRegion, BUYER_CTX, 3, FeeSide.SELLER, false).join();
+
+            List<RealtyRegionEvent> fired = firedRegionEvents();
+            FeeChangeEvent change = Assertions.assertInstanceOf(FeeChangeEvent.class, fired.get(0));
+            Assertions.assertEquals(recipient, change.getRecipient());
+            Assertions.assertEquals(Optional.of(BUYER_ID), change.getActorId());
+            FeeChangedEvent changed = Assertions.assertInstanceOf(FeeChangedEvent.class, fired.get(1));
+            Assertions.assertEquals(recipient, changed.getRecipient());
+            Assertions.assertEquals(FeeSide.SELLER, changed.getSide());
+            Assertions.assertEquals(3, changed.getPercent(), 0.0001);
+            Assertions.assertEquals(2.0, changed.getPreviousPercent().orElseThrow(), 0.0001);
+        }
+
+        @Test
+        void setFee_noChange_firesNoChangedEvent() {
+            when(realtyApi.setFee(REGION_ID, WORLD_ID, BUYER_CTX, 3, FeeSide.SELLER, false))
+                    .thenReturn(new RealtyBackend.SetFeeResult.NoChange());
+
+            api.setFee(wgRegion, BUYER_CTX, 3, FeeSide.SELLER, false).join();
+
+            Assertions.assertEquals(1, firedRegionEvents().size());
+        }
+
+        @Test
+        void removeFee_firesRemoved() {
+            when(realtyApi.removeFee(REGION_ID, WORLD_ID, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.RemoveFeeResult.Success());
+
+            api.removeFee(wgRegion, BUYER_CTX, false).join();
+
+            FeeRemovedEvent removed = Assertions.assertInstanceOf(FeeRemovedEvent.class,
+                    firedRegionEvents().getFirst());
+            Assertions.assertEquals(recipient, removed.getRecipient());
+        }
+
+        @Test
+        void approveFee_firesApproved() {
+            when(realtyApi.approveFee(REGION_ID, WORLD_ID, BUYER_CTX, recipient))
+                    .thenReturn(new RealtyBackend.ResolveFeeResult.Success(FeeSide.SELLER, 3));
+
+            api.approveFee(wgRegion, BUYER_CTX, recipient).join();
+
+            FeeApprovedEvent approved = Assertions.assertInstanceOf(FeeApprovedEvent.class,
+                    firedRegionEvents().getFirst());
+            Assertions.assertEquals(recipient, approved.getRecipient());
+            Assertions.assertEquals(FeeSide.SELLER, approved.getSide());
+            Assertions.assertEquals(3, approved.getPercent(), 0.0001);
+            Assertions.assertEquals(BUYER_ID, approved.getApproverId());
+        }
+
+        @Test
+        void rejectFee_firesRejected() {
+            when(realtyApi.rejectFee(REGION_ID, WORLD_ID, BUYER_CTX, recipient))
+                    .thenReturn(new RealtyBackend.ResolveFeeResult.Success(FeeSide.SELLER, 3));
+
+            api.rejectFee(wgRegion, BUYER_CTX, recipient).join();
+
+            FeeRejectedEvent rejected = Assertions.assertInstanceOf(FeeRejectedEvent.class,
+                    firedRegionEvents().getFirst());
+            Assertions.assertEquals(BUYER_ID, rejected.getApproverId());
+        }
+
+        @Test
+        void approveFee_failure_firesNothing() {
+            when(realtyApi.approveFee(REGION_ID, WORLD_ID, BUYER_CTX, recipient))
+                    .thenReturn(new RealtyBackend.ResolveFeeResult.NoPendingFee());
+
+            api.approveFee(wgRegion, BUYER_CTX, recipient).join();
+
+            Assertions.assertTrue(firedRegionEvents().isEmpty());
+        }
+
+        @Test
+        void setRegionLevy_cancelled() {
+            when(events.fireSync(any(LevyChangeEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.SetLevyResult.Cancelled.class,
+                    api.setRegionLevy(wgRegion, BUYER_CTX, "stamp-duty").join());
+
+            verify(realtyApi, never()).setRegionLevy(any(), any(), any(), any());
+        }
+
+        @Test
+        void setRegionLevy_firesChangedWithPrevious() {
+            when(realtyApi.setRegionLevy(REGION_ID, WORLD_ID, BUYER_CTX, "stamp-duty"))
+                    .thenReturn(new RealtyBackend.SetLevyResult.Success("old"));
+
+            api.setRegionLevy(wgRegion, BUYER_CTX, "stamp-duty").join();
+
+            ArgumentCaptor<LevyChangeEvent> pre = ArgumentCaptor.forClass(LevyChangeEvent.class);
+            verify(events).fireSync(pre.capture());
+            Assertions.assertEquals(REGION_ID, pre.getValue().getRegion().orElseThrow().region().getId());
+            Assertions.assertTrue(pre.getValue().getAuthority().isEmpty());
+            Assertions.assertEquals("stamp-duty", pre.getValue().getNewLevy().orElseThrow());
+            ArgumentCaptor<LevyChangedEvent> post = ArgumentCaptor.forClass(LevyChangedEvent.class);
+            verify(events).fireSync(post.capture());
+            Assertions.assertEquals("old", post.getValue().getPreviousLevy().orElseThrow());
+            Assertions.assertEquals("stamp-duty", post.getValue().getNewLevy().orElseThrow());
+        }
+
+        @Test
+        void clearAuthorityLevy_firesChangedWithNoNewLevy() {
+            when(realtyApi.clearAuthorityLevy(GOVERNMENT, BUYER_CTX))
+                    .thenReturn(new RealtyBackend.SetLevyResult.Success("old"));
+
+            api.clearAuthorityLevy(GOVERNMENT, BUYER_CTX).join();
+
+            ArgumentCaptor<LevyChangedEvent> post = ArgumentCaptor.forClass(LevyChangedEvent.class);
+            verify(events).fireSync(post.capture());
+            Assertions.assertEquals(GOVERNMENT, post.getValue().getAuthority().orElseThrow());
+            Assertions.assertTrue(post.getValue().getRegion().isEmpty());
+            Assertions.assertTrue(post.getValue().getNewLevy().isEmpty());
+            Assertions.assertEquals("old", post.getValue().getPreviousLevy().orElseThrow());
+        }
+
+        @Test
+        void setAuthorityLevy_failure_firesNoChangedEvent() {
+            when(realtyApi.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "nope"))
+                    .thenReturn(new RealtyBackend.SetLevyResult.UnknownLevy());
+
+            api.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "nope").join();
+
+            verify(events, never()).fireSync(any(LevyChangedEvent.class));
+        }
+
+        @Test
+        void previewAndListFees_delegate() {
+            FeeQuote quote = FeeQuote.none(500);
+            when(realtyApi.previewFees(REGION_ID, WORLD_ID, BUYER_ID, 500)).thenReturn(quote);
+            List<RealtyBackend.FeeListing> listings = List.of(
+                    new RealtyBackend.FeeListing("agent fee", recipient, FeeSide.SELLER, "3%", true, "agent"));
+            when(realtyApi.listFees(REGION_ID, WORLD_ID)).thenReturn(listings);
+
+            Assertions.assertEquals(quote, api.previewFees(wgRegion, BUYER_ID, 500).join());
+            Assertions.assertEquals(listings, api.listFees(wgRegion).join());
         }
     }
 }

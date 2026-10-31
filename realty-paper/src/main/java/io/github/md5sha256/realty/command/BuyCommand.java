@@ -76,7 +76,8 @@ public record BuyCommand(
                             Placeholder.unparsed("region", success.regionId())));
                     // Post-event; fireSync hops to the main thread. RegionNotificationListener notifies the seller.
                     events.fireSync(new RegionBoughtEvent(region, sender.getUniqueId(),
-                            Party.playerUuidOf(success.previousTitleHolder()).orElse(null), success.price()));
+                            Party.playerUuidOf(success.previousTitleHolder()).orElse(null), success.price(),
+                            success.fees()));
                 }
                 case RealtyPaperApi.BuyResult.NoFreeholdContract noContract ->
                         sender.sendMessage(messages.messageFor(MessageKeys.BUY_NO_FREEHOLD_CONTRACT,

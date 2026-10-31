@@ -1484,6 +1484,8 @@ public interface RealtyBackend {
         record NotAuthorityManager() implements SetFeeResult {}
         /** The recipient already has this fee, on the same side at the same percentage, under the same role. */
         record NoChange() implements SetFeeResult {}
+        /** A listener cancelled the {@code FeeChangeEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements SetFeeResult {}
     }
 
     /**
@@ -1578,6 +1580,8 @@ public interface RealtyBackend {
         record WrongAuthorityKind() implements SetLevyResult {}
         /** That levy is already chosen, or there is no choice to clear. */
         record NoChange() implements SetLevyResult {}
+        /** A listener cancelled the {@code LevyChangeEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements SetLevyResult {}
     }
 
     /**
