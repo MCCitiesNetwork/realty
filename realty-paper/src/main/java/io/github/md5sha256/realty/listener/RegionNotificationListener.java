@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.listener;
 
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.api.FeeQuote;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.Party;
@@ -10,6 +11,7 @@ import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
 import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.api.event.FeePaidEvent;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationProposedEvent;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
@@ -22,6 +24,7 @@ import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
 import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
 import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
+import io.github.md5sha256.realty.api.event.PaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
 import io.github.md5sha256.realty.api.event.RegionRentedEvent;
@@ -83,6 +86,7 @@ public final class RegionNotificationListener implements Listener {
                         Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("price", CurrencyFormatter.format(event.getPrice())),
                         Placeholder.unparsed("region", event.getRegionId())));
+        notifySaleProceeds(event.getPreviousTitleHolder(), event.getRegion(), event.getFees());
     }
 
     @EventHandler
@@ -91,6 +95,42 @@ public final class RegionNotificationListener implements Listener {
                 notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                         Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("region", event.getRegionId())));
+        notifySaleProceeds(event.getPreviousTitleHolder(), event.getRegion(), event.getFees());
+    }
+
+    /**
+     * Tells the seller what the sale left them after fees. A sale with no fees is already told by
+     * the sale's own notice, so nothing more is sent.
+     */
+    private void notifySaleProceeds(@Nullable Party seller, @NotNull WorldGuardRegion region,
+                                    @NotNull FeeQuote fees) {
+        if (fees.lines().isEmpty()) {
+            return;
+        }
+        notifyParty(seller, region, MessageKeys.NOTIFICATION_SALE_PROCEEDS,
+                Placeholder.unparsed("region", region.region().getId()),
+                Placeholder.unparsed("price", CurrencyFormatter.format(fees.price())),
+                Placeholder.unparsed("received", CurrencyFormatter.format(fees.sellerReceives())));
+    }
+
+    /** Tells a fee's recipient, once it is paid out, what they were paid and for which sale. */
+    @EventHandler
+    public void onFeePaid(@NotNull FeePaidEvent event) {
+        notifyParty(event.getRecipient(), null, MessageKeys.NOTIFICATION_SALE_PAYOUT,
+                Placeholder.unparsed("amount", CurrencyFormatter.format(event.getAmount())),
+                Placeholder.unparsed("source", event.getSource()),
+                Placeholder.unparsed("region", event.getRegionId()));
+    }
+
+    /**
+     * The key of the notice for a missed payment deadline: the refund was paid, or it failed and is
+     * pending, or, for a payment begun before sale fees, there was nothing to refund.
+     */
+    static @NotNull String expiryKey(@NotNull PaymentExpiredEvent event, @NotNull String oldRulesKey) {
+        if (event.isRefundPaid()) {
+            return MessageKeys.NOTIFICATION_REFUND_PAID;
+        }
+        return event.getRefundAmount() > 0 ? MessageKeys.NOTIFICATION_REFUND_PENDING : oldRulesKey;
     }
 
     @EventHandler
@@ -111,14 +151,16 @@ public final class RegionNotificationListener implements Listener {
 
     @EventHandler
     public void onAuctionPaymentExpired(@NotNull AuctionPaymentExpiredEvent event) {
-        notifyPlayer(event.getBidderId(), event.getRegion().orElse(null), MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED,
+        notifyPlayer(event.getBidderId(), event.getRegion().orElse(null),
+                expiryKey(event, MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED),
                 Placeholder.unparsed("region", event.getRegionId()),
                 Placeholder.unparsed("amount", CurrencyFormatter.format(event.getRefundAmount())));
     }
 
     @EventHandler
     public void onOfferPaymentExpired(@NotNull OfferPaymentExpiredEvent event) {
-        notifyPlayer(event.getOffererId(), event.getRegion().orElse(null), MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED,
+        notifyPlayer(event.getOffererId(), event.getRegion().orElse(null),
+                expiryKey(event, MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED),
                 Placeholder.unparsed("region", event.getRegionId()),
                 Placeholder.unparsed("amount", CurrencyFormatter.format(event.getRefundAmount())));
     }
@@ -156,6 +198,7 @@ public final class RegionNotificationListener implements Listener {
                 notifyPlayer(seller, event.getRegion(), MessageKeys.NOTIFICATION_OWNERSHIP_TRANSFERRED,
                         Placeholder.unparsed("player", partyNames.display(event.getNewTitleHolder())),
                         Placeholder.unparsed("region", event.getRegionId())));
+        notifySaleProceeds(event.getPreviousTitleHolder(), event.getRegion(), event.getFees());
     }
 
     @EventHandler
@@ -258,7 +301,7 @@ public final class RegionNotificationListener implements Listener {
      * is missing or expands to no one, and a failure to expand is logged and never thrown, so that a
      * notice can never break the action that caused it.
      */
-    private void notifyParty(@Nullable Party party, @NotNull WorldGuardRegion region, @NotNull String key,
+    private void notifyParty(@Nullable Party party, @Nullable WorldGuardRegion region, @NotNull String key,
                              @NotNull TagResolver... placeholders) {
         if (party == null) {
             return;

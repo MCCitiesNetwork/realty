@@ -122,6 +122,33 @@ permissions:
   realty.command.offer.toggle.bypass:
     description: Bypasses ownership/agent check for /realty offer toggle
     default: op
+  realty.command.fee.set:
+    description: Allows using /realty fee set
+    default: true
+  realty.command.fee.remove:
+    description: Allows using /realty fee remove
+    default: true
+  realty.command.fee.list:
+    description: Allows using /realty fee list
+    default: true
+  realty.command.fee.approve:
+    description: Allows using /realty fee approve
+    default: true
+  realty.command.fee.reject:
+    description: Allows using /realty fee reject
+    default: true
+  realty.command.levy.set:
+    description: Allows using /realty levy set
+    default: true
+  realty.command.levy.clear:
+    description: Allows using /realty levy clear
+    default: true
+  realty.command.levy.list:
+    description: Allows using /realty levy list
+    default: true
+  realty.command.levy.bypass:
+    description: Sets or clears a levy on any plot or for any authority
+    default: op
   realty.command.auction:
     description: Allows using /realty auction (create)
     default: op

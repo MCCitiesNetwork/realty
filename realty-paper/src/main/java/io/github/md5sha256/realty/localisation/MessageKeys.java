@@ -603,4 +603,63 @@ public final class MessageKeys {
     public static final String TAG_CLEAR_SUCCESS = "tag.clear-success";
     public static final String TAG_CLEAR_NONE = "tag.clear-none";
     public static final String TAG_ERROR = "tag.error";
+
+    // sale fees: breakdowns
+    public static final String FEES_BREAKDOWN_HEADER_BID = "fees.breakdown.header-bid";
+    public static final String FEES_BREAKDOWN_HEADER_OFFER = "fees.breakdown.header-offer";
+    public static final String FEES_BREAKDOWN_HEADER_BUY = "fees.breakdown.header-buy";
+    public static final String FEES_BREAKDOWN_PRICE = "fees.breakdown.price";
+    public static final String FEES_BREAKDOWN_BUYER_LINE = "fees.breakdown.buyer-line";
+    public static final String FEES_BREAKDOWN_LEVY_LINE = "fees.breakdown.levy-line";
+    public static final String FEES_BREAKDOWN_TOTAL = "fees.breakdown.total";
+    public static final String FEES_BREAKDOWN_SELLER_PAYS = "fees.breakdown.seller-pays";
+    public static final String FEES_BREAKDOWN_SELLER_LINE = "fees.breakdown.seller-line";
+    public static final String BUY_CONFIRM_FEES = "buy.confirm-fees";
+    public static final String OFFER_NO_HOLDING_ACCOUNT = "offer.no-holding-account";
+    public static final String INFO_FEES = "info.fees";
+    public static final String INFO_FEE_ENTRY = "info.fee-entry";
+    public static final String INFO_FEE_ENTRY_PENDING = "info.fee-entry-pending";
+    public static final String INFO_FEES_NONE = "info.fees-none";
+
+    // sale fees: notifications
+    public static final String NOTIFICATION_SALE_PAYOUT = "notification.sale-payout";
+    public static final String NOTIFICATION_SALE_PROCEEDS = "notification.sale-proceeds";
+    public static final String NOTIFICATION_REFUND_PAID = "notification.refund-paid";
+    public static final String NOTIFICATION_REFUND_PENDING = "notification.refund-pending";
+    public static final String NOTIFICATION_FEE_AWAITING_APPROVAL = "notification.fee-awaiting-approval";
+
+    // fee
+    public static final String FEE_SET = "fee.set";
+    public static final String FEE_SET_AWAITING_APPROVAL = "fee.set-awaiting-approval";
+    public static final String FEE_NO_FREEHOLD = "fee.no-freehold";
+    public static final String FEE_NOT_ALLOWED = "fee.not-allowed";
+    public static final String FEE_NOT_AUTHORITY_MANAGER = "fee.not-authority-manager";
+    public static final String FEE_NO_CHANGE = "fee.no-change";
+    public static final String FEE_REMOVED = "fee.removed";
+    public static final String FEE_NO_FEE = "fee.no-fee";
+    public static final String FEE_APPROVED = "fee.approved";
+    public static final String FEE_REJECTED = "fee.rejected";
+    public static final String FEE_NOT_SELLER = "fee.not-seller";
+    public static final String FEE_NO_PENDING_FEE = "fee.no-pending-fee";
+    public static final String FEE_LIST_HEADER = "fee.list-header";
+    public static final String FEE_LIST_ENTRY = "fee.list-entry";
+    public static final String FEE_LIST_ENTRY_PENDING = "fee.list-entry-pending";
+    public static final String FEE_LIST_EMPTY = "fee.list-empty";
+    public static final String FEE_ERROR = "fee.error";
+
+    // levy
+    public static final String LEVY_SET = "levy.set";
+    public static final String LEVY_SET_ALL = "levy.set-all";
+    public static final String LEVY_CLEARED = "levy.cleared";
+    public static final String LEVY_CLEARED_ALL = "levy.cleared-all";
+    public static final String LEVY_NO_FREEHOLD = "levy.no-freehold";
+    public static final String LEVY_NOT_AUTHORITY_MANAGER = "levy.not-authority-manager";
+    public static final String LEVY_UNKNOWN = "levy.unknown";
+    public static final String LEVY_WRONG_AUTHORITY_KIND = "levy.wrong-authority-kind";
+    public static final String LEVY_NO_CHANGE = "levy.no-change";
+    public static final String LEVY_ALL_NEEDS_AUTHORITY = "levy.all-needs-authority";
+    public static final String LEVY_LIST_HEADER = "levy.list-header";
+    public static final String LEVY_LIST_ENTRY = "levy.list-entry";
+    public static final String LEVY_LIST_EMPTY = "levy.list-empty";
+    public static final String LEVY_ERROR = "levy.error";
 }

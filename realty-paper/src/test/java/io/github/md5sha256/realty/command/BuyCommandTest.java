@@ -37,4 +37,9 @@ class BuyCommandTest {
         Assertions.assertEquals(Party.personal(seller), event.getPreviousTitleHolder());
         Assertions.assertEquals(1000, event.getPrice(), 0.0001);
     }
+
+    @Test
+    void confirmLink_runsTheSameBuyConfirmed() {
+        Assertions.assertEquals("/realty buy c404 --confirm", BuyCommand.confirmCommand("c404"));
+    }
 }

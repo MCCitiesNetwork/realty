@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.api.DurationFormatter;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.FeePreview;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -30,7 +31,9 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
@@ -246,10 +249,19 @@ public record AuctionCommandGroup(
                         bidAmount, bypassConflict), executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyBackend.BidResult.Success ignored ->
-                                sender.sendMessage(messages.messageFor(MessageKeys.BID_SUCCESS,
-                                        Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
-                                        Placeholder.unparsed("region", regionId)));
+                        case RealtyBackend.BidResult.Success ignored -> {
+                            Component placed = messages.messageFor(MessageKeys.BID_SUCCESS,
+                                    Placeholder.unparsed("amount", CurrencyFormatter.format(bidAmount)),
+                                    Placeholder.unparsed("region", regionId));
+                            // The bid stands either way; a failed preview only leaves out the breakdown.
+                            FeePreview.of(api, region, sender.getUniqueId(), bidAmount)
+                                    .thenAccept(preview -> sender.sendMessage(preview.appendTo(placed,
+                                            MessageKeys.FEES_BREAKDOWN_HEADER_BID, messages, partyNames)))
+                                    .exceptionally(ex -> {
+                                        sender.sendMessage(placed);
+                                        return null;
+                                    });
+                        }
                         case RealtyBackend.BidResult.Cancelled ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
                         case RealtyBackend.BidResult.NoAuction ignored ->
@@ -290,11 +302,16 @@ public record AuctionCommandGroup(
         api.payBid(region, sender.getUniqueId(), amount).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.PayBidResult.Success success ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_SUCCESS,
-                                Placeholder.unparsed("amount", CurrencyFormatter.format(success.amount())),
-                                Placeholder.unparsed("region", success.regionId()),
-                                Placeholder.unparsed("total", CurrencyFormatter.format(success.newTotal())),
-                                Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining()))));
+                        paymentDeadline(region).thenAccept(deadline ->
+                                sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_SUCCESS,
+                                        Placeholder.unparsed("amount", CurrencyFormatter.format(success.amount())),
+                                        Placeholder.unparsed("region", success.regionId()),
+                                        Placeholder.unparsed("total", CurrencyFormatter.format(success.newTotal())),
+                                        // What is owed in all: the price plus the buyer's fees.
+                                        Placeholder.unparsed("due", CurrencyFormatter.format(
+                                                success.newTotal() + success.remaining())),
+                                        Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining())),
+                                        Placeholder.unparsed("deadline", deadline))));
                 case RealtyPaperApi.PayBidResult.FullyPaid fullyPaid ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_TRANSFER_SUCCESS,
                                 Placeholder.unparsed("region", fullyPaid.regionId())));
@@ -325,6 +342,24 @@ public record AuctionCommandGroup(
                                 Placeholder.unparsed("error", error.message())));
             }
         });
+    }
+
+    /**
+     * The winner's payment deadline on {@code region}, formatted, or "the deadline" when it cannot
+     * be found. It is the payment's deadline, which a handover to a runner-up moves.
+     */
+    private @NotNull CompletableFuture<String> paymentDeadline(@NotNull WorldGuardRegion region) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return api.listActiveAuctions().thenApply(auctions -> auctions.stream()
+                        .filter(a -> a.regionId().equalsIgnoreCase(regionId) && a.worldId().equals(worldId))
+                        .map(RealtyBackend.ActiveAuction::paymentDeadline)
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .map(deadline -> DateFormatter.format(settings.get().dateFormat(),
+                                LocalDateTime.ofInstant(deadline, ZoneId.systemDefault())))
+                        .orElse("the deadline"))
+                .exceptionally(ex -> "the deadline");
     }
 
 }

@@ -94,14 +94,16 @@ auction:
         has pending offers. Reject them first.
     error: '<prefix> Failed to create auction: <error>'
 buy:
+    confirm-fees: '<prefix> This sale carries fees. <click:run_command:<command>><hover:show_text:"Buy at this total"><green><u>Click here to confirm the purchase</u></green></hover></click>,
+        or run the command again with <yellow>--confirm</yellow>.'
     success: <prefix> You bought region <yellow><region></yellow> for <price>.
     no-freehold-contract: <prefix> Region <yellow><region></yellow> does not have
         a freehold contract.
     not-for-sale: <prefix> Region <yellow><region></yellow> is not for sale.
     is-authority: <prefix> You cannot buy this region because you are its authority.
     is-title-holder: <prefix> You cannot buy a region you already own.
-    insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red>$<balance>.</red>
-        Price: <green>$<price>.</green>'
+    insufficient-funds: '<prefix> You do not have enough funds. You need <green>$<price></green>,
+        fees included, and your balance is <red>$<balance></red>.'
     payment-failed: '<prefix> <red>Payment failed: <error>'
     transfer-failed: <prefix> <red>Failed to transfer region <region>.
     error: '<prefix> <red>Failed to buy region: <error>'
@@ -134,6 +136,10 @@ delete:
     success: <prefix> Region deleted successfully!
     error: '<prefix> Failed to delete region: <error>'
 info:
+    fees: '<#00aaff><bold>»</bold></#00aaff> Fees on sale: <grey><fees></grey>'
+    fees-none: None
+    fee-entry: <source> <rate> (<side> pays)
+    fee-entry-pending: <source> <rate> (<side> pays, awaiting the seller's approval)
     header: <prefix> Information for <b><region>
     no-contracts: <prefix> No contracts or auctions found for this region.
     sold:
@@ -207,6 +213,7 @@ offers-inbound:
         is offering <green>$<price></green> for <yellow><region></yellow> '
     error: '<prefix> Failed to list inbound offers: <error>'
 offer:
+    no-holding-account: <prefix> <red>Offers can't be accepted until an admin sets up the holding account.
     success: <prefix> You have placed an offer of <green>$<price></green> on region
         <yellow><region>.
     no-freehold-contract: <prefix> You cannot place an offer for <gold><region></gold>,
@@ -222,9 +229,9 @@ offer:
 pay-bid:
     insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
     payment-failed: '<prefix> Payment failed: <error>'
-    success: '<prefix> You have <green>successfully paid <amount></green> towards
-        region <gold><region>.</gold> Total paid: <green><total>.</green> Remaining:
-        <red><remaining>.</red>'
+    success: '<prefix> Paid <green><amount></green> towards <gold><region></gold>.
+        Paid <green><total></green> of <green><due></green>. <red><remaining></red> left
+        by <yellow><deadline></yellow>.'
     fully-paid: <prefix> You have <green>successfully paid <amount></green> towards
         region <gold><region>.</gold>, and fully paid off your bid! The title will
         now be will be transferred to you.
@@ -245,9 +252,9 @@ pay-bid:
 pay-offer:
     insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
     payment-failed: '<prefix> Payment failed: <error>'
-    success: '<prefix> You have <green>successfully paid <amount></green> towards
-        region <gold><region>.</gold> Total paid: <green><total>.</green> Remaining:
-        <red><remaining>.</red>'
+    success: '<prefix> Paid <green><amount></green> towards <gold><region></gold>.
+        Paid <green><total></green> of <green><due></green>. <red><remaining></red> left
+        by <yellow><deadline></yellow>.'
     fully-paid: <prefix> You have <green>successfully paid <amount></green> towards
         region <gold><region>.</gold>, and fully paid off your offer! The title will
         now be will be transferred to you.
@@ -375,6 +382,17 @@ help:
         an agent invite</gray>
     - <blue>/realty agent remove <player> <region></blue> <gray>- Remove a sanctioned
         auctioneer</gray>
+    - <blue>/realty fee set <percent> <buyer|seller> [region] [--authority]</blue> <gray>-
+        Set your fee on a sale of the region</gray>
+    - <blue>/realty fee remove [region] [--authority]</blue> <gray>- Remove your fee</gray>
+    - <blue>/realty fee list [region]</blue> <gray>- List the fees on a sale of the region</gray>
+    - <blue>/realty fee approve|reject <recipient> [region] [type flag]</blue> <gray>- As
+        the seller, accept or refuse a fee paid out of your price</gray>
+    - <blue>/realty levy set <levy> [region] [--all --authority]</blue> <gray>- Choose
+        the levy for a plot, or for every plot of its authority</gray>
+    - <blue>/realty levy clear [region] [--all --authority]</blue> <gray>- Clear a levy
+        choice</gray>
+    - <blue>/realty levy list</blue> <gray>- List the levies and their rates</gray>
 extend:
     success: <prefix> You have <green>successfully extended your lease</green> for
         region <yellow><region></yellow> for <green>$<price>.</green>
@@ -501,10 +519,24 @@ notification:
         <yellow><region></yellow> for <green>$<price></green>
     region-rented: <prefix> <gray></gray> <#00aaff><player></#00aaff> rented <yellow><region></yellow>
         for <green>$<price></green>
-    bid-payment-expired: <prefix> <gray><time></gray> Bid payment expired for <yellow><region></yellow>
-        | Refunded <green>$<amount></green>
-    offer-payment-expired: <prefix> <gray><time></gray> Offer payment expired for
-        <yellow><region></yellow> | Refunded <green>$<amount></green>
+    bid-payment-expired: <prefix> Your payment deadline for <yellow><region></yellow>
+        passed. Realty refunds nothing, because under the rules when you began paying
+        your payments went to the seller.
+    offer-payment-expired: <prefix> Your payment deadline for <yellow><region></yellow>
+        passed. Realty refunds nothing, because under the rules when you began paying
+        your payments went to the seller.
+    refund-paid: <prefix> Your payment deadline for <yellow><region></yellow> passed.
+        <green>$<amount></green> was refunded.
+    refund-pending: <prefix> Your payment deadline for <yellow><region></yellow> passed.
+        Your refund of <green>$<amount></green> could not be paid yet. It is pending
+        and will be retried.
+    sale-proceeds: <prefix> <yellow><region></yellow> sold for <green>$<price></green>.
+        You received <green>$<received></green> after fees.
+    sale-payout: <prefix> You were paid <green>$<amount></green> (<source>) from the
+        sale of <yellow><region></yellow>.
+    fee-awaiting-approval: <prefix> <#00aaff><player></#00aaff> set a <yellow><percent>%</yellow>
+        fee on <yellow><region></yellow>, paid by the seller to <#00aaff><recipient></#00aaff>.
+        Run <green>/realty fee approve</green> or <red>/realty fee reject</red>.
     agent-invited: <prefix> <gray><time></gray> <#00aaff><player></#00aaff> invited
         you as agent for <yellow><region></yellow>
     agent-invite-accepted: <prefix> <gray><time></gray> <#00aaff><player></#00aaff>
@@ -881,3 +913,65 @@ transfer:
     error: 'Failed to transfer region: <error>'
     no-permission: You do not have permission to transfer this region.
     already-titleholder: <titleholder> already holds region <region>.
+fees:
+    breakdown:
+        header-bid: <gray>If you win you will owe:</gray>
+        header-offer: <gray>If your offer is accepted you will owe:</gray>
+        header-buy: '<prefix> Buying <yellow><region></yellow> for <green><price></green>.
+            You will pay:'
+        price: '<gray>  Price</gray> <white><amount></white>'
+        buyer-line: '<gray>  <source></gray> <white><amount></white>  <gray>(<percent>%)</gray>'
+        levy-line: '<gray>  <source></gray> <white><amount></white>  <gray>(<percent>%, you hold <plots>)</gray>'
+        total: '<gray>  Total</gray> <green><amount></green>'
+        seller-pays: '<gray>The seller also pays:</gray> <lines>'
+        seller-line: <source> <amount> (<percent>%, to <recipient>)
+fee:
+    set: <prefix> Your fee on <yellow><region></yellow> is now <green><percent>%</green>,
+        paid by the <side>, to <#00aaff><recipient></#00aaff>.
+    set-awaiting-approval: <prefix> Your fee on <yellow><region></yellow> is now <green><percent>%</green>,
+        paid by the seller, to <#00aaff><recipient></#00aaff>. It applies once the seller
+        approves it.
+    no-freehold: <prefix> <red>Region <yellow><region></yellow> is not a freehold.
+    not-allowed: <prefix> <red>Only the titleholder, an agent or the authority of <yellow><region></yellow>
+        can set a fee there.
+    not-authority-manager: <prefix> <red>You do not act for the authority of <yellow><region></yellow>.
+    no-change: <prefix> That fee is already set on <yellow><region></yellow>.
+    removed: <prefix> Your fee on <yellow><region></yellow> was <red>removed</red>.
+    no-fee: <prefix> You have no fee on <yellow><region></yellow>.
+    approved: <prefix> You <green>approved</green> the <percent>% fee paid to <#00aaff><recipient></#00aaff>
+        on <yellow><region></yellow>.
+    rejected: <prefix> You <red>rejected</red> the <percent>% fee paid to <#00aaff><recipient></#00aaff>
+        on <yellow><region></yellow>.
+    not-seller: <prefix> <red>Only the seller of <yellow><region></yellow> can approve
+        or reject its fees.
+    no-pending-fee: <prefix> <#00aaff><recipient></#00aaff> has no fee awaiting approval
+        on <yellow><region></yellow>.
+    list-header: <prefix> Fees on <yellow><region></yellow>
+    list-entry: ' <dark_grey>-</dark_grey> <yellow><source></yellow> <green><rate></green>,
+        paid by the <side>, to <#00aaff><recipient></#00aaff>'
+    list-entry-pending: ' <dark_grey>-</dark_grey> <yellow><source></yellow> <green><rate></green>,
+        paid by the <side>, to <#00aaff><recipient></#00aaff> <grey>(awaiting the seller''s
+        approval)</grey>'
+    list-empty: <prefix> No fees apply to a sale of <yellow><region></yellow>.
+    error: '<prefix> <red>Failed to change the fee: <error>'
+levy:
+    set: <prefix> <yellow><region></yellow> now uses the levy <green><levy></green>.
+    set-all: <prefix> Every plot of <#00aaff><authority></#00aaff> now uses the levy
+        <green><levy></green>, unless the plot chose its own.
+    cleared: <prefix> <yellow><region></yellow> no longer chooses a levy. It uses its
+        authority's choice, or the default.
+    cleared-all: <prefix> <#00aaff><authority></#00aaff> no longer chooses a levy. Its
+        plots use their own choice, or the default.
+    no-freehold: <prefix> <red>Region <yellow><region></yellow> is not a freehold.
+    not-authority-manager: <prefix> <red>You do not act for the authority of <yellow><region></yellow>.
+    unknown: <prefix> <red>There is no levy named <yellow><levy></yellow>. See <green>/realty
+        levy list</green>.
+    wrong-authority-kind: <prefix> <red>The levy <yellow><levy></yellow> is for another
+        kind of authority.
+    no-change: <prefix> Nothing changed.
+    all-needs-authority: <prefix> <red><yellow>--all</yellow> works only with <yellow>--authority</yellow>.
+    list-header: <prefix> Levies
+    list-entry: ' <dark_grey>-</dark_grey> <yellow><levy></yellow>: paid by the <side>,
+        <green><rate></green>, <state><default>'
+    list-empty: <prefix> No levies are defined.
+    error: '<prefix> <red>Failed to change the levy: <error>'

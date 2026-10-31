@@ -3,6 +3,11 @@ package io.github.md5sha256.realty.listener;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.ExecutorState;
+import io.github.md5sha256.realty.api.FeeLine;
+import io.github.md5sha256.realty.api.FeeQuote;
+import io.github.md5sha256.realty.api.FeeSide;
+import io.github.md5sha256.realty.api.event.FeePaidEvent;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
@@ -255,7 +260,7 @@ class RegionNotificationListenerTest {
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED, notice.getMessageKey());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_REFUND_PAID, notice.getMessageKey());
     }
 
     @Test
@@ -264,7 +269,51 @@ class RegionNotificationListenerTest {
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED, notice.getMessageKey());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_REFUND_PAID, notice.getMessageKey());
+    }
+
+    @Test
+    void paymentExpiredWithAFailedRefund_saysTheRefundIsPending() {
+        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250, false));
+
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_REFUND_PENDING, notices(1).getFirst().getMessageKey());
+    }
+
+    @Test
+    void paymentExpiredUnderTheOldRules_saysNothingIsRefunded() {
+        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("region-1", null, region, TENANT, 0, false));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED, notice.getMessageKey());
+        Assertions.assertFalse(PlainTextComponentSerializer.plainText().serialize(notice.getMessage())
+                .contains("refunded 0"));
+    }
+
+    @Test
+    void wonAuctionWithFees_alsoTellsTheSellerWhatTheyReceived() {
+        FeeQuote quote = new FeeQuote(1000,
+                List.of(new FeeLine("agent fee", Party.personal(UUID.randomUUID()), FeeSide.SELLER, 3, 30)),
+                1000, 970);
+
+        listener.onAuctionWonPurchase(new AuctionWonPurchaseEvent(region, TENANT, LANDLORD, 1000, quote));
+
+        List<RealtyNotificationEvent> notices = notices(2);
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_SALE_PROCEEDS, notices.get(1).getMessageKey());
+        Assertions.assertEquals(List.of(LANDLORD), notices.get(1).getTargets());
+    }
+
+    @Test
+    void feePaidToAnAccount_notifiesItsManagers() {
+        UUID authorizer = UUID.randomUUID();
+        when(treasury.getAuthorizers(42)).thenReturn(List.of(row(authorizer)));
+        when(treasury.getMembers(42)).thenReturn(List.of());
+
+        listener.onFeePaid(new FeePaidEvent("region-1", null, "townville-levy",
+                Party.account(42, AccountKind.GOVERNMENT), 50, TENANT));
+
+        RealtyNotificationEvent notice = notices(1).getFirst();
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_SALE_PAYOUT, notice.getMessageKey());
+        Assertions.assertEquals(List.of(authorizer), notice.getTargets());
     }
 }
 

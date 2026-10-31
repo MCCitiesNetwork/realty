@@ -8,25 +8,33 @@ import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
 import io.github.md5sha256.realty.api.event.RegionBuyEvent;
+import io.github.md5sha256.realty.command.util.FeePreview;
+import io.github.md5sha256.realty.command.util.FeeQuoteFormatter;
+import io.github.md5sha256.realty.command.util.RegionOrFlagParser;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.util.PartyNames;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.incendo.cloud.paper.util.sender.Source;
 
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.parser.flag.CommandFlag;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 /**
- * Handles {@code /realty buy <region>}.
+ * Handles {@code /realty buy [region] [--confirm]}.
  *
  * <p>Performs a fixed-price purchase at the listed price without requiring
- * approval from the current title holder.</p>
+ * approval from the current title holder. When the sale carries fees, the buyer is first shown
+ * the breakdown and a link that runs the command again with {@code --confirm}.</p>
  *
  * <p>Permission: {@code realty.command.buy}.</p>
  */
@@ -35,7 +43,8 @@ public record BuyCommand(
         @NotNull ActorContexts actors,
         @NotNull ExecutorState executorState,
         @NotNull MessageContainer messages,
-        @NotNull RealtyEventDispatch events
+        @NotNull RealtyEventDispatch events,
+        @NotNull PartyNames partyNames
 ) implements CustomCommandBean.Single {
 
     @Override
@@ -43,9 +52,18 @@ public record BuyCommand(
         return builder
                 .literal("buy")
                 .permission("realty.command.buy")
-                .optional("region", WorldGuardRegionResolver.worldGuardRegionResolver())
+                .optional("region", RegionOrFlagParser.regionOrFlag())
+                .flag(CONFIRM_FLAG)
                 .handler(this::execute)
                 .build();
+    }
+
+    /** Confirms a buy that carries fees, after the buyer has seen the breakdown. */
+    static final CommandFlag<Void> CONFIRM_FLAG = CommandFlag.<Source>builder("confirm").build();
+
+    /** The command the confirmation link runs: this buy again, confirmed. */
+    static @NotNull String confirmCommand(@NotNull String regionId) {
+        return "/realty buy " + regionId + " --confirm";
     }
 
     /** The post-event for a completed buy, carrying the fees the sale paid. */
@@ -62,12 +80,46 @@ public record BuyCommand(
             ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
             return;
         }
-        WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
+        WorldGuardRegion region = ctx.<Optional<WorldGuardRegion>>optional("region")
+                .flatMap(Function.identity())
                 .orElseGet(() -> WorldGuardRegionResolver.resolveAtLocation(sender.getLocation()));
         if (region == null) {
             sender.sendMessage(messages.messageFor(MessageKeys.ERROR_NO_REGION));
             return;
         }
+        if (ctx.flags().hasFlag(CONFIRM_FLAG)) {
+            buy(sender, region);
+            return;
+        }
+        // A sale with fees is shown first and bought only once confirmed; one without goes through.
+        String regionId = region.region().getId();
+        api.getFreeholdContract(regionId, region.world().getUID())
+                .thenCompose(freehold -> freehold == null || freehold.price() == null
+                        ? CompletableFuture.<FeePreview>completedFuture(null)
+                        : FeePreview.of(api, region, sender.getUniqueId(), freehold.price()))
+                .thenAcceptAsync(preview -> {
+                    if (preview == null || !preview.hasFees()) {
+                        buy(sender, region);
+                        return;
+                    }
+                    sender.sendMessage(messages.messageFor(MessageKeys.FEES_BREAKDOWN_HEADER_BUY,
+                                    Placeholder.unparsed("region", regionId),
+                                    Placeholder.unparsed("price", CurrencyFormatter.format(preview.quote().price())))
+                            .appendNewline()
+                            .append(FeeQuoteFormatter.breakdown(preview.quote(), preview.buyerPlots(), messages,
+                                    partyNames::display))
+                            .appendNewline()
+                            .append(messages.commandLink(MessageKeys.BUY_CONFIRM_FEES, confirmCommand(regionId))));
+                }, executorState.mainThreadExec())
+                .exceptionally(ex -> {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    sender.sendMessage(messages.messageFor(MessageKeys.BUY_ERROR,
+                            Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
+                    return null;
+                });
+    }
+
+    private void buy(@NotNull Player sender, @NotNull WorldGuardRegion region) {
         // Cancellable pre-event (main thread); a veto stops the action before the API is called.
         if (!events.fireSync(new RegionBuyEvent(region, sender.getUniqueId()))) {
             sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));

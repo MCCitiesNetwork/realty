@@ -52,6 +52,8 @@ import io.github.md5sha256.realty.command.HelpCommand;
 import io.github.md5sha256.realty.command.HistoryCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
+import io.github.md5sha256.realty.command.FeeCommandGroup;
+import io.github.md5sha256.realty.command.LevyCommandGroup;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
 import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ModuleCommandGroup;
@@ -1077,10 +1079,11 @@ public final class Realty extends JavaPlugin {
         pluginManager.registerEvents(
                 new SubregionWandListener(this, subregionWand, subregionWandManager,
                         messageContainer), this);
+        PartyRecipients partyRecipients =
+                new PartyRecipients(getServer(), this.treasury, resolveVaultPermission(), this.settings);
         pluginManager.registerEvents(
                 new RegionNotificationListener(this.eventDispatch, messageContainer, this.partyNames,
-                        new PartyRecipients(getServer(), this.treasury, resolveVaultPermission(), this.settings),
-                        executorState, getLogger()), this);
+                        partyRecipients, executorState, getLogger()), this);
 
         SuggestionProvider<Source> partySuggestions =
                 PartyFlags.suggestions(this.treasury, this.logic, executorState.dbExec());
@@ -1102,7 +1105,8 @@ public final class Realty extends JavaPlugin {
                         this.settings,
                         messageContainer,
                         this.partyNames),
-                new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
+                new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch,
+                        this.partyNames),
                 new CreateCommand(getServer(), paperApi, this.defaultParties, this.partyResolver, partySuggestions,
                         executorState, messageContainer, this.eventDispatch),
                 new RegisterCommand(getServer(), paperApi, this.defaultParties, this.partyResolver, partySuggestions,
@@ -1125,7 +1129,13 @@ public final class Realty extends JavaPlugin {
                         paperApi,
                         this.actorContexts,
                         executorState,
-                        messageContainer),
+                        messageContainer,
+                        this.partyNames),
+                new FeeCommandGroup(paperApi, this.actorContexts, this.partyResolver, partySuggestions,
+                        executorState, messageContainer, this.partyNames, partyRecipients, this.eventDispatch,
+                        getLogger()),
+                new LevyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.partyNames),
                 new ExtendCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentableCommand(paperApi, this.actorContexts, executorState, messageContainer),
