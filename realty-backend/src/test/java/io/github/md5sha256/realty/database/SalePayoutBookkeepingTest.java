@@ -551,13 +551,13 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         Assertions.assertEquals(300, pending.pendingPayment(), 0.001);
         Assertions.assertNotNull(pending.pendingSince());
 
-        Assertions.assertTrue(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 300));
+        Assertions.assertTrue(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 300, false));
 
         FreeholdContractBidPaymentEntity confirmed = bidPayment(regionId);
         Assertions.assertEquals(300, confirmed.currentPayment(), 0.001);
         Assertions.assertEquals(0, confirmed.pendingPayment(), 0.001);
         Assertions.assertNull(confirmed.pendingSince());
-        Assertions.assertFalse(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 300), "only once");
+        Assertions.assertFalse(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 300, false), "only once");
     }
 
     @Test
@@ -566,7 +566,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         acceptedOffer(regionId);
         Assertions.assertInstanceOf(PayOfferResult.Success.class, logic.payOffer(regionId, WORLD_ID, BUYER, 400));
 
-        Assertions.assertTrue(logic.confirmPayOffer(regionId, WORLD_ID, BUYER, 400));
+        Assertions.assertTrue(logic.confirmPayOffer(regionId, WORLD_ID, BUYER, 400, false));
 
         try (SqlSessionWrapper wrapper = database.openSession()) {
             var payment = wrapper.freeholdContractOfferPaymentMapper().selectByRegion(regionId, WORLD_ID);
@@ -618,7 +618,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         Assertions.assertEquals(List.of(300.0), refundsFor(regionId).stream().map(DueRefund::amount).toList(),
                 "the cancel refunds confirmed money only");
 
-        Assertions.assertFalse(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 200));
+        Assertions.assertFalse(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 200, false));
 
         List<DueRefund> refunds = refundsFor(regionId);
         Assertions.assertEquals(2, refunds.size());
@@ -649,5 +649,55 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
 
         Assertions.assertTrue(logic.holdsSaleMoney());
+    }
+
+    @Test
+    void confirm_ofAnOldRulesInstalmentAfterTheSaleEnded_refundsNothing() {
+        String regionId = freehold();
+        inPayment(regionId);
+        update("UPDATE FreeholdContractBidPayment SET oldRules = TRUE WHERE ? IS NOT NULL", "x");
+        PayBidResult.Success counted = Assertions.assertInstanceOf(PayBidResult.Success.class,
+                logic.payBid(regionId, WORLD_ID, BUYER, 200));
+        Assertions.assertTrue(counted.oldRules());
+        logic.cancelAuction(regionId, WORLD_ID);
+
+        // The money went to the seller; the holding account never received it.
+        Assertions.assertFalse(logic.confirmPayBid(regionId, WORLD_ID, BUYER, 200, counted.oldRules()));
+
+        Assertions.assertEquals(0, count("SELECT COUNT(*) FROM PendingRefund"));
+    }
+
+    @Test
+    void cancelAuction_withAPendingInstalment_logsSevere() {
+        String regionId = freehold();
+        inPayment(regionId);
+        logic.payBid(regionId, WORLD_ID, BUYER, 200);
+        List<java.util.logging.LogRecord> logged = new java.util.ArrayList<>();
+        java.util.logging.Handler handler = new java.util.logging.Handler() {
+            @Override
+            public void publish(java.util.logging.LogRecord record) {
+                logged.add(record);
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        java.util.logging.Logger.getLogger("test").addHandler(handler);
+        try {
+            logic.cancelAuction(regionId, WORLD_ID);
+        } finally {
+            java.util.logging.Logger.getLogger("test").removeHandler(handler);
+        }
+
+        List<String> severe = logged.stream().filter(r -> r.getLevel() == java.util.logging.Level.SEVERE)
+                .map(java.util.logging.LogRecord::getMessage).toList();
+        Assertions.assertEquals(1, severe.size(), String.valueOf(severe));
+        Assertions.assertTrue(severe.getFirst().contains(regionId) && severe.getFirst().contains(BUYER.toString())
+                && severe.getFirst().contains("200"), severe.getFirst());
     }
 }

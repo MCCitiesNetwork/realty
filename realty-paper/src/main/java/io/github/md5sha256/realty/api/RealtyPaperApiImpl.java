@@ -862,9 +862,17 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                                                    @NotNull UUID worldId,
                                                                    @NotNull UUID bidderId,
                                                                    double amount) {
-        return CompletableFuture.runAsync(
-                () -> realtyApi.rollbackPayBid(regionId, worldId, bidderId, amount),
-                executorState.dbExec());
+        return CompletableFuture.runAsync(() -> {
+            try {
+                realtyApi.rollbackPayBid(regionId, worldId, bidderId, amount);
+            } catch (RuntimeException ex) {
+                logger.log(Level.SEVERE, "An instalment of " + CurrencyFormatter.format(amount) + " by " + bidderId
+                        + " for " + regionId + " did not move, but dropping it failed. It stays pending and"
+                        + " will be reported as stuck; the money was not taken, so clear it without crediting it.",
+                        ex);
+                throw ex;
+            }
+        }, executorState.dbExec());
     }
 
     @Override
@@ -1015,14 +1023,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                      @NotNull UUID worldId, @NotNull UUID buyerId, double amount, boolean oldRules) {
         try {
             boolean confirmed = kind == RealtyBackend.PendingFinalize.Kind.BID
-                    ? realtyApi.confirmPayBid(regionId, worldId, buyerId, amount)
-                    : realtyApi.confirmPayOffer(regionId, worldId, buyerId, amount);
+                    ? realtyApi.confirmPayBid(regionId, worldId, buyerId, amount, oldRules)
+                    : realtyApi.confirmPayOffer(regionId, worldId, buyerId, amount, oldRules);
             if (confirmed) {
                 return null;
             }
             // The backend recorded a refund under the new rules, or logged it under the old ones.
             return oldRules
-                    ? "the sale ended before your payment arrived; an admin will settle it"
+                    ? "the sale ended while your payment went to the seller; an admin will settle it with you"
                     : "the sale ended before your payment arrived; it will be refunded";
         } catch (RuntimeException ex) {
             logger.log(Level.SEVERE, "An instalment of " + CurrencyFormatter.format(amount) + " by " + buyerId
@@ -1124,9 +1132,17 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                                                      @NotNull UUID worldId,
                                                                      @NotNull UUID offererId,
                                                                      double amount) {
-        return CompletableFuture.runAsync(
-                () -> realtyApi.rollbackPayOffer(regionId, worldId, offererId, amount),
-                executorState.dbExec());
+        return CompletableFuture.runAsync(() -> {
+            try {
+                realtyApi.rollbackPayOffer(regionId, worldId, offererId, amount);
+            } catch (RuntimeException ex) {
+                logger.log(Level.SEVERE, "An instalment of " + CurrencyFormatter.format(amount) + " by " + offererId
+                        + " for " + regionId + " did not move, but dropping it failed. It stays pending and"
+                        + " will be reported as stuck; the money was not taken, so clear it without crediting it.",
+                        ex);
+                throw ex;
+            }
+        }, executorState.dbExec());
     }
 
     @Override

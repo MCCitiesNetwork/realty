@@ -62,9 +62,13 @@ abstract class AbstractDatabaseTest {
     protected static RealtyBackend.PayBidResult payBidConfirmed(String regionId, UUID worldId, UUID bidderId,
                                                                 double amount) {
         RealtyBackend.PayBidResult result = logic.payBid(regionId, worldId, bidderId, amount);
-        if (result instanceof RealtyBackend.PayBidResult.Success
-                || result instanceof RealtyBackend.PayBidResult.FullyPaid) {
-            if (!logic.confirmPayBid(regionId, worldId, bidderId, amount)) {
+        Boolean oldRules = switch (result) {
+            case RealtyBackend.PayBidResult.Success success -> success.oldRules();
+            case RealtyBackend.PayBidResult.FullyPaid fullyPaid -> fullyPaid.oldRules();
+            default -> null;
+        };
+        if (oldRules != null) {
+            if (!logic.confirmPayBid(regionId, worldId, bidderId, amount, oldRules)) {
                 throw new IllegalStateException("the instalment just counted could not be confirmed");
             }
         }
@@ -75,9 +79,13 @@ abstract class AbstractDatabaseTest {
     protected static RealtyBackend.PayOfferResult payOfferConfirmed(String regionId, UUID worldId, UUID offererId,
                                                                     double amount) {
         RealtyBackend.PayOfferResult result = logic.payOffer(regionId, worldId, offererId, amount);
-        if (result instanceof RealtyBackend.PayOfferResult.Success
-                || result instanceof RealtyBackend.PayOfferResult.FullyPaid) {
-            if (!logic.confirmPayOffer(regionId, worldId, offererId, amount)) {
+        Boolean oldRules = switch (result) {
+            case RealtyBackend.PayOfferResult.Success success -> success.oldRules();
+            case RealtyBackend.PayOfferResult.FullyPaid fullyPaid -> fullyPaid.oldRules();
+            default -> null;
+        };
+        if (oldRules != null) {
+            if (!logic.confirmPayOffer(regionId, worldId, offererId, amount, oldRules)) {
                 throw new IllegalStateException("the instalment just counted could not be confirmed");
             }
         }

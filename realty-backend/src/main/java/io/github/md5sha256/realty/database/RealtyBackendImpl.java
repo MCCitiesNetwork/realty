@@ -401,6 +401,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                     wrapper.pendingRefundMapper().insert(payment.bidderId(), payment.currentPayment(),
                             worldGuardRegionId, worldId, REFUND_AUCTION_CANCELLED);
                 }
+                warnPendingDropped(worldGuardRegionId, payment.bidderId(), payment.pendingPayment(),
+                        payment.oldRules(), "the auction was cancelled");
             }
             int deleted = wrapper.freeholdContractAuctionMapper().deleteActiveAuctionByRegion(worldGuardRegionId, worldId);
             wrapper.session().commit();
@@ -1749,6 +1751,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                     wrapper.pendingRefundMapper().insert(bidPayment.bidderId(), bidPayment.currentPayment(),
                             worldGuardRegionId, worldId, REFUND_REGION_DELETED);
                 }
+                warnPendingDropped(worldGuardRegionId, bidPayment.bidderId(), bidPayment.pendingPayment(),
+                        bidPayment.oldRules(), "the region was deleted");
             }
             FreeholdContractOfferPaymentEntity offerPayment = wrapper.freeholdContractOfferPaymentMapper()
                     .selectByRegion(worldGuardRegionId, worldId);
@@ -1758,6 +1762,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                     wrapper.pendingRefundMapper().insert(offerPayment.offererId(), offerPayment.currentPayment(),
                             worldGuardRegionId, worldId, REFUND_REGION_DELETED);
                 }
+                warnPendingDropped(worldGuardRegionId, offerPayment.offererId(), offerPayment.pendingPayment(),
+                        offerPayment.oldRules(), "the region was deleted");
             }
             int deleted = wrapper.realtyRegionMapper().deleteByWorldGuardRegion(worldGuardRegionId, worldId);
             session.commit();
@@ -2580,12 +2586,10 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     @Override
     public boolean confirmPayOffer(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
-                                   @NotNull UUID offererId, double amount) {
+                                   @NotNull UUID offererId, double amount, boolean oldRules) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
             FreeholdContractOfferPaymentMapper paymentMapper = wrapper.freeholdContractOfferPaymentMapper();
-            FreeholdContractOfferPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
-            boolean oldRules = payment != null && payment.offererId().equals(offererId) && payment.oldRules();
             boolean confirmed = paymentMapper.confirmPending(worldGuardRegionId, worldId, offererId, amount) == 1;
             if (!confirmed) {
                 instalmentWithoutSale(wrapper, offererId, worldGuardRegionId, worldId, amount, oldRules);
@@ -2596,16 +2600,37 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     /**
+     * A payment deleted with an instalment still pending loses the only record of it. If its
+     * transfer is still running, its confirm records what happens next; if it was stuck after a
+     * crash, only this log is left.
+     */
+    private void warnPendingDropped(@NotNull String worldGuardRegionId, @NotNull UUID buyerId, double pending,
+                                    boolean oldRules, @NotNull String why) {
+        if (pending <= 0) {
+            return;
+        }
+        logger.severe("A payment for " + worldGuardRegionId + " by " + buyerId + " was removed because " + why
+                + " while an instalment of " + CurrencyFormatter.format(pending) + " was pending, so its money"
+                + " may or may not have moved. If the transfer is still running, its outcome is handled when it"
+                + " finishes; if the instalment was stuck, check the economy's ledger and settle it by hand"
+                + (oldRules ? " between buyer and seller (old rules: it was paid to the seller)."
+                        : " (refund the buyer from the holding account if it arrived)."));
+    }
+
+    /**
      * An instalment's money moved, but its payment is gone: cancelled or its region deleted while
      * the money moved. Those refunded only confirmed money, so this amount is recorded as owed
-     * back. Under the old rules it went to the seller, and only a log is left for an admin.
+     * back. Under the old rules it went to the seller, never to the holding account, so nothing is
+     * owed from there and only a log is left for an admin.
      */
     private void instalmentWithoutSale(@NotNull SqlSessionWrapper wrapper, @NotNull UUID buyerId,
                                        @NotNull String worldGuardRegionId, @NotNull UUID worldId, double amount,
                                        boolean oldRules) {
         if (oldRules) {
             logger.severe("An instalment of " + CurrencyFormatter.format(amount) + " by " + buyerId + " towards "
-                    + worldGuardRegionId + " was paid to the seller, but its payment is gone. Settle it by hand.");
+                    + worldGuardRegionId + " was paid to the seller under the old rules, but its sale ended while"
+                    + " the money moved. Nothing is refunded from the holding account, which never received it;"
+                    + " settle it between buyer and seller by hand.");
             return;
         }
         wrapper.pendingRefundMapper().insert(buyerId, amount, worldGuardRegionId, worldId, REFUND_SALE_ENDED);
@@ -2718,12 +2743,10 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     @Override
     public boolean confirmPayBid(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
-                                 @NotNull UUID bidderId, double amount) {
+                                 @NotNull UUID bidderId, double amount, boolean oldRules) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             wrapper.freeholdContractMapper().selectByRegionForUpdate(worldGuardRegionId, worldId);
             FreeholdContractBidPaymentMapper paymentMapper = wrapper.freeholdContractBidPaymentMapper();
-            FreeholdContractBidPaymentEntity payment = paymentMapper.selectByRegion(worldGuardRegionId, worldId);
-            boolean oldRules = payment != null && payment.bidderId().equals(bidderId) && payment.oldRules();
             boolean confirmed = paymentMapper.confirmPending(worldGuardRegionId, worldId, bidderId, amount) == 1;
             if (!confirmed) {
                 instalmentWithoutSale(wrapper, bidderId, worldGuardRegionId, worldId, amount, oldRules);

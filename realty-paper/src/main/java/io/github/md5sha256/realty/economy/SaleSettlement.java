@@ -220,7 +220,8 @@ public final class SaleSettlement {
                     + " or refunded automatically, and the payment deadline is suspended until an admin clears it."
                     + " Check the economy's ledger, then in " + table + stuck.saleId() + ") either add"
                     + " pendingPayment to currentPayment (the money arrived) or set it to 0 (it did not), and"
-                    + " clear pendingSince.");
+                    + " clear pendingSince. If that completes the payment, the scheduler finishes a sale under the"
+                    + " new rules; a sale from before sale fees (oldRules) must also be finalized by hand.");
         }
     }
 

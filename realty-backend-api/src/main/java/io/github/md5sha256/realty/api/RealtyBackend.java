@@ -1139,11 +1139,15 @@ public interface RealtyBackend {
      * the holding account (or, under the old rules, to the seller). Only confirmed money counts
      * towards a refund or a finalize.
      *
+     * @param oldRules whether the payment follows the old rules, as {@link #payOffer} reported: its
+     *                 instalment went to the seller, not the holding account. The caller passes it
+     *                 because the payment may be gone by now.
      * @return {@code false} when the payment is gone, as when the region was deleted while the money
-     *         moved; under the new rules the amount is then recorded as a refund owed to the buyer
+     *         moved; under the new rules the amount is then recorded as a refund owed to the buyer,
+     *         under the old rules it is only logged, because the holding account never received it
      */
     boolean confirmPayOffer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId,
-                            double amount);
+                            double amount, boolean oldRules);
 
     /** Drops an instalment {@link #payOffer} counted as pending whose money did not move. */
     void rollbackPayOffer(@NotNull String worldGuardRegionId,
@@ -1192,7 +1196,7 @@ public interface RealtyBackend {
 
     /** As {@link #confirmPayOffer}, for an auction payment. */
     boolean confirmPayBid(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId,
-                          double amount);
+                          double amount, boolean oldRules);
 
     /** Drops an instalment {@link #payBid} counted as pending whose money did not move. */
     void rollbackPayBid(@NotNull String worldGuardRegionId,
