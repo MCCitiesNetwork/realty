@@ -673,6 +673,7 @@ public final class MessageKeys {
     public static final String LEVY_SALE_OPEN = "levy.sale-open";
     public static final String LEVY_AUTHORITY_SALE_OPEN_UNPINNABLE = "levy.authority-sale-open-unpinnable";
     public static final String LEVY_PINNED = "levy.pinned";
+    public static final String LEVY_PINNED_ONE = "levy.pinned-one";
     public static final String LEVY_NEEDS_AUTHORITY = "levy.needs-authority";
     public static final String LEVY_LIST_HEADER = "levy.list-header";
     public static final String LEVY_LIST_ENTRY = "levy.list-entry";

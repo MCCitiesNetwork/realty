@@ -156,8 +156,8 @@ public record LevyCommandGroup(
                     sender.sendMessage(message(outcome, regionId, levyName, all));
                     if (outcome.result() instanceof RealtyBackend.SetLevyResult.Success success
                             && success.pinned() > 0) {
-                        // No region placeholder: the message names the command with <region> to fill in.
-                        sender.sendMessage(messages.messageFor(MessageKeys.LEVY_PINNED,
+                        sender.sendMessage(messages.messageFor(success.pinned() == 1
+                                        ? MessageKeys.LEVY_PINNED_ONE : MessageKeys.LEVY_PINNED,
                                 Placeholder.unparsed("count", String.valueOf(success.pinned()))));
                     }
                 })

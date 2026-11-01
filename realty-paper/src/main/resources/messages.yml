@@ -1000,7 +1000,9 @@ levy:
         have no levy now, so changing the authority's levy would charge their buyers more. Try
         again once those sales lock or close.
     pinned: <prefix> <count> plots with bids or offers open kept their current levy. Clear each
-        with <green>/realty levy clear <region> --authority</green> once its sale ends.
+        with <green>/realty levy clear \<region> --authority</green> once its sale ends.
+    pinned-one: <prefix> 1 plot with bids or offers open kept its current levy. Clear it with
+        <green>/realty levy clear \<region> --authority</green> once its sale ends.
     needs-authority: '<prefix> <red>A levy is chosen for the authority: add <yellow>--authority</yellow>.</red>'
     list-header: <prefix> Levies
     list-entry: ' <dark_grey>-</dark_grey> <yellow><levy></yellow>: paid by the <side>,
