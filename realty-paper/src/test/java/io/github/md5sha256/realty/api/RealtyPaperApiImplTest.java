@@ -2150,7 +2150,10 @@ class RealtyPaperApiImplTest {
                 2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000);
 
         private RealtyPaperApiImpl withoutHolding() {
-            HoldingAccount none = HoldingAccount.vault(DefaultParties::unresolved);
+            return withHolding(HoldingAccount.vault(DefaultParties::unresolved));
+        }
+
+        private RealtyPaperApiImpl withHolding(HoldingAccount none) {
             return new RealtyPaperApiImpl(server, realtyApi, economyProvider,
                     new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService()),
                     database, regionProfileService, signTextApplicator, signCache, () -> 604800,
@@ -2200,12 +2203,68 @@ class RealtyPaperApiImplTest {
 
             RealtyPaperApi.PayBidResult result = withoutHolding().payBid(wgRegion, BUYER_ID, 300).join();
 
-            RealtyPaperApi.PayBidResult.PaymentFailed failed =
-                    Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
-            Assertions.assertEquals("no holding account", failed.error());
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.HoldingPaused(REGION_ID), result);
             verify(realtyApi).rollbackPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0);
             verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
             verify(economyProvider, never()).transferAuctionProceeds(any(), any(), anyDouble(), any(), any());
+        }
+
+        /** Realty's Treasury SYSTEM account #17, archived since startup. */
+        private HoldingAccount archivedHolding() {
+            io.paradaux.treasury.model.economy.Account account = new io.paradaux.treasury.model.economy.Account(
+                    17, io.paradaux.treasury.model.economy.AccountType.SYSTEM, UUID.randomUUID(), "Realty Holding",
+                    false, false, false, null);
+            when(treasury.getAccountsByTypeAndOwner(eq(io.paradaux.treasury.model.economy.AccountType.SYSTEM),
+                    any())).thenReturn(List.of(account));
+            HoldingAccount holding = io.github.md5sha256.realty.economy.TreasuryHoldingAccount.create(treasury, LOG);
+            io.paradaux.treasury.model.economy.Account archived = new io.paradaux.treasury.model.economy.Account(
+                    17, io.paradaux.treasury.model.economy.AccountType.SYSTEM, UUID.randomUUID(), "Realty Holding",
+                    false, false, false, null);
+            archived.setArchived(true);
+            when(treasury.getAccountById(17)).thenReturn(archived);
+            return holding;
+        }
+
+        @Test
+        void payBid_whileUnusable_saysPaused() throws java.io.IOException {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+
+            RealtyPaperApi.PayBidResult result = withHolding(archivedHolding()).payBid(wgRegion, BUYER_ID, 300).join();
+
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.HoldingPaused(REGION_ID), result);
+            verify(realtyApi).rollbackPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0);
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+            io.github.md5sha256.realty.localisation.MessageContainer messages =
+                    new io.github.md5sha256.realty.localisation.MessageContainer();
+            try (java.io.InputStream in = RealtyPaperApiImplTest.class.getResourceAsStream("/messages.yml")) {
+                Assertions.assertNotNull(in);
+                messages.load(org.spongepowered.configurate.yaml.YamlConfigurationLoader.builder()
+                        .source(() -> new java.io.BufferedReader(new java.io.InputStreamReader(in,
+                                java.nio.charset.StandardCharsets.UTF_8)))
+                        .build()
+                        .load());
+            }
+            String text = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                    .serialize(messages.messageFor(io.github.md5sha256.realty.localisation.MessageKeys.PAY_HOLDING_PAUSED,
+                            net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed("region", REGION_ID)));
+            Assertions.assertTrue(text.endsWith("Payments for " + REGION_ID + " are paused until an admin fixes"
+                    + " Realty's holding account. Your deadline is paused too."), text);
+        }
+
+        @Test
+        void payOffer_whileUnusable_saysPaused() {
+            when(realtyApi.payOffer(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayOfferResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+
+            RealtyPaperApi.PayOfferResult result =
+                    withHolding(archivedHolding()).payOffer(wgRegion, BUYER_ID, 300).join();
+
+            Assertions.assertEquals(new RealtyPaperApi.PayOfferResult.HoldingPaused(REGION_ID), result);
+            verify(realtyApi).rollbackPayOffer(REGION_ID, WORLD_ID, BUYER_ID, 300.0);
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
         }
 
         @Test

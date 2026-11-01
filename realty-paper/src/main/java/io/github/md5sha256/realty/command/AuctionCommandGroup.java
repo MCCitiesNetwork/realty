@@ -339,6 +339,9 @@ public record AuctionCommandGroup(
                 case RealtyPaperApi.PayBidResult.InsufficientFunds insufficient ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_INSUFFICIENT_FUNDS,
                                 Placeholder.unparsed("balance", CurrencyFormatter.format(insufficient.balance()))));
+                case RealtyPaperApi.PayBidResult.HoldingPaused paused ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_HOLDING_PAUSED,
+                                Placeholder.unparsed("region", paused.regionId())));
                 case RealtyPaperApi.PayBidResult.PaymentFailed failed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_BID_PAYMENT_FAILED,
                                 Placeholder.unparsed("error", failed.error())));

@@ -258,6 +258,7 @@ public final class MessageKeys {
     public static final String PAY_FINALIZE_PENDING = "pay.finalize-pending";
     public static final String PAY_FINALIZE_PENDING_PAID_TO_SELLER = "pay.finalize-pending-paid-to-seller";
     public static final String PAY_INVALID_AMOUNT = "pay.invalid-amount";
+    public static final String PAY_HOLDING_PAUSED = "pay.holding-paused";
     public static final String PAY_DEADLINE_UNKNOWN = "pay.deadline-unknown";
 
     // pay-offer

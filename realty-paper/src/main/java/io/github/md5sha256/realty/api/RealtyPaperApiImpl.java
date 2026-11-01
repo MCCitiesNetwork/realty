@@ -145,8 +145,6 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     private static final String PAYMENT_IN_PROGRESS = "an earlier payment is still being processed";
 
-    /** Why an instalment is refused while no holding account is configured. */
-    private static final String NO_HOLDING_ACCOUNT = "no holding account";
 
     /** In this version a tenant and a title holder are always players. */
     private static final String ONLY_PLAYERS = "only a player can be tenant or titleholder in this version";
@@ -402,11 +400,16 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     /**
      * Who an instalment is paid to: under the old rules the seller, else the holding account, or
-     * empty when there is none.
+     * empty when it cannot be used, so the payment waits with its deadline paused.
      */
     private @NotNull Optional<Party> instalmentRecipient(boolean oldRules, @Nullable UUID titleHolderId,
                                                          @NotNull Party authority) {
-        return oldRules ? Optional.of(seller(titleHolderId, authority)) : holding.party();
+        if (oldRules) {
+            return Optional.of(seller(titleHolderId, authority));
+        }
+        return holding.usable() instanceof HoldingAccount.Usable usable
+                ? Optional.of(usable.party())
+                : Optional.empty();
     }
 
     /** Pays out the completed sale's lines from the holding account, without holding up the buyer. */
@@ -811,7 +814,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 success.authority());
         if (recipient.isEmpty()) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
-                    .thenApply(ignored -> new PayBidResult.PaymentFailed(NO_HOLDING_ACCOUNT));
+                    .thenApply(ignored -> new PayBidResult.HoldingPaused(regionId));
         }
         PaymentResult result = economyProvider.transferAuctionProceeds(
                 Party.personal(bidderId), recipient.get(), amount,
@@ -842,7 +845,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 fullyPaid.authority());
         if (recipient.isEmpty()) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
-                    .thenApply(ignored -> new PayBidResult.PaymentFailed(NO_HOLDING_ACCOUNT));
+                    .thenApply(ignored -> new PayBidResult.HoldingPaused(regionId));
         }
         PaymentResult result = economyProvider.transferAuctionProceeds(
                 Party.personal(bidderId), recipient.get(), amount,
@@ -944,7 +947,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 success.authority());
         if (recipient.isEmpty()) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
-                    .thenApply(ignored -> new PayOfferResult.PaymentFailed(NO_HOLDING_ACCOUNT));
+                    .thenApply(ignored -> new PayOfferResult.HoldingPaused(regionId));
         }
         PaymentResult result = economyProvider.transfer(
                 Party.personal(offererId), recipient.get(), amount,
@@ -975,7 +978,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 fullyPaid.authority());
         if (recipient.isEmpty()) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
-                    .thenApply(ignored -> new PayOfferResult.PaymentFailed(NO_HOLDING_ACCOUNT));
+                    .thenApply(ignored -> new PayOfferResult.HoldingPaused(regionId));
         }
         PaymentResult result = economyProvider.transfer(
                 Party.personal(offererId), recipient.get(), amount,

@@ -120,6 +120,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.HoldingAccount;
+import io.github.md5sha256.realty.economy.HoldingWatch;
 import io.github.md5sha256.realty.economy.SaleSettlement;
 import io.github.md5sha256.realty.economy.TreasuryHoldingAccount;
 import io.github.md5sha256.realty.economy.PartyWallets;
@@ -351,8 +352,11 @@ public final class Realty extends JavaPlugin {
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
                 () -> this.settings.get().offerPaymentDurationSeconds(),
                 this.levyCatalog::get,
-                // Read on each use: on Vault the escrow player resolves after startup and on reload.
-                () -> this.holdingAccount != null && this.holdingAccount.party().isPresent(),
+                // Read on each use: on Vault the escrow player resolves after startup and on reload,
+                // and Treasury's account can be archived at any time. Treasury's answer is cached
+                // for a few seconds, and this is asked off the main thread.
+                () -> this.holdingAccount != null
+                        && this.holdingAccount.usable() instanceof HoldingAccount.Usable,
                 getLogger());
         EconomyProvider economyProvider = resolveEconomyProvider();
         this.economyProvider = economyProvider;
@@ -540,10 +544,13 @@ public final class Realty extends JavaPlugin {
     private void scheduleTasks() {
         BukkitScheduler scheduler = getServer().getScheduler();
         long intervalTicks = Tick.tick().fromDuration(Duration.ofMinutes(1));
+        HoldingWatch holdingWatch = new HoldingWatch(this.holdingAccount, this.logic, getLogger());
         scheduler.runTaskTimerAsynchronously(this, () -> {
             if (this.logic == null) {
                 return;
             }
+            // First, so that no payment expires while nobody can pay into the holding account.
+            holdingWatch.check();
             List<RealtyBackend.ExpiredBiddingAuction> endedAuctions = this.logic.clearExpiredBiddingAuctions();
             if (!endedAuctions.isEmpty()) {
                 // Resolve WorldGuard regions and fire notifications/post-events on the main thread.
@@ -781,7 +788,7 @@ public final class Realty extends JavaPlugin {
         } catch (RuntimeException ex) {
             this.treasuryHoldingFailure = ex.getMessage() != null ? ex.getMessage() : ex.toString();
             getLogger().log(Level.SEVERE, "Could not find or create Realty's Treasury holding account", ex);
-            return HoldingAccount.none();
+            return HoldingAccount.none("it could not be set up in Treasury (" + this.treasuryHoldingFailure + ")");
         }
     }
 

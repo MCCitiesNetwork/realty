@@ -383,6 +383,9 @@ public record OfferCommandGroup(
                 case RealtyPaperApi.PayOfferResult.InsufficientFunds insufficient ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_INSUFFICIENT_FUNDS,
                                 Placeholder.unparsed("balance", CurrencyFormatter.format(insufficient.balance()))));
+                case RealtyPaperApi.PayOfferResult.HoldingPaused paused ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_HOLDING_PAUSED,
+                                Placeholder.unparsed("region", paused.regionId())));
                 case RealtyPaperApi.PayOfferResult.PaymentFailed failed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_PAYMENT_FAILED,
                                 Placeholder.unparsed("error", failed.error())));

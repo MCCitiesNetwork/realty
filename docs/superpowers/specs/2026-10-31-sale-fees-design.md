@@ -65,6 +65,7 @@ Buyers' instalments wait in a holding account until the sale finishes. It belong
 - **A refund that fails** is recorded and retried. It is never dropped.
 - **A payout that fails** after the buyer has paid in full does not stop the sale. The money is in the holding account, so ownership moves to the buyer. The failed payout, for example to an archived account, is recorded as owed and retried.
 - **An instalment that fails** is rolled back as today.
+- **A holding account that cannot be used**, for example because it is archived or no escrow player is set, pauses every payment that pays into it. Each minute its deadline is moved to the full payment duration from now, so no buyer is expired by an outage they cannot pay through. A buyer who tries to pay is told payments are paused. No auction moves to payment and no offer can be accepted meanwhile. Admins get one error when it becomes unusable and one notice when it recovers. Payments that began before sale fees pay the seller and are not paused.
 - Ownership no longer waits for every payout to succeed. A buyer who has paid in full is not held up by an unrelated account problem.
 
 ### Payments in progress at the upgrade

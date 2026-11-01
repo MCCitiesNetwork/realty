@@ -204,6 +204,12 @@ public interface RealtyPaperApi {
         record ExceedsAmountOwed(double amount, double amountOwed,
                                  @NotNull String regionId) implements PayBidResult {}
         record InsufficientFunds(double balance) implements PayBidResult {}
+        /**
+         * Realty's holding account cannot be used, as when it is archived or not set up, so the
+         * instalment was refused and nothing moved. The payment's deadline is paused until an
+         * admin fixes the account.
+         */
+        record HoldingPaused(@NotNull String regionId) implements PayBidResult {}
         record PaymentFailed(@NotNull String error) implements PayBidResult {}
         record TransferFailed() implements PayBidResult {}
         record Error(@NotNull String message) implements PayBidResult {}
@@ -243,6 +249,12 @@ public interface RealtyPaperApi {
         record ExceedsAmountOwed(double amount, double amountOwed,
                                  @NotNull String regionId) implements PayOfferResult {}
         record InsufficientFunds(double balance) implements PayOfferResult {}
+        /**
+         * Realty's holding account cannot be used, as when it is archived or not set up, so the
+         * instalment was refused and nothing moved. The payment's deadline is paused until an
+         * admin fixes the account.
+         */
+        record HoldingPaused(@NotNull String regionId) implements PayOfferResult {}
         record PaymentFailed(@NotNull String error) implements PayOfferResult {}
         record TransferFailed() implements PayOfferResult {}
         record Error(@NotNull String message) implements PayOfferResult {}

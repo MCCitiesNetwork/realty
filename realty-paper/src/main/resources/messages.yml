@@ -237,6 +237,8 @@ pay:
         is complete and went to the seller. The title will be transferred to you within
         a minute.
     invalid-amount: <prefix> <red>Pay at least <green>0.01</green>.</red>
+    holding-paused: <prefix> Payments for <gold><region></gold> are paused until an
+        admin fixes Realty's holding account. Your deadline is paused too.
     deadline-unknown: the deadline
 pay-bid:
     insufficient-funds: '<prefix> You do not have enough funds. Your balance: <red><balance>.</red>'
