@@ -58,6 +58,14 @@ public interface FreeholdContractOfferPaymentMapper {
     int atomicUpdatePayment(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
                             @NotNull UUID offererId, double expectedCurrent, double newPayment);
 
+    /**
+     * Moves the deadline of every new-rules payment to {@code durationSeconds} from now, by the
+     * database clock, or leaves it where it is when that is later.
+     *
+     * @return the number of payments moved
+     */
+    int pauseNewRulesDeadlines(long durationSeconds);
+
     int deleteByOfferId(int offerId);
 
     int deleteByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);

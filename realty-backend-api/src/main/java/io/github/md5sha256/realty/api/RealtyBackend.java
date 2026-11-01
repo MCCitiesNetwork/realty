@@ -1286,6 +1286,17 @@ public interface RealtyBackend {
 
     @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments();
 
+    /**
+     * Pauses the deadline of every payment in progress under the new rules, as while the holding
+     * account cannot be used and so nobody can pay: each deadline becomes the full payment
+     * duration from now by the database clock, an auction's own deadline with it, and never
+     * earlier than it was. Old-rules payments pay the seller, not the holding account, and are
+     * left alone. The Paper plugin calls this each minute while the holding account is unusable.
+     *
+     * @return the number of payments whose deadline was moved
+     */
+    int pausePaymentDeadlines();
+
     // --- Sale payouts and refunds ---
 
     /**

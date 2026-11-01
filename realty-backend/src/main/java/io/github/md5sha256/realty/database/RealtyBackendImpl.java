@@ -104,8 +104,9 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     /**
      * @param levies           the levies the server defines, read on each use so that a reload takes effect
-     * @param holdingAvailable whether a holding account is configured; without one, no auction or
-     *                         offer moves to payment, as its instalments would have nowhere to wait
+     * @param holdingAvailable whether the holding account can be used; while it cannot, no auction or
+     *                         offer moves to payment, as its instalments would have nowhere to wait,
+     *                         and no new-rules payment expires
      */
     public RealtyBackendImpl(@NotNull Database database,
                              @NotNull Function<Party, CompletableFuture<String>> partyNameResolver,
@@ -2863,8 +2864,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                         wrapper.session().rollback();
                         if (warnedNoHolding.add(auction.freeholdContractAuctionId())) {
                             logger.warning("The auction of " + region.worldGuardRegionId()
-                                    + " has ended, but no holding account is configured, so its winner cannot"
-                                    + " pay yet. It will settle once one is.");
+                                    + " has ended, but the holding account cannot be used, so its winner cannot"
+                                    + " pay yet. It will settle once it can.");
                         }
                         continue;
                     }
@@ -2924,9 +2925,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                 // account is configured. An old-rules payment touches no holding account, so it
                 // ends now.
                 if (warnedNoHolding.add(candidate.freeholdContractAuctionId())) {
-                    logger.warning("A payment for an auction has expired, but no holding account is configured,"
+                    logger.warning("A payment for an auction has expired, but the holding account cannot be used,"
                             + " so the next bidder cannot be offered it yet (bid #" + candidate.bidId()
-                            + "). It will move on once one is.");
+                            + "). It will move on once it can.");
                 }
                 continue;
             }
@@ -3025,6 +3026,11 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
         List<ExpiredOfferPayment> results = new ArrayList<>();
         for (FreeholdContractOfferPaymentEntity candidate : expired) {
+            if (!candidate.oldRules() && !holdingAvailable.getAsBoolean()) {
+                // Its refund comes from the holding account, which cannot be used, so nobody can
+                // pay it either. Its deadline is paused meanwhile; this guards a run in between.
+                continue;
+            }
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 ExpiredOfferPayment result = expireOfferPayment(wrapper, candidate);
                 wrapper.session().commit();
@@ -3063,6 +3069,20 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
         return new ExpiredOfferPayment(payment.offererId(), payment.currentPayment(), region.worldGuardRegionId(),
                 region.worldId(), payment.oldRules(), refundId);
+    }
+
+    // --- Deadlines paused while the holding account is unusable ---
+
+    @Override
+    public int pausePaymentDeadlines() {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            int bids = wrapper.freeholdContractBidPaymentMapper().pauseNewRulesDeadlines();
+            wrapper.freeholdContractAuctionMapper().matchNewRulesPaymentDeadlines();
+            int offers = wrapper.freeholdContractOfferPaymentMapper()
+                    .pauseNewRulesDeadlines(offerPaymentDurationSeconds.getAsLong());
+            wrapper.session().commit();
+            return bids + offers;
+        }
     }
 
     // --- Instalments stuck pending ---

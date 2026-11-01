@@ -727,4 +727,122 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         Assertions.assertTrue(severe.getFirst().contains(regionId) && severe.getFirst().contains(BUYER.toString())
                 && severe.getFirst().contains("200"), severe.getFirst());
     }
+
+    // --- Deadlines paused while the holding account is unusable ---
+
+    /** Rows of {@code table} for the region whose {@code column} lies within a minute of NOW() + {@code seconds}. */
+    private static int deadlinesNear(String table, String column, String regionId, long seconds) {
+        return count("SELECT COUNT(*) FROM " + table + " t"
+                + " INNER JOIN RealtyRegion rr ON rr.realtyRegionId = t.realtyRegionId"
+                + " WHERE rr.worldGuardRegionId = '" + regionId + "'"
+                + " AND t." + column + " BETWEEN NOW() + INTERVAL " + (seconds - 60) + " SECOND"
+                + " AND NOW() + INTERVAL " + (seconds + 60) + " SECOND");
+    }
+
+    /** The minute scheduler: deadlines pause first while holding is unusable, then expiry runs. */
+    private static List<ExpiredBidPayment> schedulerRun() {
+        if (!holdingAvailable) {
+            logic.pausePaymentDeadlines();
+        }
+        return logic.clearExpiredBidPayments();
+    }
+
+    @Test
+    void deadlines_pushedWhileHoldingUnusable() {
+        String newRules = freehold();
+        inPayment(newRules);
+        expirePayment(newRules);
+        String oldRules = freehold();
+        inPayment(oldRules);
+        markOldRules(oldRules);
+        expirePayment(oldRules);
+        String offer = freehold();
+        acceptedOffer(offer);
+        expireOfferPayment(offer);
+        holdingAvailable = false;
+
+        logic.pausePaymentDeadlines();
+
+        Assertions.assertEquals(1, deadlinesNear("FreeholdContractBidPayment", "paymentDeadline", newRules, 3600),
+                "the full auction payment duration from now");
+        Assertions.assertEquals(1, deadlinesNear("FreeholdContractAuction", "paymentDeadline", newRules, 3600),
+                "the auction's own deadline moves with it");
+        Assertions.assertEquals(1, deadlinesNear("FreeholdContractOfferPayment", "paymentDeadline", offer, 86400),
+                "the configured offer payment duration from now");
+        Assertions.assertEquals(1, count("SELECT COUNT(*) FROM FreeholdContractBidPayment p"
+                + " INNER JOIN RealtyRegion rr ON rr.realtyRegionId = p.realtyRegionId"
+                + " WHERE rr.worldGuardRegionId = '" + oldRules + "' AND p.paymentDeadline < NOW()"),
+                "an old-rules payment never touches holding, so its deadline stands");
+        Assertions.assertTrue(logic.clearExpiredOfferPayments().isEmpty());
+        List<ExpiredBidPayment> expired = logic.clearExpiredBidPayments();
+        Assertions.assertEquals(1, expired.size());
+        Assertions.assertEquals(oldRules, expired.getFirst().regionId());
+    }
+
+    @Test
+    void deadlines_paused_neverShortened() {
+        String regionId = freehold();
+        inPayment(regionId);
+        update("""
+                UPDATE FreeholdContractBidPayment SET paymentDeadline = NOW() + INTERVAL 3 HOUR
+                WHERE realtyRegionId = (SELECT realtyRegionId FROM RealtyRegion WHERE worldGuardRegionId = ?)
+                """, regionId);
+
+        logic.pausePaymentDeadlines();
+
+        Assertions.assertEquals(1, deadlinesNear("FreeholdContractBidPayment", "paymentDeadline", regionId, 3 * 3600));
+    }
+
+    @Test
+    void buyerStillHasTimeAfterOutage() {
+        String regionId = freehold();
+        FreeholdContractBidPaymentEntity payment = inPayment(regionId);
+        payBidConfirmed(regionId, WORLD_ID, BUYER, 300);
+        holdingAvailable = false;
+        Assertions.assertTrue(schedulerRun().isEmpty());
+        // The outage outlasts the deadline.
+        expirePayment(regionId);
+        Assertions.assertTrue(schedulerRun().isEmpty());
+
+        holdingAvailable = true;
+        Assertions.assertTrue(schedulerRun().isEmpty());
+
+        FreeholdContractBidPaymentEntity after = bidPayment(regionId);
+        Assertions.assertNotNull(after);
+        Assertions.assertEquals(payment.bidId(), after.bidId(), "still the buyer's payment");
+        Assertions.assertEquals(300, after.currentPayment(), 0.001);
+        Assertions.assertEquals(1, count("SELECT COUNT(*) FROM FreeholdContractBidPayment p"
+                + " INNER JOIN RealtyRegion rr ON rr.realtyRegionId = p.realtyRegionId"
+                + " WHERE rr.worldGuardRegionId = '" + regionId + "' AND p.paymentDeadline > NOW()"));
+    }
+
+    @Test
+    void runnerUpHandover_fromOldRules_isPausedLikeAnyNewRulesPayment() {
+        String regionId = freehold();
+        inPayment(regionId);
+        markOldRules(regionId);
+        expirePayment(regionId);
+        holdingAvailable = false;
+
+        Assertions.assertEquals(1, schedulerRun().size(), "the old-rules payment ends");
+        Assertions.assertEquals(RUNNER_UP, bidPayment(regionId).bidderId());
+        expirePayment(regionId);
+        Assertions.assertTrue(schedulerRun().isEmpty(), "the runner-up's new-rules payment is paused");
+
+        Assertions.assertEquals(RUNNER_UP, bidPayment(regionId).bidderId());
+        Assertions.assertEquals(1, deadlinesNear("FreeholdContractBidPayment", "paymentDeadline", regionId, 3600));
+    }
+
+    @Test
+    void offerExpiry_waitsWhileHoldingUnusable() {
+        String regionId = freehold();
+        acceptedOffer(regionId);
+        expireOfferPayment(regionId);
+        holdingAvailable = false;
+
+        Assertions.assertTrue(logic.clearExpiredOfferPayments().isEmpty());
+
+        holdingAvailable = true;
+        Assertions.assertEquals(1, logic.clearExpiredOfferPayments().size());
+    }
 }

@@ -239,6 +239,17 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
                             @Param("newPayment") double newPayment);
 
     @Override
+    @Update("""
+            UPDATE FreeholdContractBidPayment scbp
+            INNER JOIN FreeholdContractAuction sca ON sca.freeholdContractAuctionId = scbp.freeholdContractAuctionId
+            SET scbp.paymentDeadline = GREATEST(scbp.paymentDeadline,
+                    NOW() + INTERVAL sca.paymentDurationSeconds SECOND)
+            WHERE scbp.oldRules = FALSE
+            AND scbp.paymentDeadline < NOW() + INTERVAL sca.paymentDurationSeconds SECOND
+            """)
+    int pauseNewRulesDeadlines();
+
+    @Override
     @Delete("""
             DELETE FROM FreeholdContractBidPayment
             WHERE bidId = #{bidId}

@@ -210,6 +210,15 @@ public interface MariaFreeholdContractOfferPaymentMapper extends FreeholdContrac
                             @Param("newPayment") double newPayment);
 
     @Override
+    @Update("""
+            UPDATE FreeholdContractOfferPayment
+            SET paymentDeadline = GREATEST(paymentDeadline, NOW() + INTERVAL #{durationSeconds} SECOND)
+            WHERE oldRules = FALSE
+            AND paymentDeadline < NOW() + INTERVAL #{durationSeconds} SECOND
+            """)
+    int pauseNewRulesDeadlines(@Param("durationSeconds") long durationSeconds);
+
+    @Override
     @Delete("""
             DELETE FROM FreeholdContractOfferPayment
             WHERE offerId = #{offerId}
