@@ -104,3 +104,19 @@ ALTER TABLE FreeholdContractOfferPayment
     ADD CONSTRAINT chk_valid_currentPayment
         CHECK (currentPayment >= 0 AND pendingPayment >= 0
                AND currentPayment + pendingPayment <= totalDue + 0.005);
+
+-- Before this version, a completed auction was never marked ended, so the scheduler would offer
+-- the sold plot to its winner again. An auction that is not ended, has no payment waiting, and
+-- whose plot was sold at auction after it started is such an auction: it is marked ended. One
+-- still waiting for the scheduler to settle it has no such sale and is left as it is.
+UPDATE FreeholdContractAuction sca
+INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
+SET sca.ended = TRUE
+WHERE sca.ended = FALSE
+AND NOT EXISTS (SELECT 1 FROM FreeholdContractBidPayment bp
+                WHERE bp.freeholdContractAuctionId = sca.freeholdContractAuctionId)
+AND EXISTS (SELECT 1 FROM FreeholdHistory fh
+            WHERE fh.worldGuardRegionId = rr.worldGuardRegionId
+            AND fh.worldId = rr.worldId
+            AND fh.eventType = 'AUCTION_BUY'
+            AND fh.eventTime >= sca.startDate);

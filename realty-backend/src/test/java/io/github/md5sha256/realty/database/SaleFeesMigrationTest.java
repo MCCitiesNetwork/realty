@@ -120,6 +120,85 @@ class SaleFeesMigrationTest extends AbstractDatabaseTest {
         }
     }
 
+    @Test
+    void completedAuctionsAreMarkedEnded_othersAreLeftOpen() throws Exception {
+        String database = "sale_fees_auctions";
+        String containerUrl = CONTAINER.getJdbcUrl();
+        String freshUrl = containerUrl.substring(0, containerUrl.lastIndexOf('/') + 1) + database;
+        try (Connection root = DriverManager.getConnection(containerUrl, "root", ROOT_PASSWORD);
+             Statement statement = root.createStatement()) {
+            statement.execute("DROP DATABASE IF EXISTS " + database);
+            statement.execute("CREATE DATABASE " + database);
+        }
+
+        List<MigrationStep> all = MariaSchemaMigrator.defaultMigrations();
+        List<MigrationStep> upToTwenty = all.stream().filter(step -> step.version() <= 20).toList();
+        MariaSchemaMigrator.migrate(freshUrl, "root", ROOT_PASSWORD,
+                Path.of("sql/migrations"), upToTwenty, Logger.getLogger("test"));
+
+        int completed;
+        int awaitingSettlement;
+        int bidding;
+        try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD);
+             Statement statement = connection.createStatement()) {
+            int partyId = fetchInt(statement,
+                    "INSERT INTO Party (kind) VALUES ('PERSONAL') RETURNING partyId");
+            statement.executeUpdate("INSERT INTO PersonalParty (partyId, playerUuid) VALUES (%d, '%s')"
+                    .formatted(partyId, AUTHORITY));
+
+            // Sold at auction: the payment was deleted at finalize, the auction left open.
+            int soldRegion = insertFreehold(statement, partyId, "plot_sold");
+            completed = insertAuction(statement, soldRegion, "NOW() - INTERVAL 1 DAY");
+            insertAuctionBuy(statement, partyId, "plot_sold", "NOW() - INTERVAL 1 HOUR");
+
+            // Bidding is over but the scheduler has not settled it; the plot's only auction sale
+            // was an earlier one, before this auction started.
+            int waitingRegion = insertFreehold(statement, partyId, "plot_waiting");
+            awaitingSettlement = insertAuction(statement, waitingRegion, "NOW() - INTERVAL 1 DAY");
+            insertAuctionBuy(statement, partyId, "plot_waiting", "NOW() - INTERVAL 2 DAY");
+
+            int biddingRegion = insertFreehold(statement, partyId, "plot_bidding");
+            bidding = insertAuction(statement, biddingRegion, "NOW()");
+        }
+
+        MariaSchemaMigrator.migrate(freshUrl, "root", ROOT_PASSWORD,
+                Path.of("sql/migrations"), all, Logger.getLogger("test"));
+
+        try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD);
+             Statement statement = connection.createStatement()) {
+            String ended = "SELECT ended FROM FreeholdContractAuction WHERE freeholdContractAuctionId = ";
+            Assertions.assertTrue(fetchBoolean(statement, ended + completed), "the completed auction is ended");
+            Assertions.assertFalse(fetchBoolean(statement, ended + awaitingSettlement),
+                    "the auction awaiting settlement stays open");
+            Assertions.assertFalse(fetchBoolean(statement, ended + bidding), "the auction taking bids stays open");
+        }
+    }
+
+    /** An auction started at {@code startExpression}, an SQL datetime, with one bid and no payment. */
+    private static int insertAuction(Statement statement, int realtyRegionId, String startExpression)
+            throws SQLException {
+        int auctionId = fetchInt(statement, """
+                INSERT INTO FreeholdContractAuction (realtyRegionId, auctioneerId, startDate, biddingDurationSeconds,
+                                                     paymentDurationSeconds, minBid, minStep)
+                VALUES (%d, '%s', %s, 3600, 3600, 1.0, 1.0)
+                RETURNING freeholdContractAuctionId
+                """.formatted(realtyRegionId, AUTHORITY, startExpression));
+        statement.executeUpdate("""
+                INSERT INTO FreeholdContractBid (freeholdContractAuctionId, bidderId, bidPrice, bidTime)
+                VALUES (%d, '%s', 100.0, %s)
+                """.formatted(auctionId, BUYER, startExpression));
+        return auctionId;
+    }
+
+    private static void insertAuctionBuy(Statement statement, int authorityPartyId, String worldGuardRegionId,
+                                         String timeExpression) throws SQLException {
+        statement.executeUpdate("""
+                INSERT INTO FreeholdHistory (worldGuardRegionId, worldId, eventType, buyerId, authorityPartyId,
+                                             price, eventTime)
+                VALUES ('%s', '%s', 'AUCTION_BUY', '%s', %d, 100.0, %s)
+                """.formatted(worldGuardRegionId, WORLD_ID, BUYER, authorityPartyId, timeExpression));
+    }
+
     private static int insertFreehold(Statement statement, int authorityPartyId, String worldGuardRegionId)
             throws SQLException {
         int regionId = fetchInt(statement, """
