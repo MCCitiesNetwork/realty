@@ -1521,10 +1521,10 @@ public interface RealtyBackend {
         /** A listener cancelled the {@code FeeChangeEvent}. Only {@code RealtyPaperApi} returns this. */
         record Cancelled() implements SetFeeResult {}
         /**
-         * The region has an auction not yet ended (still taking bids, or waiting for a bidder to
-         * pay) or an offer not yet accepted, and the fee would
-         * raise what its buyer pays: a new buyer-paid fee, a higher one, or a seller-paid fee
-         * moved to the buyer.
+         * The region has a sale in progress: an auction that has not ended, whether still taking
+         * bids or waiting for a bidder to pay, or an offer not yet accepted. The fee would raise
+         * what its buyer pays: a new buyer-paid fee, a higher one, or a seller-paid fee moved to
+         * the buyer.
          */
         record SaleOpen() implements SetFeeResult {}
     }
@@ -1616,8 +1616,8 @@ public interface RealtyBackend {
     sealed interface SetLevyResult {
         /**
          * @param previous the levy chosen before, or {@code null} if there was none
-         * @param pinned   for an authority's choice, how many of its freeholds with bids or offers
-         *                 open were given their current levy as their own choice, so that it does
+         * @param pinned   for an authority's choice, how many of its freeholds with a sale in
+         *                 progress were given their current levy as their own choice, so that it does
          *                 not change under their buyers; always 0 for one freehold's choice
          */
         record Success(@Nullable String previous, int pinned) implements SetLevyResult {
@@ -1636,8 +1636,9 @@ public interface RealtyBackend {
         /** A listener cancelled the {@code LevyChangeEvent}. Only {@code RealtyPaperApi} returns this. */
         record Cancelled() implements SetLevyResult {}
         /**
-         * Bids or offers are open, so the levy may not change. For one freehold, {@code plots} is
-         * 1. For an authority's choice, it is how many of its freeholds with bids or offers open
+         * A sale is in progress (an auction still taking bids or waiting for a bidder to pay, or
+         * an offer not yet accepted), so the levy may not change. For one freehold, {@code plots}
+         * is 1. For an authority's choice, it is how many of its freeholds with a sale in progress
          * have no levy now: gaining one would charge their buyers more, and having none, they
          * cannot be pinned to it.
          */

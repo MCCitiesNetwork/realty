@@ -960,7 +960,8 @@ fee:
     not-authority-manager: <prefix> <red>You do not act for the authority of <yellow><region></yellow>.
     no-change: <prefix> That fee is already set on <yellow><region></yellow>.
     sale-open: <prefix> <red>You can't add or raise a fee the buyer pays while <yellow><region></yellow>
-        has bids or offers open. Lower or remove it, or wait until the sale locks.
+        has a sale in progress (bidding, payment or an open offer). Lower or remove it, or wait
+        until the sale ends.
     removed: <prefix> Your fee on <yellow><region></yellow> was <red>removed</red>.
     no-fee: <prefix> You have no fee on <yellow><region></yellow>.
     approved: <prefix> You <green>approved</green> the <percent>% fee paid to <#00aaff><recipient></#00aaff>
@@ -994,15 +995,17 @@ levy:
     wrong-authority-kind: <prefix> <red>The levy <yellow><levy></yellow> is for another
         kind of authority.
     no-change: <prefix> Nothing changed.
-    sale-open: <prefix> <red>You can't change <yellow><region></yellow>'s levy while it has
-        bids or offers open.
-    authority-sale-open-unpinnable: <prefix> <red><count> of your plots with bids or offers open
-        have no levy now, so changing the authority's levy would charge their buyers more. Try
-        again once those sales lock or close.
-    pinned: <prefix> <count> plots with bids or offers open kept their current levy. Clear each
-        with <green>/realty levy clear \<region> --authority</green> once its sale ends.
-    pinned-one: <prefix> 1 plot with bids or offers open kept its current levy. Clear it with
-        <green>/realty levy clear \<region> --authority</green> once its sale ends.
+    sale-open: <prefix> <red>You can't change <yellow><region></yellow>'s levy while it has a
+        sale in progress (bidding, payment or an open offer).
+    authority-sale-open-unpinnable: <prefix> <red><count> of your plots with a sale in progress
+        (bidding, payment or an open offer) have no levy now, so changing the authority's levy
+        would charge their buyers more. Try again once those sales end.
+    pinned: <prefix> <count> plots with a sale in progress (bidding, payment or an open offer)
+        kept their current levy. Clear each with <green>/realty levy clear \<region> --authority</green>
+        once its sale ends.
+    pinned-one: <prefix> 1 plot with a sale in progress (bidding, payment or an open offer) kept
+        its current levy. Clear it with <green>/realty levy clear \<region> --authority</green>
+        once its sale ends.
     needs-authority: '<prefix> <red>A levy is chosen for the authority: add <yellow>--authority</yellow>.</red>'
     list-header: <prefix> Levies
     list-entry: ' <dark_grey>-</dark_grey> <yellow><levy></yellow>: paid by the <side>,
