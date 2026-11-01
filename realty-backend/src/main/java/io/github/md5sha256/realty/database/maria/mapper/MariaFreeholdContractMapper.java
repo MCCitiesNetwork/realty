@@ -314,4 +314,34 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
     })
     @NotNull List<TitleHeldRegionTag> selectTitleHeldRegionTags();
 
+    @Override
+    @Select("""
+            SELECT fc.freeholdContractId
+            FROM FreeholdContract fc
+            WHERE fc.authorityPartyId = #{authorityPartyId}
+            ORDER BY fc.freeholdContractId
+            FOR UPDATE
+            """)
+    @NotNull List<Integer> lockByAuthority(@Param("authorityPartyId") int authorityPartyId);
+
+    @Override
+    @Select("""
+            SELECT c.realtyRegionId
+            FROM FreeholdContract fc
+            INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
+            WHERE fc.authorityPartyId = #{authorityPartyId}
+            AND (
+                (EXISTS (SELECT 1 FROM FreeholdContractAuction a
+                         WHERE a.realtyRegionId = c.realtyRegionId AND a.ended = FALSE)
+                 AND NOT EXISTS (SELECT 1 FROM FreeholdContractBidPayment bp
+                                 WHERE bp.realtyRegionId = c.realtyRegionId))
+                OR (EXISTS (SELECT 1 FROM FreeholdContractOffer o
+                            WHERE o.realtyRegionId = c.realtyRegionId)
+                    AND NOT EXISTS (SELECT 1 FROM FreeholdContractOfferPayment op
+                                    WHERE op.realtyRegionId = c.realtyRegionId))
+            )
+            ORDER BY c.realtyRegionId
+            """)
+    @NotNull List<Integer> selectOpenSaleRegionIdsByAuthority(@Param("authorityPartyId") int authorityPartyId);
+
 }

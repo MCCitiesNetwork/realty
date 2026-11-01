@@ -1520,6 +1520,12 @@ public interface RealtyBackend {
         record NoChange() implements SetFeeResult {}
         /** A listener cancelled the {@code FeeChangeEvent}. Only {@code RealtyPaperApi} returns this. */
         record Cancelled() implements SetFeeResult {}
+        /**
+         * The region has an auction taking bids or an offer not yet accepted, and the fee would
+         * raise what its buyer pays: a new buyer-paid fee, a higher one, or a seller-paid fee
+         * moved to the buyer.
+         */
+        record SaleOpen() implements SetFeeResult {}
     }
 
     /**
@@ -1528,7 +1534,9 @@ public interface RealtyBackend {
      * recorded under the role the actor holds: {@code titleholder}, else {@code agent}, else
      * {@code authority} when the actor personally is the authority. A buyer-paid fee applies at
      * once; a seller-paid fee applies at once only when the seller sets it or receives it, and
-     * otherwise waits for the seller's approval.
+     * otherwise waits for the seller's approval. While the region has an auction taking bids or
+     * an offer not yet accepted, a fee that would raise what the buyer pays is refused with
+     * {@link SetFeeResult.SaleOpen}; lowering a fee, or any seller-paid fee, still goes ahead.
      *
      * @param percent     the percentage of the price; must be greater than 0
      * @param asAuthority whether the fee is paid to the authority, which the actor must manage
@@ -1605,8 +1613,17 @@ public interface RealtyBackend {
     // --- Levies ---
 
     sealed interface SetLevyResult {
-        /** @param previous the levy chosen before, or {@code null} if there was none */
-        record Success(@Nullable String previous) implements SetLevyResult {}
+        /**
+         * @param previous the levy chosen before, or {@code null} if there was none
+         * @param pinned   for an authority's choice, how many of its freeholds with bids or offers
+         *                 open were given their current levy as their own choice, so that it does
+         *                 not change under their buyers; always 0 for one freehold's choice
+         */
+        record Success(@Nullable String previous, int pinned) implements SetLevyResult {
+            public Success(@Nullable String previous) {
+                this(previous, 0);
+            }
+        }
         record NoFreehold() implements SetLevyResult {}
         record NotAuthorityManager() implements SetLevyResult {}
         /** No levy of that name is defined. */
@@ -1617,11 +1634,20 @@ public interface RealtyBackend {
         record NoChange() implements SetLevyResult {}
         /** A listener cancelled the {@code LevyChangeEvent}. Only {@code RealtyPaperApi} returns this. */
         record Cancelled() implements SetLevyResult {}
+        /**
+         * Bids or offers are open, so the levy may not change. For one freehold, {@code plots} is
+         * 1. For an authority's choice, it is how many of its freeholds with bids or offers open
+         * have no levy now: gaining one would charge their buyers more, and having none, they
+         * cannot be pinned to it.
+         */
+        record SaleOpen(int plots) implements SetLevyResult {}
     }
 
     /**
      * Chooses the levy for one freehold. The actor must manage its authority, or bypass. The name
-     * is matched without regard to case, and the levy's own name is stored.
+     * is matched without regard to case, and the levy's own name is stored. Refused with
+     * {@link SetLevyResult.SaleOpen} while the freehold has an auction taking bids or an offer not
+     * yet accepted, as is {@link #clearRegionLevy}.
      */
     @NotNull SetLevyResult setRegionLevy(@NotNull String worldGuardRegionId,
                                          @NotNull UUID worldId,
@@ -1636,6 +1662,12 @@ public interface RealtyBackend {
     /**
      * Chooses the levy for every freehold of {@code authority}, including those it gains later.
      * The actor must manage the authority, or bypass.
+     * <p>
+     * A freehold with an auction taking bids or an offer not yet accepted, and no levy of its own,
+     * keeps the levy it uses now: that levy becomes its own choice, counted in
+     * {@link SetLevyResult.Success#pinned()}. If such a freehold uses no levy now but would gain
+     * one, the whole change is refused with {@link SetLevyResult.SaleOpen}. {@link
+     * #clearAuthorityLevy} does the same.
      */
     @NotNull SetLevyResult setAuthorityLevy(@NotNull Party authority,
                                             @NotNull ActorContext ctx,

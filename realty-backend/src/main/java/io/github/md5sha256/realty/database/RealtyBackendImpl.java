@@ -3619,6 +3619,12 @@ public class RealtyBackendImpl implements RealtyBackend {
                     && existing.role().equals(role)) {
                 return new SetFeeResult.NoChange();
             }
+            // Buyers bid or offer against the fees they were shown, so none may grow under them.
+            boolean raisesBuyerFee = side == FeeSide.BUYER
+                    && (existing == null || existing.side() != FeeSide.BUYER || percent > existing.percent());
+            if (raisesBuyerFee && saleOpen(wrapper, worldGuardRegionId, worldId)) {
+                return new SetFeeResult.SaleOpen();
+            }
             boolean setterIsSeller = titleHolderId != null
                     ? playerId.equals(titleHolderId)
                     : ctx.manages().contains(authority);
@@ -3798,6 +3804,23 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     /**
+     * Whether the region's sale is open, so that what its buyers were shown must not grow: it has
+     * an auction whose winner has not yet been asked to pay, or an offer none of which has been
+     * accepted. An auction counts until its payment row exists, even once its bidding window has
+     * passed, because the winner's fees are worked out only when the scheduler settles it. Call it
+     * under the freehold lock, which auctions and offers are opened under.
+     */
+    private static boolean saleOpen(@NotNull SqlSessionWrapper wrapper,
+                                    @NotNull String worldGuardRegionId,
+                                    @NotNull UUID worldId) {
+        boolean biddingOpen = wrapper.freeholdContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)
+                && !wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId);
+        return biddingOpen
+                || (wrapper.freeholdContractOfferMapper().existsByRegion(worldGuardRegionId, worldId)
+                && !wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId));
+    }
+
+    /**
      * Clears the fees a change of titleholder leaves without their basis, in the caller's
      * transaction: the previous titleholder's fees go, and the seller-paid fees the new seller
      * did not set wait for the new seller's approval. When nobody holds the title afterwards, the
@@ -3864,8 +3887,9 @@ public class RealtyBackendImpl implements RealtyBackend {
                                                 @NotNull ActorContext ctx,
                                                 @NotNull String levyName) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
+            // Locked, as auctions and offers open under this lock, so none opens before the write.
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
-                    .selectByRegion(worldGuardRegionId, worldId);
+                    .selectByRegionForUpdate(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new SetLevyResult.NoFreehold();
             }
@@ -3884,6 +3908,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (levy.name().equalsIgnoreCase(previous)) {
                 return new SetLevyResult.NoChange();
             }
+            if (saleOpen(wrapper, worldGuardRegionId, worldId)) {
+                return new SetLevyResult.SaleOpen(1);
+            }
             wrapper.levyChoiceMapper().upsertRegionLevy(realtyRegionId, levy.name(), ctx.player());
             wrapper.session().commit();
             return new SetLevyResult.Success(previous);
@@ -3896,7 +3923,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                                                   @NotNull ActorContext ctx) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             FreeholdContractEntity freehold = wrapper.freeholdContractMapper()
-                    .selectByRegion(worldGuardRegionId, worldId);
+                    .selectByRegionForUpdate(worldGuardRegionId, worldId);
             if (freehold == null) {
                 return new SetLevyResult.NoFreehold();
             }
@@ -3907,6 +3934,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             String previous = wrapper.levyChoiceMapper().selectRegionLevy(realtyRegionId);
             if (previous == null) {
                 return new SetLevyResult.NoChange();
+            }
+            if (saleOpen(wrapper, worldGuardRegionId, worldId)) {
+                return new SetLevyResult.SaleOpen(1);
             }
             wrapper.levyChoiceMapper().deleteRegionLevy(realtyRegionId);
             wrapper.session().commit();
@@ -3930,13 +3960,20 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
         int authorityPartyId = partyIdCreatingIfAbsent(authority);
         try (SqlSessionWrapper wrapper = database.openSession()) {
+            // Locked first, so that the reads below see every auction and offer opened before.
+            wrapper.freeholdContractMapper().lockByAuthority(authorityPartyId);
             String previous = wrapper.levyChoiceMapper().selectAuthorityLevy(authorityPartyId);
             if (levy.name().equalsIgnoreCase(previous)) {
                 return new SetLevyResult.NoChange();
             }
+            OpenSalePins pins = openSalePins(wrapper, this.levies.get(), authority, authorityPartyId, levy);
+            if (pins.unpinnable() > 0) {
+                return new SetLevyResult.SaleOpen(pins.unpinnable());
+            }
+            pins.apply(wrapper, ctx.player());
             wrapper.levyChoiceMapper().upsertAuthorityLevy(authorityPartyId, levy.name(), ctx.player());
             wrapper.session().commit();
-            return new SetLevyResult.Success(previous);
+            return new SetLevyResult.Success(previous, pins.levyByRegion().size());
         }
     }
 
@@ -3945,18 +3982,84 @@ public class RealtyBackendImpl implements RealtyBackend {
         if (!ctx.mayManage(authority)) {
             return new SetLevyResult.NotAuthorityManager();
         }
+        Integer authorityPartyId;
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            Integer authorityPartyId = wrapper.partyMapper().findId(authority);
-            String previous = authorityPartyId == null
-                    ? null
-                    : wrapper.levyChoiceMapper().selectAuthorityLevy(authorityPartyId);
+            authorityPartyId = wrapper.partyMapper().findId(authority);
+        }
+        if (authorityPartyId == null) {
+            return new SetLevyResult.NoChange();
+        }
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            // Locked first, so that the reads below see every auction and offer opened before.
+            wrapper.freeholdContractMapper().lockByAuthority(authorityPartyId);
+            String previous = wrapper.levyChoiceMapper().selectAuthorityLevy(authorityPartyId);
             if (previous == null) {
                 return new SetLevyResult.NoChange();
             }
+            LevyCatalog catalog = this.levies.get();
+            OpenSalePins pins = openSalePins(wrapper, catalog, authority, authorityPartyId,
+                    catalog.defaultLevy().orElse(null));
+            if (pins.unpinnable() > 0) {
+                return new SetLevyResult.SaleOpen(pins.unpinnable());
+            }
+            pins.apply(wrapper, ctx.player());
             wrapper.levyChoiceMapper().deleteAuthorityLevy(authorityPartyId);
             wrapper.session().commit();
-            return new SetLevyResult.Success(previous);
+            return new SetLevyResult.Success(previous, pins.levyByRegion().size());
         }
+    }
+
+    /**
+     * What an authority's levy change must do first for its freeholds with bids or offers open,
+     * whose levy must not change under their buyers.
+     *
+     * @param levyByRegion the levy each such freehold uses now, to be made its own choice
+     * @param unpinnable   how many such freeholds use no levy now but would gain one; with none
+     *                     to name, they cannot be pinned, so the change must be refused
+     */
+    private record OpenSalePins(@NotNull Map<Integer, String> levyByRegion, int unpinnable) {
+
+        /** Makes each freehold's current levy its own choice, in the caller's transaction. */
+        void apply(@NotNull SqlSessionWrapper wrapper, @Nullable UUID setBy) {
+            levyByRegion.forEach((realtyRegionId, levyName) ->
+                    wrapper.levyChoiceMapper().upsertRegionLevy(realtyRegionId, levyName, setBy));
+        }
+    }
+
+    /**
+     * Works out {@link OpenSalePins} for a change of the authority's levy to {@code next}, the
+     * levy its freeholds without their own choice will use afterwards. A freehold whose own choice
+     * names a defined levy keeps it whatever the authority chooses, so it is left alone, as is one
+     * whose levy would not change. A levy the authority's kind may not use charges nothing, so it
+     * counts as none. Call it with the authority's freeholds locked.
+     */
+    private static @NotNull OpenSalePins openSalePins(@NotNull SqlSessionWrapper wrapper,
+                                                      @NotNull LevyCatalog catalog,
+                                                      @NotNull Party authority,
+                                                      int authorityPartyId,
+                                                      @Nullable LevyDefinition next) {
+        String nextName = next != null && SaleFeeResolver.levyFitsAuthority(next, authority) ? next.name() : null;
+        Map<Integer, String> levyByRegion = new LinkedHashMap<>();
+        int unpinnable = 0;
+        for (int realtyRegionId : wrapper.freeholdContractMapper().selectOpenSaleRegionIdsByAuthority(authorityPartyId)) {
+            String ownChoice = wrapper.levyChoiceMapper().selectRegionLevy(realtyRegionId);
+            if (ownChoice != null && catalog.find(ownChoice).isPresent()) {
+                continue;
+            }
+            LevyDefinition current = SaleFeeResolver.resolveLevy(wrapper, catalog, realtyRegionId, authority);
+            String currentName = current != null && SaleFeeResolver.levyFitsAuthority(current, authority)
+                    ? current.name()
+                    : null;
+            if (currentName == null ? nextName == null : currentName.equalsIgnoreCase(nextName)) {
+                continue;
+            }
+            if (currentName == null) {
+                unpinnable++;
+            } else {
+                levyByRegion.put(realtyRegionId, currentName);
+            }
+        }
+        return new OpenSalePins(levyByRegion, unpinnable);
     }
 
     @Override
