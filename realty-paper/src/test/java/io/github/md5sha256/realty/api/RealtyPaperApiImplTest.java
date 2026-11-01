@@ -2871,6 +2871,33 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
+        void saleOpen_passedThrough_firesNoChangedEvent() {
+            when(realtyApi.setFee(REGION_ID, WORLD_ID, BUYER_CTX, 3, FeeSide.BUYER, false))
+                    .thenReturn(new RealtyBackend.SetFeeResult.SaleOpen());
+            when(realtyApi.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "stamp-duty"))
+                    .thenReturn(new RealtyBackend.SetLevyResult.SaleOpen(2));
+
+            Assertions.assertInstanceOf(RealtyBackend.SetFeeResult.SaleOpen.class,
+                    api.setFee(wgRegion, BUYER_CTX, 3, FeeSide.BUYER, false).join());
+            Assertions.assertEquals(new RealtyBackend.SetLevyResult.SaleOpen(2),
+                    api.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "stamp-duty").join());
+
+            verify(events, never()).fireSync(any(FeeChangedEvent.class));
+            verify(events, never()).fireSync(any(LevyChangedEvent.class));
+        }
+
+        @Test
+        void setAuthorityLevy_pinned_passedThroughWithChangedEvent() {
+            when(realtyApi.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "stamp-duty"))
+                    .thenReturn(new RealtyBackend.SetLevyResult.Success("old", 3));
+
+            Assertions.assertEquals(new RealtyBackend.SetLevyResult.Success("old", 3),
+                    api.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "stamp-duty").join());
+
+            verify(events).fireSync(any(LevyChangedEvent.class));
+        }
+
+        @Test
         void previewAndListFees_delegate() {
             FeeQuote quote = FeeQuote.none(500);
             when(realtyApi.previewFees(REGION_ID, WORLD_ID, BUYER_ID, 500)).thenReturn(quote);

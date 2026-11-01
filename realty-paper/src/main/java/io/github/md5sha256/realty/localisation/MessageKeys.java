@@ -647,6 +647,7 @@ public final class MessageKeys {
     public static final String FEE_NOT_ALLOWED = "fee.not-allowed";
     public static final String FEE_NOT_AUTHORITY_MANAGER = "fee.not-authority-manager";
     public static final String FEE_NO_CHANGE = "fee.no-change";
+    public static final String FEE_SALE_OPEN = "fee.sale-open";
     public static final String FEE_REMOVED = "fee.removed";
     public static final String FEE_NO_FEE = "fee.no-fee";
     public static final String FEE_APPROVED = "fee.approved";
@@ -669,6 +670,9 @@ public final class MessageKeys {
     public static final String LEVY_UNKNOWN = "levy.unknown";
     public static final String LEVY_WRONG_AUTHORITY_KIND = "levy.wrong-authority-kind";
     public static final String LEVY_NO_CHANGE = "levy.no-change";
+    public static final String LEVY_SALE_OPEN = "levy.sale-open";
+    public static final String LEVY_AUTHORITY_SALE_OPEN_UNPINNABLE = "levy.authority-sale-open-unpinnable";
+    public static final String LEVY_PINNED = "levy.pinned";
     public static final String LEVY_NEEDS_AUTHORITY = "levy.needs-authority";
     public static final String LEVY_LIST_HEADER = "levy.list-header";
     public static final String LEVY_LIST_ENTRY = "levy.list-entry";

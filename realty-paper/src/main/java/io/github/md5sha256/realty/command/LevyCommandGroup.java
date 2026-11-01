@@ -152,7 +152,15 @@ public record LevyCommandGroup(
                             }, executorState.mainThreadExec())
                             .thenApply(result -> new Outcome(result, authority));
                 }, executorState.mainThreadExec())
-                .thenAccept(outcome -> sender.sendMessage(message(outcome, regionId, levyName, all)))
+                .thenAccept(outcome -> {
+                    sender.sendMessage(message(outcome, regionId, levyName, all));
+                    if (outcome.result() instanceof RealtyBackend.SetLevyResult.Success success
+                            && success.pinned() > 0) {
+                        // No region placeholder: the message names the command with <region> to fill in.
+                        sender.sendMessage(messages.messageFor(MessageKeys.LEVY_PINNED,
+                                Placeholder.unparsed("count", String.valueOf(success.pinned()))));
+                    }
+                })
                 .exceptionally(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     sender.sendMessage(messages.messageFor(MessageKeys.LEVY_ERROR,
@@ -196,6 +204,10 @@ public record LevyCommandGroup(
             case RealtyBackend.SetLevyResult.NoChange ignored -> messages.messageFor(MessageKeys.LEVY_NO_CHANGE);
             case RealtyBackend.SetLevyResult.Cancelled ignored ->
                     messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED);
+            case RealtyBackend.SetLevyResult.SaleOpen saleOpen -> all
+                    ? messages.messageFor(MessageKeys.LEVY_AUTHORITY_SALE_OPEN_UNPINNABLE,
+                            Placeholder.unparsed("count", String.valueOf(saleOpen.plots())))
+                    : messages.messageFor(MessageKeys.LEVY_SALE_OPEN, Placeholder.unparsed("region", regionId));
         };
     }
 

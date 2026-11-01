@@ -169,6 +169,9 @@ public record FeeCommandGroup(
                                         Placeholder.unparsed("region", regionId)));
                         case RealtyBackend.SetFeeResult.Cancelled ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
+                        case RealtyBackend.SetFeeResult.SaleOpen ignored ->
+                                sender.sendMessage(messages.messageFor(MessageKeys.FEE_SALE_OPEN,
+                                        Placeholder.unparsed("region", regionId)));
                     }
                 }).exceptionally(ex -> error(sender, ex));
     }
