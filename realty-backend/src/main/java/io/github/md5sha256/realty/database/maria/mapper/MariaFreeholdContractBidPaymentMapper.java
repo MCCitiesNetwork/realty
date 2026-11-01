@@ -169,6 +169,7 @@ public interface MariaFreeholdContractBidPaymentMapper extends FreeholdContractB
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             AND scb.bidderId = #{bidderId}
+            AND sca.ended = FALSE
             ORDER BY scb.bidPrice DESC
             LIMIT 1
             """)

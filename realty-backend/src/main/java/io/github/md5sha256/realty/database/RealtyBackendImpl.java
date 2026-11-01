@@ -2758,6 +2758,8 @@ public class RealtyBackendImpl implements RealtyBackend {
             freeholdMapper.updateFreeholdByRegion(worldGuardRegionId, worldId, payment.bidPrice(), bidderId);
             freeholdMapper.updatePriceByRegion(worldGuardRegionId, worldId, null, false, null, null);
             paymentMapper.deleteByRegion(worldGuardRegionId, worldId);
+            // Ended, so that settlement does not offer the sold plot to its winner again.
+            wrapper.freeholdContractAuctionMapper().markEnded(payment.freeholdContractAuctionId());
             wrapper.saleFeeMapper().markCompleted(SALE_BID, payment.bidId());
             wrapper.freeholdContractSanctionedAuctioneerMapper().deleteAllByRegion(worldGuardRegionId, worldId);
             int realtyRegionId = requireRealtyRegionId(wrapper, worldGuardRegionId, worldId);
@@ -2982,6 +2984,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                     nextDeadline);
             if (inserted > 0) {
                 lockRunnerUp(wrapper, region, auction);
+            } else {
+                // No bidder is left to offer it to, so the auction is over; left open, settlement
+                // would offer it to the winner who just missed their payment.
+                wrapper.freeholdContractAuctionMapper().markEnded(auction.freeholdContractAuctionId());
             }
         }
         return new ExpiredBidPayment(payment.bidderId(), payment.currentPayment(), region.worldGuardRegionId(),

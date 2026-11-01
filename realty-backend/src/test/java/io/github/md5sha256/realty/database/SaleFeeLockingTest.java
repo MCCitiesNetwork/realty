@@ -733,4 +733,38 @@ class SaleFeeLockingTest extends AbstractDatabaseTest {
         Assertions.assertEquals(3, due.size(), due.toString());
         Assertions.assertTrue(due.stream().allMatch(p -> p.salePrice() == 1000.0), due.toString());
     }
+
+    @Test
+    void completedAuction_isEnded_notSettledAgain() {
+        String regionId = freehold();
+        auction(regionId, TITLE_HOLDER);
+        bid(regionId, BUYER, 1000);
+        Assertions.assertEquals(1, endBidding(regionId).size());
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 1000));
+        Assertions.assertTrue(logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER));
+
+        Assertions.assertEquals(0, count("SELECT COUNT(*) FROM FreeholdContractAuction WHERE ended = FALSE"));
+        Assertions.assertTrue(logic.clearExpiredBiddingAuctions().isEmpty());
+        Assertions.assertNull(bidPayment(regionId));
+
+        // A new auction by the new titleholder starts afresh: the old auction's bids are not its bids.
+        Assertions.assertInstanceOf(CreateAuctionResult.Success.class,
+                logic.createAuction(regionId, WORLD_ID, player(BUYER), 3600, 3600, 100.0, 10.0));
+        bid(regionId, RUNNER_UP, 200);
+    }
+
+    @Test
+    void lastBidderMissesPayment_auctionEnded() {
+        String regionId = freehold();
+        auction(regionId, TITLE_HOLDER);
+        bid(regionId, BUYER, 1000);
+        Assertions.assertEquals(1, endBidding(regionId).size());
+        expireBidPayment(regionId);
+
+        Assertions.assertEquals(1, logic.clearExpiredBidPayments().size());
+
+        Assertions.assertEquals(0, count("SELECT COUNT(*) FROM FreeholdContractAuction WHERE ended = FALSE"));
+        Assertions.assertTrue(logic.clearExpiredBiddingAuctions().isEmpty());
+        Assertions.assertNull(bidPayment(regionId));
+    }
 }

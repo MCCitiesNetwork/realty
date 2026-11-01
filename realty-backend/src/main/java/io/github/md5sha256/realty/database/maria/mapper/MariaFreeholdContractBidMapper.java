@@ -24,6 +24,7 @@ public interface MariaFreeholdContractBidMapper extends FreeholdContractBidMappe
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND sca.ended = FALSE
             ORDER BY scb.bidPrice DESC
             LIMIT 1
             """)
@@ -58,6 +59,7 @@ public interface MariaFreeholdContractBidMapper extends FreeholdContractBidMappe
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = sca.realtyRegionId
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
+            AND sca.ended = FALSE
             """)
     @NotNull List<UUID> selectDistinctBidders(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                               @Param("worldId") @NotNull UUID worldId);
