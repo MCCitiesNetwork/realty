@@ -180,6 +180,11 @@ public final class Realty extends JavaPlugin {
     private final MessageContainer messageContainer = new MessageContainer();
     private final AtomicReference<Settings> settings = new AtomicReference<>();
     private final AtomicReference<DefaultParties> defaultParties = new AtomicReference<>(DefaultParties.unresolved());
+    /**
+     * Whether the default parties have been resolved at least once. Until then the Vault escrow
+     * player is not known, so the holding account is not watched.
+     */
+    private volatile boolean defaultPartiesResolved;
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
     private final AtomicReference<TaxSettings> taxSettings = new AtomicReference<>();
@@ -549,8 +554,12 @@ public final class Realty extends JavaPlugin {
             if (this.logic == null) {
                 return;
             }
-            // First, so that no payment expires while nobody can pay into the holding account.
-            holdingWatch.check();
+            // First, so that no payment expires while nobody can pay into the holding account. Not
+            // before the default parties resolve: until then a Vault escrow player looks unset.
+            // Expiry still skips new-rules payments meanwhile, as holding reads as unavailable.
+            if (this.defaultPartiesResolved) {
+                holdingWatch.check();
+            }
             List<RealtyBackend.ExpiredBiddingAuction> endedAuctions = this.logic.clearExpiredBiddingAuctions();
             if (!endedAuctions.isEmpty()) {
                 // Resolve WorldGuard regions and fire notifications/post-events on the main thread.
@@ -748,6 +757,7 @@ public final class Realty extends JavaPlugin {
                 resolved = DefaultParties.unresolved();
             }
             DefaultParties previous = this.defaultParties.getAndSet(resolved);
+            this.defaultPartiesResolved = true;
             resolved.errors().forEach(error -> getLogger().severe(error));
             warnIfEscrowChanged(previous, resolved);
             warnIfNoHoldingAccount();

@@ -17,8 +17,11 @@ public final class HoldingWatch {
     private final HoldingAccount holding;
     private final RealtyBackend backend;
     private final Logger logger;
-    /** Whether the last run found the account usable; assumed so before the first. */
-    private boolean wasUsable = true;
+    /**
+     * Whether the last run found the account usable; assumed so before the first. Volatile: the
+     * async timer may run each check on a different thread.
+     */
+    private volatile boolean wasUsable = true;
 
     public HoldingWatch(@NotNull HoldingAccount holding, @NotNull RealtyBackend backend, @NotNull Logger logger) {
         this.holding = holding;
@@ -28,8 +31,8 @@ public final class HoldingWatch {
 
     /**
      * Checks the holding account and, while it is unusable, pauses payment deadlines. Run before
-     * expired payments are cleared, so none expires for want of a usable account. Called from one
-     * scheduler thread at a time.
+     * expired payments are cleared, so none expires for want of a usable account. Called by one
+     * scheduler run at a time, though not always on the same thread.
      */
     public @NotNull HoldingAccount.Status check() {
         HoldingAccount.Status status = this.holding.usable();

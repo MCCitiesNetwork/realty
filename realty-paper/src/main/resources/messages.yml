@@ -217,7 +217,7 @@ offers-inbound:
         is offering <green>$<price></green> for <yellow><region></yellow> '
     error: '<prefix> Failed to list inbound offers: <error>'
 offer:
-    no-holding-account: <prefix> <red>Offers can't be accepted until an admin sets up the holding account.
+    no-holding-account: <prefix> <red>Offers can't be accepted until an admin sets up or fixes the holding account.
     success: <prefix> You have placed an offer of <green>$<price></green> on region
         <yellow><region>.
     no-freehold-contract: <prefix> You cannot place an offer for <gold><region></gold>,

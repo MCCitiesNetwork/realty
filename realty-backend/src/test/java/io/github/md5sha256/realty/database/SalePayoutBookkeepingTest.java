@@ -759,6 +759,13 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         String offer = freehold();
         acceptedOffer(offer);
         expireOfferPayment(offer);
+        String oldRulesOffer = freehold();
+        acceptedOffer(oldRulesOffer);
+        Assertions.assertEquals(1, update("""
+                UPDATE FreeholdContractOfferPayment SET oldRules = TRUE
+                WHERE realtyRegionId = (SELECT realtyRegionId FROM RealtyRegion WHERE worldGuardRegionId = ?)
+                """, oldRulesOffer));
+        expireOfferPayment(oldRulesOffer);
         holdingAvailable = false;
 
         logic.pausePaymentDeadlines();
@@ -773,7 +780,13 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
                 + " INNER JOIN RealtyRegion rr ON rr.realtyRegionId = p.realtyRegionId"
                 + " WHERE rr.worldGuardRegionId = '" + oldRules + "' AND p.paymentDeadline < NOW()"),
                 "an old-rules payment never touches holding, so its deadline stands");
-        Assertions.assertTrue(logic.clearExpiredOfferPayments().isEmpty());
+        Assertions.assertEquals(1, count("SELECT COUNT(*) FROM FreeholdContractOfferPayment p"
+                + " INNER JOIN RealtyRegion rr ON rr.realtyRegionId = p.realtyRegionId"
+                + " WHERE rr.worldGuardRegionId = '" + oldRulesOffer + "' AND p.paymentDeadline < NOW()"),
+                "nor does an old-rules offer payment's");
+        List<ExpiredOfferPayment> expiredOffers = logic.clearExpiredOfferPayments();
+        Assertions.assertEquals(1, expiredOffers.size());
+        Assertions.assertEquals(oldRulesOffer, expiredOffers.getFirst().regionId());
         List<ExpiredBidPayment> expired = logic.clearExpiredBidPayments();
         Assertions.assertEquals(1, expired.size());
         Assertions.assertEquals(oldRules, expired.getFirst().regionId());
