@@ -229,8 +229,8 @@ public interface FreeholdContractMapper {
     @NotNull List<Integer> lockByAuthority(int authorityPartyId);
 
     /**
-     * The regions of the authority's freeholds whose sale is open: an auction that has not ended
-     * and whose winner has not been asked to pay, or an offer none of which has been accepted.
+     * The regions of the authority's freeholds whose sale is open: an auction that has not ended,
+     * or an offer none of which has been accepted.
      *
      * @return their {@code RealtyRegion.realtyRegionId}s, in ascending order
      */

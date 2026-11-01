@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.api.RealtyBackend.CreateAuctionResult;
 import io.github.md5sha256.realty.api.RealtyBackend.FeeListing;
 import io.github.md5sha256.realty.api.RealtyBackend.InviteAgentResult;
 import io.github.md5sha256.realty.api.RealtyBackend.OfferResult;
+import io.github.md5sha256.realty.api.RealtyBackend.PayBidResult;
 import io.github.md5sha256.realty.api.RealtyBackend.RemoveFeeResult;
 import io.github.md5sha256.realty.api.RealtyBackend.ResolveFeeResult;
 import io.github.md5sha256.realty.api.RealtyBackend.SetFeeResult;
@@ -45,6 +46,7 @@ class SaleOpenFeeTest extends AbstractDatabaseTest {
     private static final UUID TITLE_HOLDER = UUID.randomUUID();
     private static final UUID AGENT = UUID.randomUUID();
     private static final UUID BUYER = UUID.randomUUID();
+    private static final UUID RUNNER_UP = UUID.randomUUID();
     private static final UUID MANAGER_ID = UUID.randomUUID();
 
     private static final Party GOV = Party.account(42, AccountKind.GOVERNMENT);
@@ -140,6 +142,30 @@ class SaleOpenFeeTest extends AbstractDatabaseTest {
                 WHERE realtyRegionId = (SELECT realtyRegionId FROM RealtyRegion WHERE worldGuardRegionId = ?)
                 """, regionId);
         Assertions.assertEquals(1, logic.clearExpiredBiddingAuctions().size());
+    }
+
+    private static void expireBidPayment(String regionId) {
+        update("""
+                UPDATE FreeholdContractBidPayment SET paymentDeadline = NOW() - INTERVAL 1 DAY
+                WHERE realtyRegionId = (SELECT realtyRegionId FROM RealtyRegion WHERE worldGuardRegionId = ?)
+                """, regionId);
+    }
+
+    private static FreeholdContractBidPaymentEntity bidPayment(String regionId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.freeholdContractBidPaymentMapper().selectByRegion(regionId, WORLD_ID);
+        }
+    }
+
+    /** The percentages of the buyer-paid lines locked for the bid, in ascending order. */
+    private static List<Double> buyerPercents(int bidId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.saleFeeMapper().selectBySale("bid", bidId).stream()
+                    .filter(line -> line.side() == FeeSide.BUYER)
+                    .map(SaleFeeEntity::percent)
+                    .sorted()
+                    .toList();
+        }
     }
 
     private static void update(String sql, String regionId) {
@@ -244,29 +270,58 @@ class SaleOpenFeeTest extends AbstractDatabaseTest {
     }
 
     @Test
-    void afterSaleLocks_buyerFeeRaiseAllowed_lockedLinesUnaffected() {
+    void paymentPhase_raisesRefused_allowedAfterFinalize() {
         levies = catalog(NATIONAL_LEVY, TOWN_LEVY);
         String regionId = freehold();
         Assertions.assertInstanceOf(SetFeeResult.Success.class, titleholderFee(regionId, 2, FeeSide.BUYER));
         freeholdAuction(regionId);
         endBidding(regionId);
 
-        Assertions.assertInstanceOf(SetFeeResult.Success.class, titleholderFee(regionId, 4, FeeSide.BUYER));
+        Assertions.assertInstanceOf(SetFeeResult.SaleOpen.class, titleholderFee(regionId, 4, FeeSide.BUYER));
+        Assertions.assertEquals(new SetLevyResult.SaleOpen(1),
+                logic.setRegionLevy(regionId, WORLD_ID, MANAGER, "town-levy"));
+        FreeholdContractBidPaymentEntity payment = bidPayment(regionId);
+        Assertions.assertEquals(List.of(2.0, 2.0), buyerPercents(payment.bidId()),
+                "the locked titleholder fee and national levy keep their percent");
+        Assertions.assertEquals(520.0, payment.totalDue(), 0.001);
+
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 520.0));
+        Assertions.assertTrue(logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER));
+
+        Assertions.assertInstanceOf(SetFeeResult.Success.class,
+                logic.setFee(regionId, WORLD_ID, player(BUYER), 4, FeeSide.BUYER, false));
         Assertions.assertInstanceOf(SetLevyResult.Success.class,
                 logic.setRegionLevy(regionId, WORLD_ID, MANAGER, "town-levy"));
+    }
 
-        FreeholdContractBidPaymentEntity payment;
-        List<SaleFeeEntity> lines;
-        try (SqlSessionWrapper wrapper = database.openSession()) {
-            payment = wrapper.freeholdContractBidPaymentMapper().selectByRegion(regionId, WORLD_ID);
-            lines = wrapper.saleFeeMapper().selectBySale("bid", payment.bidId());
-        }
-        Assertions.assertEquals(List.of(2.0, 2.0), lines.stream()
-                .filter(line -> line.side() == FeeSide.BUYER)
-                .map(SaleFeeEntity::percent)
-                .sorted()
-                .toList(), "the locked titleholder fee and national levy keep their percent");
-        Assertions.assertEquals(520.0, payment.totalDue(), 0.001);
+    @Test
+    void runnerUpHandover_raisesRefused_runnerUpTotalUnchanged() {
+        levies = catalog(NATIONAL_LEVY, TOWN_LEVY);
+        String regionId = freehold();
+        Assertions.assertInstanceOf(SetFeeResult.Success.class, titleholderFee(regionId, 2, FeeSide.BUYER));
+        Assertions.assertInstanceOf(CreateAuctionResult.Success.class,
+                logic.createAuction(regionId, WORLD_ID, player(TITLE_HOLDER), 3600, 3600, 100.0, 10.0));
+        Assertions.assertInstanceOf(BidResult.Success.class,
+                logic.performBid(regionId, WORLD_ID, player(RUNNER_UP), 400.0, false));
+        Assertions.assertInstanceOf(BidResult.Success.class,
+                logic.performBid(regionId, WORLD_ID, player(BUYER), 500.0, false));
+        endBidding(regionId);
+        expireBidPayment(regionId);
+        Assertions.assertEquals(1, logic.clearExpiredBidPayments().size());
+        FreeholdContractBidPaymentEntity handedOver = bidPayment(regionId);
+        Assertions.assertEquals(RUNNER_UP, handedOver.bidderId());
+        Assertions.assertEquals(416.0, handedOver.totalDue(), 0.001);
+
+        Assertions.assertInstanceOf(SetFeeResult.SaleOpen.class, titleholderFee(regionId, 5, FeeSide.BUYER));
+        Assertions.assertEquals(new SetLevyResult.SaleOpen(1),
+                logic.setRegionLevy(regionId, WORLD_ID, MANAGER, "town-levy"));
+        Assertions.assertEquals(new SetLevyResult.Success(null, 1), logic.setAuthorityLevy(GOV, MANAGER, "town-levy"));
+
+        Assertions.assertEquals("national-levy", logic.chosenLevy(regionId, WORLD_ID));
+        Assertions.assertEquals("2%", titleholderListing(regionId).rate());
+        FreeholdContractBidPaymentEntity after = bidPayment(regionId);
+        Assertions.assertEquals(416.0, after.totalDue(), 0.001);
+        Assertions.assertEquals(List.of(2.0, 2.0), buyerPercents(after.bidId()));
     }
 
     // --- Levies ---
@@ -354,12 +409,19 @@ class SaleOpenFeeTest extends AbstractDatabaseTest {
     }
 
     @Test
-    void authorityLevy_afterSaleLocks_appliesWithoutPinning() {
+    void authorityLevy_duringPaymentPhase_pins_appliesAfterFinalize() {
         levies = catalog(NATIONAL_LEVY, TOWN_LEVY);
         String regionId = freeholdWithBidding();
         endBidding(regionId);
 
-        Assertions.assertEquals(new SetLevyResult.Success(null, 0), logic.setAuthorityLevy(GOV, MANAGER, "town-levy"));
+        Assertions.assertEquals(new SetLevyResult.Success(null, 1), logic.setAuthorityLevy(GOV, MANAGER, "town-levy"));
+        Assertions.assertEquals("national-levy", logic.chosenLevy(regionId, WORLD_ID));
+
+        Assertions.assertInstanceOf(PayBidResult.FullyPaid.class, payBidConfirmed(regionId, WORLD_ID, BUYER, 510.0));
+        Assertions.assertTrue(logic.finalizeBidPurchase(regionId, WORLD_ID, BUYER));
+
+        Assertions.assertEquals(new SetLevyResult.Success("national-levy"),
+                logic.clearRegionLevy(regionId, WORLD_ID, MANAGER));
         Assertions.assertEquals("town-levy", logic.chosenLevy(regionId, WORLD_ID));
     }
 }

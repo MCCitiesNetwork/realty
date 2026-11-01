@@ -331,10 +331,8 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
             WHERE fc.authorityPartyId = #{authorityPartyId}
             AND (
-                (EXISTS (SELECT 1 FROM FreeholdContractAuction a
-                         WHERE a.realtyRegionId = c.realtyRegionId AND a.ended = FALSE)
-                 AND NOT EXISTS (SELECT 1 FROM FreeholdContractBidPayment bp
-                                 WHERE bp.realtyRegionId = c.realtyRegionId))
+                EXISTS (SELECT 1 FROM FreeholdContractAuction a
+                        WHERE a.realtyRegionId = c.realtyRegionId AND a.ended = FALSE)
                 OR (EXISTS (SELECT 1 FROM FreeholdContractOffer o
                             WHERE o.realtyRegionId = c.realtyRegionId)
                     AND NOT EXISTS (SELECT 1 FROM FreeholdContractOfferPayment op

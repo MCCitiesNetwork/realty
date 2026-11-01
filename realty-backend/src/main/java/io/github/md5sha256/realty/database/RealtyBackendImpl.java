@@ -3811,17 +3811,15 @@ public class RealtyBackendImpl implements RealtyBackend {
 
     /**
      * Whether the region's sale is open, so that what its buyers were shown must not grow: it has
-     * an auction whose winner has not yet been asked to pay, or an offer none of which has been
-     * accepted. An auction counts until its payment row exists, even once its bidding window has
-     * passed, because the winner's fees are worked out only when the scheduler settles it. Call it
-     * under the freehold lock, which auctions and offers are opened under.
+     * an auction that has not ended, or an offer none of which has been accepted. An auction counts
+     * through its whole payment phase, not only while it takes bids: the winner's fees are worked
+     * out when the scheduler settles it, and a runner-up's afresh when the sale is handed to them.
+     * Call it under the freehold lock, which auctions and offers are opened under.
      */
     private static boolean saleOpen(@NotNull SqlSessionWrapper wrapper,
                                     @NotNull String worldGuardRegionId,
                                     @NotNull UUID worldId) {
-        boolean biddingOpen = wrapper.freeholdContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)
-                && !wrapper.freeholdContractBidPaymentMapper().existsByRegion(worldGuardRegionId, worldId);
-        return biddingOpen
+        return wrapper.freeholdContractAuctionMapper().existsByRegion(worldGuardRegionId, worldId)
                 || (wrapper.freeholdContractOfferMapper().existsByRegion(worldGuardRegionId, worldId)
                 && !wrapper.freeholdContractOfferPaymentMapper().existsByRegion(worldGuardRegionId, worldId));
     }

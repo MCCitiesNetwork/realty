@@ -335,8 +335,11 @@ class SaleFeeLockingTest extends AbstractDatabaseTest {
         FreeholdContractBidPaymentEntity payment = lockedAuction(regionId);
 
         levies = only(stampDuty(10, 20));
-        Assertions.assertInstanceOf(SetFeeResult.Success.class,
+        // A buyer-paid fee cannot be added until the auction ends; a seller-paid one can.
+        Assertions.assertInstanceOf(SetFeeResult.SaleOpen.class,
                 logic.setFee(regionId, WORLD_ID, player(TITLE_HOLDER), 2, FeeSide.BUYER, false));
+        Assertions.assertInstanceOf(SetFeeResult.Success.class,
+                logic.setFee(regionId, WORLD_ID, player(TITLE_HOLDER), 2, FeeSide.SELLER, false));
 
         FreeholdContractBidPaymentEntity after = bidPayment(regionId);
         Assertions.assertEquals(1050, after.totalDue(), 0.001);
