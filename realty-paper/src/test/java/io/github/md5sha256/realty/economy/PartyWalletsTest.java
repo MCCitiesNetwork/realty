@@ -38,11 +38,11 @@ class PartyWalletsTest {
     }
 
     private Account account(int id, AccountType type, UUID owner) {
-        Account a = new Account();
-        a.setAccountId(id);
-        a.setAccountType(type);
-        a.setOwnerUuid(owner);
-        return a;
+        return Account.builder()
+                .accountId(id)
+                .accountType(type)
+                .ownerUuid(owner)
+                .build();
     }
 
     @Test
@@ -80,8 +80,7 @@ class PartyWalletsTest {
 
     @Test
     void archivedAccount_fails() {
-        Account archived = account(42, AccountType.GOVERNMENT, player);
-        archived.setArchived(true);
+        Account archived = account(42, AccountType.GOVERNMENT, player).withArchived(true);
         when(treasuryApi.getAccountById(42)).thenReturn(archived);
 
         PartyWallets.WalletUnavailable failure = assertThrows(PartyWallets.WalletUnavailable.class,
@@ -102,8 +101,7 @@ class PartyWalletsTest {
     void accountThatNowRequiresAuthorization_fails() {
         // Treasury rejects a transfer from such an account without an authorizer, and
         // Realty never sends one, so the payment is refused before it is attempted.
-        Account guarded = account(42, AccountType.GOVERNMENT, player);
-        guarded.setRequiresAuthorization(true);
+        Account guarded = account(42, AccountType.GOVERNMENT, player).withRequiresAuthorization(true);
         when(treasuryApi.getAccountById(42)).thenReturn(guarded);
 
         PartyWallets.WalletUnavailable failure = assertThrows(PartyWallets.WalletUnavailable.class,
@@ -122,8 +120,7 @@ class PartyWalletsTest {
 
     @Test
     void balanceOfAccount_isCheckedLikeAPayment() {
-        Account archived = account(42, AccountType.GOVERNMENT, player);
-        archived.setArchived(true);
+        Account archived = account(42, AccountType.GOVERNMENT, player).withArchived(true);
         when(treasuryApi.getAccountById(42)).thenReturn(archived);
 
         PartyWallets.WalletUnavailable failure = assertThrows(PartyWallets.WalletUnavailable.class,

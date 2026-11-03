@@ -21,10 +21,10 @@ class TreasuryAccountNameServiceTest {
     private TreasuryApi treasury;
 
     private static Account account(int id, String displayName) {
-        Account account = new Account();
-        account.setAccountId(id);
-        account.setDisplayName(displayName);
-        return account;
+        return Account.builder()
+                .accountId(id)
+                .displayName(displayName)
+                .build();
     }
 
     @Test
