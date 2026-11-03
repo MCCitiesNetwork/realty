@@ -21,7 +21,7 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.46.1.0") {
         isTransitive = false
     }
-    compileOnly("io.paradaux:treasury-api:2.3.0-SNAPSHOT")
+    compileOnly("io.paradaux:treasury-api:2026.11.38.1-gf6a41413b320")
     compileOnly("com.minecraftcitiesnetwork:namebook-api:1.0.0-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.0.2-1")
     implementation("org.incendo:cloud-paper:2.0.1")
@@ -31,7 +31,7 @@ dependencies {
     implementation("com.minecraftcitiesnetwork:plugin-infrastructure:1.0.0-SNAPSHOT")
 
     testImplementation("io.papermc.paper:paper-api:26.3.build.222-stable")
-    testImplementation("io.paradaux:treasury-api:2.3.0-SNAPSHOT")
+    testImplementation("io.paradaux:treasury-api:2026.11.38.1-gf6a41413b320")
     testImplementation("com.minecraftcitiesnetwork:namebook-api:1.0.0-SNAPSHOT")
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")

@@ -52,11 +52,11 @@ class PartyResolverTest {
     }
 
     private static Account account(int id, AccountType type, String displayName) {
-        Account account = new Account();
-        account.setAccountId(id);
-        account.setAccountType(type);
-        account.setDisplayName(displayName);
-        return account;
+        return Account.builder()
+                .accountId(id)
+                .accountType(type)
+                .displayName(displayName)
+                .build();
     }
 
     // --- No flag: a player ---
@@ -165,8 +165,7 @@ class PartyResolverTest {
     void group_archivedAccount_isRefused() {
         Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("police")).thenReturn(group);
-        Account archived = account(42, AccountType.GOVERNMENT, "police");
-        archived.setArchived(true);
+        Account archived = account(42, AccountType.GOVERNMENT, "police").withArchived(true);
         when(treasury.getAccountById(42)).thenReturn(archived);
 
         PartyResolver.Resolution result = resolver.resolve("police", PartyFlag.GROUP, null);
@@ -178,8 +177,7 @@ class PartyResolverTest {
     void group_requiresAuthorization_isRefused() {
         Party.Group group = Party.group("police", 42, AccountKind.GOVERNMENT);
         when(backend.findGroupParty("police")).thenReturn(group);
-        Account requiresAuth = account(42, AccountType.GOVERNMENT, "police");
-        requiresAuth.setRequiresAuthorization(true);
+        Account requiresAuth = account(42, AccountType.GOVERNMENT, "police").withRequiresAuthorization(true);
         when(treasury.getAccountById(42)).thenReturn(requiresAuth);
 
         PartyResolver.Resolution result = resolver.resolve("police", PartyFlag.GROUP, null);
@@ -324,8 +322,7 @@ class PartyResolverTest {
 
     @Test
     void archivedAccount_isRefused() {
-        Account archived = account(42, AccountType.GOVERNMENT, "GovSecurity");
-        archived.setArchived(true);
+        Account archived = account(42, AccountType.GOVERNMENT, "GovSecurity").withArchived(true);
         when(treasury.getGovernmentAccountByName("GovSecurity")).thenReturn(archived);
 
         PartyResolver.Resolution result = resolver.resolve("GovSecurity", PartyFlag.GOVERNMENT, null);
@@ -335,8 +332,7 @@ class PartyResolverTest {
 
     @Test
     void accountThatRequiresAuthorization_isRefused() {
-        Account requiresAuth = account(42, AccountType.GOVERNMENT, "GovSecurity");
-        requiresAuth.setRequiresAuthorization(true);
+        Account requiresAuth = account(42, AccountType.GOVERNMENT, "GovSecurity").withRequiresAuthorization(true);
         when(treasury.getGovernmentAccountByName("GovSecurity")).thenReturn(requiresAuth);
 
         PartyResolver.Resolution result = resolver.resolve("GovSecurity", PartyFlag.GOVERNMENT, null);

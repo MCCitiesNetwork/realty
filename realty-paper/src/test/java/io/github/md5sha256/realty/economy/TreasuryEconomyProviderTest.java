@@ -43,11 +43,11 @@ class TreasuryEconomyProviderTest {
     }
 
     private Account account(int id, AccountType type, UUID owner) {
-        Account a = new Account();
-        a.setAccountId(id);
-        a.setAccountType(type);
-        a.setOwnerUuid(owner);
-        return a;
+        return Account.builder()
+                .accountId(id)
+                .accountType(type)
+                .ownerUuid(owner)
+                .build();
     }
 
     /** Stubs a payment from {@link #payer}'s PERSONAL account (1) into GOVERNMENT account 42. */
@@ -98,8 +98,7 @@ class TreasuryEconomyProviderTest {
 
     @Test
     void transfer_toUnavailableAccount_failsAndMovesNothing() {
-        Account archived = account(42, AccountType.GOVERNMENT, UUID.randomUUID());
-        archived.setArchived(true);
+        Account archived = account(42, AccountType.GOVERNMENT, UUID.randomUUID()).withArchived(true);
         when(treasuryApi.resolveOrCreatePersonal(payer)).thenReturn(account(1, AccountType.PERSONAL, payer));
         when(treasuryApi.getAccountById(42)).thenReturn(archived);
 

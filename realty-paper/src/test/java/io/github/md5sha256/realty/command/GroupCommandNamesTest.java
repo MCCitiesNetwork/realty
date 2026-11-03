@@ -24,11 +24,11 @@ class GroupCommandNamesTest {
     }
 
     private static Account account(int id, AccountType type, String displayName) {
-        Account account = new Account();
-        account.setAccountId(id);
-        account.setAccountType(type);
-        account.setDisplayName(displayName);
-        return account;
+        return Account.builder()
+                .accountId(id)
+                .accountType(type)
+                .displayName(displayName)
+                .build();
     }
 
     @Test
