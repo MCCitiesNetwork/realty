@@ -59,6 +59,17 @@ public final class TreasuryEconomyProvider implements EconomyProvider {
     @Override
     public @NotNull PaymentResult transfer(@NotNull Party from, @NotNull Party to, double amount,
                                            @NotNull String ledgerMessage, @Nullable UUID initiator) {
+        return transfer(from, to, amount, ledgerMessage, initiator, PLUGIN_SYSTEM);
+    }
+
+    @Override
+    public @NotNull PaymentResult transferAuctionProceeds(@NotNull Party from, @NotNull Party to,
+            double amount, @NotNull String ledgerMessage, @Nullable UUID initiator) {
+        return transfer(from, to, amount, ledgerMessage, initiator, "realty-auction");
+    }
+
+    private @NotNull PaymentResult transfer(@NotNull Party from, @NotNull Party to, double amount,
+            @NotNull String ledgerMessage, @Nullable UUID initiator, @NotNull String source) {
         try {
             Account payer = wallets.forPayment(from);
             Account recipient = wallets.forPayment(to);
@@ -73,7 +84,7 @@ public final class TreasuryEconomyProvider implements EconomyProvider {
                     ledgerMessage,
                     initiator != null ? initiator : SYSTEM_INITIATOR,
                     null,
-                    PLUGIN_SYSTEM,
+                    source,
                     null
             ));
             return new PaymentResult.Success();

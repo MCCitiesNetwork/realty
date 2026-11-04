@@ -140,6 +140,52 @@ class RealtyPaperApiImplTest {
                             UUID.randomUUID(), 500.0, LocalDateTime.of(2026, 8, 1, 12, 0))),
                     List.of(UUID.randomUUID())));
 
+    @Test
+    void partialAuctionPaymentUsesAuctionSourceWithoutFinalizingOwnership() {
+        when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 25.0)).thenReturn(
+                new RealtyBackend.PayBidResult.Success(25, 75, GOVERNMENT, TITLE_HOLDER_ID));
+        when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
+        when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(25.0), any(), eq(BUYER_ID)))
+                .thenReturn(new PaymentResult.Success());
+        Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Success.class,
+                api.payBid(wgRegion, BUYER_ID, 25.0).join());
+        verify(economyProvider).transferAuctionProceeds(BUYER, TITLE_HOLDER, 25.0,
+                "Auction Bid Payment (partial): " + REGION_ID, BUYER_ID);
+        verify(realtyApi, never()).finalizeBidPurchase(any(), any(), any());
+        verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+    }
+
+    @Test
+    void finalAuctionPaymentUsesAuctionSourceBeforeTransferringOwnership() {
+        when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 75.0)).thenReturn(
+                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID));
+        when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
+        when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(75.0), any(), eq(BUYER_ID)))
+                .thenReturn(new PaymentResult.Success());
+        when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+        Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.FullyPaid.class,
+                api.payBid(wgRegion, BUYER_ID, 75.0).join());
+        var order = inOrder(economyProvider, realtyApi);
+        order.verify(economyProvider).transferAuctionProceeds(BUYER, TITLE_HOLDER, 75.0,
+                "Auction Bid Payment (final): " + REGION_ID, BUYER_ID);
+        order.verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
+        Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+    }
+
+    @Test
+    void failedAuctionSettlementRollsBackPaymentAndDoesNotTransferOwnership() {
+        when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 75.0)).thenReturn(
+                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID));
+        when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
+        when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(75.0), any(), eq(BUYER_ID)))
+                .thenReturn(new PaymentResult.Failure("Rejected"));
+        Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class,
+                api.payBid(wgRegion, BUYER_ID, 75.0).join());
+        verify(realtyApi).rollbackPayBid(REGION_ID, WORLD_ID, BUYER_ID, 75.0);
+        verify(realtyApi, never()).finalizeBidPurchase(any(), any(), any());
+        Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+    }
+
     @BeforeEach
     void setUp() {
         signCache = new SignCache();

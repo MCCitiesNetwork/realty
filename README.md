@@ -58,6 +58,13 @@ compatible with this integration. Treasury's API is supplied by the installed
 Treasury plugin; Realty does not bundle it. Servers without Treasury can continue
 to use the Vault economy provider.
 
+Auction bid settlements (partial and final) record `plugin_system=realty-auction`
+in Treasury. Other property payments keep `realty`. This operation-specific source
+lets Hibernia distinguish auction proceeds without inspecting memos or property
+names, and uses the existing Treasury API. No SYSTEM wallet or routing change is
+needed. Vault payments retain their normal transfer and rollback behavior; Vault
+cannot record per-transfer source metadata.
+
 Realty ships no notification delivery of its own: it renders a message and fires
 `RealtyNotificationEvent`, and a module delivers it. Install at least one adapter or players are
 told nothing. Startup warns while none is installed.

@@ -670,7 +670,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
-        PaymentResult result = economyProvider.transfer(
+        PaymentResult result = economyProvider.transferAuctionProceeds(
                 Party.personal(bidderId), seller(success.titleHolderId(), success.authority()), amount,
                 "Auction Bid Payment (partial): " + regionId, bidderId);
         if (result instanceof PaymentResult.Failure failure) {
@@ -690,7 +690,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
-        PaymentResult result = economyProvider.transfer(
+        PaymentResult result = economyProvider.transferAuctionProceeds(
                 Party.personal(bidderId), seller(fullyPaid.titleHolderId(), fullyPaid.authority()), amount,
                 "Auction Bid Payment (final): " + regionId, bidderId);
         if (result instanceof PaymentResult.Failure failure) {

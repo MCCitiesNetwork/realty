@@ -33,6 +33,16 @@ public interface EconomyProvider {
                                     @NotNull String ledgerMessage, @Nullable UUID initiator);
 
     /**
+     * Settles an auction bid to its seller. Providers with ledger support record a dedicated
+     * source, so auction proceeds never depend on parsing the memo or the region's name.
+     * Vault has no source metadata and retains its normal atomic payment behavior.
+     */
+    default @NotNull PaymentResult transferAuctionProceeds(@NotNull Party from, @NotNull Party to,
+            double amount, @NotNull String ledgerMessage, @Nullable UUID initiator) {
+        return transfer(from, to, amount, ledgerMessage, initiator);
+    }
+
+    /**
      * Formats an amount as a currency string using this economy's currency symbol/format.
      */
     @NotNull String formatAmount(double amount);

@@ -66,6 +66,34 @@ class TreasuryEconomyProviderTest {
     }
 
     @Test
+    void auctionSettlementUsesDedicatedSourceAndKeepsTheActualWallets() {
+        when(treasuryApi.resolveOrCreatePersonal(payer)).thenReturn(account(1, AccountType.PERSONAL, payer));
+        when(treasuryApi.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, UUID.randomUUID()));
+        when(treasuryApi.transfer(any())).thenReturn(99L);
+        assertInstanceOf(PaymentResult.Success.class, provider.transferAuctionProceeds(
+                Party.personal(payer), government, 75.50, "Unrelated memo", payer));
+        ArgumentCaptor<TransferRequest> req = ArgumentCaptor.forClass(TransferRequest.class);
+        verify(treasuryApi).transfer(req.capture());
+        assertEquals("realty-auction", req.getValue().pluginSystem());
+        assertEquals("Unrelated memo", req.getValue().message());
+        assertEquals(1, req.getValue().fromAccountId());
+        assertEquals(42, req.getValue().toAccountId());
+        assertEquals(new BigDecimal("75.50"), req.getValue().amount());
+        assertEquals(payer, req.getValue().initiator());
+    }
+
+    @Test
+    void genericPaymentDoesNotInferAuctionPurposeFromTheMemo() {
+        when(treasuryApi.resolveOrCreatePersonal(payer)).thenReturn(account(1, AccountType.PERSONAL, payer));
+        when(treasuryApi.getAccountById(42)).thenReturn(account(42, AccountType.GOVERNMENT, UUID.randomUUID()));
+        when(treasuryApi.transfer(any())).thenReturn(99L);
+        provider.transfer(Party.personal(payer), government, 25, "Lease Extension Payment: employee-auction-house", payer);
+        ArgumentCaptor<TransferRequest> req = ArgumentCaptor.forClass(TransferRequest.class);
+        verify(treasuryApi).transfer(req.capture());
+        assertEquals("realty", req.getValue().pluginSystem());
+    }
+
+    @Test
     void transfer_playerToAccount_movesBetweenTheRightAccounts() {
         TransferRequest request = pay(50.0, payer);
 
