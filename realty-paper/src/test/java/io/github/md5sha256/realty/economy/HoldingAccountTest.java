@@ -109,8 +109,7 @@ class HoldingAccountTest {
         Account account = systemAccount(17, false);
         when(treasury.getAccountsByTypeAndOwner(AccountType.SYSTEM, OWNER)).thenReturn(List.of(account));
         HoldingAccount holding = TreasuryHoldingAccount.create(treasury, LOG);
-        Account archived = systemAccount(17, false);
-        archived.setArchived(true);
+        Account archived = systemAccount(17, false).withArchived(true);
         when(treasury.getAccountById(17)).thenReturn(archived);
 
         HoldingAccount.Unusable unusable =
@@ -124,8 +123,7 @@ class HoldingAccountTest {
         when(treasury.getAccountsByTypeAndOwner(AccountType.SYSTEM, OWNER)).thenReturn(List.of(systemAccount(17, false)));
         long[] now = {0};
         HoldingAccount holding = TreasuryHoldingAccount.create(treasury, LOG, () -> now[0]);
-        Account locked = systemAccount(17, false);
-        locked.setRequiresAuthorization(true);
+        Account locked = systemAccount(17, false).withRequiresAuthorization(true);
         when(treasury.getAccountById(17)).thenReturn(locked);
         Assertions.assertEquals(new HoldingAccount.Unusable("Account #17 requires authorization"), holding.usable());
 

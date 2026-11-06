@@ -2219,8 +2219,7 @@ class RealtyPaperApiImplTest {
             HoldingAccount holding = io.github.md5sha256.realty.economy.TreasuryHoldingAccount.create(treasury, LOG);
             io.paradaux.treasury.model.economy.Account archived = new io.paradaux.treasury.model.economy.Account(
                     17, io.paradaux.treasury.model.economy.AccountType.SYSTEM, UUID.randomUUID(), "Realty Holding",
-                    false, false, false, null);
-            archived.setArchived(true);
+                    false, false, false, null).withArchived(true);
             when(treasury.getAccountById(17)).thenReturn(archived);
             return holding;
         }
@@ -2475,7 +2474,7 @@ class RealtyPaperApiImplTest {
             when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
                     new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
             when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
-            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
             when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0, false)).thenReturn(true);
 
@@ -2484,7 +2483,7 @@ class RealtyPaperApiImplTest {
             RealtyPaperApi.PayBidResult.Success success =
                     Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Success.class, result);
             Assertions.assertEquals(300.0, success.amount(), 0.0);
-            verify(economyProvider).transfer(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID));
+            verify(economyProvider).transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID));
         }
 
         @Test
