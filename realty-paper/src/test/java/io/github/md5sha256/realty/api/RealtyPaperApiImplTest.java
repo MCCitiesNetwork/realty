@@ -177,6 +177,7 @@ class RealtyPaperApiImplTest {
         when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
         when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(75.0), any(), eq(BUYER_ID)))
                 .thenReturn(new PaymentResult.Success());
+        when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
         when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
         Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.FullyPaid.class,
                 api.payBid(wgRegion, BUYER_ID, 75.0).join());
@@ -2171,7 +2172,7 @@ class RealtyPaperApiImplTest {
             when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
                     new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
             when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
-            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(300.0),
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(300.0),
                     eq("Auction Bid Payment (partial): " + REGION_ID), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
 
@@ -2195,12 +2196,13 @@ class RealtyPaperApiImplTest {
             Assertions.assertEquals("no holding account", failed.error());
             verify(realtyApi).rollbackPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0);
             verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+            verify(economyProvider, never()).transferAuctionProceeds(any(), any(), anyDouble(), any(), any());
         }
 
         @Test
         void payBid_final_paysSellerAndRecipients_fromHolding() {
             paidInFull(1000.0, AGENT_QUOTE, false);
-            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0),
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0),
                     eq("Auction Bid Payment (final): " + REGION_ID), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
             payoutsDue(PROCEEDS_LINE, AGENT_LINE);
@@ -2211,7 +2213,7 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.FullyPaid.class, result);
             InOrder order = inOrder(realtyApi, economyProvider);
-            order.verify(economyProvider).transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID));
+            order.verify(economyProvider).transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID));
             order.verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
             order.verify(economyProvider).transfer(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0),
                     eq("Sale payout (proceeds): " + REGION_ID), isNull());
@@ -2219,14 +2221,14 @@ class RealtyPaperApiImplTest {
                     eq("Sale payout (agent): " + REGION_ID), isNull());
             verify(realtyApi).markPayoutPaid(1);
             verify(realtyApi).markPayoutPaid(2);
-            verify(economyProvider, never()).transfer(eq(BUYER), eq(TITLE_HOLDER), anyDouble(), any(), any());
+            verify(economyProvider, never()).transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), anyDouble(), any(), any());
             Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
         }
 
         @Test
         void payBid_oldRules_paysSellerDirectly() {
             paidInFull(1000.0, FeeQuote.none(1000), true);
-            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0),
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0),
                     eq("Auction Bid Payment (final): " + REGION_ID), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
 
@@ -2234,7 +2236,7 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.FullyPaid.class, result);
             verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
-            verify(economyProvider, never()).transfer(eq(BUYER), eq(HOLDING), anyDouble(), any(), any());
+            verify(economyProvider, never()).transferAuctionProceeds(eq(BUYER), eq(HOLDING), anyDouble(), any(), any());
             Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
         }
 
@@ -2243,7 +2245,7 @@ class RealtyPaperApiImplTest {
             when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
                     new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, true));
             when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
-            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(300.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(300.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
 
             Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Success.class,
@@ -2253,7 +2255,7 @@ class RealtyPaperApiImplTest {
         @Test
         void payout_oneRecipientFails_buyerStillOwns_lineFailed_retriedLater() {
             paidInFull(1000.0, AGENT_QUOTE, false);
-            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
             payoutsDue(PROCEEDS_LINE, AGENT_LINE);
             when(economyProvider.transfer(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0), any(), isNull()))
@@ -2315,14 +2317,14 @@ class RealtyPaperApiImplTest {
         @Test
         void payBid_final_confirmsBeforeFinalizing() {
             paidInFull(1000.0, AGENT_QUOTE, false);
-            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
             payoutsDue();
 
             api.payBid(wgRegion, BUYER_ID, 1000).join();
 
             InOrder order = inOrder(realtyApi, economyProvider);
-            order.verify(economyProvider).transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID));
+            order.verify(economyProvider).transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID));
             order.verify(realtyApi).confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 1000.0, false);
             order.verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
         }
@@ -2330,7 +2332,7 @@ class RealtyPaperApiImplTest {
         @Test
         void payBid_saleEndedWhileTheMoneyMoved_failsAndSaysItIsRefunded() {
             paidInFull(1000.0, AGENT_QUOTE, false);
-            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
             when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 1000.0, false)).thenReturn(false);
 
@@ -2348,7 +2350,7 @@ class RealtyPaperApiImplTest {
             when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
                     new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
             when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
-            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
             when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0, false))
                     .thenThrow(new IllegalStateException("connection lost"));
@@ -2370,13 +2372,14 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
             verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+            verify(economyProvider, never()).transferAuctionProceeds(any(), any(), anyDouble(), any(), any());
         }
 
         @Test
         void payBid_oldRulesFinalizeFails_isAnError_notPending() {
             paidInFull(1000.0, FeeQuote.none(1000), true);
             when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(false);
-            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
 
             RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
@@ -2455,7 +2458,7 @@ class RealtyPaperApiImplTest {
         void payBid_final_finalizeAppliesNothing_finalizePending_worldUntouched() {
             paidInFull(1000.0, AGENT_QUOTE, false);
             when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(false);
-            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
 
             RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
@@ -2551,7 +2554,7 @@ class RealtyPaperApiImplTest {
             when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
                     new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, true));
             when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
-            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(300.0), any(), eq(BUYER_ID)))
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(300.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
             when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0, true)).thenReturn(false);
 

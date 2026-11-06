@@ -42,7 +42,7 @@ public final class TreasuryHoldingAccount {
             account = existing.getFirst();
         }
         if (account.isAllowOverdraft()) {
-            account.setAllowOverdraft(false);
+            account = account.withAllowOverdraft(false);
             api.updateAccount(account);
             log.warning("The Treasury account '" + NAME + "' (#" + account.getAccountId()
                     + ") allowed overdraft; it has been turned off, so it can never pay out more than it holds");
