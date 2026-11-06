@@ -43,6 +43,7 @@ class BuyCommandTest {
     void confirmLink_runsTheSameBuyConfirmedAtTheTotalShown() {
         Assertions.assertEquals("/realty buy c404 --confirm 1050.00", BuyCommand.confirmCommand("c404", 1050));
         Assertions.assertEquals("/realty buy c404 --confirm 1050.38", BuyCommand.confirmCommand("c404", 1050.376));
+        Assertions.assertEquals("/realty buy c404 --confirm 1234567.50", BuyCommand.confirmCommand("c404", 1234567.5));
     }
 
     private static FeePreview preview(double price, double total) {

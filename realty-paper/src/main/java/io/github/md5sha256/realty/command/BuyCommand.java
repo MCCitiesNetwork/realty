@@ -29,8 +29,6 @@ import org.incendo.cloud.parser.standard.DoubleParser;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -73,8 +71,7 @@ public record BuyCommand(
 
     /** The command the confirmation link runs: this buy again, confirmed at {@code total}. */
     static @NotNull String confirmCommand(@NotNull String regionId, double total) {
-        return "/realty buy " + regionId + " --confirm "
-                + BigDecimal.valueOf(Money.cents(total)).setScale(2, RoundingMode.HALF_UP).toPlainString();
+        return "/realty buy " + regionId + " --confirm " + Money.format(total);
     }
 
     /** What a buy does once the fees are looked up. */

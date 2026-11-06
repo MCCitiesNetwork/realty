@@ -1,5 +1,7 @@
 package io.github.md5sha256.realty.api;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
@@ -26,5 +28,14 @@ public final class Money {
     /** Whether {@code a} is at least {@code b}, compared in whole cents. */
     public static boolean atLeast(double a, double b) {
         return BigDecimal.valueOf(cents(a)).compareTo(BigDecimal.valueOf(cents(b))) >= 0;
+    }
+
+    /**
+     * The amount in cents as a command argument takes it: two decimals, no grouping, so
+     * {@code 1234567.5} is {@code "1234567.50"}. To show an amount to a player, use
+     * {@link CurrencyFormatter#format(double)}.
+     */
+    public static @NotNull String format(double amount) {
+        return BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 }
