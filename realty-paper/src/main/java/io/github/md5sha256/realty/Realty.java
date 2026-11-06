@@ -52,6 +52,8 @@ import io.github.md5sha256.realty.command.HelpCommand;
 import io.github.md5sha256.realty.command.HistoryCommand;
 import io.github.md5sha256.realty.command.InfoCommand;
 import io.github.md5sha256.realty.command.ListCommand;
+import io.github.md5sha256.realty.command.FeeCommandGroup;
+import io.github.md5sha256.realty.command.LevyCommandGroup;
 import io.github.md5sha256.realty.command.OfferCommandGroup;
 import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ModuleCommandGroup;
@@ -74,6 +76,7 @@ import io.github.md5sha256.realty.command.TransferCommand;
 import io.github.md5sha256.realty.command.UnrentCommand;
 import io.github.md5sha256.realty.command.UnsetCommandGroup;
 import io.github.md5sha256.realty.command.VersionCommand;
+import io.github.md5sha256.realty.command.util.Deadlines;
 import io.github.md5sha256.realty.command.util.PartyFlags;
 import io.github.md5sha256.realty.command.util.PartyNameParser;
 import io.github.md5sha256.realty.command.util.PartyResolver;
@@ -95,7 +98,10 @@ import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.ConfigRegionTag;
+import io.github.md5sha256.realty.api.LevyCatalog;
+import io.github.md5sha256.realty.fees.ConfiguredLevyCatalog;
 import io.github.md5sha256.realty.settings.DefaultParties;
+import io.github.md5sha256.realty.settings.FeeSettings;
 import io.github.md5sha256.realty.settings.GroupedRegionProfile;
 import io.github.md5sha256.realty.settings.RealtyTags;
 import io.github.md5sha256.realty.settings.RegionProfile;
@@ -113,6 +119,10 @@ import io.papermc.paper.util.Tick;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.HoldingAccount;
+import io.github.md5sha256.realty.economy.HoldingWatch;
+import io.github.md5sha256.realty.economy.SaleSettlement;
+import io.github.md5sha256.realty.economy.TreasuryHoldingAccount;
 import io.github.md5sha256.realty.economy.PartyWallets;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.economy.TreasuryEconomyProvider;
@@ -170,12 +180,25 @@ public final class Realty extends JavaPlugin {
     private final MessageContainer messageContainer = new MessageContainer();
     private final AtomicReference<Settings> settings = new AtomicReference<>();
     private final AtomicReference<DefaultParties> defaultParties = new AtomicReference<>(DefaultParties.unresolved());
+    /**
+     * Whether the default parties have been resolved at least once. Until then the Vault escrow
+     * player is not known, so the holding account is not watched.
+     */
+    private volatile boolean defaultPartiesResolved;
     private final AtomicReference<RegionProfileSettings> regionFlagSettings = new AtomicReference<>();
     private final AtomicReference<RealtyTags> realtyTags = new AtomicReference<>();
     private final AtomicReference<TaxSettings> taxSettings = new AtomicReference<>();
+    private final AtomicReference<FeeSettings> feeSettings = new AtomicReference<>();
+    private final AtomicReference<LevyCatalog> levyCatalog = new AtomicReference<>(LevyCatalog.EMPTY);
+    private final java.util.concurrent.atomic.AtomicLong levyCatalogGeneration = new java.util.concurrent.atomic.AtomicLong();
     private final RegionProfileService regionProfileService = new RegionProfileService(getLogger());
     private final SignCache signCache = new SignCache();
     private EconomyProvider economyProvider;
+    /** Where instalments wait until a sale finishes; set once the economy is chosen. */
+    private volatile @Nullable HoldingAccount holdingAccount;
+    /** Why Treasury's holding account could not be set up, or null when it was or Vault is used. */
+    private volatile @Nullable String treasuryHoldingFailure;
+    private SaleSettlement settlement;
     /** Treasury's API when Treasury provides the economy, else {@code null}. */
     private @Nullable io.paradaux.treasury.api.TreasuryApi treasury;
     private ActorContexts actorContexts;
@@ -190,7 +213,7 @@ public final class Realty extends JavaPlugin {
     private DatabaseSettings databaseSettings;
     private Database database;
     private SignTextApplicator signTextApplicator;
-    private RealtyPaperApi paperApi;
+    private RealtyPaperApiImpl paperApi;
     private RealtyEventDispatch eventDispatch;
     private ModuleLifecycleManager<Realty> moduleManager;
     private boolean failedLoad = false;
@@ -243,6 +266,11 @@ public final class Realty extends JavaPlugin {
         return this.taxSettings.get();
     }
 
+    /** The compiled sale levies; empty until the party resolver exists and the compile ran. */
+    public LevyCatalog levyCatalog() {
+        return this.levyCatalog.get();
+    }
+
     @Override
     public void onLoad() {
         try {
@@ -255,6 +283,7 @@ public final class Realty extends JavaPlugin {
             copyResourceTemplate("settings.yml", "defaults/default-settings.yml");
             copyResourceTemplate("profiles.yml", "defaults/default-profiles.yml");
             copyResourceTemplate("taxes.yml", "defaults/default-taxes.yml");
+            copyResourceTemplate("fees.yml", "defaults/default-fees.yml");
             copyResourceTemplate("database.yml", "defaults/default-database.yml");
             copyResourceTemplate("region-tags.yml", "defaults/default-region-tags.yml");
             reloadMessages();
@@ -263,6 +292,7 @@ public final class Realty extends JavaPlugin {
             this.regionFlagSettings.set(loadRegionFlagSettings());
             this.realtyTags.set(new RealtyTags(loadRegionTagSettings()));
             this.taxSettings.set(loadTaxSettings());
+            this.feeSettings.set(loadFeeSettings());
             registerTagPermissions(this.realtyTags.get());
             configureRegionFlagService(this.regionFlagSettings.get());
 
@@ -325,7 +355,14 @@ public final class Realty extends JavaPlugin {
                                 .thenApply(name -> name.orElse(personal.playerUuid().toString()))
                         : CompletableFuture.completedFuture(this.partyNames.display(party)),
                 dateTime -> DateFormatter.format(this.settings.get().dateFormat(), dateTime),
-                () -> this.settings.get().offerPaymentDurationSeconds());
+                () -> this.settings.get().offerPaymentDurationSeconds(),
+                this.levyCatalog::get,
+                // Read on each use: on Vault the escrow player resolves after startup and on reload,
+                // and Treasury's account can be archived at any time. Treasury's answer is cached
+                // for a few seconds, and this is asked off the main thread.
+                () -> this.holdingAccount != null
+                        && this.holdingAccount.usable() instanceof HoldingAccount.Usable,
+                getLogger());
         EconomyProvider economyProvider = resolveEconomyProvider();
         this.economyProvider = economyProvider;
         if (economyProvider == null) {
@@ -333,10 +370,12 @@ public final class Realty extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        this.holdingAccount = createHoldingAccount();
         this.actorContexts = new ActorContexts(this.treasury, resolveVaultPermission(), this.settings, this.logic);
         this.partyResolver = new PartyResolver(getServer(), this.treasury, this.logic);
         this.partyNames = new PartyNames(getServer(), this.treasury, Clock.systemUTC());
         resolveDefaultParties();
+        compileLevyCatalog(true);
         SafeLocationFinder safeLocationFinder = new SafeLocationFinder();
         this.signTextApplicator = new SignTextApplicator(
                 this.regionProfileService, this.logic, this.database, this.signCache, getLogger());
@@ -358,13 +397,16 @@ public final class Realty extends JavaPlugin {
                 getServer(),
                 this.executorState.mainThreadExec(),
                 task -> getServer().getScheduler().runTaskAsynchronously(this, task));
+        this.settlement = new SaleSettlement(economyProvider, this.logic, this.holdingAccount, this.eventDispatch,
+                getLogger());
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
                 () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
                 this.playerNameService,
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
-                this.actorContexts, this.eventDispatch);
+                this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement, getLogger());
+        reportStuckSalePayments();
         this.moduleManager = new ModuleLifecycleManager<>(this,
                 new ModuleLoader(getDataFolder().toPath().resolve("modules")),
                 Realty.class.getName(),
@@ -507,9 +549,16 @@ public final class Realty extends JavaPlugin {
     private void scheduleTasks() {
         BukkitScheduler scheduler = getServer().getScheduler();
         long intervalTicks = Tick.tick().fromDuration(Duration.ofMinutes(1));
+        HoldingWatch holdingWatch = new HoldingWatch(this.holdingAccount, this.logic, getLogger());
         scheduler.runTaskTimerAsynchronously(this, () -> {
             if (this.logic == null) {
                 return;
+            }
+            // First, so that no payment expires while nobody can pay into the holding account. Not
+            // before the default parties resolve: until then a Vault escrow player looks unset.
+            // Expiry still skips new-rules payments meanwhile, as holding reads as unavailable.
+            if (this.defaultPartiesResolved) {
+                holdingWatch.check();
             }
             List<RealtyBackend.ExpiredBiddingAuction> endedAuctions = this.logic.clearExpiredBiddingAuctions();
             if (!endedAuctions.isEmpty()) {
@@ -522,7 +571,11 @@ public final class Realty extends JavaPlugin {
                                     List.of(auction.winnerId()),
                                     MessageKeys.NOTIFICATION_AUCTION_WON,
                                     this.messageContainer.messageFor(MessageKeys.NOTIFICATION_AUCTION_WON,
-                                            Placeholder.unparsed("region", auction.worldGuardRegionId())),
+                                            Placeholder.unparsed("region", auction.worldGuardRegionId()),
+                                            Placeholder.unparsed("total", CurrencyFormatter.format(auction.totalDue())),
+                                            Placeholder.unparsed("price", CurrencyFormatter.format(auction.price())),
+                                            Deadlines.placeholder(this.messageContainer,
+                                                    this.settings.get().dateFormat(), auction.paymentDeadline())),
                                     wgRegion));
                         } else {
                             this.eventDispatch.fireSync(new RealtyNotificationEvent(
@@ -539,27 +592,33 @@ public final class Realty extends JavaPlugin {
                     }
                 });
             }
-            List<RealtyBackend.ExpiredBidPayment> expiredBidPayments = this.logic.clearExpiredBidPayments();
-            if (!expiredBidPayments.isEmpty()) {
-                scheduler.runTask(this, () -> {
-                    for (RealtyBackend.ExpiredBidPayment payment : expiredBidPayments) {
-                        this.eventDispatch.fireSync(new AuctionPaymentExpiredEvent(payment.regionId(),
-                                payment.worldId(),
-                                WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
-                                payment.bidderId(), payment.refundAmount()));
-                    }
-                });
+            // Each expiry recorded its refund with the expiry itself. It is tried here at once, off
+            // the main thread, and its event fired there; a failure is retried like any refund.
+            for (RealtyBackend.ExpiredBidPayment payment : this.logic.clearExpiredBidPayments()) {
+                SaleSettlement.ExpiryRefund refund = settleExpiry(payment.refundId(), payment.bidderId(),
+                        payment.refundAmount(), payment.regionId(), payment.worldId(), "bid-expired");
+                scheduler.runTask(this, () -> this.eventDispatch.fireSync(new AuctionPaymentExpiredEvent(
+                        payment.regionId(), payment.worldId(),
+                        WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
+                        payment.bidderId(), refund.amount(), refund.paid(), payment.oldRules())));
             }
-            List<RealtyBackend.ExpiredOfferPayment> expiredOfferPayments = this.logic.clearExpiredOfferPayments();
-            if (!expiredOfferPayments.isEmpty()) {
-                scheduler.runTask(this, () -> {
-                    for (RealtyBackend.ExpiredOfferPayment payment : expiredOfferPayments) {
-                        this.eventDispatch.fireSync(new OfferPaymentExpiredEvent(payment.regionId(),
-                                payment.worldId(),
-                                WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
-                                payment.offererId(), payment.refundAmount()));
-                    }
-                });
+            for (RealtyBackend.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
+                SaleSettlement.ExpiryRefund refund = settleExpiry(payment.refundId(), payment.offererId(),
+                        payment.refundAmount(), payment.regionId(), payment.worldId(), "offer-expired");
+                scheduler.runTask(this, () -> this.eventDispatch.fireSync(new OfferPaymentExpiredEvent(
+                        payment.regionId(), payment.worldId(),
+                        WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
+                        payment.offererId(), refund.amount(), refund.paid(), payment.oldRules())));
+            }
+            // Sales paid in full whose finalize failed or never ran, then the payouts of completed
+            // sales and refunds that failed before. Each is cheap when nothing is due.
+            this.paperApi.finishPendingSales();
+            this.settlement.payOutDue();
+            this.settlement.retryRefunds();
+            try {
+                this.settlement.reportStuckInstalments();
+            } catch (RuntimeException ex) {
+                getLogger().log(Level.WARNING, "Could not check for stuck instalments", ex);
             }
             List<RealtyBackend.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
             if (!expiredLeaseholds.isEmpty()) {
@@ -697,9 +756,148 @@ public final class Realty extends JavaPlugin {
                 getLogger().log(Level.SEVERE, "Failed to resolve the default parties", ex);
                 resolved = DefaultParties.unresolved();
             }
-            this.defaultParties.set(resolved);
+            DefaultParties previous = this.defaultParties.getAndSet(resolved);
+            this.defaultPartiesResolved = true;
             resolved.errors().forEach(error -> getLogger().severe(error));
+            warnIfEscrowChanged(previous, resolved);
+            warnIfNoHoldingAccount();
         });
+    }
+
+    /**
+     * On Vault the escrow player is the holding account. Money it already holds stays in that
+     * player's account when another is named, and later payouts and refunds come from the new one.
+     */
+    private void warnIfEscrowChanged(@NotNull DefaultParties previous, @NotNull DefaultParties resolved) {
+        if (this.treasury != null || previous.escrow() == null
+                || java.util.Objects.equals(previous.escrow(), resolved.escrow())) {
+            return;
+        }
+        try {
+            if (this.logic.holdsSaleMoney()) {
+                getLogger().warning("The escrow player changed from " + previous.escrow() + " to "
+                        + resolved.escrow() + " while sales are holding money. The money already held stays with "
+                        + previous.escrow() + "; move it to the new escrow player by hand, or payouts and"
+                        + " refunds from the new one may fail.");
+            }
+        } catch (RuntimeException ex) {
+            getLogger().log(Level.WARNING, "Could not check whether the previous escrow player holds sale money", ex);
+        }
+    }
+
+    /**
+     * The holding account: Realty's Treasury SYSTEM account, or on Vault the {@code escrow} player.
+     * Treasury's is found or created here, which does Treasury I/O once at startup.
+     */
+    private @NotNull HoldingAccount createHoldingAccount() {
+        if (this.treasury == null) {
+            return HoldingAccount.vault(this::defaultParties);
+        }
+        try {
+            return TreasuryHoldingAccount.create(this.treasury, getLogger());
+        } catch (RuntimeException ex) {
+            this.treasuryHoldingFailure = ex.getMessage() != null ? ex.getMessage() : ex.toString();
+            getLogger().log(Level.SEVERE, "Could not find or create Realty's Treasury holding account", ex);
+            return HoldingAccount.none("it could not be set up in Treasury (" + this.treasuryHoldingFailure + ")");
+        }
+    }
+
+    private void warnIfNoHoldingAccount() {
+        HoldingAccount holding = this.holdingAccount;
+        if (holding == null || holding.party().isPresent()) {
+            return;
+        }
+        String treasuryFailure = this.treasuryHoldingFailure;
+        if (this.treasury != null) {
+            getLogger().warning("Could not set up Realty's Treasury holding account: "
+                    + (treasuryFailure != null ? treasuryFailure : "unknown reason")
+                    + ". Auctions will not move to payment and offers cannot be accepted.");
+        } else {
+            getLogger().warning("No holding account: on Vault, set 'escrow' in settings.yml. Auctions will not move"
+                    + " to payment and offers cannot be accepted until it is set.");
+        }
+    }
+
+    /**
+     * Tries an expiry's refund at once. A failure here, even an unexpected one, leaves the refund
+     * row pending for the next run, and the event says it was not paid.
+     */
+    private @NotNull SaleSettlement.ExpiryRefund settleExpiry(@Nullable Integer refundId, @NotNull UUID buyerId,
+                                                              double amount, @NotNull String regionName,
+                                                              @Nullable UUID worldId, @NotNull String reason) {
+        try {
+            return this.settlement.settleExpiry(refundId, buyerId, amount, regionName, worldId, reason);
+        } catch (RuntimeException ex) {
+            // The refund row was written with the expiry. If the failure came before its claim, it is
+            // still pending and is retried; after it, the row stays claimed and is never retried.
+            getLogger().log(Level.SEVERE, "Settling refund #" + refundId + " of " + CurrencyFormatter.format(amount)
+                    + " to " + buyerId + " for " + regionName + " failed. If it was already claimed it is stuck"
+                    + " as 'paying' and needs an admin (it is listed at the next startup); otherwise it is tried"
+                    + " again.", ex);
+            return new SaleSettlement.ExpiryRefund(refundId == null ? 0 : amount, false);
+        }
+    }
+
+    /** Once at startup, off the main thread: payments a crash left half done, for an admin. */
+    private void reportStuckSalePayments() {
+        SaleSettlement current = this.settlement;
+        this.executorState.dbExec().execute(() -> {
+            try {
+                current.reportStuck();
+            } catch (RuntimeException ex) {
+                getLogger().log(Level.SEVERE, "Could not check for sale payments left half done", ex);
+            }
+        });
+    }
+
+    /**
+     * Compiles the levies of fees.yml. At startup it runs at once, so that no sale can lock its
+     * fees, on the scheduler or by a command, before the levies are known. On a reload it runs in
+     * the background, because a recipient is looked up in Treasury and the database. A compile that
+     * fails keeps the catalog in use: none at startup, the previous one on a reload.
+     *
+     * @param now whether to compile on this thread, as at startup
+     */
+    private void compileLevyCatalog(boolean now) {
+        FeeSettings current = this.feeSettings.get();
+        PartyResolver resolver = this.partyResolver;
+        long generation = this.levyCatalogGeneration.incrementAndGet();
+        Runnable compile = () -> {
+            LevyCatalog compiled;
+            try {
+                compiled = ConfiguredLevyCatalog.compile(current, resolver, getLogger());
+            } catch (RuntimeException ex) {
+                getLogger().log(Level.SEVERE, "Failed to compile the levies of fees.yml; the levies in use"
+                        + " are kept", ex);
+                return;
+            }
+            // dbExec has several threads, so an older compile can finish after a newer one.
+            synchronized (this.levyCatalogGeneration) {
+                if (this.levyCatalogGeneration.get() != generation) {
+                    return;
+                }
+                this.levyCatalog.set(compiled);
+            }
+            warnMissingLevyChoices(compiled);
+        };
+        if (now) {
+            compile.run();
+        } else {
+            this.executorState.dbExec().execute(compile);
+        }
+    }
+
+    /** Logs a warning for each levy a plot or an authority has chosen that the catalog no longer has. */
+    private void warnMissingLevyChoices(@NotNull LevyCatalog catalog) {
+        try {
+            for (String name : ConfiguredLevyCatalog.missingChoices(catalog, this.logic.listChosenLevyNames())) {
+                getLogger().warning("The levy '" + name + "' is chosen for some plots or authorities, but fees.yml"
+                        + " no longer defines it. They use their authority's choice or the default levy instead"
+                        + " until the choice is changed.");
+            }
+        } catch (RuntimeException ex) {
+            getLogger().log(Level.WARNING, "Could not check the levy choices against fees.yml", ex);
+        }
     }
 
     private DatabaseSettings loadDatabaseSettings() throws IOException {
@@ -720,6 +918,11 @@ public final class Realty extends JavaPlugin {
     private TaxSettings loadTaxSettings() throws IOException {
         ConfigurationNode settingsRoot = copyDefaultsYaml("taxes");
         return settingsRoot.get(TaxSettings.class);
+    }
+
+    private FeeSettings loadFeeSettings() throws IOException {
+        ConfigurationNode settingsRoot = copyDefaultsYaml("fees");
+        return settingsRoot.get(FeeSettings.class);
     }
 
     private void unregisterTagPermissions(@NotNull RealtyTags realtyTags) {
@@ -817,7 +1020,9 @@ public final class Realty extends JavaPlugin {
         configureRegionFlagService(this.regionFlagSettings.get());
         this.profileApplicator.applyAll(this.settings.get().profileReapplyPerTick());
         this.taxSettings.set(loadTaxSettings());
+        this.feeSettings.set(loadFeeSettings());
         resolveDefaultParties();
+        compileLevyCatalog(false);
         reloadMessages();
         warnOrphanedTags();
         reloadModules();
@@ -921,10 +1126,11 @@ public final class Realty extends JavaPlugin {
         pluginManager.registerEvents(
                 new SubregionWandListener(this, subregionWand, subregionWandManager,
                         messageContainer), this);
+        PartyRecipients partyRecipients =
+                new PartyRecipients(getServer(), this.treasury, resolveVaultPermission(), this.settings);
         pluginManager.registerEvents(
                 new RegionNotificationListener(this.eventDispatch, messageContainer, this.partyNames,
-                        new PartyRecipients(getServer(), this.treasury, resolveVaultPermission(), this.settings),
-                        executorState, getLogger()), this);
+                        partyRecipients, executorState, this.settings, getLogger()), this);
 
         SuggestionProvider<Source> partySuggestions =
                 PartyFlags.suggestions(this.treasury, this.logic, executorState.dbExec());
@@ -946,7 +1152,8 @@ public final class Realty extends JavaPlugin {
                         this.settings,
                         messageContainer,
                         this.partyNames),
-                new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch),
+                new BuyCommand(paperApi, this.actorContexts, executorState, messageContainer, this.eventDispatch,
+                        this.partyNames),
                 new CreateCommand(getServer(), paperApi, this.defaultParties, this.partyResolver, partySuggestions,
                         executorState, messageContainer, this.eventDispatch),
                 new RegisterCommand(getServer(), paperApi, this.defaultParties, this.partyResolver, partySuggestions,
@@ -962,14 +1169,22 @@ public final class Realty extends JavaPlugin {
                         this.database,
                         this.realtyTags,
                         messageContainer,
-                        this.partyNames),
+                        this.partyNames,
+                        getLogger()),
                 new ListCommand(paperApi, this.partyResolver, partySuggestions, executorState,
                         messageContainer, this.partyNames),
                 new OfferCommandGroup(getServer(),
                         paperApi,
                         this.actorContexts,
                         executorState,
-                        messageContainer),
+                        messageContainer,
+                        this.partyNames,
+                        this.settings),
+                new FeeCommandGroup(paperApi, this.actorContexts, this.partyResolver, partySuggestions,
+                        executorState, messageContainer, this.partyNames, partyRecipients, this.eventDispatch,
+                        getLogger()),
+                new LevyCommandGroup(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.partyNames),
                 new ExtendCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentCommand(paperApi, messageContainer, this.eventDispatch),
                 new RentableCommand(paperApi, this.actorContexts, executorState, messageContainer),

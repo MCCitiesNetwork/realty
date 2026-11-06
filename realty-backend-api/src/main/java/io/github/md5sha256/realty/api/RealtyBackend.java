@@ -18,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -134,6 +135,8 @@ public interface RealtyBackend {
      * @param biddingEndsAt   when bidding ends unless someone bids; null once the winner is paying
      * @param paymentDeadline when the winner must have paid by; null while bidding
      * @param amountPaid      how much the winner has paid so far; 0 while bidding
+     * @param fees            the fees locked when the winner began paying; null while bidding, and for
+     *                        a payment begun before sale fees
      */
     record ActiveAuction(@NotNull String regionId,
                          @NotNull UUID worldId,
@@ -142,7 +145,8 @@ public interface RealtyBackend {
                          @Nullable FreeholdContractBid highestBid,
                          @Nullable Instant biddingEndsAt,
                          @Nullable Instant paymentDeadline,
-                         double amountPaid) {
+                         double amountPaid,
+                         @Nullable FeeQuote fees) {
 
         public enum Phase {
             BIDDING,
@@ -162,6 +166,8 @@ public interface RealtyBackend {
         record BidTooLowMinimum(double minBid) implements BidResult {}
         record BidTooLowCurrent(double currentHighest) implements BidResult {}
         record AlreadyHighestBidder() implements BidResult {}
+        /** The bidding window has passed: the auction waits to be settled and takes no more bids. */
+        record BiddingClosed() implements BidResult {}
         /** A listener cancelled the {@code AuctionBidEvent}. Only {@code RealtyPaperApi} returns this. */
         record Cancelled() implements BidResult {}
     }
@@ -373,6 +379,12 @@ public interface RealtyBackend {
          * {@code setTitleHolder} was asked to clear a title nobody holds.
          */
         record NoChange() implements SetTitleHolderResult {}
+        /**
+         * A buyer is paying for the region, through a won auction or an accepted offer. Its
+         * proceeds are locked to the current seller, so the title may not change hands until
+         * that sale finishes or falls through.
+         */
+        record SaleInPayment() implements SetTitleHolderResult {}
     }
 
     /** Sets the title holder with no check of who is acting. */
@@ -443,9 +455,11 @@ public interface RealtyBackend {
     sealed interface BuyResult {
         /**
          * @param undo what {@link #rollbackBuy} needs to put the region back as it was
+         * @param fees the fees on the sale, worked out under the reservation; nothing is saved
+         *             for them until {@link #recordBuyFees} runs
          */
         record Success(double price, @NotNull Party authority, @Nullable UUID titleHolderId,
-                       @NotNull BuyUndo undo) implements BuyResult {}
+                       @NotNull BuyUndo undo, @NotNull FeeQuote fees) implements BuyResult {}
         record NoFreeholdContract() implements BuyResult {}
         record NotForFreehold() implements BuyResult {}
         record IsAuthority() implements BuyResult {}
@@ -506,6 +520,32 @@ public interface RealtyBackend {
                      @NotNull UUID worldId,
                      @NotNull UUID buyerId,
                      @NotNull BuyResult.Success reserved);
+
+    /**
+     * Records the fees of a buy whose money has moved: one line per fee and one for the seller's
+     * proceeds, all already paid. In the same transaction the change of titleholder clears the
+     * fees it leaves without their basis: the region's agent fees and the previous titleholder's.
+     *
+     * @param seller who sold the region: its previous titleholder, or its authority
+     * @param quote  the fees {@link BuyResult.Success#fees()} reported
+     */
+    void recordBuyFees(@NotNull String worldGuardRegionId,
+                       @NotNull UUID worldId,
+                       @NotNull UUID buyerId,
+                       @NotNull Party seller,
+                       @NotNull FeeQuote quote);
+
+    /**
+     * The fees a sale of the freehold to {@code buyerId} at {@code price} would carry now, worked
+     * out as a sale would lock them. While an auction runs, its auctioneer is the agent running the
+     * sale, so their agent fee applies; otherwise no agent runs it. Nothing is saved.
+     *
+     * @return the quote, or {@link FeeQuote#none(double)} when the region has no freehold
+     */
+    @NotNull FeeQuote previewFees(@NotNull String worldGuardRegionId,
+                                  @NotNull UUID worldId,
+                                  @NotNull UUID buyerId,
+                                  double price);
 
     // --- Create Freehold ---
 
@@ -1034,13 +1074,16 @@ public interface RealtyBackend {
      *
      * @param price  the listed price, or null when none is set
      * @param offers its open offers, oldest first, each with its payment once accepted
+     * @param fees   the fees locked when an offer was accepted; null until then, and for a payment
+     *               begun before sale fees
      */
     record OfferListing(@NotNull String regionId,
                         @NotNull UUID worldId,
                         @NotNull Party authority,
                         @Nullable Party titleHolder,
                         @Nullable Double price,
-                        @NotNull List<InboundOfferView> offers) {}
+                        @NotNull List<InboundOfferView> offers,
+                        @Nullable FeeQuote fees) {}
 
     /** Every freehold that accepts offers or is being paid for through one, by region id. */
     @NotNull List<OfferListing> listOfferListings();
@@ -1051,12 +1094,20 @@ public interface RealtyBackend {
                                              boolean acceptingOffers);
 
     sealed interface AcceptOfferResult {
-        record Success() implements AcceptOfferResult {}
+        /**
+         * @param price           the offer's price
+         * @param totalDue        what the offerer now owes: the price plus the buyer's fees, as locked
+         * @param paymentDeadline when the offerer must have paid by
+         */
+        record Success(double price, double totalDue, @NotNull LocalDateTime paymentDeadline)
+                implements AcceptOfferResult {}
         record NotSanctioned() implements AcceptOfferResult {}
         record NoOffer() implements AcceptOfferResult {}
         record AuctionExists() implements AcceptOfferResult {}
         record AlreadyAccepted() implements AcceptOfferResult {}
         record InsertFailed() implements AcceptOfferResult {}
+        /** No holding account is configured, so the offerer's instalments would have nowhere to wait. */
+        record NoHoldingAccount() implements AcceptOfferResult {}
         /** A listener cancelled the {@code OfferAcceptEvent}. Only {@code RealtyPaperApi} returns this. */
         record Cancelled() implements AcceptOfferResult {}
     }
@@ -1072,13 +1123,28 @@ public interface RealtyBackend {
 
     // --- Pay Offer ---
 
+    /**
+     * Payments are counted against the payment's total due: the price plus any buyer-paid fees.
+     * {@code oldRules} marks a payment begun before sale fees, which pays the seller directly.
+     * Amounts are rounded to cents, half up, and compared in whole cents.
+     */
     sealed interface PayOfferResult {
         record Success(double newTotal, double remaining,
-                       @NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
-        record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId) implements PayOfferResult {}
+                       @NotNull Party authority, @Nullable UUID titleHolderId,
+                       boolean oldRules) implements PayOfferResult {}
+        /**
+         * @param fees    the fees locked for the sale; {@link FeeQuote#none(double)} under the old rules
+         * @param saleRef the {@code offerId} the fee lines are kept under
+         */
+        record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId,
+                         @NotNull FeeQuote fees, boolean oldRules, int saleRef) implements PayOfferResult {}
         record NoPaymentRecord() implements PayOfferResult {}
         record PaymentExpired() implements PayOfferResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayOfferResult {}
+        /** An earlier instalment is still pending: its money has not been confirmed as moved. */
+        record PaymentInProgress() implements PayOfferResult {}
+        /** The amount is zero or less once rounded to cents. Nothing was recorded. */
+        record InvalidAmount() implements PayOfferResult {}
     }
 
     @NotNull PayOfferResult payOffer(@NotNull String worldGuardRegionId,
@@ -1086,6 +1152,22 @@ public interface RealtyBackend {
                                      @NotNull UUID offererId,
                                      double amount);
 
+    /**
+     * Confirms an instalment {@link #payOffer} counted as pending, once its money has moved into
+     * the holding account (or, under the old rules, to the seller). Only confirmed money counts
+     * towards a refund or a finalize.
+     *
+     * @param oldRules whether the payment follows the old rules, as {@link #payOffer} reported: its
+     *                 instalment went to the seller, not the holding account. The caller passes it
+     *                 because the payment may be gone by now.
+     * @return {@code false} when the payment is gone, as when the region was deleted while the money
+     *         moved; under the new rules the amount is then recorded as a refund owed to the buyer,
+     *         under the old rules it is only logged, because the holding account never received it
+     */
+    boolean confirmPayOffer(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID offererId,
+                            double amount, boolean oldRules);
+
+    /** Drops an instalment {@link #payOffer} counted as pending whose money did not move. */
     void rollbackPayOffer(@NotNull String worldGuardRegionId,
                           @NotNull UUID worldId,
                           @NotNull UUID offererId,
@@ -1095,20 +1177,37 @@ public interface RealtyBackend {
      * Commit the ownership transfer for a fully-paid offer purchase. Called ONLY
      * after the economy payment has succeeded, so the region is never handed over
      * before the money moves. Idempotent and a no-op if the record isn't fully paid.
+     *
+     * @return whether the transfer was applied by this call
      */
-    void finalizeOfferPurchase(@NotNull String worldGuardRegionId,
+    boolean finalizeOfferPurchase(@NotNull String worldGuardRegionId,
                                @NotNull UUID worldId,
                                @NotNull UUID offererId);
 
     // --- Pay Bid ---
 
+    /**
+     * Payments are counted against the payment's total due: the price plus any buyer-paid fees.
+     * {@code oldRules} marks a payment begun before sale fees, which pays the seller directly.
+     * Amounts are rounded to cents, half up, and compared in whole cents.
+     */
     sealed interface PayBidResult {
         record Success(double newTotal, double remaining,
-                       @NotNull Party authority, @Nullable UUID titleHolderId) implements PayBidResult {}
-        record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId) implements PayBidResult {}
+                       @NotNull Party authority, @Nullable UUID titleHolderId,
+                       boolean oldRules) implements PayBidResult {}
+        /**
+         * @param fees    the fees locked for the sale; {@link FeeQuote#none(double)} under the old rules
+         * @param saleRef the {@code bidId} the fee lines are kept under
+         */
+        record FullyPaid(@NotNull Party authority, @Nullable UUID titleHolderId,
+                         @NotNull FeeQuote fees, boolean oldRules, int saleRef) implements PayBidResult {}
         record NoPaymentRecord() implements PayBidResult {}
         record PaymentExpired() implements PayBidResult {}
         record ExceedsAmountOwed(double amountOwed) implements PayBidResult {}
+        /** An earlier instalment is still pending: its money has not been confirmed as moved. */
+        record PaymentInProgress() implements PayBidResult {}
+        /** The amount is zero or less once rounded to cents. Nothing was recorded. */
+        record InvalidAmount() implements PayBidResult {}
     }
 
     @NotNull PayBidResult payBid(@NotNull String worldGuardRegionId,
@@ -1116,6 +1215,11 @@ public interface RealtyBackend {
                                  @NotNull UUID bidderId,
                                  double amount);
 
+    /** As {@link #confirmPayOffer}, for an auction payment. */
+    boolean confirmPayBid(@NotNull String worldGuardRegionId, @NotNull UUID worldId, @NotNull UUID bidderId,
+                          double amount, boolean oldRules);
+
+    /** Drops an instalment {@link #payBid} counted as pending whose money did not move. */
     void rollbackPayBid(@NotNull String worldGuardRegionId,
                         @NotNull UUID worldId,
                         @NotNull UUID bidderId,
@@ -1125,18 +1229,31 @@ public interface RealtyBackend {
      * Commit the ownership transfer for a fully-paid auction bid. Called ONLY
      * after the economy payment has succeeded, so the region is never handed over
      * before the money moves. Idempotent and a no-op if the record isn't fully paid.
+     *
+     * @return whether the transfer was applied by this call
      */
-    void finalizeBidPurchase(@NotNull String worldGuardRegionId,
+    boolean finalizeBidPurchase(@NotNull String worldGuardRegionId,
                              @NotNull UUID worldId,
                              @NotNull UUID bidderId);
 
     // --- Expired Bidding Auctions ---
 
+    /**
+     * An auction whose bidding has closed.
+     *
+     * @param winnerId        the highest bidder, now asked to pay, or null when nobody bid
+     * @param price           the winning bid, or 0 when nobody bid
+     * @param totalDue        what the winner owes: the price plus the buyer's fees, as locked; 0 when nobody bid
+     * @param paymentDeadline when the winner must have paid by, or null when nobody bid
+     */
     record ExpiredBiddingAuction(
             @NotNull String worldGuardRegionId,
             @NotNull UUID worldId,
             @Nullable UUID winnerId,
-            @NotNull UUID auctioneerId
+            @NotNull UUID auctioneerId,
+            double price,
+            double totalDue,
+            @Nullable LocalDateTime paymentDeadline
     ) {}
 
     @NotNull List<ExpiredBiddingAuction> clearExpiredBiddingAuctions();
@@ -1144,22 +1261,155 @@ public interface RealtyBackend {
     // --- Expired Bid Payments ---
 
     /**
-     * @param worldId null if the region row has already been deleted
+     * @param refundAmount what the bidder had paid
+     * @param worldId      null if the region row has already been deleted
+     * @param oldRules     whether the payment began before sale fees, so its instalments went to the seller
+     * @param refundId     the {@link DueRefund} recorded for what was paid, in the transaction that
+     *                     expired the payment; null when nothing is owed back
      */
     record ExpiredBidPayment(@NotNull UUID bidderId, double refundAmount, @NotNull String regionId,
-                              @Nullable UUID worldId) {}
+                              @Nullable UUID worldId, boolean oldRules, @Nullable Integer refundId) {}
 
     @NotNull List<ExpiredBidPayment> clearExpiredBidPayments();
 
     // --- Expired Offer Payments ---
 
     /**
-     * @param worldId null if the region row has already been deleted
+     * @param refundAmount what the offerer had paid
+     * @param worldId      null if the region row has already been deleted
+     * @param oldRules     whether the payment began before sale fees, so its instalments went to the seller
+     * @param refundId     the {@link DueRefund} recorded for what was paid, in the transaction that
+     *                     expired the payment; null when nothing is owed back
      */
     record ExpiredOfferPayment(@NotNull UUID offererId, double refundAmount, @NotNull String regionId,
-                                @Nullable UUID worldId) {}
+                                @Nullable UUID worldId, boolean oldRules, @Nullable Integer refundId) {}
 
     @NotNull List<ExpiredOfferPayment> clearExpiredOfferPayments();
+
+    /**
+     * Pauses the deadline of every payment in progress under the new rules, as while the holding
+     * account cannot be used and so nobody can pay: each deadline becomes the full payment
+     * duration from now by the database clock, an auction's own deadline with it, and never
+     * earlier than it was. Old-rules payments pay the seller, not the holding account, and are
+     * left alone. The Paper plugin calls this each minute while the holding account is unusable.
+     *
+     * @return the number of payments whose deadline was moved
+     */
+    int pausePaymentDeadlines();
+
+    // --- Sale payouts and refunds ---
+
+    /**
+     * A line of money a completed sale owes from the holding account, due to be paid now.
+     *
+     * @param lineKind {@code fee} or {@code proceeds}
+     * @param source   what the line is for, such as a levy's name or a fee's role
+     * @param worldId  the region's world
+     * @param attempts  the failed payout attempts so far
+     * @param salePrice the price the region sold for
+     * @param auction   whether the region was sold at auction
+     */
+    record DuePayout(int id, @NotNull String lineKind, @NotNull String source, @NotNull Party recipient,
+                     double amount, @NotNull String regionName, @Nullable UUID worldId, @NotNull UUID buyerId,
+                     int attempts, double salePrice, boolean auction) {}
+
+    /**
+     * A refund owed to a buyer from the holding account.
+     *
+     * @param reason   why it is owed, such as {@code bid-expired} or {@code region-deleted}
+     * @param attempts the failed payout attempts so far
+     */
+    record DueRefund(int id, @NotNull UUID buyerId, double amount, @NotNull String regionName,
+                     @Nullable UUID worldId, @NotNull String reason, int attempts) {}
+
+    /**
+     * The payout lines due now: those of a completed sale not yet tried, and failed ones whose
+     * retry interval has passed and that have attempts left.
+     */
+    @NotNull List<DuePayout> duePayouts();
+
+    /**
+     * Claims a payout line for this caller, so that no other run pays it too. The line must still
+     * be due: claimed by nobody, paid by nobody, with attempts left and its retry interval passed.
+     *
+     * @return the line's failed attempts so far, read under the claim, or empty when it was not
+     *         claimed
+     */
+    @NotNull OptionalInt claimPayout(int id);
+
+    void markPayoutPaid(int id);
+
+    /** Records a failed payout attempt; the line is retried after the retry interval. */
+    void markPayoutFailed(int id, @NotNull String error);
+
+    /** The pending refunds due now: never tried, or failed with the retry interval passed. */
+    @NotNull List<DueRefund> dueRefunds();
+
+    /**
+     * Claims a pending refund for this caller, so that no other run pays it too. The refund must
+     * still be due: claimed by nobody, with attempts left and its retry interval passed.
+     *
+     * @return the refund's failed attempts so far, read under the claim, or empty when it was not
+     *         claimed
+     */
+    @NotNull OptionalInt claimRefund(int id);
+
+    /** Removes a refund that has been paid. */
+    void markRefundPaid(int id);
+
+    /** Records a failed refund attempt; the refund is retried after the retry interval. */
+    void markRefundFailed(int id, @NotNull String error);
+
+    /**
+     * The payout lines claimed and never marked paid or failed, as after a crash mid-payout. Whether
+     * their money moved is unknown, so they are left for an admin and never retried automatically.
+     */
+    @NotNull List<DuePayout> stuckPayouts();
+
+    /** The refunds claimed and never marked paid or failed; see {@link #stuckPayouts()}. */
+    @NotNull List<DueRefund> stuckRefunds();
+
+    /**
+     * Whether the holding account holds money for any sale: instalments paid under the new rules,
+     * payouts of completed sales not yet made, or refunds not yet paid.
+     */
+    boolean holdsSaleMoney();
+
+    /**
+     * A sale paid in full whose ownership transfer was never applied: its finalize failed, or the
+     * server stopped after the final transfer. Under the new rules the money is in the holding
+     * account; under the old rules it went to the seller, and only the title is left to pass.
+     *
+     * @param kind          an auction or an accepted offer
+     * @param titleHolderId the titleholder selling, or null when the authority sells
+     * @param price         the sale's price
+     * @param fees          the fees locked for the sale; {@link FeeQuote#none(double)} under the old rules
+     * @param oldRules      whether the payment began before sale fees, so nothing is paid out
+     */
+    record PendingFinalize(@NotNull Kind kind, @NotNull String regionId, @NotNull UUID worldId,
+                           @NotNull UUID buyerId, @Nullable UUID titleHolderId, double price,
+                           @NotNull FeeQuote fees, boolean oldRules) {
+
+        public enum Kind { BID, OFFER }
+    }
+
+    /** Every sale {@link PendingFinalize} describes, for the scheduler to finish. */
+    @NotNull List<PendingFinalize> listFullyPaidUnfinalized();
+
+    /**
+     * An instalment counted as pending long ago and never confirmed or rolled back, as after a crash
+     * while its money moved. Whether the money moved is unknown, so it is never credited or refunded
+     * automatically, and its payment cannot expire until an admin clears it.
+     *
+     * @param kind   an auction or an accepted offer
+     * @param saleId the bidId or offerId
+     */
+    record StuckInstalment(@NotNull PendingFinalize.Kind kind, int saleId, @NotNull String regionId,
+                           @NotNull UUID worldId, @NotNull UUID buyerId, double amount,
+                           @NotNull LocalDateTime pendingSince) {}
+
+    /** The instalments pending for longer than {@code minutes} by the database clock. */
+    @NotNull List<StuckInstalment> stuckInstalments(int minutes);
 
     // --- Expired Leaseholds ---
 
@@ -1262,6 +1512,197 @@ public interface RealtyBackend {
                                          @Nullable UUID playerId,
                                          int limit,
                                          int offset);
+
+    // --- Player Fees ---
+
+    sealed interface SetFeeResult {
+        /**
+         * @param recipient       who the fee is paid to
+         * @param needsApproval   whether the fee waits for the seller's approval before it applies
+         * @param previousPercent the recipient's fee it replaced, or {@code null} if it had none
+         */
+        record Success(@NotNull Party recipient, boolean needsApproval, @Nullable Double previousPercent)
+                implements SetFeeResult {}
+        record NoFreehold() implements SetFeeResult {}
+        /** The actor holds no role on the region: not its titleholder, an agent, or its authority. */
+        record NotAllowed() implements SetFeeResult {}
+        /** The fee was to be set for the authority by someone who does not manage it. */
+        record NotAuthorityManager() implements SetFeeResult {}
+        /** The recipient already has this fee, on the same side at the same percentage, under the same role. */
+        record NoChange() implements SetFeeResult {}
+        /** A listener cancelled the {@code FeeChangeEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements SetFeeResult {}
+        /**
+         * The region has a sale in progress: an auction that has not ended, whether still taking
+         * bids or waiting for a bidder to pay, or an offer not yet accepted. The fee would raise
+         * what its buyer pays: a new buyer-paid fee, a higher one, or a seller-paid fee moved to
+         * the buyer.
+         */
+        record SaleOpen() implements SetFeeResult {}
+    }
+
+    /**
+     * Sets the actor's fee on a freehold, replacing any fee the same recipient already has there.
+     * The fee is paid to the actor personally, or with {@code asAuthority} to the authority. It is
+     * recorded under the role the actor holds: {@code titleholder}, else {@code agent}, else
+     * {@code authority} when the actor personally is the authority. A buyer-paid fee applies at
+     * once; a seller-paid fee applies at once only when the seller sets it or receives it, and
+     * otherwise waits for the seller's approval. While the region has an auction not yet ended or
+     * an offer not yet accepted, a fee that would raise what the buyer pays is refused with
+     * {@link SetFeeResult.SaleOpen}; lowering a fee, or any seller-paid fee, still goes ahead.
+     *
+     * @param percent     the percentage of the price; must be greater than 0
+     * @param asAuthority whether the fee is paid to the authority, which the actor must manage
+     * @throws IllegalArgumentException when {@code percent} is not greater than 0
+     */
+    @NotNull SetFeeResult setFee(@NotNull String worldGuardRegionId,
+                                 @NotNull UUID worldId,
+                                 @NotNull ActorContext ctx,
+                                 double percent,
+                                 @NotNull FeeSide side,
+                                 boolean asAuthority);
+
+    sealed interface RemoveFeeResult {
+        record Success() implements RemoveFeeResult {}
+        record NoFreehold() implements RemoveFeeResult {}
+        /** The recipient has no fee on the region. */
+        record NoFee() implements RemoveFeeResult {}
+        record NotAuthorityManager() implements RemoveFeeResult {}
+    }
+
+    /**
+     * Removes the fee paid to the actor, or with {@code asAuthority} the fee paid to the authority.
+     */
+    @NotNull RemoveFeeResult removeFee(@NotNull String worldGuardRegionId,
+                                       @NotNull UUID worldId,
+                                       @NotNull ActorContext ctx,
+                                       boolean asAuthority);
+
+    sealed interface ResolveFeeResult {
+        record Success(@NotNull FeeSide side, double percent) implements ResolveFeeResult {}
+        record NoFreehold() implements ResolveFeeResult {}
+        /** The actor is not the seller: the titleholder, or a manager of the authority while there is none. */
+        record NotSeller() implements ResolveFeeResult {}
+        /** The recipient has no seller-paid fee awaiting approval on the region. */
+        record NoPendingFee() implements ResolveFeeResult {}
+    }
+
+    /** The seller approves the seller-paid fee paid to {@code recipient}, so it applies to sales. */
+    @NotNull ResolveFeeResult approveFee(@NotNull String worldGuardRegionId,
+                                         @NotNull UUID worldId,
+                                         @NotNull ActorContext ctx,
+                                         @NotNull Party recipient);
+
+    /** The seller refuses the seller-paid fee paid to {@code recipient}, which deletes it. */
+    @NotNull ResolveFeeResult rejectFee(@NotNull String worldGuardRegionId,
+                                        @NotNull UUID worldId,
+                                        @NotNull ActorContext ctx,
+                                        @NotNull Party recipient);
+
+    /**
+     * One fee that may apply to a sale of a region.
+     *
+     * @param source    the levy's name, or for a player fee its role label, such as {@code agent fee}
+     *                  (see {@link FeeLine#playerFeeSource(String)})
+     * @param recipient who receives it; {@code null} for a levy paid to the region's authority
+     * @param side      who pays it
+     * @param rate      the rate for display, such as {@code 3%} or {@code 2–8% by plots held}
+     * @param approved  whether it applies to sales; a levy always does
+     * @param role      the role a player fee was set under, or {@code null} for the levy
+     */
+    record FeeListing(@NotNull String source,
+                      @Nullable Party recipient,
+                      @NotNull FeeSide side,
+                      @NotNull String rate,
+                      boolean approved,
+                      @Nullable String role) {}
+
+    /**
+     * The fees on a freehold: the levy that applies first, when one does, then the player fees
+     * in the order they were set. Empty when the region has no freehold.
+     */
+    @NotNull List<FeeListing> listFees(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    // --- Levies ---
+
+    sealed interface SetLevyResult {
+        /**
+         * @param previous the levy chosen before, or {@code null} if there was none
+         * @param pinned   for an authority's choice, how many of its freeholds with a sale in
+         *                 progress were given their current levy as their own choice, so that it does
+         *                 not change under their buyers; always 0 for one freehold's choice
+         */
+        record Success(@Nullable String previous, int pinned) implements SetLevyResult {
+            public Success(@Nullable String previous) {
+                this(previous, 0);
+            }
+        }
+        record NoFreehold() implements SetLevyResult {}
+        record NotAuthorityManager() implements SetLevyResult {}
+        /** No levy of that name is defined. */
+        record UnknownLevy() implements SetLevyResult {}
+        /** The levy is limited to another kind of authority than the one it would apply to. */
+        record WrongAuthorityKind() implements SetLevyResult {}
+        /** That levy is already chosen, or there is no choice to clear. */
+        record NoChange() implements SetLevyResult {}
+        /** A listener cancelled the {@code LevyChangeEvent}. Only {@code RealtyPaperApi} returns this. */
+        record Cancelled() implements SetLevyResult {}
+        /**
+         * A sale is in progress (an auction still taking bids or waiting for a bidder to pay, or
+         * an offer not yet accepted), so the levy may not change. For one freehold, {@code plots}
+         * is 1. For an authority's choice, it is how many of its freeholds with a sale in progress
+         * have no levy now: gaining one would charge their buyers more, and having none, they
+         * cannot be pinned to it.
+         */
+        record SaleOpen(int plots) implements SetLevyResult {}
+    }
+
+    /**
+     * Chooses the levy for one freehold. The actor must manage its authority, or bypass. The name
+     * is matched without regard to case, and the levy's own name is stored. Refused with
+     * {@link SetLevyResult.SaleOpen} while the freehold has an auction not yet ended or an offer not
+     * yet accepted, as is {@link #clearRegionLevy}.
+     */
+    @NotNull SetLevyResult setRegionLevy(@NotNull String worldGuardRegionId,
+                                         @NotNull UUID worldId,
+                                         @NotNull ActorContext ctx,
+                                         @NotNull String levyName);
+
+    /** Clears one freehold's levy choice, so it falls back to its authority's choice or the default. */
+    @NotNull SetLevyResult clearRegionLevy(@NotNull String worldGuardRegionId,
+                                           @NotNull UUID worldId,
+                                           @NotNull ActorContext ctx);
+
+    /**
+     * Chooses the levy for every freehold of {@code authority}, including those it gains later.
+     * The actor must manage the authority, or bypass.
+     * <p>
+     * A freehold with an auction not yet ended or an offer not yet accepted, and no levy of its own,
+     * keeps the levy it uses now: that levy becomes its own choice, counted in
+     * {@link SetLevyResult.Success#pinned()}. If such a freehold uses no levy now but would gain
+     * one, the whole change is refused with {@link SetLevyResult.SaleOpen}. {@link
+     * #clearAuthorityLevy} does the same.
+     */
+    @NotNull SetLevyResult setAuthorityLevy(@NotNull Party authority,
+                                            @NotNull ActorContext ctx,
+                                            @NotNull String levyName);
+
+    /** Clears the authority's levy choice, so its freeholds use their own choice or the default. */
+    @NotNull SetLevyResult clearAuthorityLevy(@NotNull Party authority, @NotNull ActorContext ctx);
+
+    /** Every levy the server defines. */
+    @NotNull List<LevyDefinition> listLevies();
+
+    /** Every levy name chosen for a region or an authority, each once, whether or not the catalog has it. */
+    @NotNull List<String> listChosenLevyNames();
+
+    /**
+     * The levy a freehold uses: its own choice, else its authority's choice, else the default
+     * levy. A choice naming a levy that is no longer defined is skipped.
+     *
+     * @return the levy's name, or {@code null} when none applies or the region has no freehold
+     */
+    @Nullable String chosenLevy(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     // --- Schematics ---
 

@@ -276,7 +276,8 @@ class ConcurrencyTest extends AbstractDatabaseTest {
             long fullyPaid = countValues(outcomes, r -> r instanceof PayOfferResult.FullyPaid);
             long appRejections = countValues(outcomes, r ->
                     r instanceof PayOfferResult.NoPaymentRecord
-                            || r instanceof PayOfferResult.ExceedsAmountOwed);
+                            || r instanceof PayOfferResult.ExceedsAmountOwed
+                            || r instanceof PayOfferResult.PaymentInProgress);
             long dbRejections = countDbExceptions(outcomes);
             Assertions.assertEquals(1, fullyPaid,
                     "Exactly one payment should be FullyPaid, got: " + outcomes);
@@ -301,7 +302,8 @@ class ConcurrencyTest extends AbstractDatabaseTest {
                             || r instanceof PayOfferResult.FullyPaid);
             long appRejections = countValues(outcomes, r ->
                     r instanceof PayOfferResult.NoPaymentRecord
-                            || r instanceof PayOfferResult.ExceedsAmountOwed);
+                            || r instanceof PayOfferResult.ExceedsAmountOwed
+                            || r instanceof PayOfferResult.PaymentInProgress);
             long dbRejections = countDbExceptions(outcomes);
             Assertions.assertEquals(1, successes,
                     "Exactly one partial payment should succeed, got: " + outcomes);
@@ -333,7 +335,8 @@ class ConcurrencyTest extends AbstractDatabaseTest {
             long fullyPaid = countValues(outcomes, r -> r instanceof PayBidResult.FullyPaid);
             long appRejections = countValues(outcomes, r ->
                     r instanceof PayBidResult.NoPaymentRecord
-                            || r instanceof PayBidResult.ExceedsAmountOwed);
+                            || r instanceof PayBidResult.ExceedsAmountOwed
+                            || r instanceof PayBidResult.PaymentInProgress);
             long dbRejections = countDbExceptions(outcomes);
             Assertions.assertEquals(1, fullyPaid,
                     "Exactly one payment should be FullyPaid, got: " + outcomes);
@@ -358,7 +361,8 @@ class ConcurrencyTest extends AbstractDatabaseTest {
                             || r instanceof PayBidResult.FullyPaid);
             long appRejections = countValues(outcomes, r ->
                     r instanceof PayBidResult.NoPaymentRecord
-                            || r instanceof PayBidResult.ExceedsAmountOwed);
+                            || r instanceof PayBidResult.ExceedsAmountOwed
+                            || r instanceof PayBidResult.PaymentInProgress);
             long dbRejections = countDbExceptions(outcomes);
             Assertions.assertEquals(1, successes,
                     "Exactly one partial payment should succeed, got: " + outcomes);
@@ -532,7 +536,7 @@ class ConcurrencyTest extends AbstractDatabaseTest {
             wrapper.freeholdContractBidPaymentMapper().deleteByRegion(regionId, worldId);
             wrapper.freeholdContractBidPaymentMapper().insertPayment(
                     regionId, worldId, bidderId, bidAmount,
-                    java.time.LocalDateTime.now().plusDays(7));
+                    java.time.LocalDateTime.now().plusDays(7), bidAmount);
             session.commit();
         }
     }

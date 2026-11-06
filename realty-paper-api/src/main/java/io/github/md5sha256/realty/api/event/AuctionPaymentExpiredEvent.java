@@ -20,9 +20,23 @@ public class AuctionPaymentExpiredEvent extends PaymentExpiredEvent {
                                       @Nullable UUID worldId,
                                       @Nullable WorldGuardRegion region,
                                       @NotNull UUID bidderId,
-                                      double refundAmount) {
-        super(regionId, worldId, region, refundAmount);
+                                      double refundAmount,
+                                      boolean refundPaid,
+                                      boolean oldRules) {
+        super(regionId, worldId, region, refundAmount, refundPaid, oldRules);
         this.bidderId = bidderId;
+    }
+
+    /**
+     * @deprecated says nothing of whether the refund was paid; use the constructor that does.
+     */
+    @Deprecated
+    public AuctionPaymentExpiredEvent(@NotNull String regionId,
+                                      @Nullable UUID worldId,
+                                      @Nullable WorldGuardRegion region,
+                                      @NotNull UUID bidderId,
+                                      double refundAmount) {
+        this(regionId, worldId, region, bidderId, refundAmount, false, false);
     }
 
     /**

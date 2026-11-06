@@ -196,6 +196,16 @@ public interface MariaFreeholdContractAuctionMapper extends FreeholdContractAuct
 
     @Override
     @Update("""
+            UPDATE FreeholdContractAuction sca
+            INNER JOIN FreeholdContractBidPayment scbp ON scbp.freeholdContractAuctionId = sca.freeholdContractAuctionId
+            SET sca.paymentDeadline = scbp.paymentDeadline
+            WHERE scbp.oldRules = FALSE
+            AND sca.paymentDeadline <> scbp.paymentDeadline
+            """)
+    int matchNewRulesPaymentDeadlines();
+
+    @Override
+    @Update("""
             UPDATE FreeholdContractAuction
             SET paymentDeadline = #{paymentDeadline}
             WHERE freeholdContractAuctionId = #{freeholdContractAuctionId}

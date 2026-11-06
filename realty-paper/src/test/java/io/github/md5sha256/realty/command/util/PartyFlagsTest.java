@@ -138,7 +138,7 @@ class PartyFlagsTest {
 
     @Test
     void unresolvedDefaultTitleholder_isRefused() {
-        DefaultParties defaults = new DefaultParties(GOV_SECURITY, DEFAULT_LANDLORD, null, true, List.of());
+        DefaultParties defaults = new DefaultParties(GOV_SECURITY, DEFAULT_LANDLORD, null, true, null, List.of());
         messages.setMessage(MessageKeys.ERROR_DEFAULT_PARTY_UNRESOLVED, "no default <role>");
 
         assertTrue(PartyFlags.refuseUnresolvedTitleholder(messages, sender, defaults));
@@ -147,7 +147,7 @@ class PartyFlagsTest {
 
     @Test
     void absentDefaultTitleholder_isNotRefused() {
-        DefaultParties defaults = new DefaultParties(GOV_SECURITY, DEFAULT_LANDLORD, null, false, List.of());
+        DefaultParties defaults = new DefaultParties(GOV_SECURITY, DEFAULT_LANDLORD, null, false, null, List.of());
 
         assertFalse(PartyFlags.refuseUnresolvedTitleholder(messages, sender, defaults));
         verify(sender, never()).sendMessage(any(Component.class));

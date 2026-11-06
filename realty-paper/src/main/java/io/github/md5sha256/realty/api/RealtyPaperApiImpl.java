@@ -17,6 +17,13 @@ import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
 import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.api.event.FeeApprovedEvent;
+import io.github.md5sha256.realty.api.event.FeeChangeEvent;
+import io.github.md5sha256.realty.api.event.FeeChangedEvent;
+import io.github.md5sha256.realty.api.event.FeeRejectedEvent;
+import io.github.md5sha256.realty.api.event.FeeRemovedEvent;
+import io.github.md5sha256.realty.api.event.LevyChangeEvent;
+import io.github.md5sha256.realty.api.event.LevyChangedEvent;
 import io.github.md5sha256.realty.api.event.OfferAcceptEvent;
 import io.github.md5sha256.realty.api.event.OfferAcceptedEvent;
 import io.github.md5sha256.realty.api.event.OfferPlaceEvent;
@@ -42,7 +49,9 @@ import io.github.md5sha256.realty.command.util.SafeLocationFinder;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.HoldingAccount;
 import io.github.md5sha256.realty.economy.PaymentResult;
+import io.github.md5sha256.realty.economy.SaleSettlement;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.World;
@@ -56,6 +65,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -66,6 +76,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class RealtyPaperApiImpl implements RealtyPaperApi {
 
@@ -83,6 +95,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final AccountNameService accountNameService;
     private final ActorContexts actorContexts;
     private final RealtyEventDispatch events;
+    private final HoldingAccount holding;
+    private final SaleSettlement settlement;
+    private final Logger logger;
 
     /**
      * Per-region serialisation chains. Each entry is the tail of a queue of
@@ -105,7 +120,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull PlayerNameService playerNameService,
                               @NotNull AccountNameService accountNameService,
                               @NotNull ActorContexts actorContexts,
-                              @NotNull RealtyEventDispatch events) {
+                              @NotNull RealtyEventDispatch events,
+                              @NotNull HoldingAccount holding,
+                              @NotNull SaleSettlement settlement,
+                              @NotNull Logger logger) {
         this.server = server;
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
@@ -120,7 +138,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.accountNameService = accountNameService;
         this.actorContexts = actorContexts;
         this.events = events;
+        this.holding = holding;
+        this.settlement = settlement;
+        this.logger = logger;
     }
+
+    private static final String PAYMENT_IN_PROGRESS = "an earlier payment is still being processed";
+
 
     /** In this version a tenant and a title holder are always players. */
     private static final String ONLY_PLAYERS = "only a player can be tenant or titleholder in this version";
@@ -265,16 +289,17 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull RealtyBackend.BuyResult.Success reserved,
             @NotNull Map<String, String> placeholders) {
         double price = reserved.price();
+        FeeQuote fees = reserved.fees();
+        Party seller = seller(reserved.titleHolderId(), reserved.authority());
         // Region is already reserved in DB. Process payment, rollback DB on failure.
-        if (price > 0) {
+        double owed = fees.buyerTotal();
+        if (owed > 0) {
             double balance = economyProvider.getBalance(Party.personal(buyerId));
-            if (balance < price) {
+            if (balance < owed) {
                 return rollbackBuyAsync(regionId, worldId, buyerId, reserved)
-                        .thenApply(ignored -> new BuyResult.InsufficientFunds(price, balance));
+                        .thenApply(ignored -> new BuyResult.InsufficientFunds(owed, balance));
             }
-            PaymentResult result = economyProvider.transfer(Party.personal(buyerId),
-                    seller(reserved.titleHolderId(), reserved.authority()), price,
-                    "Plot Purchase: " + regionId, buyerId);
+            PaymentResult result = payBuy(regionId, buyerId, seller, fees);
             if (result instanceof PaymentResult.Failure failure) {
                 return rollbackBuyAsync(regionId, worldId, buyerId, reserved)
                         .thenApply(ignored -> new BuyResult.PaymentFailed(failure.errorMessage()));
@@ -288,8 +313,111 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.SOLD, placeholders);
         updateChildLandlords(regionId, region.world(), buyerId);
-        return CompletableFuture.completedFuture(
-                new BuyResult.Success(price, regionId, playerParty(reserved.titleHolderId())));
+        BuyResult success = new BuyResult.Success(price, regionId, playerParty(reserved.titleHolderId()), fees);
+        // Within the region's turn, so nothing acts on it before its fees are cleaned up.
+        return CompletableFuture.runAsync(
+                () -> realtyApi.recordBuyFees(regionId, worldId, buyerId, seller, fees),
+                executorState.dbExec()
+        ).handle((ignored, ex) -> {
+            if (ex != null) {
+                // The money has moved and the buyer owns the region; only the record is missing.
+                logger.log(Level.SEVERE, "The buy of " + regionId + " by " + buyerId + " was paid, but its fees"
+                        + " could not be recorded: " + describeQuote(seller, fees), ex);
+            }
+            return success;
+        });
+    }
+
+    /**
+     * Pays a buy in one go: the seller their proceeds, then each fee recipient their line. A buy has
+     * no instalments, so nothing goes through the holding account. If a transfer fails, the ones
+     * already made are reversed, last first.
+     */
+    private @NotNull PaymentResult payBuy(@NotNull String regionId, @NotNull UUID buyerId,
+                                          @NotNull Party seller, @NotNull FeeQuote fees) {
+        Party buyer = Party.personal(buyerId);
+        List<Map.Entry<Party, Double>> payments = new ArrayList<>();
+        List<String> messages = new ArrayList<>();
+        payments.add(Map.entry(seller, fees.sellerReceives()));
+        messages.add("Plot Purchase: " + regionId);
+        for (FeeLine line : fees.lines()) {
+            payments.add(Map.entry(line.recipient(), line.amount()));
+            messages.add("Plot Purchase fee (" + line.source() + "): " + regionId);
+        }
+        List<Map.Entry<Party, Double>> made = new ArrayList<>();
+        for (int i = 0; i < payments.size(); i++) {
+            Map.Entry<Party, Double> payment = payments.get(i);
+            if (payment.getValue() <= 0) {
+                continue;
+            }
+            PaymentResult result;
+            try {
+                result = economyProvider.transfer(buyer, payment.getKey(), payment.getValue(), messages.get(i),
+                        buyerId);
+            } catch (RuntimeException ex) {
+                // The transfers already made must still be reversed and the reservation rolled back.
+                logger.log(Level.WARNING, "A transfer for the buy of " + regionId + " threw", ex);
+                result = new PaymentResult.Failure(ex.getMessage() != null ? ex.getMessage() : ex.toString());
+            }
+            if (result instanceof PaymentResult.Failure) {
+                reverseBuy(regionId, buyerId, made);
+                return result;
+            }
+            made.add(payment);
+        }
+        return new PaymentResult.Success();
+    }
+
+    private void reverseBuy(@NotNull String regionId, @NotNull UUID buyerId,
+                            @NotNull List<Map.Entry<Party, Double>> made) {
+        Party buyer = Party.personal(buyerId);
+        for (int i = made.size() - 1; i >= 0; i--) {
+            Map.Entry<Party, Double> payment = made.get(i);
+            PaymentResult reversal;
+            try {
+                reversal = economyProvider.transfer(payment.getKey(), buyer, payment.getValue(),
+                        "Plot Purchase reversal: " + regionId, buyerId);
+            } catch (RuntimeException ex) {
+                reversal = new PaymentResult.Failure(ex.getMessage() != null ? ex.getMessage() : ex.toString());
+            }
+            if (reversal instanceof PaymentResult.Failure failure) {
+                logger.severe("A failed buy of " + regionId + " could not be reversed (" + failure.errorMessage()
+                        + "): " + payment.getKey() + " still holds " + CurrencyFormatter.format(payment.getValue())
+                        + " paid by " + buyerId + ". Return it by hand.");
+            }
+        }
+    }
+
+    private static @NotNull String describeQuote(@NotNull Party seller, @NotNull FeeQuote fees) {
+        StringBuilder text = new StringBuilder(CurrencyFormatter.format(fees.sellerReceives()))
+                .append(" to the seller ").append(seller);
+        for (FeeLine line : fees.lines()) {
+            text.append(", ").append(CurrencyFormatter.format(line.amount())).append(" (").append(line.source())
+                    .append(") to ").append(line.recipient());
+        }
+        return text.toString();
+    }
+
+    /**
+     * Who an instalment is paid to: under the old rules the seller, else the holding account, or
+     * empty when it cannot be used, so the payment waits with its deadline paused.
+     */
+    private @NotNull Optional<Party> instalmentRecipient(boolean oldRules, @Nullable UUID titleHolderId,
+                                                         @NotNull Party authority) {
+        if (oldRules) {
+            return Optional.of(seller(titleHolderId, authority));
+        }
+        return holding.usable() instanceof HoldingAccount.Usable usable
+                ? Optional.of(usable.party())
+                : Optional.empty();
+    }
+
+    /** Pays out the completed sale's lines from the holding account, without holding up the buyer. */
+    private void payOutInBackground() {
+        CompletableFuture.runAsync(settlement::payOutDue, executorState.dbExec()).exceptionally(ex -> {
+            logger.log(Level.SEVERE, "The sale payouts failed to run; they will be tried again", ex);
+            return null;
+        });
     }
 
     /**
@@ -632,12 +760,19 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<PayBidResult> payBid(@NotNull WorldGuardRegion region,
                                                             @NotNull UUID bidderId,
-                                                            double amount) {
+                                                            double requested) {
+        // Money moves in whole cents: what is counted is exactly what is transferred.
+        double amount = Money.cents(requested);
+        if (amount <= 0) {
+            return CompletableFuture.completedFuture(new PayBidResult.InvalidAmount(requested));
+        }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // DB-first: atomically update payment record before withdrawing economy.
         // payBid uses optimistic locking on currentPayment, preventing races.
-        return CompletableFuture.supplyAsync(
+        // Serialized per region so the scheduler never finishes a sale whose final payment is
+        // counted but whose transfer has not yet run; see finishPendingSales.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
                 () -> realtyApi.payBid(regionId, worldId, bidderId, amount),
                 executorState.dbExec()
         ).thenComposeAsync(result -> switch (result) {
@@ -651,6 +786,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             case RealtyBackend.PayBidResult.PaymentExpired ignored ->
                     CompletableFuture.completedFuture(
                             (PayBidResult) new PayBidResult.PaymentExpired(regionId));
+            case RealtyBackend.PayBidResult.InvalidAmount ignored ->
+                    CompletableFuture.completedFuture((PayBidResult) new PayBidResult.InvalidAmount(requested));
+            case RealtyBackend.PayBidResult.PaymentInProgress ignored ->
+                    CompletableFuture.completedFuture(
+                            (PayBidResult) new PayBidResult.PaymentFailed(PAYMENT_IN_PROGRESS));
             case RealtyBackend.PayBidResult.ExceedsAmountOwed exceeds ->
                     CompletableFuture.completedFuture(
                             (PayBidResult) new PayBidResult.ExceedsAmountOwed(amount,
@@ -658,7 +798,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new PayBidResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     private @NotNull CompletableFuture<PayBidResult> handlePayBidPayment(
@@ -670,12 +810,23 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
+        Optional<Party> recipient = instalmentRecipient(success.oldRules(), success.titleHolderId(),
+                success.authority());
+        if (recipient.isEmpty()) {
+            return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
+                    .thenApply(ignored -> new PayBidResult.HoldingPaused(regionId));
+        }
         PaymentResult result = economyProvider.transferAuctionProceeds(
-                Party.personal(bidderId), seller(success.titleHolderId(), success.authority()), amount,
+                Party.personal(bidderId), recipient.get(), amount,
                 "Auction Bid Payment (partial): " + regionId, bidderId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.PaymentFailed(failure.errorMessage()));
+        }
+        String unconfirmed = confirm(RealtyBackend.PendingFinalize.Kind.BID, regionId, worldId, bidderId, amount,
+                success.oldRules());
+        if (unconfirmed != null) {
+            return CompletableFuture.completedFuture(new PayBidResult.PaymentFailed(unconfirmed));
         }
         return CompletableFuture.completedFuture(
                 new PayBidResult.Success(amount, success.newTotal(), success.remaining(), regionId));
@@ -690,47 +841,71 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.InsufficientFunds(balance));
         }
+        Optional<Party> recipient = instalmentRecipient(fullyPaid.oldRules(), fullyPaid.titleHolderId(),
+                fullyPaid.authority());
+        if (recipient.isEmpty()) {
+            return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
+                    .thenApply(ignored -> new PayBidResult.HoldingPaused(regionId));
+        }
         PaymentResult result = economyProvider.transferAuctionProceeds(
-                Party.personal(bidderId), seller(fullyPaid.titleHolderId(), fullyPaid.authority()), amount,
+                Party.personal(bidderId), recipient.get(), amount,
                 "Auction Bid Payment (final): " + regionId, bidderId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayBidAsync(regionId, worldId, bidderId, amount)
                     .thenApply(ignored -> new PayBidResult.PaymentFailed(failure.errorMessage()));
         }
+        String unconfirmed = confirm(RealtyBackend.PendingFinalize.Kind.BID, regionId, worldId, bidderId, amount,
+                fullyPaid.oldRules());
+        if (unconfirmed != null) {
+            return CompletableFuture.completedFuture(new PayBidResult.PaymentFailed(unconfirmed));
+        }
         // Money has cleared — now (and only now) commit the ownership transfer.
-        realtyApi.finalizeBidPurchase(regionId, worldId, bidderId);
-        ProtectedRegion protectedRegion = region.region();
-        protectedRegion.getOwners().clear();
-        protectedRegion.getOwners().addPlayer(bidderId);
-        protectedRegion.getMembers().clear();
-        Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
-        regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
-        signTextApplicator.updateLoadedSigns(region.world(), regionId,
-                RegionState.SOLD, placeholders);
-        updateChildLandlords(regionId, region.world(), bidderId);
-        events.fireSync(new AuctionWonPurchaseEvent(region, bidderId, fullyPaid.titleHolderId(), amount));
+        if (!finalized(RealtyBackend.PendingFinalize.Kind.BID, regionId, worldId, bidderId, amount,
+                fullyPaid.oldRules(), true)) {
+            // The scheduler finishes it, under either rules.
+            return CompletableFuture.completedFuture(
+                    new PayBidResult.FinalizePending(amount, regionId, fullyPaid.oldRules()));
+        }
+        completeSale(region, RealtyBackend.PendingFinalize.Kind.BID, bidderId, fullyPaid.titleHolderId(),
+                fullyPaid.fees().price(), fullyPaid.fees(), !fullyPaid.oldRules(),
+                realtyApi.getRegionPlaceholders(regionId, worldId));
         return CompletableFuture.completedFuture(
-                new PayBidResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
+                new PayBidResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId()), fullyPaid.fees()));
     }
 
     private @NotNull CompletableFuture<Void> rollbackPayBidAsync(@NotNull String regionId,
                                                                    @NotNull UUID worldId,
                                                                    @NotNull UUID bidderId,
                                                                    double amount) {
-        return CompletableFuture.runAsync(
-                () -> realtyApi.rollbackPayBid(regionId, worldId, bidderId, amount),
-                executorState.dbExec());
+        return CompletableFuture.runAsync(() -> {
+            try {
+                realtyApi.rollbackPayBid(regionId, worldId, bidderId, amount);
+            } catch (RuntimeException ex) {
+                logger.log(Level.SEVERE, "An instalment of " + CurrencyFormatter.format(amount) + " by " + bidderId
+                        + " for " + regionId + " did not move, but dropping it failed. It stays pending and"
+                        + " will be reported as stuck; the money was not taken, so clear it without crediting it.",
+                        ex);
+                throw ex;
+            }
+        }, executorState.dbExec());
     }
 
     @Override
     public @NotNull CompletableFuture<PayOfferResult> payOffer(@NotNull WorldGuardRegion region,
                                                                 @NotNull UUID offererId,
-                                                                double amount) {
+                                                                double requested) {
+        // Money moves in whole cents: what is counted is exactly what is transferred.
+        double amount = Money.cents(requested);
+        if (amount <= 0) {
+            return CompletableFuture.completedFuture(new PayOfferResult.InvalidAmount(requested));
+        }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // DB-first: atomically update payment record before withdrawing economy.
         // payOffer uses optimistic locking on currentPayment, preventing races.
-        return CompletableFuture.supplyAsync(
+        // Serialized per region so the scheduler never finishes a sale whose final payment is
+        // counted but whose transfer has not yet run; see finishPendingSales.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
                 () -> realtyApi.payOffer(regionId, worldId, offererId, amount),
                 executorState.dbExec()
         ).thenComposeAsync(result -> switch (result) {
@@ -744,6 +919,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             case RealtyBackend.PayOfferResult.PaymentExpired ignored ->
                     CompletableFuture.completedFuture(
                             (PayOfferResult) new PayOfferResult.PaymentExpired(regionId));
+            case RealtyBackend.PayOfferResult.InvalidAmount ignored ->
+                    CompletableFuture.completedFuture((PayOfferResult) new PayOfferResult.InvalidAmount(requested));
+            case RealtyBackend.PayOfferResult.PaymentInProgress ignored ->
+                    CompletableFuture.completedFuture(
+                            (PayOfferResult) new PayOfferResult.PaymentFailed(PAYMENT_IN_PROGRESS));
             case RealtyBackend.PayOfferResult.ExceedsAmountOwed exceeds ->
                     CompletableFuture.completedFuture(
                             (PayOfferResult) new PayOfferResult.ExceedsAmountOwed(amount,
@@ -751,7 +931,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new PayOfferResult.Error(String.valueOf(cause.getMessage()));
-        });
+        }));
     }
 
     private @NotNull CompletableFuture<PayOfferResult> handlePayOfferPayment(
@@ -763,12 +943,23 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
+        Optional<Party> recipient = instalmentRecipient(success.oldRules(), success.titleHolderId(),
+                success.authority());
+        if (recipient.isEmpty()) {
+            return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
+                    .thenApply(ignored -> new PayOfferResult.HoldingPaused(regionId));
+        }
         PaymentResult result = economyProvider.transfer(
-                Party.personal(offererId), seller(success.titleHolderId(), success.authority()), amount,
+                Party.personal(offererId), recipient.get(), amount,
                 "Purchase Offer Payment (partial): " + regionId, offererId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.PaymentFailed(failure.errorMessage()));
+        }
+        String unconfirmed = confirm(RealtyBackend.PendingFinalize.Kind.OFFER, regionId, worldId, offererId, amount,
+                success.oldRules());
+        if (unconfirmed != null) {
+            return CompletableFuture.completedFuture(new PayOfferResult.PaymentFailed(unconfirmed));
         }
         return CompletableFuture.completedFuture(
                 new PayOfferResult.Success(amount, success.newTotal(), success.remaining(), regionId));
@@ -783,36 +974,200 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.InsufficientFunds(balance));
         }
+        Optional<Party> recipient = instalmentRecipient(fullyPaid.oldRules(), fullyPaid.titleHolderId(),
+                fullyPaid.authority());
+        if (recipient.isEmpty()) {
+            return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
+                    .thenApply(ignored -> new PayOfferResult.HoldingPaused(regionId));
+        }
         PaymentResult result = economyProvider.transfer(
-                Party.personal(offererId), seller(fullyPaid.titleHolderId(), fullyPaid.authority()), amount,
+                Party.personal(offererId), recipient.get(), amount,
                 "Purchase Offer Payment (final): " + regionId, offererId);
         if (result instanceof PaymentResult.Failure failure) {
             return rollbackPayOfferAsync(regionId, worldId, offererId, amount)
                     .thenApply(ignored -> new PayOfferResult.PaymentFailed(failure.errorMessage()));
         }
+        String unconfirmed = confirm(RealtyBackend.PendingFinalize.Kind.OFFER, regionId, worldId, offererId, amount,
+                fullyPaid.oldRules());
+        if (unconfirmed != null) {
+            return CompletableFuture.completedFuture(new PayOfferResult.PaymentFailed(unconfirmed));
+        }
         // Money has cleared — now (and only now) commit the ownership transfer.
-        realtyApi.finalizeOfferPurchase(regionId, worldId, offererId);
+        if (!finalized(RealtyBackend.PendingFinalize.Kind.OFFER, regionId, worldId, offererId, amount,
+                fullyPaid.oldRules(), true)) {
+            return CompletableFuture.completedFuture(
+                    new PayOfferResult.FinalizePending(amount, regionId, fullyPaid.oldRules()));
+        }
+        completeSale(region, RealtyBackend.PendingFinalize.Kind.OFFER, offererId, fullyPaid.titleHolderId(),
+                fullyPaid.fees().price(), fullyPaid.fees(), !fullyPaid.oldRules(),
+                realtyApi.getRegionPlaceholders(regionId, worldId));
+        return CompletableFuture.completedFuture(
+                new PayOfferResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId()), fullyPaid.fees()));
+    }
+
+    /**
+     * Applies the ownership transfer of a sale whose final payment has been made. A finalize that
+     * throws or applies nothing leaves the sale for the scheduler to finish later: under the new
+     * rules its money stays held, under the old rules it already went to the seller.
+     *
+     * @return whether the transfer was applied, so the world may change
+     */
+    private boolean finalized(@NotNull RealtyBackend.PendingFinalize.Kind kind, @NotNull String regionId,
+                              @NotNull UUID worldId, @NotNull UUID buyerId, double amount, boolean oldRules,
+                              boolean live) {
+        try {
+            if (kind == RealtyBackend.PendingFinalize.Kind.BID
+                    ? realtyApi.finalizeBidPurchase(regionId, worldId, buyerId)
+                    : realtyApi.finalizeOfferPurchase(regionId, worldId, buyerId)) {
+                return true;
+            }
+            if (live) {
+                logger.severe("The final payment of " + CurrencyFormatter.format(amount) + " by " + buyerId
+                        + " for " + regionId + " was made, but its sale could not be finalized. "
+                        + finishLater(oldRules));
+            } else {
+                // Normal on the scheduler: the sale was finished, or rolled back, since it was listed.
+                logger.fine("The sale of " + regionId + " to " + buyerId + " needed no finishing");
+            }
+        } catch (RuntimeException ex) {
+            logger.log(Level.SEVERE, "The final payment of " + CurrencyFormatter.format(amount) + " by " + buyerId
+                    + " for " + regionId + " was made, but finalizing its sale failed. " + finishLater(oldRules), ex);
+        }
+        return false;
+    }
+
+    /**
+     * Confirms an instalment whose money has moved, so that it counts as paid.
+     *
+     * @return null when confirmed, else what to tell the buyer
+     */
+    private @Nullable String confirm(@NotNull RealtyBackend.PendingFinalize.Kind kind, @NotNull String regionId,
+                                     @NotNull UUID worldId, @NotNull UUID buyerId, double amount, boolean oldRules) {
+        try {
+            boolean confirmed = kind == RealtyBackend.PendingFinalize.Kind.BID
+                    ? realtyApi.confirmPayBid(regionId, worldId, buyerId, amount, oldRules)
+                    : realtyApi.confirmPayOffer(regionId, worldId, buyerId, amount, oldRules);
+            if (confirmed) {
+                return null;
+            }
+            // The backend recorded a refund under the new rules, or logged it under the old ones.
+            return oldRules
+                    ? "the sale ended while your payment went to the seller; an admin will settle it with you"
+                    : "the sale ended before your payment arrived; it will be refunded";
+        } catch (RuntimeException ex) {
+            logger.log(Level.SEVERE, "An instalment of " + CurrencyFormatter.format(amount) + " by " + buyerId
+                    + " for " + regionId + " was transferred, but recording it failed. It stays pending and will"
+                    + " be reported as stuck for an admin; it is not credited or refunded automatically.", ex);
+            return "your payment was taken but could not be recorded; an admin has been alerted";
+        }
+    }
+
+    private static @NotNull String finishLater(boolean oldRules) {
+        return oldRules
+                ? "The payment began before sale fees and went to the seller; the title will be transferred on"
+                        + " the next scheduler run."
+                : "The money is held, and the sale will be finished on the next scheduler run.";
+    }
+
+    /**
+     * The world's side of a finished sale, the same whether it finished on the buyer's final
+     * payment or later on the scheduler: the buyer owns the region, its flags and signs show it
+     * sold, the seller and fee recipients are paid from the holding account, and the completion
+     * event fires. Runs on the main thread.
+     */
+    private void completeSale(@NotNull WorldGuardRegion region, @NotNull RealtyBackend.PendingFinalize.Kind kind,
+                              @NotNull UUID buyerId, @Nullable UUID previousTitleHolderId, double amount,
+                              @NotNull FeeQuote fees, boolean newRules, @NotNull Map<String, String> placeholders) {
+        String regionId = region.region().getId();
         ProtectedRegion protectedRegion = region.region();
         protectedRegion.getOwners().clear();
-        protectedRegion.getOwners().addPlayer(offererId);
+        protectedRegion.getOwners().addPlayer(buyerId);
         protectedRegion.getMembers().clear();
-        Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
         regionProfileService.applyFlags(region, RegionState.SOLD, placeholders);
-        signTextApplicator.updateLoadedSigns(region.world(), regionId,
-                RegionState.SOLD, placeholders);
-        updateChildLandlords(regionId, region.world(), offererId);
-        events.fireSync(new OfferPurchaseCompletedEvent(region, offererId, fullyPaid.titleHolderId(), amount));
-        return CompletableFuture.completedFuture(
-                new PayOfferResult.FullyPaid(amount, regionId, playerParty(fullyPaid.titleHolderId())));
+        signTextApplicator.updateLoadedSigns(region.world(), regionId, RegionState.SOLD, placeholders);
+        updateChildLandlords(regionId, region.world(), buyerId);
+        if (newRules) {
+            // Ownership has moved; the seller and fee recipients are paid from the holding account.
+            payOutInBackground();
+        }
+        if (kind == RealtyBackend.PendingFinalize.Kind.BID) {
+            events.fireSync(new AuctionWonPurchaseEvent(region, buyerId, previousTitleHolderId, amount, fees));
+        } else {
+            events.fireSync(new OfferPurchaseCompletedEvent(region, buyerId, previousTitleHolderId, amount, fees));
+        }
+    }
+
+    /**
+     * Finishes the sales paid in full whose finalize failed or never ran, as after a crash between
+     * the final transfer and the finalize. Each waits its turn on its region, so a payment still
+     * being made is never overtaken. The finalize runs on the database executor, the world changes
+     * on the main thread. The completion event carries the sale's price.
+     */
+    public @NotNull CompletableFuture<Void> finishPendingSales() {
+        return CompletableFuture.supplyAsync(realtyApi::listFullyPaidUnfinalized, executorState.dbExec())
+                .thenCompose(pending -> CompletableFuture.allOf(pending.stream()
+                        .map(this::finishPendingSale)
+                        .toArray(CompletableFuture[]::new)))
+                .exceptionally(ex -> {
+                    logger.log(Level.WARNING, "Could not list the sales paid in full that wait to be finished;"
+                            + " they will be looked for again on the next run", ex);
+                    return null;
+                });
+    }
+
+    private @NotNull CompletableFuture<Void> finishPendingSale(@NotNull RealtyBackend.PendingFinalize sale) {
+        java.util.concurrent.atomic.AtomicBoolean finalizedNow = new java.util.concurrent.atomic.AtomicBoolean();
+        return serializeByRegion(sale.regionId(), sale.worldId(), () -> CompletableFuture.supplyAsync(() -> {
+            if (!finalized(sale.kind(), sale.regionId(), sale.worldId(), sale.buyerId(), sale.price(),
+                    sale.oldRules(), false)) {
+                return null;
+            }
+            finalizedNow.set(true);
+            return realtyApi.getRegionPlaceholders(sale.regionId(), sale.worldId());
+        }, executorState.dbExec()).thenAcceptAsync(placeholders -> {
+            if (placeholders == null) {
+                return;
+            }
+            WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, sale.worldId(), sale.regionId());
+            if (region == null) {
+                logger.warning("The sale of " + sale.regionId() + " to " + sale.buyerId() + " was finished, but"
+                        + " WorldGuard does not know the region, so its owners and signs were not updated.");
+                if (!sale.oldRules()) {
+                    payOutInBackground();
+                }
+                return;
+            }
+            // Under the old rules the seller was paid as the instalments came in: nothing is paid out.
+            completeSale(region, sale.kind(), sale.buyerId(), sale.titleHolderId(), sale.price(), sale.fees(),
+                    !sale.oldRules(), placeholders);
+        }, executorState.mainThreadExec()).exceptionally(ex -> {
+            if (finalizedNow.get()) {
+                logger.log(Level.SEVERE, "The sale of " + sale.regionId() + " to " + sale.buyerId() + " was"
+                        + " finalized in the database, but updating the world failed, and that is not retried."
+                        + " Check the region's owners and signs; its payouts run on the next scheduler run.", ex);
+            } else {
+                logger.log(Level.WARNING, "Could not finish the sale of " + sale.regionId() + " to "
+                        + sale.buyerId() + "; nothing was changed, and it will be tried again", ex);
+            }
+            return null;
+        }));
     }
 
     private @NotNull CompletableFuture<Void> rollbackPayOfferAsync(@NotNull String regionId,
                                                                      @NotNull UUID worldId,
                                                                      @NotNull UUID offererId,
                                                                      double amount) {
-        return CompletableFuture.runAsync(
-                () -> realtyApi.rollbackPayOffer(regionId, worldId, offererId, amount),
-                executorState.dbExec());
+        return CompletableFuture.runAsync(() -> {
+            try {
+                realtyApi.rollbackPayOffer(regionId, worldId, offererId, amount);
+            } catch (RuntimeException ex) {
+                logger.log(Level.SEVERE, "An instalment of " + CurrencyFormatter.format(amount) + " by " + offererId
+                        + " for " + regionId + " did not move, but dropping it failed. It stays pending and"
+                        + " will be reported as stuck; the money was not taken, so clear it without crediting it.",
+                        ex);
+                throw ex;
+            }
+        }, executorState.dbExec());
     }
 
     @Override
@@ -857,6 +1212,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetTitleHolderResult) new SetTitleHolderResult.NotAuthorized(regionId);
             case RealtyBackend.SetTitleHolderResult.NoChange ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NoChange(regionId);
+            case RealtyBackend.SetTitleHolderResult.SaleInPayment ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.SaleInPayment(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -906,6 +1263,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetTitleHolderResult) new SetTitleHolderResult.NotAuthorized(regionId);
             case RealtyBackend.SetTitleHolderResult.NoChange ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.NoChange(regionId);
+            case RealtyBackend.SetTitleHolderResult.SaleInPayment ignored ->
+                    (SetTitleHolderResult) new SetTitleHolderResult.SaleInPayment(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
         }, executorState.mainThreadExec()).exceptionally(ex -> {
@@ -1435,8 +1794,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         ? thenFire(regionId, worldId,
                                 () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
                                 (region, result) -> {
-                                    if (result instanceof RealtyBackend.AcceptOfferResult.Success) {
-                                        events.fireSync(new OfferAcceptedEvent(region, accepterId, offererId));
+                                    if (result instanceof RealtyBackend.AcceptOfferResult.Success accepted) {
+                                        events.fireSync(new OfferAcceptedEvent(region, accepterId, offererId,
+                                                accepted.price(), accepted.totalDue(),
+                                                toInstant(accepted.paymentDeadline())));
                                     }
                                 })
                         : CompletableFuture.completedFuture(new RealtyBackend.AcceptOfferResult.Cancelled()),
@@ -1495,6 +1856,179 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         events.fireSync(new OffersToggledEvent(region, accepting, ctx.player()));
                     }
                 });
+    }
+
+    // --- Sale fees ---
+
+    @Override
+    public @NotNull CompletableFuture<FeeQuote> previewFees(@NotNull WorldGuardRegion region,
+                                                            @NotNull UUID buyerId, double price) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.previewFees(regionId, worldId, buyerId, price), executorState.dbExec());
+    }
+
+    /**
+     * Who a fee set or removed by {@code ctx} is paid to: the freehold's authority, or the acting
+     * player. Empty when there is none to name, such as the console acting for itself; the backend
+     * then decides the outcome. Runs on the database executor.
+     */
+    private @NotNull Optional<Party> feeRecipient(@NotNull String regionId, @NotNull UUID worldId,
+                                                  @NotNull ActorContext ctx, boolean asAuthority) {
+        if (asAuthority) {
+            FreeholdContractEntity contract = realtyApi.getFreeholdContract(regionId, worldId);
+            return Optional.ofNullable(contract).map(FreeholdContractEntity::authority);
+        }
+        return Optional.ofNullable(ctx.player()).map(Party::personal);
+    }
+
+    /** A backend result, with the party the fee concerned when it could be named. */
+    private record FeeCall<R>(@NotNull R result, @Nullable Party recipient) {}
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetFeeResult> setFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx,
+            double percent, @NotNull FeeSide side, boolean asAuthority) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        UUID actorId = ctx.player();
+        return CompletableFuture.supplyAsync(
+                        () -> feeRecipient(regionId, worldId, ctx, asAuthority), executorState.dbExec())
+                .thenComposeAsync(recipient -> {
+                    // Always fired, so a veto cannot be bypassed; the recipient is null when unnamed.
+                    if (!events.fireSync(
+                            new FeeChangeEvent(region, recipient.orElse(null), side, percent, null, actorId))) {
+                        return CompletableFuture.completedFuture(
+                                (RealtyBackend.SetFeeResult) new RealtyBackend.SetFeeResult.Cancelled());
+                    }
+                    return CompletableFuture.supplyAsync(
+                            () -> realtyApi.setFee(regionId, worldId, ctx, percent, side, asAuthority),
+                            executorState.dbExec()
+                    ).thenApplyAsync(result -> {
+                        if (result instanceof RealtyBackend.SetFeeResult.Success success) {
+                            events.fireSync(new FeeChangedEvent(region, success.recipient(), side, percent,
+                                    success.previousPercent(), actorId));
+                        }
+                        return result;
+                    }, executorState.mainThreadExec());
+                }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.RemoveFeeResult> removeFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, boolean asAuthority) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(() -> {
+            Party recipient = feeRecipient(regionId, worldId, ctx, asAuthority).orElse(null);
+            return new FeeCall<>(realtyApi.removeFee(regionId, worldId, ctx, asAuthority), recipient);
+        }, executorState.dbExec()).thenApplyAsync(call -> {
+            if (call.result() instanceof RealtyBackend.RemoveFeeResult.Success) {
+                events.fireSync(new FeeRemovedEvent(region, call.recipient()));
+            }
+            return call.result();
+        }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.ResolveFeeResult> approveFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull Party recipient) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.approveFee(regionId, worldId, ctx, recipient), executorState.dbExec()
+        ).thenApplyAsync(result -> {
+            if (result instanceof RealtyBackend.ResolveFeeResult.Success success) {
+                events.fireSync(new FeeApprovedEvent(region, recipient, success.side(), success.percent(),
+                        ctx.player()));
+            }
+            return result;
+        }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.ResolveFeeResult> rejectFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull Party recipient) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.rejectFee(regionId, worldId, ctx, recipient), executorState.dbExec()
+        ).thenApplyAsync(result -> {
+            if (result instanceof RealtyBackend.ResolveFeeResult.Success success) {
+                events.fireSync(new FeeRejectedEvent(region, recipient, success.side(), success.percent(),
+                        ctx.player()));
+            }
+            return result;
+        }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<RealtyBackend.FeeListing>> listFees(@NotNull WorldGuardRegion region) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(() -> realtyApi.listFees(regionId, worldId), executorState.dbExec());
+    }
+
+    /**
+     * Fires the {@link LevyChangeEvent} on the main thread, makes the change on the database
+     * executor unless a listener cancelled it, then fires the {@link LevyChangedEvent} on the main
+     * thread once the choice stands.
+     */
+    private @NotNull CompletableFuture<RealtyBackend.SetLevyResult> changeLevy(
+            @Nullable WorldGuardRegion region, @Nullable Party authority, @Nullable String newLevy,
+            @NotNull Supplier<RealtyBackend.SetLevyResult> change) {
+        return CompletableFuture.supplyAsync(
+                        () -> events.fireSync(new LevyChangeEvent(region, authority, newLevy, null)),
+                        executorState.mainThreadExec())
+                .thenComposeAsync(proceed -> {
+                    if (!proceed) {
+                        return CompletableFuture.completedFuture(
+                                (RealtyBackend.SetLevyResult) new RealtyBackend.SetLevyResult.Cancelled());
+                    }
+                    return CompletableFuture.supplyAsync(change, executorState.dbExec())
+                            .thenApplyAsync(result -> {
+                                if (result instanceof RealtyBackend.SetLevyResult.Success success) {
+                                    events.fireSync(new LevyChangedEvent(region, authority, newLevy,
+                                            success.previous()));
+                                }
+                                return result;
+                            }, executorState.mainThreadExec());
+                }, executorState.mainThreadExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetLevyResult> setRegionLevy(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull String levyName) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return changeLevy(region, null, levyName,
+                () -> realtyApi.setRegionLevy(regionId, worldId, ctx, levyName));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetLevyResult> clearRegionLevy(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return changeLevy(region, null, null, () -> realtyApi.clearRegionLevy(regionId, worldId, ctx));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetLevyResult> setAuthorityLevy(
+            @NotNull Party authority, @NotNull ActorContext ctx, @NotNull String levyName) {
+        return changeLevy(null, authority, levyName, () -> realtyApi.setAuthorityLevy(authority, ctx, levyName));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RealtyBackend.SetLevyResult> clearAuthorityLevy(
+            @NotNull Party authority, @NotNull ActorContext ctx) {
+        return changeLevy(null, authority, null, () -> realtyApi.clearAuthorityLevy(authority, ctx));
+    }
+
+    @Override
+    public @NotNull CompletableFuture<List<LevyDefinition>> listLevies() {
+        return CompletableFuture.supplyAsync(realtyApi::listLevies, executorState.dbExec());
     }
 
     @Override

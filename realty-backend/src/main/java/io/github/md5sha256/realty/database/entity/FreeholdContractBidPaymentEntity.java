@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.database.entity;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -12,9 +13,13 @@ import java.util.UUID;
  * @param freeholdContractAuctionId FK to {@code FreeholdContractAuction.freeholdContractAuctionId}
  * @param realtyRegionId        FK to {@code RealtyRegion.realtyRegionId}
  * @param bidderId              UUID of the player who placed the winning bid
- * @param bidPrice              Total price due (must be &gt; 0)
+ * @param bidPrice              The winning bid's price (must be &gt; 0)
  * @param paymentDeadline       Deadline by which full payment must be made
- * @param currentPayment        Amount paid so far (0 &le; currentPayment &le; bidPrice)
+ * @param currentPayment        Amount paid so far (0 &le; currentPayment &le; totalDue)
+ * @param totalDue              Total the bidder owes: the price plus any buyer-side fees
+ * @param oldRules              Whether the payment began before sale fees, and so pays the seller directly
+ * @param pendingPayment  An instalment counted but whose money has not yet moved; not yet paid
+ * @param pendingSince    When the pending instalment was counted, by the database clock
  */
 public record FreeholdContractBidPaymentEntity(
         int bidId,
@@ -23,6 +28,10 @@ public record FreeholdContractBidPaymentEntity(
         @NotNull UUID bidderId,
         double bidPrice,
         @NotNull LocalDateTime paymentDeadline,
-        double currentPayment
+        double currentPayment,
+        double totalDue,
+        boolean oldRules,
+        double pendingPayment,
+        @Nullable LocalDateTime pendingSince
 ) {
 }

@@ -75,8 +75,11 @@ public interface RealtyPaperApi {
     // --- Buy ---
 
     sealed interface BuyResult {
+        /**
+         * @param fees the fees on the sale, as paid
+         */
         record Success(double price, @NotNull String regionId,
-                       @Nullable Party previousTitleHolder) implements BuyResult {}
+                       @Nullable Party previousTitleHolder, @NotNull FeeQuote fees) implements BuyResult {}
         record NoFreeholdContract(@NotNull String regionId) implements BuyResult {}
         record NotForSale(@NotNull String regionId) implements BuyResult {}
         record IsAuthority() implements BuyResult {}
@@ -180,21 +183,41 @@ public interface RealtyPaperApi {
     sealed interface PayBidResult {
         record Success(double amount, double newTotal, double remaining,
                        @NotNull String regionId) implements PayBidResult {}
+        /**
+         * @param fees the fees on the sale, as locked when the winner began paying
+         */
         record FullyPaid(double amount, @NotNull String regionId,
-                         @Nullable Party previousTitleHolder) implements PayBidResult {}
+                         @Nullable Party previousTitleHolder, @NotNull FeeQuote fees) implements PayBidResult {}
+        /**
+         * The final instalment was paid, but the ownership transfer could not be applied now.
+         * Realty finishes the sale on a later scheduler run; nothing more is owed.
+         *
+         * @param paidToSeller whether the payment began before sale fees, so its money went to the
+         *                     seller; otherwise it is held until the sale finishes
+         */
+        record FinalizePending(double amount, @NotNull String regionId, boolean paidToSeller)
+                implements PayBidResult {}
+        /** The amount is zero or less once rounded to cents. Nothing was recorded or moved. */
+        record InvalidAmount(double amount) implements PayBidResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayBidResult {}
         record PaymentExpired(@NotNull String regionId) implements PayBidResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
                                  @NotNull String regionId) implements PayBidResult {}
         record InsufficientFunds(double balance) implements PayBidResult {}
+        /**
+         * Realty's holding account cannot be used, as when it is archived or not set up, so the
+         * instalment was refused and nothing moved. The payment's deadline is paused until an
+         * admin fixes the account.
+         */
+        record HoldingPaused(@NotNull String regionId) implements PayBidResult {}
         record PaymentFailed(@NotNull String error) implements PayBidResult {}
         record TransferFailed() implements PayBidResult {}
         record Error(@NotNull String message) implements PayBidResult {}
     }
 
     /**
-     * Pays towards a won auction. The payment that clears the amount owed transfers the title
-     * and fires {@link io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent}.
+     * Pays towards a won auction. The amount is rounded to cents, half up. The payment that clears
+     * the amount owed transfers the title and fires {@link io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent}.
      */
     @NotNull CompletableFuture<PayBidResult> payBid(@NotNull WorldGuardRegion region,
                                                      @NotNull UUID bidderId,
@@ -205,21 +228,41 @@ public interface RealtyPaperApi {
     sealed interface PayOfferResult {
         record Success(double amount, double newTotal, double remaining,
                        @NotNull String regionId) implements PayOfferResult {}
+        /**
+         * @param fees the fees on the sale, as locked when the offer was accepted
+         */
         record FullyPaid(double amount, @NotNull String regionId,
-                         @Nullable Party previousTitleHolder) implements PayOfferResult {}
+                         @Nullable Party previousTitleHolder, @NotNull FeeQuote fees) implements PayOfferResult {}
+        /**
+         * The final instalment was paid, but the ownership transfer could not be applied now.
+         * Realty finishes the sale on a later scheduler run; nothing more is owed.
+         *
+         * @param paidToSeller whether the payment began before sale fees, so its money went to the
+         *                     seller; otherwise it is held until the sale finishes
+         */
+        record FinalizePending(double amount, @NotNull String regionId, boolean paidToSeller)
+                implements PayOfferResult {}
+        /** The amount is zero or less once rounded to cents. Nothing was recorded or moved. */
+        record InvalidAmount(double amount) implements PayOfferResult {}
         record NoPaymentRecord(@NotNull String regionId) implements PayOfferResult {}
         record PaymentExpired(@NotNull String regionId) implements PayOfferResult {}
         record ExceedsAmountOwed(double amount, double amountOwed,
                                  @NotNull String regionId) implements PayOfferResult {}
         record InsufficientFunds(double balance) implements PayOfferResult {}
+        /**
+         * Realty's holding account cannot be used, as when it is archived or not set up, so the
+         * instalment was refused and nothing moved. The payment's deadline is paused until an
+         * admin fixes the account.
+         */
+        record HoldingPaused(@NotNull String regionId) implements PayOfferResult {}
         record PaymentFailed(@NotNull String error) implements PayOfferResult {}
         record TransferFailed() implements PayOfferResult {}
         record Error(@NotNull String message) implements PayOfferResult {}
     }
 
     /**
-     * Pays towards an accepted offer. The payment that clears the amount owed transfers the title
-     * and fires {@link io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent}.
+     * Pays towards an accepted offer. The amount is rounded to cents, half up. The payment that
+     * clears the amount owed transfers the title and fires {@link io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent}.
      */
     @NotNull CompletableFuture<PayOfferResult> payOffer(@NotNull WorldGuardRegion region,
                                                          @NotNull UUID offererId,
@@ -238,6 +281,11 @@ public interface RealtyPaperApi {
          * {@code setTitleHolder} was asked to clear a title nobody holds.
          */
         record NoChange(@NotNull String regionId) implements SetTitleHolderResult {}
+        /**
+         * A buyer is paying for the region through a won auction or an accepted offer, so the
+         * title may not change hands until that sale finishes or falls through.
+         */
+        record SaleInPayment(@NotNull String regionId) implements SetTitleHolderResult {}
         record UpdateFailed(@NotNull String regionId) implements SetTitleHolderResult {}
         record Error(@NotNull String message) implements SetTitleHolderResult {}
     }
@@ -637,6 +685,75 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<List<OutboundOfferView>> listOutboundOffers(@NotNull UUID offererId);
 
     @NotNull CompletableFuture<List<InboundOfferView>> listInboundOffers(@NotNull UUID titleHolderId);
+
+    // --- Sale fees ---
+
+    /**
+     * The fees a sale of the freehold to {@code buyerId} at {@code price} would carry now. Nothing
+     * is saved. {@link FeeQuote#none(double)} when the region has no freehold.
+     */
+    @NotNull CompletableFuture<FeeQuote> previewFees(@NotNull WorldGuardRegion region,
+                                                     @NotNull UUID buyerId,
+                                                     double price);
+
+    /**
+     * Sets the actor's fee on the freehold, or with {@code asAuthority} the authority's. Fires
+     * {@link io.github.md5sha256.realty.api.event.FeeChangeEvent} first, returning
+     * {@link RealtyBackend.SetFeeResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.FeeChangedEvent} once the fee stands. See
+     * {@link RealtyBackend#setFee}.
+     */
+    @NotNull CompletableFuture<RealtyBackend.SetFeeResult> setFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx,
+            double percent, @NotNull FeeSide side, boolean asAuthority);
+
+    /**
+     * Removes the actor's fee, or with {@code asAuthority} the authority's. Fires
+     * {@link io.github.md5sha256.realty.api.event.FeeRemovedEvent}.
+     */
+    @NotNull CompletableFuture<RealtyBackend.RemoveFeeResult> removeFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, boolean asAuthority);
+
+    /**
+     * The seller approves the seller-paid fee paid to {@code recipient}. Fires
+     * {@link io.github.md5sha256.realty.api.event.FeeApprovedEvent}.
+     */
+    @NotNull CompletableFuture<RealtyBackend.ResolveFeeResult> approveFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull Party recipient);
+
+    /**
+     * The seller refuses the seller-paid fee paid to {@code recipient}. Fires
+     * {@link io.github.md5sha256.realty.api.event.FeeRejectedEvent}.
+     */
+    @NotNull CompletableFuture<RealtyBackend.ResolveFeeResult> rejectFee(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull Party recipient);
+
+    /** The fees on the freehold. See {@link RealtyBackend#listFees}. */
+    @NotNull CompletableFuture<List<RealtyBackend.FeeListing>> listFees(@NotNull WorldGuardRegion region);
+
+    /**
+     * Chooses the levy for one freehold. Fires
+     * {@link io.github.md5sha256.realty.api.event.LevyChangeEvent} first, returning
+     * {@link RealtyBackend.SetLevyResult.Cancelled} if a listener cancels it, and
+     * {@link io.github.md5sha256.realty.api.event.LevyChangedEvent} once the choice stands.
+     */
+    @NotNull CompletableFuture<RealtyBackend.SetLevyResult> setRegionLevy(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx, @NotNull String levyName);
+
+    /** Clears one freehold's levy choice. Fires the same events as {@link #setRegionLevy}. */
+    @NotNull CompletableFuture<RealtyBackend.SetLevyResult> clearRegionLevy(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx);
+
+    /** Chooses the levy for every freehold of {@code authority}. Fires the same events as {@link #setRegionLevy}. */
+    @NotNull CompletableFuture<RealtyBackend.SetLevyResult> setAuthorityLevy(
+            @NotNull Party authority, @NotNull ActorContext ctx, @NotNull String levyName);
+
+    /** Clears the authority's levy choice. Fires the same events as {@link #setRegionLevy}. */
+    @NotNull CompletableFuture<RealtyBackend.SetLevyResult> clearAuthorityLevy(
+            @NotNull Party authority, @NotNull ActorContext ctx);
+
+    /** Every levy the server defines. */
+    @NotNull CompletableFuture<List<LevyDefinition>> listLevies();
 
     // --- Property Config ---
 

@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.rest;
 
+import io.github.md5sha256.realty.api.LevyCatalog;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.RealtyBackendImpl;
@@ -66,7 +67,12 @@ public final class RealtyRestMain {
                 // player resolves to their UUID, as before, and any other party to its API id.
                 party -> CompletableFuture.completedFuture(PartyNames.id(party)),
                 IsoDates::format,
-                () -> 0L);
+                () -> 0L,
+                // Read-only: this service never sets or charges a levy.
+                () -> LevyCatalog.EMPTY,
+                // Nor does it move a sale to payment, so it needs no holding account.
+                () -> false,
+                LOGGER);
 
         // from(...) logs what it chose. Asking the client here instead would mean a
         // blocking probe of the module before the port is even bound.

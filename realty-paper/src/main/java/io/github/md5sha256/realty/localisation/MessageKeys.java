@@ -105,6 +105,7 @@ public final class MessageKeys {
 
     // bid
     public static final String BID_NO_AUCTION = "bid.no-auction";
+    public static final String BID_BIDDING_CLOSED = "bid.bidding-closed";
     public static final String BID_IS_OWNER = "bid.is-owner";
     public static final String BID_TOO_LOW_MINIMUM = "bid.too-low-minimum";
     public static final String BID_TOO_LOW_CURRENT = "bid.too-low-current";
@@ -254,6 +255,11 @@ public final class MessageKeys {
     public static final String PAY_BID_ERROR = "pay-bid.error";
     public static final String PAY_BID_TRANSFER_FAILED = "pay-bid.transfer-failed";
     public static final String PAY_BID_TRANSFER_SUCCESS = "pay-bid.transfer-success";
+    public static final String PAY_FINALIZE_PENDING = "pay.finalize-pending";
+    public static final String PAY_FINALIZE_PENDING_PAID_TO_SELLER = "pay.finalize-pending-paid-to-seller";
+    public static final String PAY_INVALID_AMOUNT = "pay.invalid-amount";
+    public static final String PAY_HOLDING_PAUSED = "pay.holding-paused";
+    public static final String PAY_DEADLINE_UNKNOWN = "pay.deadline-unknown";
 
     // pay-offer
     public static final String PAY_OFFER_INSUFFICIENT_FUNDS = "pay-offer.insufficient-funds";
@@ -410,6 +416,7 @@ public final class MessageKeys {
     public static final String SET_TITLEHOLDER_UPDATE_FAILED = "set-titleholder.update-failed";
     public static final String SET_TITLEHOLDER_ERROR = "set-titleholder.error";
     public static final String SET_TITLEHOLDER_ALREADY_TITLEHOLDER = "set-titleholder.already-titleholder";
+    public static final String SET_TITLEHOLDER_SALE_IN_PAYMENT = "set-titleholder.sale-in-payment";
 
     // transfer
     public static final String TRANSFER_SUCCESS = "transfer.success";
@@ -418,6 +425,7 @@ public final class MessageKeys {
     public static final String TRANSFER_ERROR = "transfer.error";
     public static final String TRANSFER_NO_PERMISSION = "transfer.no-permission";
     public static final String TRANSFER_ALREADY_TITLEHOLDER = "transfer.already-titleholder";
+    public static final String TRANSFER_SALE_IN_PAYMENT = "transfer.sale-in-payment";
 
     // unset (shared)
     public static final String UNSET_NO_PERMISSION = "unset.no-permission";
@@ -444,6 +452,7 @@ public final class MessageKeys {
     public static final String UNSET_TITLEHOLDER_UPDATE_FAILED = "unset-titleholder.update-failed";
     public static final String UNSET_TITLEHOLDER_ERROR = "unset-titleholder.error";
     public static final String UNSET_TITLEHOLDER_NO_TITLEHOLDER = "unset-titleholder.no-titleholder";
+    public static final String UNSET_TITLEHOLDER_SALE_IN_PAYMENT = "unset-titleholder.sale-in-payment";
 
     // withdraw-offer
     public static final String WITHDRAW_OFFER_NO_OFFER = "withdraw-offer.no-offer";
@@ -506,8 +515,10 @@ public final class MessageKeys {
     public static final String NOTIFICATION_AUCTION_ENDED_NO_BIDS = "notification.auction-ended-no-bids";
     public static final String NOTIFICATION_REGION_BOUGHT = "notification.region-bought";
     public static final String NOTIFICATION_REGION_RENTED = "notification.region-rented";
-    public static final String NOTIFICATION_BID_PAYMENT_EXPIRED = "notification.bid-payment-expired";
-    public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED = "notification.offer-payment-expired";
+    public static final String NOTIFICATION_BID_PAYMENT_EXPIRED_OLD_RULES = "notification.bid-payment-expired-old-rules";
+    public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED_OLD_RULES =
+            "notification.offer-payment-expired-old-rules";
+    public static final String NOTIFICATION_PAYMENT_EXPIRED_NOTHING_PAID = "notification.payment-expired-nothing-paid";
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED = "notification.leasehold-expired";
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD = "notification.leasehold-expired-landlord";
     public static final String NOTIFICATION_REGION_UNRENTED = "notification.region-unrented";
@@ -601,4 +612,72 @@ public final class MessageKeys {
     public static final String TAG_CLEAR_SUCCESS = "tag.clear-success";
     public static final String TAG_CLEAR_NONE = "tag.clear-none";
     public static final String TAG_ERROR = "tag.error";
+
+    // sale fees: breakdowns
+    public static final String FEES_BREAKDOWN_HEADER_BID = "fees.breakdown.header-bid";
+    public static final String FEES_BREAKDOWN_HEADER_OFFER = "fees.breakdown.header-offer";
+    public static final String FEES_BREAKDOWN_HEADER_BUY = "fees.breakdown.header-buy";
+    public static final String FEES_BREAKDOWN_PRICE = "fees.breakdown.price";
+    public static final String FEES_BREAKDOWN_BUYER_LINE = "fees.breakdown.buyer-line";
+    public static final String FEES_BREAKDOWN_LEVY_LINE = "fees.breakdown.levy-line";
+    public static final String FEES_BREAKDOWN_TOTAL = "fees.breakdown.total";
+    public static final String FEES_BREAKDOWN_SELLER_PAYS = "fees.breakdown.seller-pays";
+    public static final String FEES_BREAKDOWN_AGENT_IF_ACCEPTS = "fees.breakdown.agent-if-accepts";
+    public static final String FEES_BREAKDOWN_SELLER_LINE = "fees.breakdown.seller-line";
+    public static final String BUY_CONFIRM_FEES = "buy.confirm-fees";
+    public static final String BUY_TOTAL_CHANGED = "buy.total-changed";
+    public static final String OFFER_NO_HOLDING_ACCOUNT = "offer.no-holding-account";
+    public static final String INFO_FEES = "info.fees";
+    public static final String INFO_FEE_ENTRY = "info.fee-entry";
+    public static final String INFO_FEE_ENTRY_PENDING = "info.fee-entry-pending";
+    public static final String INFO_FEES_NONE = "info.fees-none";
+
+    // sale fees: notifications
+    public static final String NOTIFICATION_SALE_PAYOUT = "notification.sale-payout";
+    public static final String NOTIFICATION_SALE_PROCEEDS = "notification.sale-proceeds";
+    public static final String NOTIFICATION_SALE_PROCEEDS_NO_FEES = "notification.sale-proceeds-no-fees";
+    public static final String NOTIFICATION_REFUND_PAID = "notification.refund-paid";
+    public static final String NOTIFICATION_PAYMENT_EXPIRED_REFUNDED = "notification.payment-expired-refunded";
+    public static final String NOTIFICATION_REFUND_PENDING = "notification.refund-pending";
+    public static final String NOTIFICATION_FEE_AWAITING_APPROVAL = "notification.fee-awaiting-approval";
+
+    // fee
+    public static final String FEE_SET = "fee.set";
+    public static final String FEE_SET_AWAITING_APPROVAL = "fee.set-awaiting-approval";
+    public static final String FEE_NO_FREEHOLD = "fee.no-freehold";
+    public static final String FEE_NOT_ALLOWED = "fee.not-allowed";
+    public static final String FEE_NOT_AUTHORITY_MANAGER = "fee.not-authority-manager";
+    public static final String FEE_NO_CHANGE = "fee.no-change";
+    public static final String FEE_SALE_OPEN = "fee.sale-open";
+    public static final String FEE_REMOVED = "fee.removed";
+    public static final String FEE_NO_FEE = "fee.no-fee";
+    public static final String FEE_APPROVED = "fee.approved";
+    public static final String FEE_REJECTED = "fee.rejected";
+    public static final String FEE_NOT_SELLER = "fee.not-seller";
+    public static final String FEE_NO_PENDING_FEE = "fee.no-pending-fee";
+    public static final String FEE_LIST_HEADER = "fee.list-header";
+    public static final String FEE_LIST_ENTRY = "fee.list-entry";
+    public static final String FEE_LIST_ENTRY_PENDING = "fee.list-entry-pending";
+    public static final String FEE_LIST_EMPTY = "fee.list-empty";
+    public static final String FEE_ERROR = "fee.error";
+
+    // levy
+    public static final String LEVY_SET = "levy.set";
+    public static final String LEVY_SET_ALL = "levy.set-all";
+    public static final String LEVY_CLEARED = "levy.cleared";
+    public static final String LEVY_CLEARED_ALL = "levy.cleared-all";
+    public static final String LEVY_NO_FREEHOLD = "levy.no-freehold";
+    public static final String LEVY_NOT_AUTHORITY_MANAGER = "levy.not-authority-manager";
+    public static final String LEVY_UNKNOWN = "levy.unknown";
+    public static final String LEVY_WRONG_AUTHORITY_KIND = "levy.wrong-authority-kind";
+    public static final String LEVY_NO_CHANGE = "levy.no-change";
+    public static final String LEVY_SALE_OPEN = "levy.sale-open";
+    public static final String LEVY_AUTHORITY_SALE_OPEN_UNPINNABLE = "levy.authority-sale-open-unpinnable";
+    public static final String LEVY_PINNED = "levy.pinned";
+    public static final String LEVY_PINNED_ONE = "levy.pinned-one";
+    public static final String LEVY_NEEDS_AUTHORITY = "levy.needs-authority";
+    public static final String LEVY_LIST_HEADER = "levy.list-header";
+    public static final String LEVY_LIST_ENTRY = "levy.list-entry";
+    public static final String LEVY_LIST_EMPTY = "levy.list-empty";
+    public static final String LEVY_ERROR = "levy.error";
 }

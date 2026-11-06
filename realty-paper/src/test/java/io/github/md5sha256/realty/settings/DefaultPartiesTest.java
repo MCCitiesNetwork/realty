@@ -31,7 +31,12 @@ class DefaultPartiesTest {
     private PartyResolver resolver;
 
     private static Settings settings(PartySetting authority, PartySetting landlord, PartySetting titleholder) {
-        return new Settings(authority, landlord, titleholder, new SimpleDateFormat("yyyy"),
+        return settings(authority, landlord, titleholder, null);
+    }
+
+    private static Settings settings(PartySetting authority, PartySetting landlord, PartySetting titleholder,
+                                     PartySetting escrow) {
+        return new Settings(authority, landlord, titleholder, escrow, new SimpleDateFormat("yyyy"),
                 0, 0, 0, 0, List.of(), null, 0, 0, 0, 0, null);
     }
 
@@ -150,5 +155,40 @@ class DefaultPartiesTest {
         assertNull(parties.leaseholdLandlord());
         assertEquals(2, parties.errors().size());
         verifyNoInteractions(resolver);
+    }
+
+    @Test
+    void escrow_resolvesToAPlayer() {
+        govResolves();
+        UUID banker = UUID.randomUUID();
+        when(resolver.resolve("Banker", null, null))
+                .thenReturn(new PartyResolver.Resolution.Resolved(Party.personal(banker)));
+
+        DefaultParties parties = DefaultParties.resolve(
+                settings(GOV_SETTING, GOV_SETTING, null, new PartySetting("Banker", null, null)), resolver);
+
+        assertEquals(banker, parties.escrow());
+        assertTrue(parties.errors().isEmpty());
+    }
+
+    @Test
+    void escrowWithAType_isAnError() {
+        govResolves();
+
+        DefaultParties parties = DefaultParties.resolve(settings(GOV_SETTING, GOV_SETTING, null, GOV_SETTING), resolver);
+
+        assertNull(parties.escrow());
+        assertEquals(1, parties.errors().size());
+        assertTrue(parties.errors().getFirst().contains("escrow"));
+    }
+
+    @Test
+    void missingEscrow_isNotAnError() {
+        govResolves();
+
+        DefaultParties parties = DefaultParties.resolve(settings(GOV_SETTING, GOV_SETTING, null), resolver);
+
+        assertNull(parties.escrow());
+        assertTrue(parties.errors().isEmpty());
     }
 }

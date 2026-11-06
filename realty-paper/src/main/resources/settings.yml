@@ -6,6 +6,8 @@
 default-freehold-authority: { name: GovSecurity, type: government }
 default-leasehold-landlord: { name: GovSecurity, type: government }
 # default-freehold-titleholder: { name: Steve }   # players only; leave out for no titleholder
+# Vault only: the player account that holds instalments until a sale finishes. Ignored with Treasury.
+# escrow: { name: Steve }   # players only
 date-format: "EEE, d MMMM yyyy (HH:mm)"
 # Maximum number of region profiles to re-apply per tick during startup/reload.
 # Lower values reduce lag spikes, higher values complete faster.

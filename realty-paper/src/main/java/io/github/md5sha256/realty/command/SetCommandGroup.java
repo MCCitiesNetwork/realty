@@ -405,6 +405,9 @@ public record SetCommandGroup(
                     case RealtyPaperApi.SetTitleHolderResult.UpdateFailed updateFailed ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_UPDATE_FAILED,
                                     Placeholder.unparsed("region", updateFailed.regionId())));
+                    case RealtyPaperApi.SetTitleHolderResult.SaleInPayment inPayment ->
+                            sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_SALE_IN_PAYMENT,
+                                    Placeholder.unparsed("region", inPayment.regionId())));
                     case RealtyPaperApi.SetTitleHolderResult.NoChange unchanged ->
                             sender.sendMessage(messages.messageFor(MessageKeys.SET_TITLEHOLDER_ALREADY_TITLEHOLDER,
                                     Placeholder.unparsed("titleholder", partyNames.display(titleHolderId)),

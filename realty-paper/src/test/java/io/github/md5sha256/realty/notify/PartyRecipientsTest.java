@@ -47,7 +47,7 @@ class PartyRecipientsTest {
 
     private PartyRecipients recipients(TreasuryApi treasury, AccountManagers accountManagers) {
         return new PartyRecipients(server, treasury, vaultPermission, new AtomicReference<>(
-                new Settings(null, null, null, new java.text.SimpleDateFormat("yyyy"),
+                new Settings(null, null, null, null, new java.text.SimpleDateFormat("yyyy"),
                         0, 0, 0, 0, List.of(), null, 0, 0, 0, 0, accountManagers)));
     }
 

@@ -47,6 +47,14 @@ import io.github.md5sha256.realty.database.maria.mapper.MariaActivityMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaSearchMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtySchematicMapper;
 import io.github.md5sha256.realty.database.maria.mapper.MariaRealtyWorldMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaRegionFeeMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaLevyChoiceMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaSaleFeeMapper;
+import io.github.md5sha256.realty.database.maria.mapper.MariaPendingRefundMapper;
+import io.github.md5sha256.realty.database.mapper.RegionFeeMapper;
+import io.github.md5sha256.realty.database.mapper.LevyChoiceMapper;
+import io.github.md5sha256.realty.database.mapper.SaleFeeMapper;
+import io.github.md5sha256.realty.database.mapper.PendingRefundMapper;
 import org.apache.ibatis.session.SqlSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -165,6 +173,26 @@ public record MariaSqlSession(@NotNull SqlSession session) implements SqlSession
     @Override
     public @NotNull RealtySchematicMapper realtySchematicMapper() {
         return session.getMapper(MariaRealtySchematicMapper.class);
+    }
+
+    @Override
+    public @NotNull RegionFeeMapper regionFeeMapper() {
+        return session.getMapper(MariaRegionFeeMapper.class);
+    }
+
+    @Override
+    public @NotNull LevyChoiceMapper levyChoiceMapper() {
+        return session.getMapper(MariaLevyChoiceMapper.class);
+    }
+
+    @Override
+    public @NotNull SaleFeeMapper saleFeeMapper() {
+        return session.getMapper(MariaSaleFeeMapper.class);
+    }
+
+    @Override
+    public @NotNull PendingRefundMapper pendingRefundMapper() {
+        return session.getMapper(MariaPendingRefundMapper.class);
     }
 
     @Override

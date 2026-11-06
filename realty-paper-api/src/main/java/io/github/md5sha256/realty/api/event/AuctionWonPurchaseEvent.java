@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.FeeQuote;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
@@ -19,15 +20,28 @@ public class AuctionWonPurchaseEvent extends RealtyRegionEvent {
     private final UUID winnerId;
     private final UUID previousTitleHolderId;
     private final double amount;
+    private final FeeQuote fees;
 
+    /**
+     * Creates the event for a sale that carried no fees.
+     */
     public AuctionWonPurchaseEvent(@NotNull WorldGuardRegion region,
                                    @NotNull UUID winnerId,
                                    @Nullable UUID previousTitleHolderId,
                                    double amount) {
+        this(region, winnerId, previousTitleHolderId, amount, FeeQuote.none(amount));
+    }
+
+    public AuctionWonPurchaseEvent(@NotNull WorldGuardRegion region,
+                                   @NotNull UUID winnerId,
+                                   @Nullable UUID previousTitleHolderId,
+                                   double amount,
+                                   @NotNull FeeQuote fees) {
         super(region);
         this.winnerId = winnerId;
         this.previousTitleHolderId = previousTitleHolderId;
         this.amount = amount;
+        this.fees = fees;
     }
 
     /**
@@ -67,10 +81,19 @@ public class AuctionWonPurchaseEvent extends RealtyRegionEvent {
     }
 
     /**
-     * The amount paid.
+     * The sale price: the winning bid or the accepted offer, without any fees. The buyer may have
+     * paid it in several instalments, and buyer-paid fees on top.
      */
     public double getAmount() {
         return this.amount;
+    }
+
+    /**
+     * The fees the sale carried: the fee lines, what the buyer paid in all and what the seller
+     * received after fees. {@link FeeQuote#none(double)} when it carried none.
+     */
+    public @NotNull FeeQuote getFees() {
+        return this.fees;
     }
 
     @Override

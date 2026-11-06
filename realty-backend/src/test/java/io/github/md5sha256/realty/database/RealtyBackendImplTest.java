@@ -68,7 +68,9 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                                                       LocalDateTime deadline) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, worldId, bidderId, 0, deadline);
+            // Owes the bid's price, as a payment with no fees does.
+            double price = wrapper.freeholdContractBidMapper().selectHighestBid(regionId, worldId).bidAmount();
+            wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, worldId, bidderId, 0, deadline, price);
             session.commit();
         }
     }
@@ -101,7 +103,10 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                                                         LocalDateTime deadline) {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.freeholdContractOfferPaymentMapper().insertPayment(regionId, worldId, offererId, 0, deadline);
+            // Owes the offer's price, as a payment with no fees does.
+            double price = wrapper.freeholdContractOfferMapper().selectByOfferer(regionId, worldId, offererId).offerPrice();
+            wrapper.freeholdContractOfferPaymentMapper().insertPayment(regionId, worldId, offererId, 0, deadline,
+                    price, null);
             session.commit();
         }
     }
@@ -986,7 +991,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             String regionId = uniqueRegionId();
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
 
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 100.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 100.0);
             Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
         }
 
@@ -998,7 +1003,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
             UUID otherPlayer = UUID.randomUUID();
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, otherPlayer, 100.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, otherPlayer, 100.0);
             Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
         }
 
@@ -1010,7 +1015,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             logic.placeOffer(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), 500.0, false);
             insertOfferPaymentWithDeadline(regionId, WORLD_ID, PLAYER_B, LocalDateTime.now().minusMinutes(1));
 
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 0.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 100.0);
             Assertions.assertInstanceOf(PayOfferResult.PaymentExpired.class, result);
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 Assertions.assertEquals(0.0, wrapper.freeholdContractOfferPaymentMapper()
@@ -1025,7 +1030,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 501.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 501.0);
             Assertions.assertInstanceOf(PayOfferResult.ExceedsAmountOwed.class, result);
             Assertions.assertEquals(500.0, ((PayOfferResult.ExceedsAmountOwed) result).amountOwed());
         }
@@ -1037,7 +1042,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 200.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 200.0);
             Assertions.assertInstanceOf(PayOfferResult.Success.class, result);
             PayOfferResult.Success success = (PayOfferResult.Success) result;
             Assertions.assertEquals(200.0, success.newTotal());
@@ -1051,9 +1056,9 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            logic.payOffer(regionId, WORLD_ID, PLAYER_B, 300.0);
+            payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 300.0);
 
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 201.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 201.0);
             Assertions.assertInstanceOf(PayOfferResult.ExceedsAmountOwed.class, result);
             Assertions.assertEquals(200.0, ((PayOfferResult.ExceedsAmountOwed) result).amountOwed());
         }
@@ -1065,7 +1070,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 500.0);
             Assertions.assertInstanceOf(PayOfferResult.FullyPaid.class, result);
         }
 
@@ -1076,10 +1081,10 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            PayOfferResult first = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 200.0);
+            PayOfferResult first = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 200.0);
             Assertions.assertInstanceOf(PayOfferResult.Success.class, first);
 
-            PayOfferResult second = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 300.0);
+            PayOfferResult second = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 300.0);
             Assertions.assertInstanceOf(PayOfferResult.FullyPaid.class, second);
         }
 
@@ -1090,7 +1095,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 500.0);
             // Ownership transfer is deferred to finalizeOfferPurchase, which the
             // paper layer invokes only after the economy payment clears.
             logic.finalizeOfferPurchase(regionId, WORLD_ID, PLAYER_B);
@@ -1107,11 +1112,11 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 500.0);
             // The payment record is cleared by finalizeOfferPurchase, not by payOffer.
             logic.finalizeOfferPurchase(regionId, WORLD_ID, PLAYER_B);
 
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 1.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 1.0);
             Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
         }
 
@@ -1122,7 +1127,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             createFreeholdRegion(regionId, WORLD_ID, AUTHORITY, PLAYER_A);
             placeAndAcceptOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
 
-            logic.payOffer(regionId, WORLD_ID, PLAYER_B, 500.0);
+            payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 500.0);
             // The accepted offer is removed by finalizeOfferPurchase, not by payOffer.
             logic.finalizeOfferPurchase(regionId, WORLD_ID, PLAYER_B);
 
@@ -1190,7 +1195,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                 Assertions.assertNotNull(payment);
                 wrapper.freeholdContractBidPaymentMapper().deleteByBidId(payment.bidId());
                 wrapper.freeholdContractBidPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
-                        LocalDateTime.now().minusDays(1));
+                        LocalDateTime.now().minusDays(1), payment.totalDue());
                 wrapper.freeholdContractBidPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 75.0);
                 session.commit();
             }
@@ -1212,7 +1217,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
 
             logic.clearExpiredBidPayments();
 
-            PayBidResult result = logic.payBid(regionId, WORLD_ID, PLAYER_B, 1.0);
+            PayBidResult result = payBidConfirmed(regionId, WORLD_ID, PLAYER_B, 1.0);
             Assertions.assertInstanceOf(PayBidResult.NoPaymentRecord.class, result);
         }
 
@@ -1380,7 +1385,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
                 Assertions.assertNotNull(payment);
                 wrapper.freeholdContractOfferPaymentMapper().deleteByOfferId(payment.offerId());
                 wrapper.freeholdContractOfferPaymentMapper().insertPayment(regionId, WORLD_ID, PLAYER_B, 0,
-                        LocalDateTime.now().minusDays(1));
+                        LocalDateTime.now().minusDays(1), payment.totalDue(), payment.acceptedBy());
                 wrapper.freeholdContractOfferPaymentMapper().updatePayment(regionId, WORLD_ID, PLAYER_B, 150.0);
                 session.commit();
             }
@@ -1401,7 +1406,7 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
 
             logic.clearExpiredOfferPayments();
 
-            PayOfferResult result = logic.payOffer(regionId, WORLD_ID, PLAYER_B, 1.0);
+            PayOfferResult result = payOfferConfirmed(regionId, WORLD_ID, PLAYER_B, 1.0);
             Assertions.assertInstanceOf(PayOfferResult.NoPaymentRecord.class, result);
         }
 

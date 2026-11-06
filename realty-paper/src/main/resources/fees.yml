@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# SALE LEVIES. A levy is a percentage fee charged on a sale, paid to a recipient.
+# Each plot uses at most one levy: the one its own choice names, else the one its
+# authority chose, else the levy marked `default`. A levy applies only when it is
+# enabled, its `authority-kind` allows the plot's authority, and one of its rules
+# matches the plot's tags. Otherwise the plot pays no levy; Realty never falls
+# back to another levy.
+#
+# Keys per levy:
+#
+#   name            Unique name, used by `/realty levy set <levy>`.
+#
+#   enabled         true to charge the levy. Turning it off charges nobody.
+#
+#   default         true to make this the levy used by plots that have not chosen
+#                   one. At most ONE levy may be the default; with more than one
+#                   marked, Realty logs an error and loads no levies at all.
+#
+#   paid-by         buyer or seller. A buyer pays the fee on top of the price; a
+#                   seller pays it out of the price.
+#
+#   recipient       Who receives the money. `authority` (or leave it out) pays the
+#                   plot's authority. To pay a named party, give it as in
+#                   settings.yml, for example: { name: DCGovernment, type: government }
+#                   A levy whose recipient cannot be resolved is dropped with an error.
+#
+#   authority-kind  Optional. Only plots whose authority is this kind (personal,
+#                   business, government, system, group) can use the levy.
+#                   Omit it to allow any authority.
+#
+#   rules           First matching rule wins, like taxes.yml. Keys per rule:
+#     match           Which plots the rule covers. Omit it to match every plot.
+#       all: [a, b]   plot must carry EVERY listed tag
+#       any: [a, b]   plot must carry AT LEAST ONE listed tag
+#       Tag ids come from region-tags.yml and are matched case-insensitively.
+#     tiers           The percentage rises with the number of plots the buyer or
+#                     seller already holds. The tier with the highest from-plots
+#                     that is at or below that count applies; no such tier means
+#                     no levy.
+#       - { from-plots: 0, percent: 0 }
+# ---------------------------------------------------------------------------
+levies:
+  # The national levy: the default, and switched off. Set `enabled: true` to
+  # charge it. With these tiers a buyer holding 0-2 plots pays nothing, 3-9
+  # plots pays 5% and 10 or more pays 15%, on residential plots only.
+  - name: national-levy
+    enabled: false
+    default: true
+    paid-by: buyer
+    recipient: authority
+    authority-kind: government
+    rules:
+      - match:
+          any: [residential]
+        tiers:
+          - { from-plots: 0, percent: 0 }
+          - { from-plots: 3, percent: 5 }
+          - { from-plots: 10, percent: 15 }

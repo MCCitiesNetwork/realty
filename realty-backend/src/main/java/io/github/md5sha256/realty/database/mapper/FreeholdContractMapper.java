@@ -220,4 +220,20 @@ public interface FreeholdContractMapper {
      */
     @NotNull List<TitleHeldRegionTag> selectTitleHeldRegionTags();
 
+    /**
+     * Locks every freehold of the authority, so that no auction or offer can open on one of them
+     * until the transaction ends.
+     *
+     * @return the locked freeholds' contract ids
+     */
+    @NotNull List<Integer> lockByAuthority(int authorityPartyId);
+
+    /**
+     * The regions of the authority's freeholds whose sale is open: an auction that has not ended,
+     * or an offer none of which has been accepted.
+     *
+     * @return their {@code RealtyRegion.realtyRegionId}s, in ascending order
+     */
+    @NotNull List<Integer> selectOpenSaleRegionIdsByAuthority(int authorityPartyId);
+
 }

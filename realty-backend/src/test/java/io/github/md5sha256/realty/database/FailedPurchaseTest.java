@@ -427,7 +427,7 @@ class FailedPurchaseTest extends AbstractDatabaseTest {
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
             wrapper.freeholdContractBidPaymentMapper().insertPayment(
-                    regionId, WORLD_ID, OFFERER, 0, LocalDateTime.now().plusDays(1));
+                    regionId, WORLD_ID, OFFERER, 0, LocalDateTime.now().plusDays(1), 200.0);
             session.commit();
         }
 

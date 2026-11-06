@@ -6,6 +6,8 @@ import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
+import io.github.md5sha256.realty.command.util.Deadlines;
+import io.github.md5sha256.realty.command.util.FeePreview;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -13,8 +15,11 @@ import io.github.md5sha256.realty.database.entity.InboundOfferView;
 import io.github.md5sha256.realty.database.entity.OutboundOfferView;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import io.github.md5sha256.realty.settings.Settings;
+import io.github.md5sha256.realty.util.PartyNames;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
@@ -30,6 +35,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Groups all offer-related subcommands under {@code /realty offer}.
@@ -48,7 +54,9 @@ public record OfferCommandGroup(
         @NotNull RealtyPaperApi api,
         @NotNull ActorContexts actors,
         @NotNull ExecutorState executorState,
-        @NotNull MessageContainer messages
+        @NotNull MessageContainer messages,
+        @NotNull PartyNames partyNames,
+        @NotNull AtomicReference<Settings> settings
 ) implements CustomCommandBean {
 
     @Override
@@ -137,10 +145,19 @@ public record OfferCommandGroup(
                         price, bypassConflict), executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
-                        case RealtyBackend.OfferResult.Success ignored ->
-                                sender.sendMessage(messages.messageFor(MessageKeys.OFFER_SUCCESS,
-                                        Placeholder.unparsed("price", CurrencyFormatter.format(price)),
-                                        Placeholder.unparsed("region", regionId)));
+                        case RealtyBackend.OfferResult.Success ignored -> {
+                            Component placed = messages.messageFor(MessageKeys.OFFER_SUCCESS,
+                                    Placeholder.unparsed("price", CurrencyFormatter.format(price)),
+                                    Placeholder.unparsed("region", regionId));
+                            // The offer stands either way; a failed preview only leaves out the breakdown.
+                            FeePreview.ofOffer(api, region, sender.getUniqueId(), price)
+                                    .thenAccept(preview -> sender.sendMessage(preview.appendTo(placed,
+                                            MessageKeys.FEES_BREAKDOWN_HEADER_OFFER, messages, partyNames)))
+                                    .exceptionally(ex -> {
+                                        sender.sendMessage(placed);
+                                        return null;
+                                    });
+                        }
                         case RealtyBackend.OfferResult.Cancelled ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
                         case RealtyBackend.OfferResult.NoFreeholdContract ignored ->
@@ -301,9 +318,11 @@ public record OfferCommandGroup(
                         case RealtyBackend.AcceptOfferResult.AlreadyAccepted ignored ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_ALREADY_ACCEPTED,
                                         Placeholder.unparsed("region", regionId)));
-                        case RealtyBackend.AcceptOfferResult.InsertFailed ignored ->
+                        case RealtyBackend.AcceptOfferResult.InsertFailed _ ->
                                 sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_INSERT_FAILED,
                                         Placeholder.unparsed("region", regionId)));
+                        case RealtyBackend.AcceptOfferResult.NoHoldingAccount _ ->
+                                sender.sendMessage(messages.messageFor(MessageKeys.OFFER_NO_HOLDING_ACCOUNT));
                     }
                 }).exceptionally(ex -> {
                     sender.sendMessage(messages.messageFor(MessageKeys.ACCEPT_OFFER_ERROR,
@@ -330,14 +349,26 @@ public record OfferCommandGroup(
         api.payOffer(region, sender.getUniqueId(), amount).thenAccept(result -> {
             switch (result) {
                 case RealtyPaperApi.PayOfferResult.Success success ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_SUCCESS,
-                                Placeholder.unparsed("amount", CurrencyFormatter.format(success.amount())),
-                                Placeholder.unparsed("region", success.regionId()),
-                                Placeholder.unparsed("total", CurrencyFormatter.format(success.newTotal())),
-                                Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining()))));
+                        paymentDeadline(sender, region).thenAccept(deadline ->
+                                sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_SUCCESS,
+                                        Placeholder.unparsed("amount", CurrencyFormatter.format(success.amount())),
+                                        Placeholder.unparsed("region", success.regionId()),
+                                        Placeholder.unparsed("total", CurrencyFormatter.format(success.newTotal())),
+                                        // What is owed in all: the price plus the buyer's fees.
+                                        Placeholder.unparsed("due", CurrencyFormatter.format(
+                                                success.newTotal() + success.remaining())),
+                                        Placeholder.unparsed("remaining", CurrencyFormatter.format(success.remaining())),
+                                        deadline)));
                 case RealtyPaperApi.PayOfferResult.FullyPaid fullyPaid ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_TRANSFER_SUCCESS,
                                 Placeholder.unparsed("region", fullyPaid.regionId())));
+                case RealtyPaperApi.PayOfferResult.FinalizePending pending ->
+                        sender.sendMessage(messages.messageFor(pending.paidToSeller()
+                                        ? MessageKeys.PAY_FINALIZE_PENDING_PAID_TO_SELLER
+                                        : MessageKeys.PAY_FINALIZE_PENDING,
+                                Placeholder.unparsed("region", pending.regionId())));
+                case RealtyPaperApi.PayOfferResult.InvalidAmount ignored ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_INVALID_AMOUNT));
                 case RealtyPaperApi.PayOfferResult.NoPaymentRecord noPayment ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_NO_PAYMENT_RECORD,
                                 Placeholder.unparsed("region", noPayment.regionId())));
@@ -352,6 +383,9 @@ public record OfferCommandGroup(
                 case RealtyPaperApi.PayOfferResult.InsufficientFunds insufficient ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_INSUFFICIENT_FUNDS,
                                 Placeholder.unparsed("balance", CurrencyFormatter.format(insufficient.balance()))));
+                case RealtyPaperApi.PayOfferResult.HoldingPaused paused ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.PAY_HOLDING_PAUSED,
+                                Placeholder.unparsed("region", paused.regionId())));
                 case RealtyPaperApi.PayOfferResult.PaymentFailed failed ->
                         sender.sendMessage(messages.messageFor(MessageKeys.PAY_OFFER_PAYMENT_FAILED,
                                 Placeholder.unparsed("error", failed.error())));
@@ -362,6 +396,24 @@ public record OfferCommandGroup(
                                 Placeholder.unparsed("error", error.message())));
             }
         });
+    }
+
+    /**
+     * The {@code <deadline>} of the player's accepted offer on {@code region}, in the configured
+     * date format, as an auction's is; {@code pay.deadline-unknown} when it cannot be found.
+     */
+    private @NotNull CompletableFuture<TagResolver> paymentDeadline(@NotNull Player player,
+                                                                    @NotNull WorldGuardRegion region) {
+        String regionId = region.region().getId();
+        java.util.UUID worldId = region.world().getUID();
+        return api.listOutboundOffers(player.getUniqueId()).thenApply(offers -> offers.stream()
+                        .filter(o -> o.worldGuardRegionId().equalsIgnoreCase(regionId) && o.worldId().equals(worldId))
+                        .map(OutboundOfferView::paymentDeadline)
+                        .filter(java.util.Objects::nonNull)
+                        .findFirst()
+                        .orElse(null))
+                .exceptionally(ex -> null)
+                .thenApply(deadline -> Deadlines.placeholder(messages, settings.get().dateFormat(), deadline));
     }
 
     // ── /realty offer withdraw [region] ──

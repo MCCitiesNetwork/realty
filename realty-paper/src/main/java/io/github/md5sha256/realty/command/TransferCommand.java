@@ -85,6 +85,9 @@ public record TransferCommand(
                                 Placeholder.unparsed("region", noContract.regionId())));
                 case RealtyPaperApi.SetTitleHolderResult.NotAuthorized ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_NO_PERMISSION));
+                case RealtyPaperApi.SetTitleHolderResult.SaleInPayment inPayment ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_SALE_IN_PAYMENT,
+                                Placeholder.unparsed("region", inPayment.regionId())));
                 case RealtyPaperApi.SetTitleHolderResult.NoChange unchanged ->
                         sender.sendMessage(messages.messageFor(MessageKeys.TRANSFER_ALREADY_TITLEHOLDER,
                                 Placeholder.unparsed("titleholder", partyNames.display(titleHolderId)),

@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.command;
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.api.DurationFormatter;
+import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
@@ -31,7 +32,10 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -47,7 +51,20 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                           @NotNull Database database,
                           @NotNull AtomicReference<RealtyTags> realtyTags,
                           @NotNull MessageContainer messages,
-                          @NotNull PartyNames partyNames) implements CustomCommandBean.Single {
+                          @NotNull PartyNames partyNames,
+                          @NotNull Logger logger) implements CustomCommandBean.Single {
+
+    /**
+     * The region's fees, or none when they cannot be looked up: the fees line is one line of the
+     * info, and a failure there must not cost the player the rest of it.
+     */
+    static @NotNull CompletableFuture<List<RealtyBackend.FeeListing>> feesOrNone(
+            @NotNull CompletableFuture<List<RealtyBackend.FeeListing>> fees, @NotNull Logger logger) {
+        return fees.exceptionally(ex -> {
+            logger.log(Level.FINE, "Could not list the fees for /realty info; showing none", ex);
+            return List.of();
+        });
+    }
 
     private @NotNull String resolveMembers(@NotNull WorldGuardRegion region) {
         Set<UUID> memberUuids = region.region().getMembers().getUniqueIds();
@@ -94,7 +111,8 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
         // resolveMembers reads WG data and must run on the main thread
         String membersStr = resolveMembers(region);
 
-        api.getRegionInfo(regionId, worldId).thenAccept(info -> {
+        api.getRegionInfo(regionId, worldId).thenCombine(feesOrNone(api.listFees(region), logger), FeesAndInfo::new).thenAccept(both -> {
+            RealtyBackend.RegionInfo info = both.info();
             TextComponent.Builder builder = Component.text();
             builder.append(messages.messageFor(MessageKeys.INFO_HEADER,
                     Placeholder.unparsed("region", regionId)));
@@ -112,6 +130,9 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
 
             if (freehold != null) {
                 appendFreeholdInfo(builder, freehold, info.lastSoldPrice(), membersStr);
+                builder.appendNewline()
+                        .append(messages.messageFor(MessageKeys.INFO_FEES,
+                                Placeholder.component("fees", feesOnSale(messages, both.fees()))));
                 builder.appendNewline()
                         .append(messages.messageFor(MessageKeys.INFO_AUCTION_ACTIVE,
                                 Placeholder.unparsed("has_auction", hasAuction ? "Yes" : "No")));
@@ -136,6 +157,33 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
                     Placeholder.unparsed("error", String.valueOf(ex.getMessage()))));
             return null;
         });
+    }
+
+    private record FeesAndInfo(@NotNull RealtyBackend.RegionInfo info,
+                               @NotNull List<RealtyBackend.FeeListing> fees) {}
+
+    /**
+     * The "Fees on sale" text: each fee with its rate and who pays it, such as
+     * {@code townville-levy 2–8% by plots held (buyer pays)}, or "None".
+     */
+    static @NotNull Component feesOnSale(@NotNull MessageContainer messages,
+                                         @NotNull List<RealtyBackend.FeeListing> fees) {
+        if (fees.isEmpty()) {
+            return messages.messageFor(MessageKeys.INFO_FEES_NONE);
+        }
+        TextComponent.Builder builder = Component.text();
+        for (int i = 0; i < fees.size(); i++) {
+            RealtyBackend.FeeListing fee = fees.get(i);
+            if (i > 0) {
+                builder.append(Component.text(", "));
+            }
+            builder.append(messages.messageFor(
+                    fee.approved() ? MessageKeys.INFO_FEE_ENTRY : MessageKeys.INFO_FEE_ENTRY_PENDING,
+                    Placeholder.unparsed("source", fee.source()),
+                    Placeholder.unparsed("rate", fee.rate()),
+                    Placeholder.unparsed("side", FeeCommandGroup.sideName(fee.side()))));
+        }
+        return builder.build();
     }
 
     private void appendFreeholdInfo(@NotNull TextComponent.Builder builder,

@@ -1,0 +1,72 @@
+package io.github.md5sha256.realty.database.mapper;
+
+import io.github.md5sha256.realty.database.entity.SaleFeeEntity;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
+
+/**
+ * Base mapper interface for the {@code SaleFee} table: the lines of money a sale owes its
+ * recipients. A line is {@code locked} while its sale is under way, is paid out once the sale
+ * completes, and moves through {@code paying} to {@code paid}, or to {@code failed} for a retry.
+ * SQL annotations are provided by database-specific sub-interfaces.
+ *
+ * @see SaleFeeEntity
+ */
+public interface SaleFeeMapper {
+
+    /**
+     * Inserts the line, taking every column but {@code saleFeeId} from {@code row}.
+     *
+     * @return the new line's {@code saleFeeId}
+     */
+    int insert(@NotNull SaleFeeEntity row);
+
+    @NotNull List<SaleFeeEntity> selectBySale(@NotNull String saleKind, int saleRef);
+
+    /**
+     * Removes a sale's lines that are still locked to it and not yet completed, as when the sale
+     * falls through. Lines being paid, paid or failed are kept.
+     */
+    int deleteUnpaidBySale(@NotNull String saleKind, int saleRef);
+
+    /** Marks a sale's lines as completed, so that they become due for payout. */
+    int markCompleted(@NotNull String saleKind, int saleRef);
+
+    /**
+     * The lines due for payout: locked lines of a completed sale, and failed lines last tried more
+     * than {@code retryAfterMinutes} ago by the database clock, in both cases with fewer than
+     * {@code maxAttempts} attempts.
+     */
+    @NotNull List<SaleFeeEntity> selectDue(int retryAfterMinutes, int maxAttempts);
+
+    /**
+     * The lines claimed for payout and never marked paid or failed, as after a crash mid-payout.
+     * Whether their money moved is unknown, so they are never retried automatically.
+     */
+    @NotNull List<SaleFeeEntity> selectPaying();
+
+    /**
+     * How many things the holding account holds money for: payments under the new rules with
+     * something paid, payout lines of completed auctions and offers not yet paid, and refunds not
+     * yet paid.
+     */
+    int countHeldForSales();
+
+    /**
+     * Claims the line for payout, moving it to {@code paying}, if it is still due as
+     * {@link #selectDue} defines it.
+     *
+     * @return 1 if this call claimed the line, 0 if it was not claimable
+     */
+    int claim(int saleFeeId, int retryAfterMinutes, int maxAttempts);
+
+    /** The line's failed attempts so far. */
+    int selectAttempts(int saleFeeId);
+
+    int markPaid(int saleFeeId);
+
+    /** Records a failed payout: the line becomes {@code failed}, with one more attempt counted. */
+    int markFailed(int saleFeeId, @NotNull String error);
+
+}

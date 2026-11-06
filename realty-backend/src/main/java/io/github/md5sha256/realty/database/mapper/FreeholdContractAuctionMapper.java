@@ -48,6 +48,12 @@ public interface FreeholdContractAuctionMapper {
 
     int setPaymentDeadline(int freeholdContractAuctionId, @NotNull LocalDateTime paymentDeadline);
 
+    /**
+     * Sets the deadline of every auction whose winner's payment is under the new rules to that
+     * payment's deadline, as after {@link FreeholdContractBidPaymentMapper#pauseNewRulesDeadlines}.
+     */
+    int matchNewRulesPaymentDeadlines();
+
     int markEnded(@Param("freeholdContractAuctionId") int freeholdContractAuctionId);
 
     int deleteAuction(int freeholdContractAuctionId);

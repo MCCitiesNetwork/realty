@@ -1,8 +1,13 @@
 package io.github.md5sha256.realty.event;
 
+import io.github.md5sha256.realty.api.event.FeePaidEvent;
+import io.github.md5sha256.realty.api.event.LevyChangeEvent;
+import io.github.md5sha256.realty.api.event.LevyChangedEvent;
 import io.github.md5sha256.realty.api.event.PaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
+import io.github.md5sha256.realty.api.event.RefundPaidEvent;
+import io.github.md5sha256.realty.api.event.SaleProceedsPaidEvent;
 import org.bukkit.Server;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
@@ -80,6 +85,54 @@ public final class RealtyEventDispatch {
     public boolean fireSync(@NotNull PaymentExpiredEvent event) {
         return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
                 "Cancellable synchronous events must be fired from the main thread: ");
+    }
+
+    /**
+     * Fires a {@link FeePaidEvent}, hopping to the main thread if the caller is not already on it.
+     * These events are never cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull FeePaidEvent event) {
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "FeePaidEvent is never cancellable, so it should never need this message: ");
+    }
+
+    /**
+     * Fires a {@link SaleProceedsPaidEvent}, hopping to the main thread if the caller is not already
+     * on it. These events are never cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull SaleProceedsPaidEvent event) {
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "SaleProceedsPaidEvent is never cancellable, so it should never need this message: ");
+    }
+
+    /**
+     * Fires a {@link RefundPaidEvent}, hopping to the main thread if the caller is not already on
+     * it. These events are never cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull RefundPaidEvent event) {
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "RefundPaidEvent is never cancellable, so it should never need this message: ");
+    }
+
+    /**
+     * Fires a {@link LevyChangeEvent}. It is cancellable, so the caller must be on the server main
+     * thread.
+     *
+     * @return {@code false} if a listener cancelled the event
+     * @throws IllegalStateException if the caller is off the main thread
+     */
+    public boolean fireSync(@NotNull LevyChangeEvent event) {
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "Cancellable synchronous events must be fired from the main thread: ");
+    }
+
+    /**
+     * Fires a {@link LevyChangedEvent}, hopping to the main thread if the caller is not already on
+     * it. These events are never cancellable, so this always reports {@code true}.
+     */
+    public boolean fireSync(@NotNull LevyChangedEvent event) {
+        return fireOrHop(event, this.server.isPrimaryThread(), this.mainThreadExecutor,
+                "Synchronous events must be fired from the main thread: ");
     }
 
     /**

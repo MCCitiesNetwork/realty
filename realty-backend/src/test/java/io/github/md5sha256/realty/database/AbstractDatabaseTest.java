@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.database;
 
+import io.github.md5sha256.realty.api.LevyCatalog;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.DatabaseSettings;
@@ -33,6 +34,12 @@ abstract class AbstractDatabaseTest {
     protected static Database database;
     protected static RealtyBackend logic;
 
+    /** The levies {@link #logic} reads; a test may replace it, and each test starts with none. */
+    protected static volatile LevyCatalog levies = LevyCatalog.EMPTY;
+
+    /** Whether {@link #logic} sees a holding account; a test may clear it, and each test starts with one. */
+    protected static volatile boolean holdingAvailable = true;
+
     private static volatile boolean migrated;
 
     /**
@@ -46,6 +53,43 @@ abstract class AbstractDatabaseTest {
             }
             wrapper.session().commit();
         }
+    }
+
+    /**
+     * Pays towards a won auction as the Paper plugin does when the money moves: the instalment
+     * {@link RealtyBackend#payBid} counts as pending is confirmed at once.
+     */
+    protected static RealtyBackend.PayBidResult payBidConfirmed(String regionId, UUID worldId, UUID bidderId,
+                                                                double amount) {
+        RealtyBackend.PayBidResult result = logic.payBid(regionId, worldId, bidderId, amount);
+        Boolean oldRules = switch (result) {
+            case RealtyBackend.PayBidResult.Success success -> success.oldRules();
+            case RealtyBackend.PayBidResult.FullyPaid fullyPaid -> fullyPaid.oldRules();
+            default -> null;
+        };
+        if (oldRules != null) {
+            if (!logic.confirmPayBid(regionId, worldId, bidderId, amount, oldRules)) {
+                throw new IllegalStateException("the instalment just counted could not be confirmed");
+            }
+        }
+        return result;
+    }
+
+    /** As {@link #payBidConfirmed}, for an accepted offer. */
+    protected static RealtyBackend.PayOfferResult payOfferConfirmed(String regionId, UUID worldId, UUID offererId,
+                                                                    double amount) {
+        RealtyBackend.PayOfferResult result = logic.payOffer(regionId, worldId, offererId, amount);
+        Boolean oldRules = switch (result) {
+            case RealtyBackend.PayOfferResult.Success success -> success.oldRules();
+            case RealtyBackend.PayOfferResult.FullyPaid fullyPaid -> fullyPaid.oldRules();
+            default -> null;
+        };
+        if (oldRules != null) {
+            if (!logic.confirmPayOffer(regionId, worldId, offererId, amount, oldRules)) {
+                throw new IllegalStateException("the instalment just counted could not be confirmed");
+            }
+        }
+        return result;
     }
 
     @BeforeAll
@@ -66,13 +110,16 @@ abstract class AbstractDatabaseTest {
         logic = new RealtyBackendImpl(database,
                 party -> CompletableFuture.completedFuture(party instanceof Party.Personal personal
                         ? personal.playerUuid().toString() : party.toString()),
-                java.time.LocalDateTime::toString, () -> 86400);
+                java.time.LocalDateTime::toString, () -> 86400, () -> levies, () -> holdingAvailable,
+                Logger.getLogger("test"));
     }
 
     private static String truncateUrl;
 
     @BeforeEach
     void truncateTables() throws SQLException {
+        levies = LevyCatalog.EMPTY;
+        holdingAvailable = true;
         if (truncateUrl == null) {
             String baseJdbcUrl = CONTAINER.getJdbcUrl();
             truncateUrl = baseJdbcUrl + (baseJdbcUrl.contains("?") ? "&" : "?") + "allowMultiQueries=true";
@@ -81,6 +128,11 @@ abstract class AbstractDatabaseTest {
              Statement stmt = conn.createStatement()) {
             stmt.execute("""
                     SET FOREIGN_KEY_CHECKS = 0;
+                    TRUNCATE TABLE SaleFee;
+                    TRUNCATE TABLE PendingRefund;
+                    TRUNCATE TABLE RegionFee;
+                    TRUNCATE TABLE RegionLevy;
+                    TRUNCATE TABLE AuthorityLevy;
                     TRUNCATE TABLE RealtySchematic;
                     TRUNCATE TABLE RealtyWorld;
                     TRUNCATE TABLE RealtySign;

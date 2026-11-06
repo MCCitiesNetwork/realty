@@ -1,5 +1,6 @@
 package io.github.md5sha256.realty.api.event;
 
+import io.github.md5sha256.realty.api.FeeQuote;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.bukkit.event.HandlerList;
@@ -19,15 +20,28 @@ public class RegionBoughtEvent extends RealtyRegionEvent {
     private final UUID buyerId;
     private final UUID previousTitleHolderId;
     private final double price;
+    private final FeeQuote fees;
 
+    /**
+     * Creates the event for a sale that carried no fees.
+     */
     public RegionBoughtEvent(@NotNull WorldGuardRegion region,
                              @NotNull UUID buyerId,
                              @Nullable UUID previousTitleHolderId,
                              double price) {
+        this(region, buyerId, previousTitleHolderId, price, FeeQuote.none(price));
+    }
+
+    public RegionBoughtEvent(@NotNull WorldGuardRegion region,
+                             @NotNull UUID buyerId,
+                             @Nullable UUID previousTitleHolderId,
+                             double price,
+                             @NotNull FeeQuote fees) {
         super(region);
         this.buyerId = buyerId;
         this.previousTitleHolderId = previousTitleHolderId;
         this.price = price;
+        this.fees = fees;
     }
 
     /**
@@ -71,6 +85,14 @@ public class RegionBoughtEvent extends RealtyRegionEvent {
      */
     public double getPrice() {
         return this.price;
+    }
+
+    /**
+     * The fees the sale carried: the fee lines, what the buyer paid in all and what the seller
+     * received after fees. {@link FeeQuote#none(double)} when it carried none.
+     */
+    public @NotNull FeeQuote getFees() {
+        return this.fees;
     }
 
     @Override

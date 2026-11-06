@@ -58,7 +58,8 @@ public final class MariaSchemaMigrator {
             new MigrationStep(17, "region schematics", "V17__realty_schematics.sql"),
             new MigrationStep(18, "purge worldedit schematics", "V18__purge_worldedit_schematics.sql"),
             new MigrationStep(19, "parties", "V19__parties.sql"),
-            new MigrationStep(20, "offers off by default", "V20__offers_off_by_default.sql")
+            new MigrationStep(20, "offers off by default", "V20__offers_off_by_default.sql"),
+            new MigrationStep(21, "sale fees", "V21__sale_fees.sql")
     );
 
     private MariaSchemaMigrator() {

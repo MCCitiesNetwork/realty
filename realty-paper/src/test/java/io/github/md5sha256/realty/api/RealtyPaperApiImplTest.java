@@ -18,6 +18,15 @@ import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
 import io.github.md5sha256.realty.api.event.AuctionCancelledEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreateEvent;
 import io.github.md5sha256.realty.api.event.AuctionCreatedEvent;
+import io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent;
+import io.github.md5sha256.realty.api.event.FeeApprovedEvent;
+import io.github.md5sha256.realty.api.event.FeeChangeEvent;
+import io.github.md5sha256.realty.api.event.FeeChangedEvent;
+import io.github.md5sha256.realty.api.event.FeeRejectedEvent;
+import io.github.md5sha256.realty.api.event.FeeRemovedEvent;
+import io.github.md5sha256.realty.api.event.LevyChangeEvent;
+import io.github.md5sha256.realty.api.event.LevyChangedEvent;
+import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
 import io.github.md5sha256.realty.api.event.OfferAcceptEvent;
 import io.github.md5sha256.realty.api.event.OfferPlaceEvent;
 import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
@@ -31,6 +40,9 @@ import io.github.md5sha256.realty.database.entity.FreeholdContractEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
 import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.economy.EconomyProvider;
+import io.github.md5sha256.realty.economy.HoldingAccount;
+import io.github.md5sha256.realty.economy.SaleSettlement;
+import io.github.md5sha256.realty.settings.DefaultParties;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.settings.AccountManagers;
 import io.github.md5sha256.realty.settings.Settings;
@@ -58,6 +70,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.AbstractExecutorService;
@@ -65,10 +78,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Logger;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
@@ -99,6 +117,8 @@ class RealtyPaperApiImplTest {
     private RealtyEventDispatch events;
 
     private SignCache signCache;
+    private HoldingAccount holding;
+    private SaleSettlement settlement;
     private RealtyPaperApiImpl api;
     private MockedStatic<WorldGuard> worldGuardMock;
     private MockedStatic<BukkitAdapter> bukkitAdapterMock;
@@ -107,6 +127,9 @@ class RealtyPaperApiImplTest {
     private ProtectedRegion protectedRegion;
     private WorldGuardRegion wgRegion;
 
+    private static final Logger LOG = Logger.getLogger("RealtyPaperApiImplTest");
+    private static final UUID ESCROW_ID = UUID.randomUUID();
+    private static final Party.Personal HOLDING = Party.personal(ESCROW_ID);
     private static final String REGION_ID = "test_region";
     private static final UUID WORLD_ID = UUID.randomUUID();
     private static final UUID BUYER_ID = UUID.randomUUID();
@@ -138,12 +161,13 @@ class RealtyPaperApiImplTest {
             new RealtyBackend.BuyUndo(42,
                     List.of(new RealtyBackend.WithdrawnOffer(
                             UUID.randomUUID(), 500.0, LocalDateTime.of(2026, 8, 1, 12, 0))),
-                    List.of(UUID.randomUUID())));
+                    List.of(UUID.randomUUID())),
+            FeeQuote.none(1000.0));
 
     @Test
     void partialAuctionPaymentUsesAuctionSourceWithoutFinalizingOwnership() {
         when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 25.0)).thenReturn(
-                new RealtyBackend.PayBidResult.Success(25, 75, GOVERNMENT, TITLE_HOLDER_ID));
+                new RealtyBackend.PayBidResult.Success(25, 75, GOVERNMENT, TITLE_HOLDER_ID, true));
         when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
         when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(25.0), any(), eq(BUYER_ID)))
                 .thenReturn(new PaymentResult.Success());
@@ -158,10 +182,11 @@ class RealtyPaperApiImplTest {
     @Test
     void finalAuctionPaymentUsesAuctionSourceBeforeTransferringOwnership() {
         when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 75.0)).thenReturn(
-                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID));
+                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, FeeQuote.none(75), true, 9));
         when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
         when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(75.0), any(), eq(BUYER_ID)))
                 .thenReturn(new PaymentResult.Success());
+        when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
         when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
         Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.FullyPaid.class,
                 api.payBid(wgRegion, BUYER_ID, 75.0).join());
@@ -175,7 +200,7 @@ class RealtyPaperApiImplTest {
     @Test
     void failedAuctionSettlementRollsBackPaymentAndDoesNotTransferOwnership() {
         when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 75.0)).thenReturn(
-                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID));
+                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, FeeQuote.none(75), true, 9));
         when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
         when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(75.0), any(), eq(BUYER_ID)))
                 .thenReturn(new PaymentResult.Failure("Rejected"));
@@ -189,19 +214,24 @@ class RealtyPaperApiImplTest {
     @BeforeEach
     void setUp() {
         signCache = new SignCache();
+        holding = HoldingAccount.vault(() -> new DefaultParties(null, null, null, false, ESCROW_ID, List.of()));
+        settlement = new SaleSettlement(economyProvider, realtyApi, holding, events, LOG);
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         lenient().when(treasury.getMembers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
         lenient().when(treasury.getAuthorizers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
         ActorContexts actorContexts = new ActorContexts(treasury, null,
-                new AtomicReference<>(new Settings(null, null, null, new SimpleDateFormat("yyyy"),
+                new AtomicReference<>(new Settings(null, null, null, null, new SimpleDateFormat("yyyy"),
                         0, 0, 0, 0, List.of(), null, 0, 0, 0, 0, AccountManagers.MEMBERS)),
                 realtyApi);
         api = new RealtyPaperApiImpl(server, realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
                 new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()),
-                actorContexts, events);
+                actorContexts, events, holding, settlement, LOG);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
+        // An instalment whose money moved is confirmed, as the backend does while its payment exists.
+        lenient().when(realtyApi.confirmPayBid(any(), any(), any(), anyDouble(), anyBoolean())).thenReturn(true);
+        lenient().when(realtyApi.confirmPayOffer(any(), any(), any(), anyDouble(), anyBoolean())).thenReturn(true);
 
         protectedRegion = new ProtectedCuboidRegion(REGION_ID,
                 BlockVector3.at(0, 0, 0), BlockVector3.at(100, 100, 100));
@@ -474,12 +504,19 @@ class RealtyPaperApiImplTest {
             when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
 
+            // The fees are recorded only once the buyer owns the region.
+            doAnswer(invocation -> {
+                Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+                return null;
+            }).when(realtyApi).recordBuyFees(REGION_ID, WORLD_ID, BUYER_ID, TITLE_HOLDER, RESERVED.fees());
+
             api.buy(wgRegion, BUYER_CTX, false).join();
 
             InOrder order = inOrder(realtyApi, economyProvider);
             order.verify(realtyApi).executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false);
             order.verify(realtyApi).getRegionPlaceholders(REGION_ID, WORLD_ID);
             order.verify(economyProvider).transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID));
+            order.verify(realtyApi).recordBuyFees(REGION_ID, WORLD_ID, BUYER_ID, TITLE_HOLDER, RESERVED.fees());
             order.verifyNoMoreInteractions();
             Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
         }
@@ -499,7 +536,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("a plot with no titleholder pays its account authority")
         void buy_fromAccountAuthority_paysTheAccount() {
             RealtyBackend.BuyResult.Success fromAuthority = new RealtyBackend.BuyResult.Success(
-                    1000.0, GOVERNMENT, null, RESERVED.undo());
+                    1000.0, GOVERNMENT, null, RESERVED.undo(), FeeQuote.none(1000.0));
             when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(fromAuthority);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
             when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);
@@ -538,10 +575,10 @@ class RealtyPaperApiImplTest {
                     () -> 604800, new SafeLocationFinder(), stubPlayerNameService(),
                     accountId -> CompletableFuture.completedFuture(Optional.empty()),
                     new ActorContexts(treasury, null,
-                            new AtomicReference<>(new Settings(null, null, null,
+                            new AtomicReference<>(new Settings(null, null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi), events);
+                            realtyApi), events, holding, settlement, LOG);
         }
 
         private void runMainThread() {
@@ -1505,10 +1542,10 @@ class RealtyPaperApiImplTest {
                     () -> 604800, new SafeLocationFinder(), stubPlayerNameService(),
                     accountId -> CompletableFuture.completedFuture(Optional.empty()),
                     new ActorContexts(treasury, null,
-                            new AtomicReference<>(new Settings(null, null, null,
+                            new AtomicReference<>(new Settings(null, null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi), events);
+                            realtyApi), events, holding, settlement, LOG);
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
             regionIs(RegionState.FOR_SALE);
@@ -2019,7 +2056,7 @@ class RealtyPaperApiImplTest {
 
         private List<RealtyRegionEvent> firedEvents() {
             ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
-            verify(events, org.mockito.Mockito.atLeast(0)).fireSync(captor.capture());
+            verify(events, org.mockito.Mockito.atLeastOnce()).fireSync(captor.capture());
             return captor.getAllValues();
         }
 
@@ -2090,5 +2127,851 @@ class RealtyPaperApiImplTest {
             Assertions.assertEquals(Optional.of(BUYER_ID), toggled.getActorId());
         }
     }
-}
 
+    // ═══════════════════════════════════════════════════
+    // the holding account and sale fees
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("sale money")
+    class SaleMoney {
+
+        private static final Party.Personal AGENT = Party.personal(UUID.randomUUID());
+        /** 1000 with a 3% seller-paid agent fee: the seller receives 970. */
+        private static final FeeQuote AGENT_QUOTE = new FeeQuote(1000,
+                List.of(new FeeLine("agent", AGENT, FeeSide.SELLER, 3, 30)), 1000, 970);
+        /** 1000 with a 5% buyer-paid levy and a 3% seller-paid agent fee. */
+        private static final FeeQuote BUY_QUOTE = new FeeQuote(1000,
+                List.of(new FeeLine("stamp-duty", GOVERNMENT, FeeSide.BUYER, 5, 50),
+                        new FeeLine("agent", AGENT, FeeSide.SELLER, 3, 30)), 1050, 970);
+        private static final RealtyBackend.DuePayout PROCEEDS_LINE = new RealtyBackend.DuePayout(
+                1, "proceeds", "proceeds", TITLE_HOLDER, 970, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000, false);
+        private static final RealtyBackend.DuePayout AGENT_LINE = new RealtyBackend.DuePayout(
+                2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000, false);
+        /** The same lines from a sale at auction: the seller's proceeds carry the auction source. */
+        private static final RealtyBackend.DuePayout AUCTION_PROCEEDS_LINE = new RealtyBackend.DuePayout(
+                1, "proceeds", "proceeds", TITLE_HOLDER, 970, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000, true);
+        private static final RealtyBackend.DuePayout AUCTION_AGENT_LINE = new RealtyBackend.DuePayout(
+                2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000, true);
+
+        private RealtyPaperApiImpl withoutHolding() {
+            return withHolding(HoldingAccount.vault(DefaultParties::unresolved));
+        }
+
+        private RealtyPaperApiImpl withHolding(HoldingAccount none) {
+            return new RealtyPaperApiImpl(server, realtyApi, economyProvider,
+                    new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService()),
+                    database, regionProfileService, signTextApplicator, signCache, () -> 604800,
+                    new SafeLocationFinder(), stubPlayerNameService(),
+                    accountId -> CompletableFuture.completedFuture(Optional.empty()),
+                    new ActorContexts(treasury, null,
+                            new AtomicReference<>(new Settings(null, null, null, null,
+                                    new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
+                                    0, 0, 0, 0, AccountManagers.MEMBERS)),
+                            realtyApi),
+                    events, none, new SaleSettlement(economyProvider, realtyApi, none, events, LOG), LOG);
+        }
+
+        private void paidInFull(double amount, FeeQuote quote, boolean oldRules) {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, amount)).thenReturn(
+                    new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, quote, oldRules, 9));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            lenient().when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
+        }
+
+        private void payoutsDue(RealtyBackend.DuePayout... lines) {
+            when(realtyApi.duePayouts()).thenReturn(List.of(lines));
+            lenient().when(realtyApi.claimPayout(org.mockito.ArgumentMatchers.anyInt())).thenReturn(OptionalInt.of(0));
+        }
+
+        @Test
+        void payBid_partial_goesToHolding() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(300.0),
+                    eq("Auction Bid Payment (partial): " + REGION_ID), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 300).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Success.class, result);
+            verify(economyProvider, never()).transfer(any(), eq(TITLE_HOLDER), anyDouble(), any(), any());
+            verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
+        }
+
+        @Test
+        void payBid_partial_withoutHolding_failsAndRollsBack() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+
+            RealtyPaperApi.PayBidResult result = withoutHolding().payBid(wgRegion, BUYER_ID, 300).join();
+
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.HoldingPaused(REGION_ID), result);
+            verify(realtyApi).rollbackPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0);
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+            verify(economyProvider, never()).transferAuctionProceeds(any(), any(), anyDouble(), any(), any());
+        }
+
+        /** Realty's Treasury SYSTEM account #17, archived since startup. */
+        private HoldingAccount archivedHolding() {
+            io.paradaux.treasury.model.economy.Account account = new io.paradaux.treasury.model.economy.Account(
+                    17, io.paradaux.treasury.model.economy.AccountType.SYSTEM, UUID.randomUUID(), "Realty Holding",
+                    false, false, false, null);
+            when(treasury.getAccountsByTypeAndOwner(eq(io.paradaux.treasury.model.economy.AccountType.SYSTEM),
+                    any())).thenReturn(List.of(account));
+            HoldingAccount holding = io.github.md5sha256.realty.economy.TreasuryHoldingAccount.create(treasury, LOG);
+            io.paradaux.treasury.model.economy.Account archived = new io.paradaux.treasury.model.economy.Account(
+                    17, io.paradaux.treasury.model.economy.AccountType.SYSTEM, UUID.randomUUID(), "Realty Holding",
+                    false, false, false, null).withArchived(true);
+            when(treasury.getAccountById(17)).thenReturn(archived);
+            return holding;
+        }
+
+        @Test
+        void payBid_whileUnusable_saysPaused() throws java.io.IOException {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+
+            RealtyPaperApi.PayBidResult result = withHolding(archivedHolding()).payBid(wgRegion, BUYER_ID, 300).join();
+
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.HoldingPaused(REGION_ID), result);
+            verify(realtyApi).rollbackPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0);
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+            io.github.md5sha256.realty.localisation.MessageContainer messages =
+                    new io.github.md5sha256.realty.localisation.MessageContainer();
+            try (java.io.InputStream in = RealtyPaperApiImplTest.class.getResourceAsStream("/messages.yml")) {
+                Assertions.assertNotNull(in);
+                messages.load(org.spongepowered.configurate.yaml.YamlConfigurationLoader.builder()
+                        .source(() -> new java.io.BufferedReader(new java.io.InputStreamReader(in,
+                                java.nio.charset.StandardCharsets.UTF_8)))
+                        .build()
+                        .load());
+            }
+            String text = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                    .serialize(messages.messageFor(io.github.md5sha256.realty.localisation.MessageKeys.PAY_HOLDING_PAUSED,
+                            net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed("region", REGION_ID)));
+            Assertions.assertTrue(text.endsWith("Payments for " + REGION_ID + " are paused until an admin fixes"
+                    + " Realty's holding account. Your deadline is paused too."), text);
+        }
+
+        @Test
+        void payOffer_whileUnusable_saysPaused() {
+            when(realtyApi.payOffer(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayOfferResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+
+            RealtyPaperApi.PayOfferResult result =
+                    withHolding(archivedHolding()).payOffer(wgRegion, BUYER_ID, 300).join();
+
+            Assertions.assertEquals(new RealtyPaperApi.PayOfferResult.HoldingPaused(REGION_ID), result);
+            verify(realtyApi).rollbackPayOffer(REGION_ID, WORLD_ID, BUYER_ID, 300.0);
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+        }
+
+        @Test
+        void payBid_final_paysSellerAndRecipients_fromHolding() {
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0),
+                    eq("Auction Bid Payment (final): " + REGION_ID), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            payoutsDue(AUCTION_PROCEEDS_LINE, AUCTION_AGENT_LINE);
+            when(economyProvider.transfer(eq(HOLDING), any(), anyDouble(), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            when(economyProvider.transferAuctionProceeds(eq(HOLDING), eq(TITLE_HOLDER), anyDouble(), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.FullyPaid.class, result);
+            InOrder order = inOrder(realtyApi, economyProvider);
+            order.verify(economyProvider).transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID));
+            order.verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
+            order.verify(economyProvider).transferAuctionProceeds(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0),
+                    eq("Sale payout (proceeds): " + REGION_ID), isNull());
+            order.verify(economyProvider).transfer(eq(HOLDING), eq(AGENT), eq(30.0),
+                    eq("Sale payout (agent): " + REGION_ID), isNull());
+            verify(realtyApi).markPayoutPaid(1);
+            verify(realtyApi).markPayoutPaid(2);
+            verify(economyProvider, never()).transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), anyDouble(), any(), any());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+        }
+
+        @Test
+        void payBid_oldRules_paysSellerDirectly() {
+            paidInFull(1000.0, FeeQuote.none(1000), true);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0),
+                    eq("Auction Bid Payment (final): " + REGION_ID), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.FullyPaid.class, result);
+            verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
+            verify(economyProvider, never()).transferAuctionProceeds(eq(BUYER), eq(HOLDING), anyDouble(), any(), any());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+        }
+
+        @Test
+        void payBid_partial_oldRules_paysSellerDirectly() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, true));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(300.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Success.class,
+                    api.payBid(wgRegion, BUYER_ID, 300).join());
+        }
+
+        @Test
+        void payout_oneRecipientFails_buyerStillOwns_lineFailed_retriedLater() {
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            payoutsDue(AUCTION_PROCEEDS_LINE, AUCTION_AGENT_LINE);
+            when(economyProvider.transferAuctionProceeds(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            when(economyProvider.transfer(eq(HOLDING), eq(AGENT), eq(30.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Failure("Account is archived"),
+                            new PaymentResult.Success());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.FullyPaid.class, result);
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
+            verify(realtyApi).markPayoutPaid(1);
+            verify(realtyApi).markPayoutFailed(2, "Account is archived");
+            verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
+
+            when(realtyApi.duePayouts()).thenReturn(List.of(new RealtyBackend.DuePayout(
+                    2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 1, 1000, true)));
+            settlement.payOutDue();
+
+            verify(realtyApi).markPayoutPaid(2);
+        }
+
+        @Test
+        void payOffer_partialAndFinal_goToHolding() {
+            when(realtyApi.payOffer(REGION_ID, WORLD_ID, BUYER_ID, 400.0)).thenReturn(
+                    new RealtyBackend.PayOfferResult.Success(400, 600, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(realtyApi.payOffer(REGION_ID, WORLD_ID, BUYER_ID, 600.0)).thenReturn(
+                    new RealtyBackend.PayOfferResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, AGENT_QUOTE, false, 4));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), anyDouble(), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.finalizeOfferPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
+            payoutsDue(PROCEEDS_LINE);
+            when(economyProvider.transfer(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayOfferResult.Success.class,
+                    api.payOffer(wgRegion, BUYER_ID, 400).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.PayOfferResult.FullyPaid.class,
+                    api.payOffer(wgRegion, BUYER_ID, 600).join());
+
+            verify(economyProvider).transfer(eq(BUYER), eq(HOLDING), eq(400.0),
+                    eq("Purchase Offer Payment (partial): " + REGION_ID), eq(BUYER_ID));
+            verify(economyProvider).transfer(eq(BUYER), eq(HOLDING), eq(600.0),
+                    eq("Purchase Offer Payment (final): " + REGION_ID), eq(BUYER_ID));
+            verify(realtyApi).confirmPayOffer(REGION_ID, WORLD_ID, BUYER_ID, 400.0, false);
+            verify(realtyApi).confirmPayOffer(REGION_ID, WORLD_ID, BUYER_ID, 600.0, false);
+            verify(realtyApi).finalizeOfferPurchase(REGION_ID, WORLD_ID, BUYER_ID);
+            verify(realtyApi).markPayoutPaid(1);
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+            ArgumentCaptor<io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent> fired =
+                    ArgumentCaptor.forClass(io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent.class);
+            verify(events).fireSync(fired.capture());
+            Assertions.assertEquals(1000, fired.getValue().getAmount(), 0.001, "the sale price, not the instalment");
+        }
+
+        @Test
+        void payBid_final_confirmsBeforeFinalizing() {
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            payoutsDue();
+
+            api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            InOrder order = inOrder(realtyApi, economyProvider);
+            order.verify(economyProvider).transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID));
+            order.verify(realtyApi).confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 1000.0, false);
+            order.verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
+        }
+
+        @Test
+        void payBid_saleEndedWhileTheMoneyMoved_failsAndSaysItIsRefunded() {
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 1000.0, false)).thenReturn(false);
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            RealtyPaperApi.PayBidResult.PaymentFailed failed =
+                    Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
+            Assertions.assertTrue(failed.error().contains("refunded"), failed.error());
+            verify(realtyApi, never()).finalizeBidPurchase(any(), any(), any());
+            verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
+        }
+
+        @Test
+        void payBid_confirmThrows_leavesItPending_andSaysAnAdminWasAlerted() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0, false))
+                    .thenThrow(new IllegalStateException("connection lost"));
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 300).join();
+
+            RealtyPaperApi.PayBidResult.PaymentFailed failed =
+                    Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
+            Assertions.assertTrue(failed.error().contains("admin"), failed.error());
+            verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
+        }
+
+        @Test
+        void payBid_whileAnInstalmentIsPending_isRefused() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0))
+                    .thenReturn(new RealtyBackend.PayBidResult.PaymentInProgress());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 300).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+            verify(economyProvider, never()).transferAuctionProceeds(any(), any(), anyDouble(), any(), any());
+        }
+
+        @Test
+        void payBid_oldRulesFinalizeFails_isPending_paidToSeller() {
+            paidInFull(1000.0, FeeQuote.none(1000), true);
+            when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(false);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.FinalizePending(1000, REGION_ID, true), result);
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+        }
+
+        @Test
+        void payBid_zeroOrNegative_refusedBeforeTheBackend() {
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.InvalidAmount(0),
+                    api.payBid(wgRegion, BUYER_ID, 0).join());
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.InvalidAmount(-3),
+                    api.payBid(wgRegion, BUYER_ID, -3).join());
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.InvalidAmount(0.004),
+                    api.payBid(wgRegion, BUYER_ID, 0.004).join());
+            Assertions.assertEquals(new RealtyPaperApi.PayOfferResult.InvalidAmount(0),
+                    api.payOffer(wgRegion, BUYER_ID, 0).join());
+            verify(realtyApi, never()).payBid(any(), any(), any(), anyDouble());
+            verify(realtyApi, never()).payOffer(any(), any(), any(), anyDouble());
+        }
+
+        @Test
+        void payBid_subCentAmount_isCountedAndMovedInCents() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, false));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0, false)).thenReturn(true);
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 299.996).join();
+
+            RealtyPaperApi.PayBidResult.Success success =
+                    Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.Success.class, result);
+            Assertions.assertEquals(300.0, success.amount(), 0.0);
+            verify(economyProvider).transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(300.0), any(), eq(BUYER_ID));
+        }
+
+        @Test
+        void finishPendingSales_oldRules_transfersTheTitle_paysNothingOut() {
+            RegionManager regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            when(regionContainer.get(any())).thenReturn(regionManager);
+            when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            when(server.getWorld(WORLD_ID)).thenReturn(world);
+            when(realtyApi.listFullyPaidUnfinalized()).thenReturn(List.of(new RealtyBackend.PendingFinalize(
+                    RealtyBackend.PendingFinalize.Kind.BID, REGION_ID, WORLD_ID, BUYER_ID, TITLE_HOLDER_ID,
+                    1000, FeeQuote.none(1000), true)));
+            when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+
+            api.finishPendingSales().join();
+
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(realtyApi, never()).duePayouts();
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+        }
+
+        private RealtyBackend.BuyResult.Success reservedWith(FeeQuote quote) {
+            RealtyBackend.BuyResult.Success reserved = new RealtyBackend.BuyResult.Success(
+                    1000.0, GOVERNMENT, TITLE_HOLDER_ID, RESERVED.undo(), quote);
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(reserved);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            return reserved;
+        }
+
+        @Test
+        void buy_withFees_paysEachRecipient() {
+            reservedWith(BUY_QUOTE);
+            when(economyProvider.getBalance(BUYER)).thenReturn(1050.0);
+            when(economyProvider.transfer(eq(BUYER), any(), anyDouble(), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.Success.class, result);
+            InOrder order = inOrder(economyProvider, realtyApi);
+            order.verify(economyProvider).transfer(eq(BUYER), eq(TITLE_HOLDER), eq(970.0),
+                    eq("Plot Purchase: " + REGION_ID), eq(BUYER_ID));
+            order.verify(economyProvider).transfer(eq(BUYER), eq(GOVERNMENT), eq(50.0),
+                    eq("Plot Purchase fee (stamp-duty): " + REGION_ID), eq(BUYER_ID));
+            order.verify(economyProvider).transfer(eq(BUYER), eq(AGENT), eq(30.0),
+                    eq("Plot Purchase fee (agent): " + REGION_ID), eq(BUYER_ID));
+            order.verify(realtyApi).recordBuyFees(REGION_ID, WORLD_ID, BUYER_ID, TITLE_HOLDER, BUY_QUOTE);
+            verify(realtyApi, never()).rollbackBuy(any(), any(), any(), any());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+        }
+
+        @Test
+        void buy_withFees_checksTheBuyerTotal() {
+            RealtyBackend.BuyResult.Success reserved = reservedWith(BUY_QUOTE);
+            when(economyProvider.getBalance(BUYER)).thenReturn(1040.0);
+
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
+
+            RealtyPaperApi.BuyResult.InsufficientFunds insufficient =
+                    Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.InsufficientFunds.class, result);
+            Assertions.assertEquals(1050.0, insufficient.price(), 0.001);
+            verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, reserved);
+            verify(economyProvider, never()).transfer(any(), any(), anyDouble(), any(), any());
+        }
+
+        @Test
+        void buy_feeTransferFails_reversesSellerPayment_andRollsBack() {
+            RealtyBackend.BuyResult.Success reserved = reservedWith(BUY_QUOTE);
+            when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(970.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(economyProvider.transfer(eq(BUYER), eq(GOVERNMENT), eq(50.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Failure("Account #42 is archived"));
+            when(economyProvider.transfer(eq(TITLE_HOLDER), eq(BUYER), eq(970.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.PaymentFailed.class, result);
+            verify(economyProvider).transfer(eq(TITLE_HOLDER), eq(BUYER), eq(970.0),
+                    eq("Plot Purchase reversal: " + REGION_ID), eq(BUYER_ID));
+            verify(economyProvider, never()).transfer(eq(BUYER), eq(AGENT), anyDouble(), any(), any());
+            verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, reserved);
+            verify(realtyApi, never()).recordBuyFees(any(), any(), any(), any(), any());
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+        }
+    
+        @Test
+        void payBid_final_finalizeAppliesNothing_finalizePending_worldUntouched() {
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(false);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
+
+            Assertions.assertEquals(new RealtyPaperApi.PayBidResult.FinalizePending(1000, REGION_ID, false), result);
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(realtyApi, never()).duePayouts();
+            verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
+            verify(events, never()).fireSync(any(io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent.class));
+        }
+
+        @Test
+        void payOffer_final_finalizeThrows_finalizePending() {
+            when(realtyApi.payOffer(REGION_ID, WORLD_ID, BUYER_ID, 1000.0)).thenReturn(
+                    new RealtyBackend.PayOfferResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, AGENT_QUOTE, false, 4));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.finalizeOfferPurchase(REGION_ID, WORLD_ID, BUYER_ID))
+                    .thenThrow(new IllegalStateException("deadlock"));
+
+            RealtyPaperApi.PayOfferResult result = api.payOffer(wgRegion, BUYER_ID, 1000).join();
+
+            Assertions.assertEquals(new RealtyPaperApi.PayOfferResult.FinalizePending(1000, REGION_ID, false), result);
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(realtyApi, never()).rollbackPayOffer(any(), any(), any(), anyDouble());
+        }
+
+        @Test
+        void finishPendingSales_finalizesThenCompletesTheSale() {
+            RegionManager regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            when(regionContainer.get(any())).thenReturn(regionManager);
+            when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            when(server.getWorld(WORLD_ID)).thenReturn(world);
+            when(realtyApi.listFullyPaidUnfinalized()).thenReturn(List.of(new RealtyBackend.PendingFinalize(
+                    RealtyBackend.PendingFinalize.Kind.BID, REGION_ID, WORLD_ID, BUYER_ID, TITLE_HOLDER_ID,
+                    1000, AGENT_QUOTE, false)));
+            when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            payoutsDue(AUCTION_PROCEEDS_LINE);
+            when(economyProvider.transferAuctionProceeds(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+
+            api.finishPendingSales().join();
+
+            Assertions.assertTrue(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(regionProfileService).applyFlags(eq(wgRegion), eq(RegionState.SOLD), any());
+            verify(realtyApi).markPayoutPaid(1);
+            ArgumentCaptor<io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent> fired =
+                    ArgumentCaptor.forClass(io.github.md5sha256.realty.api.event.AuctionWonPurchaseEvent.class);
+            verify(events).fireSync(fired.capture());
+            Assertions.assertEquals(1000, fired.getValue().getAmount(), 0.001);
+            Assertions.assertEquals(Party.personal(TITLE_HOLDER_ID), fired.getValue().getPreviousTitleHolder());
+        }
+
+        @Test
+        void finishPendingSales_finalizeAppliesNothing_leavesTheWorld() {
+            when(realtyApi.listFullyPaidUnfinalized()).thenReturn(List.of(new RealtyBackend.PendingFinalize(
+                    RealtyBackend.PendingFinalize.Kind.OFFER, REGION_ID, WORLD_ID, BUYER_ID, null, 1000,
+                    AGENT_QUOTE, false)));
+            when(realtyApi.finalizeOfferPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(false);
+
+            api.finishPendingSales().join();
+
+            Assertions.assertFalse(protectedRegion.getOwners().contains(BUYER_ID));
+            verify(realtyApi, never()).duePayouts();
+        }
+
+        @Test
+        void buy_transferThrows_reversesAndRollsBack() {
+            RealtyBackend.BuyResult.Success reserved = reservedWith(BUY_QUOTE);
+            when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(970.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(economyProvider.transfer(eq(BUYER), eq(GOVERNMENT), eq(50.0), any(), eq(BUYER_ID)))
+                    .thenThrow(new IllegalStateException("Treasury is down"));
+            when(economyProvider.transfer(eq(TITLE_HOLDER), eq(BUYER), eq(970.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.BuyResult result = api.buy(wgRegion, BUYER_CTX, false).join();
+
+            RealtyPaperApi.BuyResult.PaymentFailed failed =
+                    Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.PaymentFailed.class, result);
+            Assertions.assertEquals("Treasury is down", failed.error());
+            verify(economyProvider).transfer(eq(TITLE_HOLDER), eq(BUYER), eq(970.0),
+                    eq("Plot Purchase reversal: " + REGION_ID), eq(BUYER_ID));
+            verify(realtyApi).rollbackBuy(REGION_ID, WORLD_ID, BUYER_ID, reserved);
+            verify(realtyApi, never()).recordBuyFees(any(), any(), any(), any(), any());
+        }
+    
+        @Test
+        void payBid_oldRulesSaleEndedWhileTheMoneyMoved_saysAnAdminWillSettleIt() {
+            when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0)).thenReturn(
+                    new RealtyBackend.PayBidResult.Success(300, 700, GOVERNMENT, TITLE_HOLDER_ID, true));
+            when(economyProvider.getBalance(BUYER)).thenReturn(5000.0);
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(300.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(realtyApi.confirmPayBid(REGION_ID, WORLD_ID, BUYER_ID, 300.0, true)).thenReturn(false);
+
+            RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 300).join();
+
+            RealtyPaperApi.PayBidResult.PaymentFailed failed =
+                    Assertions.assertInstanceOf(RealtyPaperApi.PayBidResult.PaymentFailed.class, result);
+            Assertions.assertTrue(failed.error().contains("seller") && !failed.error().contains("refunded"),
+                    failed.error());
+        }
+
+        @Test
+        void buySuccess_resultCarriesFees() {
+            reservedWith(BUY_QUOTE);
+            when(economyProvider.getBalance(BUYER)).thenReturn(1050.0);
+            when(economyProvider.transfer(eq(BUYER), any(), anyDouble(), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+
+            RealtyPaperApi.BuyResult.Success success = Assertions.assertInstanceOf(
+                    RealtyPaperApi.BuyResult.Success.class, api.buy(wgRegion, BUYER_CTX, false).join());
+
+            Assertions.assertEquals(BUY_QUOTE, success.fees());
+        }
+
+        @Test
+        void payBidAndOfferFullyPaid_carryFeesToResultAndEvent() {
+            lenient().when(events.fireSync(any(RealtyRegionEvent.class))).thenReturn(true);
+            paidInFull(1000.0, AGENT_QUOTE, false);
+            when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            payoutsDue();
+            when(realtyApi.payOffer(REGION_ID, WORLD_ID, BUYER_ID, 1000.0)).thenReturn(
+                    new RealtyBackend.PayOfferResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, AGENT_QUOTE, false, 4));
+            when(realtyApi.finalizeOfferPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
+
+            RealtyPaperApi.PayBidResult.FullyPaid bid = Assertions.assertInstanceOf(
+                    RealtyPaperApi.PayBidResult.FullyPaid.class, api.payBid(wgRegion, BUYER_ID, 1000).join());
+            RealtyPaperApi.PayOfferResult.FullyPaid offer = Assertions.assertInstanceOf(
+                    RealtyPaperApi.PayOfferResult.FullyPaid.class, api.payOffer(wgRegion, BUYER_ID, 1000).join());
+
+            Assertions.assertEquals(AGENT_QUOTE, bid.fees());
+            Assertions.assertEquals(AGENT_QUOTE, offer.fees());
+            ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
+            verify(events, org.mockito.Mockito.atLeastOnce()).fireSync(captor.capture());
+            Assertions.assertEquals(AGENT_QUOTE, captor.getAllValues().stream()
+                    .filter(AuctionWonPurchaseEvent.class::isInstance)
+                    .map(AuctionWonPurchaseEvent.class::cast).findFirst().orElseThrow().getFees());
+            Assertions.assertEquals(AGENT_QUOTE, captor.getAllValues().stream()
+                    .filter(OfferPurchaseCompletedEvent.class::isInstance)
+                    .map(OfferPurchaseCompletedEvent.class::cast).findFirst().orElseThrow().getFees());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // fee and levy methods and events
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("fees and levies")
+    class FeesAndLevies {
+
+        private final Party.Personal recipient = Party.personal(BUYER_ID);
+
+        @BeforeEach
+        void regionIsKnownToWorldGuard() {
+            RegionManager regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            lenient().when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
+            lenient().when(events.fireSync(any(RealtyRegionEvent.class))).thenReturn(true);
+            lenient().when(events.fireSync(any(LevyChangeEvent.class))).thenReturn(true);
+        }
+
+        private List<RealtyRegionEvent> firedRegionEvents() {
+            ArgumentCaptor<RealtyRegionEvent> captor = ArgumentCaptor.forClass(RealtyRegionEvent.class);
+            verify(events, org.mockito.Mockito.atLeastOnce()).fireSync(captor.capture());
+            return captor.getAllValues();
+        }
+
+        @Test
+        void setFee_cancelledByListener_writesNothing() {
+            when(events.fireSync(any(FeeChangeEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.SetFeeResult.Cancelled.class,
+                    api.setFee(wgRegion, BUYER_CTX, 3, FeeSide.SELLER, false).join());
+
+            verify(realtyApi, never()).setFee(any(), any(), any(), anyDouble(), any(),
+                    org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
+        void setFee_firesChangedWithPrevious() {
+            when(realtyApi.setFee(REGION_ID, WORLD_ID, BUYER_CTX, 3, FeeSide.SELLER, false))
+                    .thenReturn(new RealtyBackend.SetFeeResult.Success(recipient, false, 2.0));
+
+            api.setFee(wgRegion, BUYER_CTX, 3, FeeSide.SELLER, false).join();
+
+            List<RealtyRegionEvent> fired = firedRegionEvents();
+            FeeChangeEvent change = Assertions.assertInstanceOf(FeeChangeEvent.class, fired.get(0));
+            Assertions.assertEquals(Optional.of(recipient), change.getRecipient());
+            Assertions.assertEquals(Optional.of(BUYER_ID), change.getActorId());
+            FeeChangedEvent changed = Assertions.assertInstanceOf(FeeChangedEvent.class, fired.get(1));
+            Assertions.assertEquals(recipient, changed.getRecipient());
+            Assertions.assertEquals(FeeSide.SELLER, changed.getSide());
+            Assertions.assertEquals(3, changed.getPercent(), 0.0001);
+            Assertions.assertEquals(2.0, changed.getPreviousPercent().orElseThrow(), 0.0001);
+        }
+
+        @Test
+        void setFee_noChange_firesNoChangedEvent() {
+            when(realtyApi.setFee(REGION_ID, WORLD_ID, BUYER_CTX, 3, FeeSide.SELLER, false))
+                    .thenReturn(new RealtyBackend.SetFeeResult.NoChange());
+
+            api.setFee(wgRegion, BUYER_CTX, 3, FeeSide.SELLER, false).join();
+
+            Assertions.assertEquals(1, firedRegionEvents().size());
+        }
+
+        @Test
+        void removeFee_firesRemoved() {
+            when(realtyApi.removeFee(REGION_ID, WORLD_ID, BUYER_CTX, false))
+                    .thenReturn(new RealtyBackend.RemoveFeeResult.Success());
+
+            api.removeFee(wgRegion, BUYER_CTX, false).join();
+
+            FeeRemovedEvent removed = Assertions.assertInstanceOf(FeeRemovedEvent.class,
+                    firedRegionEvents().getFirst());
+            Assertions.assertEquals(Optional.of(recipient), removed.getRecipient());
+        }
+
+        @Test
+        void approveFee_firesApproved() {
+            when(realtyApi.approveFee(REGION_ID, WORLD_ID, BUYER_CTX, recipient))
+                    .thenReturn(new RealtyBackend.ResolveFeeResult.Success(FeeSide.SELLER, 3));
+
+            api.approveFee(wgRegion, BUYER_CTX, recipient).join();
+
+            FeeApprovedEvent approved = Assertions.assertInstanceOf(FeeApprovedEvent.class,
+                    firedRegionEvents().getFirst());
+            Assertions.assertEquals(recipient, approved.getRecipient());
+            Assertions.assertEquals(FeeSide.SELLER, approved.getSide());
+            Assertions.assertEquals(3, approved.getPercent(), 0.0001);
+            Assertions.assertEquals(Optional.of(BUYER_ID), approved.getApproverId());
+        }
+
+        @Test
+        void rejectFee_firesRejected() {
+            when(realtyApi.rejectFee(REGION_ID, WORLD_ID, BUYER_CTX, recipient))
+                    .thenReturn(new RealtyBackend.ResolveFeeResult.Success(FeeSide.SELLER, 3));
+
+            api.rejectFee(wgRegion, BUYER_CTX, recipient).join();
+
+            FeeRejectedEvent rejected = Assertions.assertInstanceOf(FeeRejectedEvent.class,
+                    firedRegionEvents().getFirst());
+            Assertions.assertEquals(Optional.of(BUYER_ID), rejected.getApproverId());
+        }
+
+        @Test
+        void approveFee_failure_firesNothing() {
+            when(realtyApi.approveFee(REGION_ID, WORLD_ID, BUYER_CTX, recipient))
+                    .thenReturn(new RealtyBackend.ResolveFeeResult.NoPendingFee());
+
+            api.approveFee(wgRegion, BUYER_CTX, recipient).join();
+
+            verify(events, never()).fireSync(any(RealtyRegionEvent.class));
+        }
+
+        @Test
+        void consoleApproveAndRemove_stillFireWithNoActor() {
+            ActorContext console = ActorContext.console();
+            when(realtyApi.approveFee(REGION_ID, WORLD_ID, console, recipient))
+                    .thenReturn(new RealtyBackend.ResolveFeeResult.Success(FeeSide.SELLER, 3));
+            when(realtyApi.removeFee(REGION_ID, WORLD_ID, console, false))
+                    .thenReturn(new RealtyBackend.RemoveFeeResult.Success());
+
+            api.approveFee(wgRegion, console, recipient).join();
+            api.removeFee(wgRegion, console, false).join();
+
+            List<RealtyRegionEvent> fired = firedRegionEvents();
+            Assertions.assertTrue(Assertions.assertInstanceOf(FeeApprovedEvent.class, fired.get(0))
+                    .getApproverId().isEmpty());
+            Assertions.assertTrue(Assertions.assertInstanceOf(FeeRemovedEvent.class, fired.get(1))
+                    .getRecipient().isEmpty());
+        }
+
+        @Test
+        void setFee_consolePersonal_stillFiresChangeEventAndVetoHolds() {
+            ActorContext console = ActorContext.console();
+            when(events.fireSync(any(FeeChangeEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.SetFeeResult.Cancelled.class,
+                    api.setFee(wgRegion, console, 3, FeeSide.SELLER, false).join());
+
+            ArgumentCaptor<FeeChangeEvent> pre = ArgumentCaptor.forClass(FeeChangeEvent.class);
+            verify(events).fireSync(pre.capture());
+            Assertions.assertTrue(pre.getValue().getRecipient().isEmpty());
+            Assertions.assertTrue(pre.getValue().getActorId().isEmpty());
+            verify(realtyApi, never()).setFee(any(), any(), any(), anyDouble(), any(),
+                    org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
+        void setRegionLevy_cancelled() {
+            when(events.fireSync(any(LevyChangeEvent.class))).thenReturn(false);
+
+            Assertions.assertInstanceOf(RealtyBackend.SetLevyResult.Cancelled.class,
+                    api.setRegionLevy(wgRegion, BUYER_CTX, "stamp-duty").join());
+
+            verify(realtyApi, never()).setRegionLevy(any(), any(), any(), any());
+        }
+
+        @Test
+        void setRegionLevy_firesChangedWithPrevious() {
+            when(realtyApi.setRegionLevy(REGION_ID, WORLD_ID, BUYER_CTX, "stamp-duty"))
+                    .thenReturn(new RealtyBackend.SetLevyResult.Success("old"));
+
+            api.setRegionLevy(wgRegion, BUYER_CTX, "stamp-duty").join();
+
+            ArgumentCaptor<LevyChangeEvent> pre = ArgumentCaptor.forClass(LevyChangeEvent.class);
+            verify(events).fireSync(pre.capture());
+            Assertions.assertEquals(REGION_ID, pre.getValue().getRegion().orElseThrow().region().getId());
+            Assertions.assertTrue(pre.getValue().getAuthority().isEmpty());
+            Assertions.assertEquals("stamp-duty", pre.getValue().getNewLevy().orElseThrow());
+            ArgumentCaptor<LevyChangedEvent> post = ArgumentCaptor.forClass(LevyChangedEvent.class);
+            verify(events).fireSync(post.capture());
+            Assertions.assertEquals("old", post.getValue().getPreviousLevy().orElseThrow());
+            Assertions.assertEquals("stamp-duty", post.getValue().getNewLevy().orElseThrow());
+        }
+
+        @Test
+        void clearAuthorityLevy_firesChangedWithNoNewLevy() {
+            when(realtyApi.clearAuthorityLevy(GOVERNMENT, BUYER_CTX))
+                    .thenReturn(new RealtyBackend.SetLevyResult.Success("old"));
+
+            api.clearAuthorityLevy(GOVERNMENT, BUYER_CTX).join();
+
+            ArgumentCaptor<LevyChangedEvent> post = ArgumentCaptor.forClass(LevyChangedEvent.class);
+            verify(events).fireSync(post.capture());
+            Assertions.assertEquals(GOVERNMENT, post.getValue().getAuthority().orElseThrow());
+            Assertions.assertTrue(post.getValue().getRegion().isEmpty());
+            Assertions.assertTrue(post.getValue().getNewLevy().isEmpty());
+            Assertions.assertEquals("old", post.getValue().getPreviousLevy().orElseThrow());
+        }
+
+        @Test
+        void setAuthorityLevy_failure_firesNoChangedEvent() {
+            when(realtyApi.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "nope"))
+                    .thenReturn(new RealtyBackend.SetLevyResult.UnknownLevy());
+
+            api.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "nope").join();
+
+            verify(events, never()).fireSync(any(LevyChangedEvent.class));
+        }
+
+        @Test
+        void saleOpen_passedThrough_firesNoChangedEvent() {
+            when(realtyApi.setFee(REGION_ID, WORLD_ID, BUYER_CTX, 3, FeeSide.BUYER, false))
+                    .thenReturn(new RealtyBackend.SetFeeResult.SaleOpen());
+            when(realtyApi.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "stamp-duty"))
+                    .thenReturn(new RealtyBackend.SetLevyResult.SaleOpen(2));
+
+            Assertions.assertInstanceOf(RealtyBackend.SetFeeResult.SaleOpen.class,
+                    api.setFee(wgRegion, BUYER_CTX, 3, FeeSide.BUYER, false).join());
+            Assertions.assertEquals(new RealtyBackend.SetLevyResult.SaleOpen(2),
+                    api.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "stamp-duty").join());
+
+            verify(events, never()).fireSync(any(FeeChangedEvent.class));
+            verify(events, never()).fireSync(any(LevyChangedEvent.class));
+        }
+
+        @Test
+        void setAuthorityLevy_pinned_passedThroughWithChangedEvent() {
+            when(realtyApi.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "stamp-duty"))
+                    .thenReturn(new RealtyBackend.SetLevyResult.Success("old", 3));
+
+            Assertions.assertEquals(new RealtyBackend.SetLevyResult.Success("old", 3),
+                    api.setAuthorityLevy(GOVERNMENT, BUYER_CTX, "stamp-duty").join());
+
+            verify(events).fireSync(any(LevyChangedEvent.class));
+        }
+
+        @Test
+        void previewAndListFees_delegate() {
+            FeeQuote quote = FeeQuote.none(500);
+            when(realtyApi.previewFees(REGION_ID, WORLD_ID, BUYER_ID, 500)).thenReturn(quote);
+            List<RealtyBackend.FeeListing> listings = List.of(
+                    new RealtyBackend.FeeListing("agent fee", recipient, FeeSide.SELLER, "3%", true, "agent"));
+            when(realtyApi.listFees(REGION_ID, WORLD_ID)).thenReturn(listings);
+
+            Assertions.assertEquals(quote, api.previewFees(wgRegion, BUYER_ID, 500).join());
+            Assertions.assertEquals(listings, api.listFees(wgRegion).join());
+        }
+    }
+}
