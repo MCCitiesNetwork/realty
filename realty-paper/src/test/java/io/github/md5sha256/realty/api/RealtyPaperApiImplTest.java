@@ -144,7 +144,7 @@ class RealtyPaperApiImplTest {
     @Test
     void partialAuctionPaymentUsesAuctionSourceWithoutFinalizingOwnership() {
         when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 25.0)).thenReturn(
-                new RealtyBackend.PayBidResult.Success(25, 75, GOVERNMENT, TITLE_HOLDER_ID));
+                new RealtyBackend.PayBidResult.Success(25, 75, GOVERNMENT, TITLE_HOLDER_ID, true));
         when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
         when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(25.0), any(), eq(BUYER_ID)))
                 .thenReturn(new PaymentResult.Success());
@@ -159,7 +159,7 @@ class RealtyPaperApiImplTest {
     @Test
     void finalAuctionPaymentUsesAuctionSourceBeforeTransferringOwnership() {
         when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 75.0)).thenReturn(
-                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID));
+                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, FeeQuote.none(75), true, 9));
         when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
         when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(75.0), any(), eq(BUYER_ID)))
                 .thenReturn(new PaymentResult.Success());
@@ -176,7 +176,7 @@ class RealtyPaperApiImplTest {
     @Test
     void failedAuctionSettlementRollsBackPaymentAndDoesNotTransferOwnership() {
         when(realtyApi.payBid(REGION_ID, WORLD_ID, BUYER_ID, 75.0)).thenReturn(
-                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID));
+                new RealtyBackend.PayBidResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, FeeQuote.none(75), true, 9));
         when(economyProvider.getBalance(BUYER)).thenReturn(100.0);
         when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(TITLE_HOLDER), eq(75.0), any(), eq(BUYER_ID)))
                 .thenReturn(new PaymentResult.Failure("Rejected"));
