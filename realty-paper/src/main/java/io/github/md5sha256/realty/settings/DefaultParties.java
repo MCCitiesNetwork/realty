@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -55,7 +56,7 @@ public record DefaultParties(@Nullable Party freeholdAuthority,
             errors.add(key + " is not set");
             return null;
         }
-        return resolveSetting(key, setting, resolver, errors);
+        return resolveSetting(key, setting, resolver, errors).orElse(null);
     }
 
     private static @Nullable UUID resolveTitleholder(@Nullable PartySetting setting, @NotNull PartyResolver resolver,
@@ -67,31 +68,34 @@ public record DefaultParties(@Nullable Party freeholdAuthority,
             errors.add(TITLEHOLDER_KEY + " must be a player, so it cannot have a type");
             return null;
         }
-        return Party.playerUuidOf(resolveSetting(TITLEHOLDER_KEY, setting, resolver, errors)).orElse(null);
+        return resolveSetting(TITLEHOLDER_KEY, setting, resolver, errors)
+                .flatMap(Party::playerUuidOf)
+                .orElse(null);
     }
 
-    /** Resolves one named party; a failure is added to {@code errors} and gives {@code null}. */
-    public static @Nullable Party resolveSetting(@NotNull String key, @NotNull PartySetting setting,
-                                                 @NotNull PartyResolver resolver, @NotNull List<String> errors) {
+    /** Resolves one named party; a failure is added to {@code errors} and gives an empty result. */
+    public static @NotNull Optional<Party> resolveSetting(@NotNull String key, @NotNull PartySetting setting,
+                                                          @NotNull PartyResolver resolver,
+                                                          @NotNull List<String> errors) {
         PartyFlag type = setting.type();
         if (type == null && setting.uuid() != null) {
-            return Party.personal(setting.uuid());
+            return Optional.of(Party.personal(setting.uuid()));
         }
         String name = setting.name();
         if (name == null || name.isBlank()) {
             errors.add(key + " needs a name" + (type == null ? " or a uuid" : ""));
-            return null;
+            return Optional.empty();
         }
         if ((type == PartyFlag.BUSINESS || type == PartyFlag.SYSTEM) && !name.startsWith("#")) {
             errors.add(key + " names a " + type.name().toLowerCase() + " account, which must be given as #<id>, not '"
                     + name + "'");
-            return null;
+            return Optional.empty();
         }
         return switch (resolver.resolve(name, type, null)) {
-            case PartyResolver.Resolution.Resolved resolved -> resolved.party();
+            case PartyResolver.Resolution.Resolved resolved -> Optional.of(resolved.party());
             case PartyResolver.Resolution.Refused refused -> {
                 errors.add(key + " could not be resolved: '" + refused.name() + "' (" + refused.messageKey() + ")");
-                yield null;
+                yield Optional.empty();
             }
         };
     }

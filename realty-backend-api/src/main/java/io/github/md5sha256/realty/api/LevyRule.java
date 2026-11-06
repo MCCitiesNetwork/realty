@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.api;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -42,17 +43,7 @@ public record LevyRule(
      * @return true if this rule's predicate is satisfied.
      */
     public boolean matches(@NotNull Set<String> lowerCasedTags) {
-        if (!all.isEmpty() && !lowerCasedTags.containsAll(all)) {
-            return false;
-        }
-        if (!any.isEmpty()) {
-            for (String tag : any) {
-                if (lowerCasedTags.contains(tag)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        return true;
+        return lowerCasedTags.containsAll(all)
+                && (any.isEmpty() || !Collections.disjoint(any, lowerCasedTags));
     }
 }

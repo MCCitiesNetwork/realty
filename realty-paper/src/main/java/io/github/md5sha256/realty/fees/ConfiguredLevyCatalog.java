@@ -111,7 +111,7 @@ public final class ConfiguredLevyCatalog implements LevyCatalog {
         if (recipientSetting != null) {
             List<String> errors = new ArrayList<>();
             recipient = DefaultParties.resolveSetting("levy '" + name + "' recipient", recipientSetting,
-                    resolver, errors);
+                    resolver, errors).orElse(null);
             if (recipient == null) {
                 errors.forEach(logger::severe);
                 logger.severe("fees.yml levy '" + name + "' is dropped because its recipient does not resolve");
