@@ -3188,7 +3188,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                     : salePrices.computeIfAbsent(row.saleKind() + "#" + row.saleRef(),
                             key -> salePrice(wrapper, row.saleKind(), row.saleRef()));
             payouts.add(new DuePayout(row.saleFeeId(), row.lineKind(), row.source(), recipient, row.amount(),
-                    row.regionName(), row.worldId(), row.buyerId(), row.attempts(), salePrice));
+                    row.regionName(), row.worldId(), row.buyerId(), row.attempts(), salePrice,
+                    SALE_BID.equals(row.saleKind())));
         }
         return payouts;
     }

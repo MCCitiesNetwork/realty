@@ -199,6 +199,7 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         DuePayout proceeds = due.stream().filter(p -> p.lineKind().equals("proceeds")).findFirst().orElseThrow();
         Assertions.assertEquals(Party.personal(TITLE_HOLDER), proceeds.recipient());
         Assertions.assertEquals(1000, proceeds.amount(), 0.001);
+        Assertions.assertTrue(due.stream().allMatch(DuePayout::auction), "a bid sale is a sale at auction");
     }
 
     @Test
@@ -499,6 +500,10 @@ class SalePayoutBookkeepingTest extends AbstractDatabaseTest {
         Assertions.assertFalse(logic.finalizeBidPurchase(bidRegion, WORLD_ID, BUYER), "a second finalize is a no-op");
         Assertions.assertTrue(logic.finalizeOfferPurchase(offerRegion, WORLD_ID, BUYER));
         Assertions.assertTrue(logic.listFullyPaidUnfinalized().isEmpty());
+        List<DuePayout> offerLines = logic.duePayouts().stream()
+                .filter(p -> p.regionName().equals(offerRegion)).toList();
+        Assertions.assertFalse(offerLines.isEmpty());
+        Assertions.assertTrue(offerLines.stream().noneMatch(DuePayout::auction), "an offer sale is not an auction");
     }
 
     @Test

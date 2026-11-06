@@ -96,9 +96,11 @@ public final class SaleSettlement {
         }
         // Read under the claim: the list may be stale.
         int attempts = claimed.getAsInt();
+        // An auction's proceeds reach the seller here, so they carry the auction source; fees do not.
+        boolean auctionProceeds = payout.auction() && SaleFeeResolver.LINE_PROCEEDS.equals(payout.lineKind());
         PaymentResult result = payout.amount() > 0
                 ? transfer(from, payout.recipient(), payout.amount(),
-                        "Sale payout (" + payout.source() + "): " + payout.regionName())
+                        "Sale payout (" + payout.source() + "): " + payout.regionName(), auctionProceeds)
                 : new PaymentResult.Success();
         switch (result) {
             case PaymentResult.Success ignored -> {
@@ -184,7 +186,7 @@ public final class SaleSettlement {
         }
         int attempts = claimed.getAsInt();
         PaymentResult result = transfer(from, Party.personal(refund.buyerId()), refund.amount(),
-                refundMessage(refund.reason(), refund.regionName()));
+                refundMessage(refund.reason(), refund.regionName()), false);
         switch (result) {
             case PaymentResult.Success ignored -> {
                 markPaid(() -> this.backend.markRefundPaid(refund.id()), "Refund #" + refund.id() + " of "
@@ -259,10 +261,12 @@ public final class SaleSettlement {
     }
 
     private @NotNull PaymentResult transfer(@NotNull Party from, @NotNull Party to, double amount,
-                                            @NotNull String ledgerMessage) {
+                                            @NotNull String ledgerMessage, boolean auctionProceeds) {
         try {
             // No player caused a payout or a refund, so it has no initiator.
-            return this.economy.transfer(from, to, amount, ledgerMessage, null);
+            return auctionProceeds
+                    ? this.economy.transferAuctionProceeds(from, to, amount, ledgerMessage, null)
+                    : this.economy.transfer(from, to, amount, ledgerMessage, null);
         } catch (RuntimeException ex) {
             return new PaymentResult.Failure(ex.getMessage() != null ? ex.getMessage() : ex.toString());
         }

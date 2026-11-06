@@ -2145,9 +2145,14 @@ class RealtyPaperApiImplTest {
                 List.of(new FeeLine("stamp-duty", GOVERNMENT, FeeSide.BUYER, 5, 50),
                         new FeeLine("agent", AGENT, FeeSide.SELLER, 3, 30)), 1050, 970);
         private static final RealtyBackend.DuePayout PROCEEDS_LINE = new RealtyBackend.DuePayout(
-                1, "proceeds", "proceeds", TITLE_HOLDER, 970, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000);
+                1, "proceeds", "proceeds", TITLE_HOLDER, 970, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000, false);
         private static final RealtyBackend.DuePayout AGENT_LINE = new RealtyBackend.DuePayout(
-                2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000);
+                2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000, false);
+        /** The same lines from a sale at auction: the seller's proceeds carry the auction source. */
+        private static final RealtyBackend.DuePayout AUCTION_PROCEEDS_LINE = new RealtyBackend.DuePayout(
+                1, "proceeds", "proceeds", TITLE_HOLDER, 970, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000, true);
+        private static final RealtyBackend.DuePayout AUCTION_AGENT_LINE = new RealtyBackend.DuePayout(
+                2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 0, 1000, true);
 
         private RealtyPaperApiImpl withoutHolding() {
             return withHolding(HoldingAccount.vault(DefaultParties::unresolved));
@@ -2272,8 +2277,10 @@ class RealtyPaperApiImplTest {
             when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0),
                     eq("Auction Bid Payment (final): " + REGION_ID), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
-            payoutsDue(PROCEEDS_LINE, AGENT_LINE);
+            payoutsDue(AUCTION_PROCEEDS_LINE, AUCTION_AGENT_LINE);
             when(economyProvider.transfer(eq(HOLDING), any(), anyDouble(), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            when(economyProvider.transferAuctionProceeds(eq(HOLDING), eq(TITLE_HOLDER), anyDouble(), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
 
             RealtyPaperApi.PayBidResult result = api.payBid(wgRegion, BUYER_ID, 1000).join();
@@ -2282,7 +2289,7 @@ class RealtyPaperApiImplTest {
             InOrder order = inOrder(realtyApi, economyProvider);
             order.verify(economyProvider).transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID));
             order.verify(realtyApi).finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID);
-            order.verify(economyProvider).transfer(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0),
+            order.verify(economyProvider).transferAuctionProceeds(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0),
                     eq("Sale payout (proceeds): " + REGION_ID), isNull());
             order.verify(economyProvider).transfer(eq(HOLDING), eq(AGENT), eq(30.0),
                     eq("Sale payout (agent): " + REGION_ID), isNull());
@@ -2324,8 +2331,8 @@ class RealtyPaperApiImplTest {
             paidInFull(1000.0, AGENT_QUOTE, false);
             when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
-            payoutsDue(PROCEEDS_LINE, AGENT_LINE);
-            when(economyProvider.transfer(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0), any(), isNull()))
+            payoutsDue(AUCTION_PROCEEDS_LINE, AUCTION_AGENT_LINE);
+            when(economyProvider.transferAuctionProceeds(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
             when(economyProvider.transfer(eq(HOLDING), eq(AGENT), eq(30.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Failure("Account is archived"),
@@ -2341,7 +2348,7 @@ class RealtyPaperApiImplTest {
             verify(realtyApi, never()).rollbackPayBid(any(), any(), any(), anyDouble());
 
             when(realtyApi.duePayouts()).thenReturn(List.of(new RealtyBackend.DuePayout(
-                    2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 1, 1000)));
+                    2, "fee", "agent", AGENT, 30, REGION_ID, WORLD_ID, BUYER_ID, 1, 1000, true)));
             settlement.payOutDue();
 
             verify(realtyApi).markPayoutPaid(2);
@@ -2615,8 +2622,8 @@ class RealtyPaperApiImplTest {
                     1000, AGENT_QUOTE, false)));
             when(realtyApi.finalizeBidPurchase(REGION_ID, WORLD_ID, BUYER_ID)).thenReturn(true);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
-            payoutsDue(PROCEEDS_LINE);
-            when(economyProvider.transfer(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0), any(), isNull()))
+            payoutsDue(AUCTION_PROCEEDS_LINE);
+            when(economyProvider.transferAuctionProceeds(eq(HOLDING), eq(TITLE_HOLDER), eq(970.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
 
             api.finishPendingSales().join();

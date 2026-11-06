@@ -33,7 +33,8 @@ public interface EconomyProvider {
                                     @NotNull String ledgerMessage, @Nullable UUID initiator);
 
     /**
-     * Settles an auction bid to its seller. Providers with ledger support record a dedicated
+     * Moves auction money: a bid instalment, to the seller or into the holding account, or the
+     * seller's proceeds out of the holding account. Providers with ledger support record a dedicated
      * source, so auction proceeds never depend on parsing the memo or the region's name.
      * Vault has no source metadata and retains its normal atomic payment behavior.
      */

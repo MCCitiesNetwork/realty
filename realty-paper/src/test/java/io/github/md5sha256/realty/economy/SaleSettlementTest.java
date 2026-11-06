@@ -52,9 +52,9 @@ class SaleSettlementTest {
     private static final UUID WORLD_ID = UUID.randomUUID();
 
     private static final DuePayout PROCEEDS =
-            new DuePayout(1, "proceeds", "proceeds", SELLER, 970, "plot", WORLD_ID, BUYER_ID, 0, 1000);
+            new DuePayout(1, "proceeds", "proceeds", SELLER, 970, "plot", WORLD_ID, BUYER_ID, 0, 1000, false);
     private static final DuePayout AGENT_FEE =
-            new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 0, 1000);
+            new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 0, 1000, false);
 
     @Mock
     private RealtyBackend backend;
@@ -72,6 +72,8 @@ class SaleSettlementTest {
 
         final List<Transfer> transfers = new ArrayList<>();
         final Set<Party> failingRecipients = new HashSet<>();
+        /** The recipients paid through {@link #transferAuctionProceeds}. */
+        final List<Party> auctionProceedsTo = new ArrayList<>();
 
         @Override
         public double getBalance(@NotNull Party party) {
@@ -86,6 +88,16 @@ class SaleSettlementTest {
             }
             transfers.add(new Transfer(from, to, amount, ledgerMessage));
             return new PaymentResult.Success();
+        }
+
+        @Override
+        public @NotNull PaymentResult transferAuctionProceeds(@NotNull Party from, @NotNull Party to, double amount,
+                                                              @NotNull String ledgerMessage, @Nullable UUID initiator) {
+            PaymentResult result = transfer(from, to, amount, ledgerMessage, initiator);
+            if (result instanceof PaymentResult.Success) {
+                auctionProceedsTo.add(to);
+            }
+            return result;
         }
 
         @Override
@@ -157,6 +169,29 @@ class SaleSettlementTest {
     }
 
     @Test
+    void payout_auctionSale_paysTheSellerWithTheAuctionSource_andItsFeesWithout() {
+        when(backend.duePayouts()).thenReturn(List.of(
+                new DuePayout(1, "proceeds", "proceeds", SELLER, 970, "plot", WORLD_ID, BUYER_ID, 0, 1000, true),
+                new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 0, 1000, true)));
+        when(backend.claimPayout(anyInt())).thenReturn(OptionalInt.of(0));
+
+        settlement.payOutDue();
+
+        Assertions.assertEquals(List.of(SELLER), economy.auctionProceedsTo);
+        Assertions.assertEquals(2, economy.transfers.size());
+    }
+
+    @Test
+    void payout_saleNotAtAuction_usesNoAuctionSource() {
+        when(backend.duePayouts()).thenReturn(List.of(PROCEEDS, AGENT_FEE));
+        when(backend.claimPayout(anyInt())).thenReturn(OptionalInt.of(0));
+
+        settlement.payOutDue();
+
+        Assertions.assertEquals(List.of(), economy.auctionProceedsTo);
+    }
+
+    @Test
     void payout_oneRecipientFails_lineFailed_othersPaid_retriedLater() {
         economy.failingRecipients.add(AGENT);
         when(backend.duePayouts()).thenReturn(List.of(PROCEEDS, AGENT_FEE));
@@ -171,7 +206,7 @@ class SaleSettlementTest {
 
         economy.failingRecipients.clear();
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 1, 1000)));
+                new DuePayout(2, "fee", "agent", AGENT, 30, "plot", WORLD_ID, BUYER_ID, 1, 1000, false)));
         settlement.payOutDue();
 
         verify(backend).markPayoutPaid(2);
@@ -195,7 +230,7 @@ class SaleSettlementTest {
     void payout_lastAttemptFails_logsSevere() {
         economy.failingRecipients.add(GOV);
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 23, 1000)));
+                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 23, 1000, false)));
         when(backend.claimPayout(3)).thenReturn(OptionalInt.of(23));
 
         settlement.payOutDue();
@@ -209,7 +244,7 @@ class SaleSettlementTest {
     void payout_earlierFailure_logsNoSevere() {
         economy.failingRecipients.add(GOV);
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5, 1000)));
+                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5, 1000, false)));
         when(backend.claimPayout(3)).thenReturn(OptionalInt.of(5));
 
         settlement.payOutDue();
@@ -221,7 +256,7 @@ class SaleSettlementTest {
     void payout_staleList_usesTheAttemptsReadUnderTheClaim() {
         economy.failingRecipients.add(GOV);
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5, 1000)));
+                new DuePayout(3, "fee", "stamp-duty", GOV, 50, "plot", WORLD_ID, BUYER_ID, 5, 1000, false)));
         when(backend.claimPayout(3)).thenReturn(OptionalInt.of(23));
 
         settlement.payOutDue();
@@ -232,7 +267,7 @@ class SaleSettlementTest {
     @Test
     void payout_zeroLine_isMarkedPaidWithoutATransfer() {
         when(backend.duePayouts()).thenReturn(List.of(
-                new DuePayout(4, "proceeds", "proceeds", SELLER, 0, "plot", WORLD_ID, BUYER_ID, 0, 1000)));
+                new DuePayout(4, "proceeds", "proceeds", SELLER, 0, "plot", WORLD_ID, BUYER_ID, 0, 1000, false)));
         when(backend.claimPayout(4)).thenReturn(OptionalInt.of(0));
 
         settlement.payOutDue();

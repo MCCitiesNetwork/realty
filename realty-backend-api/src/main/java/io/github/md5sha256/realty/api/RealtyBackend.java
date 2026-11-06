@@ -1307,10 +1307,11 @@ public interface RealtyBackend {
      * @param worldId  the region's world
      * @param attempts  the failed payout attempts so far
      * @param salePrice the price the region sold for
+     * @param auction   whether the region was sold at auction
      */
     record DuePayout(int id, @NotNull String lineKind, @NotNull String source, @NotNull Party recipient,
                      double amount, @NotNull String regionName, @Nullable UUID worldId, @NotNull UUID buyerId,
-                     int attempts, double salePrice) {}
+                     int attempts, double salePrice, boolean auction) {}
 
     /**
      * A refund owed to a buyer from the holding account.
