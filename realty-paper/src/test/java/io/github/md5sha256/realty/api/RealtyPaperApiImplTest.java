@@ -2594,6 +2594,8 @@ class RealtyPaperApiImplTest {
             paidInFull(1000.0, AGENT_QUOTE, false);
             when(economyProvider.transfer(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
                     .thenReturn(new PaymentResult.Success());
+            when(economyProvider.transferAuctionProceeds(eq(BUYER), eq(HOLDING), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
             payoutsDue();
             when(realtyApi.payOffer(REGION_ID, WORLD_ID, BUYER_ID, 1000.0)).thenReturn(
                     new RealtyBackend.PayOfferResult.FullyPaid(GOVERNMENT, TITLE_HOLDER_ID, AGENT_QUOTE, false, 4));
