@@ -90,7 +90,7 @@ class PlayerNotificationsListenerTest {
 
         listener(enqueued, overwriteFlags).onNotification(new RealtyNotificationEvent(
                 List.of(UUID.randomUUID()),
-                "notification.bid-payment-expired",
+                "notification.bid-payment-expired-refunded",
                 Component.text("refunded"),
                 null));
 

@@ -29,18 +29,24 @@ titles:
   notification.agent-removed:          Removed as agent
 
   # Realty auctions (realty.auction) -- bids, auction outcomes and bid payment deadlines
-  notification.outbid:                Outbid
-  notification.auction-cancelled:     Auction cancelled
-  notification.auction-won:           Auction won
-  notification.auction-ended-no-bids: Auction ended without bids
-  notification.bid-payment-expired:   Bid payment expired
+  notification.outbid:                           Outbid
+  notification.auction-cancelled:                Auction cancelled
+  notification.auction-won:                      Auction won
+  notification.auction-ended-no-bids:            Auction ended without bids
+  notification.bid-payment-expired-refunded:     Bid payment expired, refunded
+  notification.bid-refund-pending:               Bid payment expired, refund pending
+  notification.bid-payment-expired-nothing-paid: Bid payment expired
+  notification.bid-payment-expired-old-rules:    Bid payment expired, no refund
 
   # Realty offers (realty.offer) -- offers on your regions and offer payment deadlines
-  notification.offer-placed:          Offer received
-  notification.offer-accepted:        Offer accepted
-  notification.offer-rejected:        Offer rejected
-  notification.offer-withdrawn:       Offer withdrawn
-  notification.offer-payment-expired: Offer payment expired
+  notification.offer-placed:                       Offer received
+  notification.offer-accepted:                     Offer accepted
+  notification.offer-rejected:                     Offer rejected
+  notification.offer-withdrawn:                    Offer withdrawn
+  notification.offer-payment-expired-refunded:     Offer payment expired, refunded
+  notification.offer-refund-pending:               Offer payment expired, refund pending
+  notification.offer-payment-expired-nothing-paid: Offer payment expired
+  notification.offer-payment-expired-old-rules:    Offer payment expired, no refund
 
   # Realty leases (realty.lease) -- rent, lease expiry, terminations and modification proposals
   notification.region-rented:                  Region rented
@@ -58,6 +64,12 @@ titles:
   notification.leasehold-terminated-tenant:    Lease ended
   notification.leasehold-terminated-landlord:  Tenant's lease ended
 
-  # Realty (realty.general) -- purchases, ownership transfers and anything uncategorised
+  # Realty (realty.general) -- purchases, sale payouts and refunds, fees, ownership transfers and
+  # anything uncategorised
   notification.region-bought:         Region sold
   notification.ownership-transferred: Ownership transferred
+  notification.refund-paid:           Refund paid
+  notification.sale-proceeds:         Sale proceeds
+  notification.sale-proceeds-no-fees: Sale proceeds, no fees
+  notification.sale-payout:           Sale fee paid
+  notification.fee-awaiting-approval: Fee awaiting approval

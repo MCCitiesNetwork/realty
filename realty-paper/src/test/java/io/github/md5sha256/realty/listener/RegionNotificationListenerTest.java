@@ -282,7 +282,7 @@ class RegionNotificationListenerTest {
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_REFUNDED, notice.getMessageKey());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED_REFUNDED, notice.getMessageKey());
     }
 
     @Test
@@ -291,14 +291,22 @@ class RegionNotificationListenerTest {
 
         RealtyNotificationEvent notice = notices(1).getFirst();
         Assertions.assertEquals(List.of(TENANT), notice.getTargets());
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_REFUNDED, notice.getMessageKey());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED_REFUNDED, notice.getMessageKey());
     }
 
     @Test
     void paymentExpiredWithAFailedRefund_saysTheRefundIsPending() {
         listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 250, false, false));
 
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_REFUND_PENDING, notices(1).getFirst().getMessageKey());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_REFUND_PENDING, notices(1).getFirst().getMessageKey());
+    }
+
+    @Test
+    void bidPaymentExpiredWithAFailedRefund_usesTheBidRefundPendingNotice() {
+        listener.onAuctionPaymentExpired(new AuctionPaymentExpiredEvent("region-1", null, region, TENANT, 250, false,
+                false));
+
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_REFUND_PENDING, notices(1).getFirst().getMessageKey());
     }
 
     @Test
@@ -326,9 +334,18 @@ class RegionNotificationListenerTest {
                 false));
 
         RealtyNotificationEvent notice = notices(1).getFirst();
-        Assertions.assertEquals(MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_NOTHING_PAID, notice.getMessageKey());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED_NOTHING_PAID, notice.getMessageKey());
         Assertions.assertTrue(plain(notice).contains("You had paid nothing, so nothing is refunded."), plain(notice));
         Assertions.assertFalse(plain(notice).contains("seller"), plain(notice));
+    }
+
+    @Test
+    void offerPaymentExpiredWithNothingPaid_usesTheOfferNothingPaidNotice() {
+        listener.onOfferPaymentExpired(new OfferPaymentExpiredEvent("region-1", null, region, TENANT, 0, false,
+                false));
+
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED_NOTHING_PAID,
+                notices(1).getFirst().getMessageKey());
     }
 
     @Test
