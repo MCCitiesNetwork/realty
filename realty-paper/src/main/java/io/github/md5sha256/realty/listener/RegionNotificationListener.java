@@ -147,18 +147,39 @@ public final class RegionNotificationListener implements Listener {
     }
 
     /**
-     * The key of the notice for a missed payment deadline: the refund was paid, or it failed and is
-     * pending; for a payment begun before sale fees, whose money went to the seller, nothing is
-     * refunded; and a buyer who had paid nothing is told so.
+     * The notices for a missed payment deadline, one set for bids and one for offers, so a
+     * notification module can file each with its kind of sale.
+     *
+     * @param refunded      the refund was paid
+     * @param refundPending the refund failed and is pending
+     * @param nothingPaid   the buyer had paid nothing
+     * @param oldRules      the payment began before sale fees, so its money went to the seller and
+     *                      nothing is refunded
      */
-    static @NotNull String expiryKey(@NotNull PaymentExpiredEvent event, @NotNull String oldRulesKey) {
+    record ExpiryKeys(@NotNull String refunded, @NotNull String refundPending,
+                      @NotNull String nothingPaid, @NotNull String oldRules) {}
+
+    static final ExpiryKeys BID_EXPIRY_KEYS = new ExpiryKeys(
+            MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED_REFUNDED,
+            MessageKeys.NOTIFICATION_BID_REFUND_PENDING,
+            MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED_NOTHING_PAID,
+            MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED_OLD_RULES);
+
+    static final ExpiryKeys OFFER_EXPIRY_KEYS = new ExpiryKeys(
+            MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED_REFUNDED,
+            MessageKeys.NOTIFICATION_OFFER_REFUND_PENDING,
+            MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED_NOTHING_PAID,
+            MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED_OLD_RULES);
+
+    /** The key of the notice for a missed payment deadline, from {@code keys}. */
+    static @NotNull String expiryKey(@NotNull PaymentExpiredEvent event, @NotNull ExpiryKeys keys) {
         if (event.isRefundPaid()) {
-            return MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_REFUNDED;
+            return keys.refunded();
         }
         if (event.getRefundAmount() > 0) {
-            return MessageKeys.NOTIFICATION_REFUND_PENDING;
+            return keys.refundPending();
         }
-        return event.isOldRules() ? oldRulesKey : MessageKeys.NOTIFICATION_PAYMENT_EXPIRED_NOTHING_PAID;
+        return event.isOldRules() ? keys.oldRules() : keys.nothingPaid();
     }
 
     @EventHandler
@@ -180,7 +201,7 @@ public final class RegionNotificationListener implements Listener {
     @EventHandler
     public void onAuctionPaymentExpired(@NotNull AuctionPaymentExpiredEvent event) {
         notifyPlayer(event.getBidderId(), event.getRegion().orElse(null),
-                expiryKey(event, MessageKeys.NOTIFICATION_BID_PAYMENT_EXPIRED_OLD_RULES),
+                expiryKey(event, BID_EXPIRY_KEYS),
                 Placeholder.unparsed("region", event.getRegionId()),
                 Placeholder.unparsed("amount", CurrencyFormatter.format(event.getRefundAmount())));
     }
@@ -188,7 +209,7 @@ public final class RegionNotificationListener implements Listener {
     @EventHandler
     public void onOfferPaymentExpired(@NotNull OfferPaymentExpiredEvent event) {
         notifyPlayer(event.getOffererId(), event.getRegion().orElse(null),
-                expiryKey(event, MessageKeys.NOTIFICATION_OFFER_PAYMENT_EXPIRED_OLD_RULES),
+                expiryKey(event, OFFER_EXPIRY_KEYS),
                 Placeholder.unparsed("region", event.getRegionId()),
                 Placeholder.unparsed("amount", CurrencyFormatter.format(event.getRefundAmount())));
     }

@@ -47,7 +47,7 @@ class RealtyNotificationPayloadTest {
         Component message = Component.text("Your bid was refunded.");
 
         RealtyNotificationPayload payload =
-                RealtyNotificationPayload.of("notification.bid-payment-expired", message, null, null);
+                RealtyNotificationPayload.of("notification.bid-payment-expired-refunded", message, null, null);
 
         Assertions.assertNull(payload.regionId());
         Assertions.assertNull(payload.worldId());

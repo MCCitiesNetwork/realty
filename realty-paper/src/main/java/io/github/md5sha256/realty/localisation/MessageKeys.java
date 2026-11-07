@@ -518,7 +518,15 @@ public final class MessageKeys {
     public static final String NOTIFICATION_BID_PAYMENT_EXPIRED_OLD_RULES = "notification.bid-payment-expired-old-rules";
     public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED_OLD_RULES =
             "notification.offer-payment-expired-old-rules";
-    public static final String NOTIFICATION_PAYMENT_EXPIRED_NOTHING_PAID = "notification.payment-expired-nothing-paid";
+    public static final String NOTIFICATION_BID_PAYMENT_EXPIRED_NOTHING_PAID =
+            "notification.bid-payment-expired-nothing-paid";
+    public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED_NOTHING_PAID =
+            "notification.offer-payment-expired-nothing-paid";
+    public static final String NOTIFICATION_BID_PAYMENT_EXPIRED_REFUNDED = "notification.bid-payment-expired-refunded";
+    public static final String NOTIFICATION_OFFER_PAYMENT_EXPIRED_REFUNDED =
+            "notification.offer-payment-expired-refunded";
+    public static final String NOTIFICATION_BID_REFUND_PENDING = "notification.bid-refund-pending";
+    public static final String NOTIFICATION_OFFER_REFUND_PENDING = "notification.offer-refund-pending";
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED = "notification.leasehold-expired";
     public static final String NOTIFICATION_LEASEHOLD_EXPIRED_LANDLORD = "notification.leasehold-expired-landlord";
     public static final String NOTIFICATION_REGION_UNRENTED = "notification.region-unrented";
@@ -637,8 +645,6 @@ public final class MessageKeys {
     public static final String NOTIFICATION_SALE_PROCEEDS = "notification.sale-proceeds";
     public static final String NOTIFICATION_SALE_PROCEEDS_NO_FEES = "notification.sale-proceeds-no-fees";
     public static final String NOTIFICATION_REFUND_PAID = "notification.refund-paid";
-    public static final String NOTIFICATION_PAYMENT_EXPIRED_REFUNDED = "notification.payment-expired-refunded";
-    public static final String NOTIFICATION_REFUND_PENDING = "notification.refund-pending";
     public static final String NOTIFICATION_FEE_AWAITING_APPROVAL = "notification.fee-awaiting-approval";
 
     // fee

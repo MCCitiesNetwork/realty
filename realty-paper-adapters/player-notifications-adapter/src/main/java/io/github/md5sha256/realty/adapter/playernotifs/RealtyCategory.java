@@ -53,7 +53,10 @@ public enum RealtyCategory {
                     Map.entry("notification.auction-cancelled", "Auction cancelled"),
                     Map.entry("notification.auction-won", "Auction won"),
                     Map.entry("notification.auction-ended-no-bids", "Auction ended without bids"),
-                    Map.entry("notification.bid-payment-expired", "Bid payment expired"))),
+                    Map.entry("notification.bid-payment-expired-refunded", "Bid payment expired, refunded"),
+                    Map.entry("notification.bid-refund-pending", "Bid payment expired, refund pending"),
+                    Map.entry("notification.bid-payment-expired-nothing-paid", "Bid payment expired"),
+                    Map.entry("notification.bid-payment-expired-old-rules", "Bid payment expired, no refund"))),
 
     OFFER("realty.offer",
             "Realty offers",
@@ -63,7 +66,10 @@ public enum RealtyCategory {
                     Map.entry("notification.offer-accepted", "Offer accepted"),
                     Map.entry("notification.offer-rejected", "Offer rejected"),
                     Map.entry("notification.offer-withdrawn", "Offer withdrawn"),
-                    Map.entry("notification.offer-payment-expired", "Offer payment expired"))),
+                    Map.entry("notification.offer-payment-expired-refunded", "Offer payment expired, refunded"),
+                    Map.entry("notification.offer-refund-pending", "Offer payment expired, refund pending"),
+                    Map.entry("notification.offer-payment-expired-nothing-paid", "Offer payment expired"),
+                    Map.entry("notification.offer-payment-expired-old-rules", "Offer payment expired, no refund"))),
 
     LEASE("realty.lease",
             "Realty leases",
@@ -90,10 +96,15 @@ public enum RealtyCategory {
      */
     GENERAL("realty.general",
             "Realty",
-            "Purchases, ownership transfers and anything uncategorised",
+            "Purchases, sale payouts and refunds, fees, ownership transfers and anything uncategorised",
             Map.ofEntries(
                     Map.entry("notification.region-bought", "Region sold"),
-                    Map.entry("notification.ownership-transferred", "Ownership transferred")));
+                    Map.entry("notification.ownership-transferred", "Ownership transferred"),
+                    Map.entry("notification.refund-paid", "Refund paid"),
+                    Map.entry("notification.sale-proceeds", "Sale proceeds"),
+                    Map.entry("notification.sale-proceeds-no-fees", "Sale proceeds, no fees"),
+                    Map.entry("notification.sale-payout", "Sale fee paid"),
+                    Map.entry("notification.fee-awaiting-approval", "Fee awaiting approval")));
 
     /** Where a key no category claims is routed. */
     public static final RealtyCategory FALLBACK = GENERAL;

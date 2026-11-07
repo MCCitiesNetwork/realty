@@ -540,13 +540,20 @@ notification:
     offer-payment-expired-old-rules: <prefix> Your payment deadline for <yellow><region></yellow>
         passed. Realty refunds nothing, because under the rules when you began paying
         any payments you made went to the seller.
-    payment-expired-nothing-paid: <prefix> Your payment deadline for <yellow><region></yellow>
+    bid-payment-expired-nothing-paid: <prefix> Your payment deadline for <yellow><region></yellow>
         passed. You had paid nothing, so nothing is refunded.
-    payment-expired-refunded: <prefix> Your payment deadline for <yellow><region></yellow>
+    bid-payment-expired-refunded: <prefix> Your payment deadline for <yellow><region></yellow>
+        passed. <green>$<amount></green> was refunded.
+    offer-payment-expired-nothing-paid: <prefix> Your payment deadline for <yellow><region></yellow>
+        passed. You had paid nothing, so nothing is refunded.
+    offer-payment-expired-refunded: <prefix> Your payment deadline for <yellow><region></yellow>
         passed. <green>$<amount></green> was refunded.
     refund-paid: <prefix> Your pending refund of <green>$<amount></green> for <yellow><region></yellow>
         has now been paid.
-    refund-pending: <prefix> Your payment deadline for <yellow><region></yellow> passed.
+    bid-refund-pending: <prefix> Your payment deadline for <yellow><region></yellow> passed.
+        Your refund of <green>$<amount></green> could not be paid yet. It is pending
+        and will be retried.
+    offer-refund-pending: <prefix> Your payment deadline for <yellow><region></yellow> passed.
         Your refund of <green>$<amount></green> could not be paid yet. It is pending
         and will be retried.
     sale-proceeds: <prefix> <yellow><region></yellow> sold for <green>$<price></green>.
