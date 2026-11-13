@@ -107,9 +107,7 @@ public record TerminateCommand(
                                 Placeholder.unparsed("region", success.regionId()),
                                 Placeholder.unparsed("date", date)));
                     }
-                    events.fireSync(new LeaseTerminationScheduledEvent(region, success.landlord(),
-                            Party.playerUuidOf(success.tenant()).orElse(null), success.terminatedByRole(), success.effectiveDate(),
-                            success.charged()));
+                    events.fireSync(scheduledEvent(region, success));
                 }
                 default -> sender.sendMessage(failureMessage(messages, result, regionId));
             }
@@ -119,6 +117,14 @@ public record TerminateCommand(
                     Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
             return null;
         });
+    }
+
+    /** The event announcing a termination that went through, which tells the other side. */
+    static @NotNull LeaseTerminationScheduledEvent scheduledEvent(@NotNull WorldGuardRegion region,
+                                                                  @NotNull RealtyPaperApi.TerminateResult.Success success) {
+        return new LeaseTerminationScheduledEvent(region, success.landlord(),
+                Party.playerUuidOf(success.tenant()).orElse(null), success.terminatedByRole(),
+                success.effectiveDate(), success.charged());
     }
 
     /** The reply for a termination that did not go through; {@code result} is not a success. */

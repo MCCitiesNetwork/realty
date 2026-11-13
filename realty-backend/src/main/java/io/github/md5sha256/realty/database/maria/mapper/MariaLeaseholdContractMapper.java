@@ -368,7 +368,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.terminationEffectiveDate = NULL,
                 lc.terminatedByRole = NULL,
-                lc.acceptingTenants = CASE WHEN lc.deleteWhenVacant THEN TRUE ELSE lc.acceptingTenants END,
+                lc.acceptingTenants = lc.acceptingTenants OR lc.deleteWhenVacant,
                 lc.deleteWhenVacant = FALSE
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}

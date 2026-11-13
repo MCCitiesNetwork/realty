@@ -449,12 +449,12 @@ public interface RealtyPaperApi {
         /** The subregion had no tenant and is gone, with its WorldGuard region. */
         record Deleted() implements DeleteSubregionResult {}
         /**
-         * The subregion is rented: it is deleted once the termination taking effect at
-         * {@code effectiveDate} ends the lease. {@code termination} is set when this call started
-         * that termination, so the caller can announce it as {@code terminate} would.
+         * The subregion is rented by {@code tenantId}: it is deleted once the termination taking
+         * effect at {@code effectiveDate} ends the lease. {@code termination} is set when this call
+         * started that termination, so the caller can announce it as {@code terminate} would.
          */
-        record Scheduled(@NotNull LocalDateTime effectiveDate, @Nullable TerminateResult.Success termination)
-                implements DeleteSubregionResult {}
+        record Scheduled(@NotNull LocalDateTime effectiveDate, @NotNull UUID tenantId,
+                         @Nullable TerminateResult.Success termination) implements DeleteSubregionResult {}
         record AlreadyScheduled(@NotNull LocalDateTime effectiveDate) implements DeleteSubregionResult {}
         /** This call started a termination, but the deletion mark was then refused. The termination stands. */
         record TerminatedNotMarked(@NotNull TerminateResult.Success termination) implements DeleteSubregionResult {}

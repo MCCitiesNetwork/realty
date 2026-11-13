@@ -3049,7 +3049,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("a rented subregion starts a landlord termination, then marks it")
         void rentedStartsTermination() {
             when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
-                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(null));
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, null));
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID)).thenReturn(rentedLease(null));
             when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
                     .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD));
@@ -3070,10 +3070,10 @@ class RealtyPaperApiImplTest {
         @DisplayName("a subregion already terminating is only marked")
         void terminatingOnlyMarks() {
             when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
-                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(effective));
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, effective));
             when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
                     .thenReturn(new RealtyBackend.MarkDeletionResult.Success(effective));
-            Assertions.assertEquals(new RealtyPaperApi.DeleteSubregionResult.Scheduled(effective, null),
+            Assertions.assertEquals(new RealtyPaperApi.DeleteSubregionResult.Scheduled(effective, TENANT_ID, null),
                     api.deleteSubregion(wgRegion, AS_LANDLORD).join());
             verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
         }
@@ -3082,7 +3082,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("a refused termination leaves no mark")
         void failedTerminationLeavesNoMark() {
             when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
-                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(null));
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, null));
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
                     .thenReturn(new LeaseholdContractEntity(1, Party.personal(UUID.randomUUID()), TENANT_ID,
                             200.0, 604800L, LocalDateTime.now(), LocalDateTime.now().plusDays(30),
@@ -3098,7 +3098,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("a mark refused after the termination is reported")
         void refusedMarkAfterTermination() {
             when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
-                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(null));
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, null));
             when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID)).thenReturn(rentedLease(null));
             when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
                     .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD));
@@ -3112,7 +3112,7 @@ class RealtyPaperApiImplTest {
         @DisplayName("a subregion already marked is reported with its date")
         void alreadyMarked() {
             when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
-                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(effective));
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, effective));
             when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
                     .thenReturn(new RealtyBackend.MarkDeletionResult.AlreadyMarked(effective));
             Assertions.assertEquals(new RealtyPaperApi.DeleteSubregionResult.AlreadyScheduled(effective),

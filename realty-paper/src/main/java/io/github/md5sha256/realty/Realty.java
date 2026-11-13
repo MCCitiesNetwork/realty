@@ -721,23 +721,19 @@ public final class Realty extends JavaPlugin {
 
     /** Removes the WorldGuard region of a subregion the sweep deleted, and tells its landlord. Main thread. */
     private void removeSweptSubregion(@NotNull RealtyBackend.DeletedLeasehold deleted) {
-        World world = getServer().getWorld(deleted.worldId());
-        if (world == null) {
-            getLogger().warning("Subregion " + deleted.worldGuardRegionId() + " was deleted, but its world "
-                    + deleted.worldId() + " is not loaded, so its WorldGuard region was left in place.");
-            return;
-        }
         WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(getServer(), deleted.worldId(),
                 deleted.worldGuardRegionId());
-        RealtyPaperApi.DeleteSubregionResult removal =
-                this.paperApi.removeDeletedSubregion(world, deleted.worldGuardRegionId());
-        if (removal instanceof RealtyPaperApi.DeleteSubregionResult.WorldGuardSaveError saveError) {
+        if (wgRegion == null) {
+            getLogger().warning("Subregion " + deleted.worldGuardRegionId() + " was deleted, but its world "
+                    + deleted.worldId() + " or its WorldGuard region could not be found, so nothing was removed.");
+            return;
+        }
+        String saveError = this.paperApi.removeWorldGuardRegion(wgRegion);
+        if (saveError != null) {
             getLogger().warning("Subregion " + deleted.worldGuardRegionId()
-                    + " was deleted, but WorldGuard could not save its removal: " + saveError.error());
+                    + " was deleted, but WorldGuard could not save its removal: " + saveError);
         }
-        if (wgRegion != null) {
-            this.eventDispatch.fireSync(new ScheduledSubregionDeletedEvent(wgRegion, deleted.landlord()));
-        }
+        this.eventDispatch.fireSync(new ScheduledSubregionDeletedEvent(wgRegion, deleted.landlord()));
     }
 
     private void initDataFolder() throws IOException {
