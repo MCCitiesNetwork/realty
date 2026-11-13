@@ -200,3 +200,14 @@ The methods take an `ActorContext`, as `terminate` does. The command builds it w
 - [ ] Commit `feat(command): /realty subregion delete and the deletion sweep`.
 
 There is no `CLAUDE.md` in this repository to update.
+
+## Notes from the build
+
+Changes made while executing this plan, recorded here so the plan matches the code:
+
+- Task 2 also pins `SaleFeesMigrationTest` to migrations up to V21, as `PartiesMigrationTest` pins its own. That test asserted that 21 was the newest version, which stops being true with any new migration.
+- Task 4 links are separate messages (`subregion.delete.confirm-link`, `subregion.delete.cancel-termination-link`). `MessageContainer.commandLink` fills only `<command>`, so a link cannot share a message with `<region>` or `<date>`. This follows `/realty buy`.
+- Task 4 adds `ScheduledSubregionDeletedEvent` (landlord and region). The sweep fires it, and `RegionNotificationListener` tells the landlord from it, as it does for other notices. An immediate delete fires `RegionDeletedEvent`, as `/realty delete` does.
+- Task 4 adds `RealtyPaperApi.isMarkedForDeletion`, which `/realty terminate cancel` reads before cancelling, so it can say a mark was removed.
+- Task 4 moves the `terminate.*` failure replies into `TerminateCommand.failureMessage`, which the subregion delete reuses.
+- Task 4 claims the two new notification keys in the player-notifications adapter's leases category (`RealtyCategory`, `titles.yml`), which its test requires.
