@@ -834,6 +834,23 @@ public interface RealtyBackend {
 
     // --- Delete ---
 
+    sealed interface DeleteLeaseholdResult {
+        record Success() implements DeleteLeaseholdResult {}
+        record NoLeaseholdContract() implements DeleteLeaseholdResult {}
+        record NotAuthorized() implements DeleteLeaseholdResult {}
+        /** The lease has a tenant; {@code terminationEffectiveDate} is set while it is being terminated. */
+        record Occupied(@Nullable LocalDateTime terminationEffectiveDate) implements DeleteLeaseholdResult {}
+    }
+
+    /**
+     * Deletes a leasehold region while it has no tenant. Only a manager of the landlord may, unless
+     * the actor bypasses; a tenant always refuses it. The landlord and vacancy conditions are part of
+     * the delete itself, so a rent or landlord change committing meanwhile makes it delete nothing.
+     */
+    @NotNull DeleteLeaseholdResult deleteVacantLeasehold(@NotNull String worldGuardRegionId,
+                                                         @NotNull UUID worldId,
+                                                         @NotNull ActorContext ctx);
+
     int deleteRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     // --- Info ---

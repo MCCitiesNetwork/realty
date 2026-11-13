@@ -57,6 +57,16 @@ public interface LeaseholdContractMapper {
                             @NotNull LocalDateTime terminationEffectiveDate,
                             @NotNull String terminatedByRole);
 
+    /**
+     * Deletes the lease row of a region with no tenant, guarded on the landlord when
+     * {@code requiredLandlordPartyId} is set. The region row is left for the caller to delete.
+     *
+     * @return rows deleted (1 on success, 0 if no vacant lease with that landlord matched)
+     */
+    int deleteVacantByRegion(@NotNull String worldGuardRegionId,
+                             @NotNull UUID worldId,
+                             @Nullable Integer requiredLandlordPartyId);
+
     /** Clears a pending termination (does not touch {@code endDate}). Guarded on a termination existing. */
     int clearTermination(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
