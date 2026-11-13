@@ -1824,8 +1824,8 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             Integer requiredLandlordPartyId = ctx.bypass() ? null : namedPartyId(wrapper, lease.landlord());
             endRead(wrapper);
-            // The lease row first: it has no foreign key to the region, so the region's cascade
-            // would leave it behind.
+            // The guarded delete of the lease row is where the landlord and vacancy checks hold; the
+            // region delete after it removes the rest.
             if (leaseholdMapper.deleteVacantByRegion(worldGuardRegionId, worldId, requiredLandlordPartyId) == 0) {
                 WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
                         requiredLandlordPartyId, true);

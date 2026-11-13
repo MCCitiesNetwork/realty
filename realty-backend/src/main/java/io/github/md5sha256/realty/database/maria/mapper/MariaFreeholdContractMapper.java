@@ -22,10 +22,9 @@ import java.util.UUID;
  * MariaDB-specific MyBatis mapper for CRUD operations on the {@code FreeholdContract} table.
  *
  * <p>The {@code FreeholdContract} table stores the authority, title-holder, and agreed price for a
- * direct-freehold contract. Its association with a {@code RealtyRegion} is tracked through the
- * {@code Contract} table (managed by {@link MariaContractMapper}); callers must insert the
- * corresponding {@code Contract} row <em>before</em> invoking {@link #insertFreehold} so that
- * referential integrity is maintained at the application level.
+ * direct-freehold contract. Each row names its {@code RealtyRegion} and is deleted with it; the
+ * {@code Contract} table (managed by {@link MariaContractMapper}) links the region to the row and
+ * is written by the caller after {@link #insertFreehold}.
  *
  * @see FreeholdContractEntity
  */
@@ -34,18 +33,15 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
     /**
      * {@inheritDoc}
      *
-     * <p>Inserts a single row into the {@code FreeholdContract} table. The {@code regionId} parameter
-     * is accepted for API consistency (and may be used by callers to look up the region) but is
-     * not written to the {@code FreeholdContract} table itself — that linkage is recorded in the
-     * {@code Contract} table.
-     *
+     * <p>Inserts a single row into the {@code FreeholdContract} table, naming its region so that
+     * the row is deleted with the region. The {@code Contract} link row is written separately.     *
      * <p>The generated {@code freeholdContractId} is set back onto the parameter map by MyBatis via
      * {@code useGeneratedKeys}.
      */
     @Override
     @Select("""
-            INSERT INTO FreeholdContract (authorityPartyId, titleHolderId, price)
-            VALUES (#{authorityPartyId}, #{titleHolder}, #{price})
+            INSERT INTO FreeholdContract (realtyRegionId, authorityPartyId, titleHolderId, price)
+            VALUES (#{regionId}, #{authorityPartyId}, #{titleHolder}, #{price})
             RETURNING freeholdContractId
             """)
     int insertFreehold(@Param("regionId") int regionId,

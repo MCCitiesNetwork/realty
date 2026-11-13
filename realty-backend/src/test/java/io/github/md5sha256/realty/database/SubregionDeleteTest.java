@@ -278,4 +278,29 @@ class SubregionDeleteTest extends AbstractDatabaseTest {
     void newLeaseIsUnmarked() {
         Assertions.assertFalse(logic.isMarkedForDeletion(vacantLease(), WORLD_ID));
     }
+
+    @Test
+    void deleteRegionRemovesTheLeaseRow() throws SQLException {
+        String id = vacantLease();
+        int contractId = lease(id).leaseholdContractId();
+        Assertions.assertEquals(1, logic.deleteRegion(id, WORLD_ID));
+        Assertions.assertEquals(0, leaseRows(contractId), "the lease row goes with its region");
+    }
+
+    @Test
+    void deleteRegionRemovesTheFreeholdRow() throws SQLException {
+        String id = "subregion_delete_freehold_" + REGION_COUNTER.incrementAndGet();
+        Assertions.assertTrue(logic.createFreehold(id, WORLD_ID, 500.0, Party.personal(LANDLORD), LANDLORD));
+        int contractId = logic.getFreeholdContract(id, WORLD_ID).freeholdContractId();
+        Assertions.assertEquals(1, logic.deleteRegion(id, WORLD_ID));
+        try (SqlSessionWrapper wrapper = database.openSession();
+             PreparedStatement statement = wrapper.session().getConnection().prepareStatement(
+                     "SELECT COUNT(*) FROM FreeholdContract WHERE freeholdContractId = ?")) {
+            statement.setInt(1, contractId);
+            try (ResultSet rs = statement.executeQuery()) {
+                rs.next();
+                Assertions.assertEquals(0, rs.getInt(1), "the freehold row goes with its region");
+            }
+        }
+    }
 }

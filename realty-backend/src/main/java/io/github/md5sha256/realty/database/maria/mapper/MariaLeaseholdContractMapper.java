@@ -24,8 +24,9 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
 
     @Override
     @Select("""
-            INSERT INTO LeaseholdContract (landlordPartyId, tenantId, price, durationSeconds, startDate, endDate, currentMaxExtensions, maxExtensions)
+            INSERT INTO LeaseholdContract (realtyRegionId, landlordPartyId, tenantId, price, durationSeconds, startDate, endDate, currentMaxExtensions, maxExtensions)
             VALUES (
+                #{regionId},
                 #{landlordPartyId},
                 #{tenantId},
                 #{price},

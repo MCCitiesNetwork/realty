@@ -215,14 +215,13 @@ remove nothing. A `rent` waiting on the row lock then finds no lease. When no
 row is deleted, the method rolls back, reads the lease again (as
 `diagnoseLeaseholdRefusal` does) and returns `NotAuthorized` or `Occupied`.
 
-Why two statements: `LeaseholdContract` has no foreign key to `Contract` or
-`RealtyRegion`. Deleting only the region cascades the `Contract` link row, the
-sign rows and the other region-keyed tables, but it leaves the lease row
-behind. `MariaPartyMapper` counts lease rows by landlord with no join, so
-leftover rows would inflate a party's counts. `LeaseholdModification` cascades
-from the lease row. A single multi-table `DELETE` is not used, because MariaDB
-does not guarantee the order in which it deletes from the tables, and the
-foreign keys need an order.
+Why two statements: the guarded delete of the lease row is where the landlord
+and vacancy conditions hold. Removing the region then takes everything else
+with it. A single multi-table `DELETE` is not used, because MariaDB does not
+guarantee the order in which it deletes from the tables, and the foreign keys
+need an order. (When this was first written, `LeaseholdContract` had no
+foreign key to its region, so deleting only the region left the lease row
+behind. Migration V23 added that foreign key; see the last Known limitation.)
 
 No history row is written, as `deleteRegion` writes none. `LeaseholdHistory`
 is keyed by region name with no foreign key, so earlier rows stay. If the
@@ -363,10 +362,11 @@ backend faked).
   their text and the in-memory `SignCache` keeps its entries until restart, as
   with `/realty delete` today. Cleaning these up on delete is a separate change
   for both commands.
-- **`/realty delete` leaves lease and freehold rows behind.** The existing
-  admin delete has the gap described under Backend, for both lease and
-  freehold rows. This design does not change `deleteRegion`. Fixing it, and
-  removing the rows already left behind, is a separate change.
+- **`/realty delete` used to leave lease and freehold rows behind.** Fixed
+  after this design by migration V23: each lease and freehold row now names
+  its region with a cascading foreign key, and the migration removed the rows
+  left behind earlier. The index on the new column is not unique, so a
+  database that somehow holds two contracts for one region still upgrades.
 - **Child regions of the subregion.** If someone has made WorldGuard regions
   inside the subregion by hand, WorldGuard's default removal unsets their
   parent and keeps them. The wand does not make such regions.
