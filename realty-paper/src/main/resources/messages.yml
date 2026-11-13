@@ -596,6 +596,10 @@ notification:
         was <red>withdrawn</red>.
     termination-scheduled-tenant: <prefix> <gray></gray> Your lease on <yellow><region></yellow>
         was scheduled for termination, effective <yellow><date></yellow>.
+    termination-subregion-removed: <prefix> <gray></gray> <yellow><region></yellow> will be
+        removed when your lease ends <yellow><date></yellow>.
+    subregion-deleted: <prefix> <gray></gray> Your subregion <yellow><region></yellow> was
+        deleted now that its lease has ended.
     termination-scheduled-landlord: <prefix> <gray></gray> The tenant of <yellow><region></yellow>
         scheduled termination, effective <yellow><date></yellow>.
     termination-cancelled: <prefix> <gray></gray> The scheduled termination of <yellow><region></yellow>
@@ -828,6 +832,8 @@ terminate:
     error: '<prefix> Failed to terminate region: <error>'
     cancel-success: <prefix> You have <red>cancelled the scheduled termination</red>
         of region <yellow><region>.</yellow>
+    cancel-delete-mark: <prefix> <yellow><region></yellow> will no longer be deleted, and
+        is open to tenants again.
     cancel-no-leasehold-contract: <prefix> Region <yellow><region></yellow> is not a
         leasehold.
     cancel-not-terminating: <prefix> Region <yellow><region></yellow> is not scheduled
@@ -867,6 +873,35 @@ subregion:
     parent-outside: <prefix> Your selection extends outside the region. Keep it fully
         inside.
     parent-not-freehold: <prefix> That region isn't set up for subletting.
+    delete:
+        confirm-vacant: <prefix> Delete subregion <yellow><region></yellow> of <green><parent></green>?
+            This cannot be undone.
+        confirm-rented: <prefix> Subregion <yellow><region></yellow> is rented. Its lease
+            will end <yellow><date></yellow>, and the subregion is deleted then.
+        confirm-link: '<click:run_command:<command>><hover:show_text:"Confirm the delete"><red><u>Click
+            here to confirm</u></red></hover></click>, or run the command again with <yellow>--confirm</yellow>.'
+        success: <prefix> Subregion <yellow><region></yellow> has been deleted.
+        scheduled: <prefix> The lease on <yellow><region></yellow> now ends <yellow><date></yellow>,
+            and the subregion is deleted then. Nobody new can rent it meanwhile.
+        scheduled-existing: <prefix> The lease on <yellow><region></yellow> already ends
+            <yellow><date></yellow>. The subregion is deleted then, and nobody new can rent it
+            meanwhile.
+        already-scheduled: <prefix> Subregion <yellow><region></yellow> is already set to be
+            deleted when its lease ends <yellow><date></yellow>.
+        terminated-not-marked: <prefix> The lease on <yellow><region></yellow> ends <yellow><date></yellow>,
+            but the delete could not be scheduled because the landlord changed. Run the
+            command again to try once more.
+        cancelled: <prefix> Subregion <yellow><region></yellow> will no longer be deleted,
+            and is open to tenants again. Its lease still ends as scheduled.
+        cancel-termination-link: '<click:run_command:<command>><hover:show_text:"Keep the
+            tenant"><green><u>Cancel the termination too</u></green></hover></click>'
+        not-scheduled: <prefix> Subregion <yellow><region></yellow> is not set to be deleted.
+        not-subregion: <prefix> <yellow><region></yellow> is not a subregion of a freehold,
+            so it cannot be deleted this way.
+        not-authorized: <prefix> You do not manage the landlord of <yellow><region></yellow>.
+        worldguard-save-error: '<prefix> Subregion <yellow><region></yellow> was deleted,
+            but WorldGuard could not save its removal: <error>'
+        error: '<prefix> Failed to delete subregion: <error>'
 create:
     leasehold-success: <prefix> Created region <green><region></green> and registered
         it as a rental!

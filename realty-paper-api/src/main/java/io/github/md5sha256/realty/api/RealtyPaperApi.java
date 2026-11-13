@@ -491,6 +491,9 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<CancelSubregionDeleteResult> cancelSubregionDelete(@NotNull WorldGuardRegion region,
                                                                                   @NotNull ActorContext ctx);
 
+    /** Whether the region's lease is marked to be deleted when it ends. */
+    @NotNull CompletableFuture<Boolean> isMarkedForDeletion(@NotNull String regionId, @NotNull UUID worldId);
+
     // --- Create/Register Freehold ---
 
     sealed interface CreateFreeholdResult {

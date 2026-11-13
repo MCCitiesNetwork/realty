@@ -287,6 +287,12 @@ permissions:
   realty.command.subregion.confirm.bypass:
     description: Allows subregioning on freehold regions you don't own
     default: op
+  realty.command.subregion.delete:
+    description: Allows deleting a subregion whose landlord you manage, at once when vacant or when its lease ends
+    default: op
+  realty.command.subregion.delete.others:
+    description: Allows deleting a subregion whose landlord you do not manage
+    default: op
   realty.command.tp:
     description: Allows using /realty tp
     default: op
