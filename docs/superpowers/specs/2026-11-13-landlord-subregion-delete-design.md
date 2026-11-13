@@ -131,9 +131,11 @@ undone, because the tenant has already been notified of it.
 ## Scheduled deletes
 
 **Storage.** Migration `V22__lease_delete_when_vacant.sql` adds
-`deleteWhenVacant BOOLEAN NOT NULL DEFAULT FALSE` to `LeaseholdContract`, and
-`LeaseholdContractEntity` gains the field. Existing rows read `FALSE`, so
-nothing changes on upgrade.
+`deleteWhenVacant BOOLEAN NOT NULL DEFAULT FALSE` to `LeaseholdContract`.
+Existing rows read `FALSE`, so nothing changes on upgrade. The mark is read
+through `isMarkedForDeletion` and is not added to `LeaseholdContractEntity`.
+That record is in the published `realty-backend-api` module, and a new
+component would break its constructor for other plugins.
 
 **Marking.** `markForDeletion` is a conditional update: it sets
 `deleteWhenVacant = TRUE` and `acceptingTenants = FALSE` where the landlord
@@ -236,15 +238,19 @@ New method on `RealtyPaperApi` (additive, a minor version):
 
 ```java
 sealed interface DeleteSubregionResult {
-    record Success() implements DeleteSubregionResult {}
+    record Deleted() implements DeleteSubregionResult {}
     record NotSubregion() implements DeleteSubregionResult {}
     record NotAuthorized() implements DeleteSubregionResult {}
-    /** Rented: the delete happens once the termination takes effect at {@code effectiveDate}. */
-    record Scheduled(@NotNull LocalDateTime effectiveDate, boolean terminationStarted)
+    /**
+     * Rented: the delete happens once the termination takes effect at {@code effectiveDate}.
+     * {@code termination} is set when this call started the termination, so the caller can
+     * fire the usual termination event.
+     */
+    record Scheduled(@NotNull LocalDateTime effectiveDate, @Nullable TerminateResult.Success termination)
             implements DeleteSubregionResult {}
     record AlreadyScheduled(@NotNull LocalDateTime effectiveDate) implements DeleteSubregionResult {}
     /** The termination went through but the mark was refused. */
-    record TerminatedNotMarked(@NotNull LocalDateTime effectiveDate) implements DeleteSubregionResult {}
+    record TerminatedNotMarked(@NotNull TerminateResult.Success termination) implements DeleteSubregionResult {}
     /** The termination could not be scheduled; carries the reason {@code terminate} gave. */
     record TerminationFailed(@NotNull TerminateResult reason) implements DeleteSubregionResult {}
     record WorldGuardSaveError(@NotNull String error) implements DeleteSubregionResult {}
@@ -252,10 +258,13 @@ sealed interface DeleteSubregionResult {
 }
 
 @NotNull CompletableFuture<DeleteSubregionResult> deleteSubregion(
-        @NotNull WorldGuardRegion region, @NotNull OfflinePlayer actor, boolean bypass);
+        @NotNull WorldGuardRegion region, @NotNull ActorContext ctx);
 ```
 
-Also `cancelSubregionDelete(region, actor, bypass)`, returning `Success`,
+It takes an `ActorContext`, as `terminate` does. The command builds it with
+`ActorContexts.forRegion`, honouring the `.others` bypass.
+
+Also `cancelSubregionDelete(region, ctx)`, returning `Success`,
 `NotScheduled`, `NotAuthorized` or `NotSubregion`.
 
 `NoLeaseholdContract` from the backend becomes `NotSubregion`. On `Success` it
@@ -289,7 +298,7 @@ A `TerminationFailed` result reuses the existing `terminate.*` message for its
 reason. Under `notification.*`: `subregion-deleted` (to the landlord, from the
 sweep) and `termination-subregion-removed` (to the tenant). Under
 `terminate.*`: `cancelled-delete-mark`, added to the cancel reply when a mark
-was removed. Plus help lines for both commands.
+was removed. The help list has no subregion commands today, so none are added.
 
 ## Conventions
 
