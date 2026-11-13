@@ -3,6 +3,7 @@ package io.github.md5sha256.realty.database.maria.mapper;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.MarkedVacantLeaseholdView;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
 import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
@@ -292,8 +293,83 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             UPDATE LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.deleteWhenVacant = TRUE,
+                lc.acceptingTenants = FALSE
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR lc.landlordPartyId = #{requiredLandlordPartyId})
+            AND lc.terminationEffectiveDate IS NOT NULL
+            AND lc.deleteWhenVacant = FALSE
+            """)
+    int markDeleteWhenVacant(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                             @Param("worldId") @NotNull UUID worldId,
+                             @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            SET lc.deleteWhenVacant = FALSE,
+                lc.acceptingTenants = TRUE
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR lc.landlordPartyId = #{requiredLandlordPartyId})
+            AND lc.deleteWhenVacant = TRUE
+            """)
+    int unmarkDeleteWhenVacant(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                               @Param("worldId") @NotNull UUID worldId,
+                               @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId);
+
+    @Override
+    @Select("""
+            SELECT lc.deleteWhenVacant
+            FROM LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            """)
+    @Nullable Boolean selectDeleteWhenVacant(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                             @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Select("""
+            SELECT lc.leaseholdContractId, rr.worldGuardRegionId, rr.worldId,
+            """ + PartySql.LANDLORD_COLUMNS + """
+            FROM LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            """ + PartySql.LANDLORD_JOINS_CONTRACT + """
+            WHERE lc.deleteWhenVacant = TRUE
+            AND lc.tenantId IS NULL
+            """)
+    @ConstructorArgs({
+            @Arg(column = "leaseholdContractId", javaType = int.class),
+            @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "landlord_", javaType = Party.class),
+            @Arg(column = "worldGuardRegionId", javaType = String.class),
+            @Arg(column = "worldId", javaType = UUID.class)
+    })
+    @NotNull List<MarkedVacantLeaseholdView> selectMarkedVacant();
+
+    @Override
+    @Delete("""
+            DELETE FROM LeaseholdContract
+            WHERE leaseholdContractId = #{leaseholdContractId}
+            AND deleteWhenVacant = TRUE
+            AND tenantId IS NULL
+            """)
+    int deleteMarkedVacantById(@Param("leaseholdContractId") int leaseholdContractId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.terminationEffectiveDate = NULL,
-                lc.terminatedByRole = NULL
+                lc.terminatedByRole = NULL,
+                lc.acceptingTenants = CASE WHEN lc.deleteWhenVacant THEN TRUE ELSE lc.acceptingTenants END,
+                lc.deleteWhenVacant = FALSE
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             AND lc.terminationEffectiveDate IS NOT NULL

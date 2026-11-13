@@ -64,7 +64,8 @@ class SaleFeesMigrationTest extends AbstractDatabaseTest {
         }
 
         MariaSchemaMigrator.migrate(freshUrl, "root", ROOT_PASSWORD,
-                Path.of("sql/migrations"), all, Logger.getLogger("test"));
+                Path.of("sql/migrations"),
+                all.stream().filter(step -> step.version() <= 21).toList(), Logger.getLogger("test"));
 
         try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD);
              Statement statement = connection.createStatement()) {
