@@ -443,6 +443,54 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<DeleteResult> deleteRegion(
             @NotNull WorldGuardRegion region, boolean includeWorldGuard);
 
+    // --- Delete Subregion ---
+
+    sealed interface DeleteSubregionResult {
+        /** The subregion had no tenant and is gone, with its WorldGuard region. */
+        record Deleted() implements DeleteSubregionResult {}
+        /**
+         * The subregion is rented: it is deleted once the termination taking effect at
+         * {@code effectiveDate} ends the lease. {@code termination} is set when this call started
+         * that termination, so the caller can announce it as {@code terminate} would.
+         */
+        record Scheduled(@NotNull LocalDateTime effectiveDate, @Nullable TerminateResult.Success termination)
+                implements DeleteSubregionResult {}
+        record AlreadyScheduled(@NotNull LocalDateTime effectiveDate) implements DeleteSubregionResult {}
+        /** This call started a termination, but the deletion mark was then refused. The termination stands. */
+        record TerminatedNotMarked(@NotNull TerminateResult.Success termination) implements DeleteSubregionResult {}
+        /** The termination a rented subregion needs could not be scheduled, for {@code reason}. */
+        record TerminationFailed(@NotNull TerminateResult reason) implements DeleteSubregionResult {}
+        /** Not a leasehold whose WorldGuard parent is a registered freehold. */
+        record NotSubregion() implements DeleteSubregionResult {}
+        record NotAuthorized() implements DeleteSubregionResult {}
+        /** The Realty rows are gone, but the WorldGuard region could not be saved as removed. */
+        record WorldGuardSaveError(@NotNull String error) implements DeleteSubregionResult {}
+        record Error(@NotNull String message) implements DeleteSubregionResult {}
+    }
+
+    /**
+     * Deletes a subregion: a leasehold whose WorldGuard parent is a registered freehold. With no
+     * tenant it is deleted at once, with its WorldGuard region. With a tenant it is marked to be
+     * deleted when the lease ends, after starting a landlord termination with notice if none is
+     * under way. Only a manager of the landlord may, unless {@code ctx} bypasses. Call it on the
+     * main thread.
+     */
+    @NotNull CompletableFuture<DeleteSubregionResult> deleteSubregion(@NotNull WorldGuardRegion region,
+                                                                      @NotNull ActorContext ctx);
+
+    sealed interface CancelSubregionDeleteResult {
+        record Success() implements CancelSubregionDeleteResult {}
+        record NotScheduled() implements CancelSubregionDeleteResult {}
+        record NotAuthorized() implements CancelSubregionDeleteResult {}
+        record NotSubregion() implements CancelSubregionDeleteResult {}
+    }
+
+    /**
+     * Cancels a subregion's scheduled delete and opens it to tenants again. Any termination stands.
+     */
+    @NotNull CompletableFuture<CancelSubregionDeleteResult> cancelSubregionDelete(@NotNull WorldGuardRegion region,
+                                                                                  @NotNull ActorContext ctx);
+
     // --- Create/Register Freehold ---
 
     sealed interface CreateFreeholdResult {
