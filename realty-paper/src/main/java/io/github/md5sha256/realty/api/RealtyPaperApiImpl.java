@@ -1398,6 +1398,112 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         });
     }
 
+    // --- Delete Subregion ---
+
+    @Override
+    public @NotNull CompletableFuture<DeleteSubregionResult> deleteSubregion(@NotNull WorldGuardRegion region,
+                                                                             @NotNull ActorContext ctx) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        ProtectedRegion parent = region.region().getParent();
+        if (parent == null) {
+            return CompletableFuture.completedFuture(new DeleteSubregionResult.NotSubregion());
+        }
+        String parentId = parent.getId();
+        return CompletableFuture.supplyAsync(() -> {
+            if (realtyApi.getFreeholdContract(parentId, worldId) == null) {
+                // Not a subregion; reported exactly as a region with no lease is.
+                return (RealtyBackend.DeleteLeaseholdResult) new RealtyBackend.DeleteLeaseholdResult.NoLeaseholdContract();
+            }
+            return realtyApi.deleteVacantLeasehold(regionId, worldId, ctx);
+        }, executorState.dbExec()).thenComposeAsync(deleted -> switch (deleted) {
+            case RealtyBackend.DeleteLeaseholdResult.Success ignored ->
+                    CompletableFuture.completedFuture(removeDeletedSubregion(region.world(), regionId));
+            case RealtyBackend.DeleteLeaseholdResult.NoLeaseholdContract ignored ->
+                    CompletableFuture.completedFuture((DeleteSubregionResult) new DeleteSubregionResult.NotSubregion());
+            case RealtyBackend.DeleteLeaseholdResult.NotAuthorized ignored ->
+                    CompletableFuture.completedFuture((DeleteSubregionResult) new DeleteSubregionResult.NotAuthorized());
+            case RealtyBackend.DeleteLeaseholdResult.Occupied occupied when occupied.terminationEffectiveDate() != null ->
+                    markSubregionForDeletion(regionId, worldId, ctx, null);
+            // Rented and not terminating: the landlord's termination, with notice, ends the lease first.
+            case RealtyBackend.DeleteLeaseholdResult.Occupied ignored -> terminate(region, ctx, false)
+                    .thenCompose(terminated -> terminated instanceof TerminateResult.Success success
+                            ? markSubregionForDeletion(regionId, worldId, ctx, success)
+                            : CompletableFuture.completedFuture(
+                                    (DeleteSubregionResult) new DeleteSubregionResult.TerminationFailed(terminated)));
+        }, executorState.mainThreadExec()).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            cause.printStackTrace();
+            return new DeleteSubregionResult.Error(String.valueOf(cause.getMessage()));
+        });
+    }
+
+    private @NotNull CompletableFuture<DeleteSubregionResult> markSubregionForDeletion(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx,
+            @Nullable TerminateResult.Success termination) {
+        return CompletableFuture.supplyAsync(() -> {
+            RealtyBackend.MarkDeletionResult mark = realtyApi.markForDeletion(regionId, worldId, ctx);
+            if (mark instanceof RealtyBackend.MarkDeletionResult.Success success) {
+                return new DeleteSubregionResult.Scheduled(success.effectiveDate(), termination);
+            }
+            if (termination != null) {
+                // The tenant has been told of the termination, so it is not undone.
+                return new DeleteSubregionResult.TerminatedNotMarked(termination);
+            }
+            return switch (mark) {
+                case RealtyBackend.MarkDeletionResult.AlreadyMarked marked ->
+                        new DeleteSubregionResult.AlreadyScheduled(marked.effectiveDate());
+                case RealtyBackend.MarkDeletionResult.NotAuthorized ignored -> new DeleteSubregionResult.NotAuthorized();
+                case RealtyBackend.MarkDeletionResult.NoLeaseholdContract ignored -> new DeleteSubregionResult.NotSubregion();
+                // The termination was cancelled or took effect since the delete looked.
+                case RealtyBackend.MarkDeletionResult.NotTerminating ignored ->
+                        new DeleteSubregionResult.Error("The lease changed while deleting; try again.");
+                case RealtyBackend.MarkDeletionResult.Success ignored -> throw new IllegalStateException("handled above");
+            };
+        }, executorState.dbExec());
+    }
+
+    /**
+     * Removes the WorldGuard region of a subregion whose Realty rows are already deleted, and
+     * clears its flags. Main thread.
+     */
+    public @NotNull DeleteSubregionResult removeDeletedSubregion(@NotNull World world, @NotNull String regionId) {
+        RegionManager regionManager = WorldGuard.getInstance().getPlatform().getRegionContainer()
+                .get(BukkitAdapter.adapt(world));
+        if (regionManager == null) {
+            return new DeleteSubregionResult.Deleted();
+        }
+        ProtectedRegion protectedRegion = regionManager.getRegion(regionId);
+        regionManager.removeRegion(regionId);
+        try {
+            regionManager.save();
+        } catch (StorageException ex) {
+            ex.printStackTrace();
+            return new DeleteSubregionResult.WorldGuardSaveError(String.valueOf(ex.getMessage()));
+        }
+        if (protectedRegion != null) {
+            regionProfileService.clearAllFlags(new WorldGuardRegion(protectedRegion, world));
+        }
+        return new DeleteSubregionResult.Deleted();
+    }
+
+    @Override
+    public @NotNull CompletableFuture<CancelSubregionDeleteResult> cancelSubregionDelete(
+            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        if (region.region().getParent() == null) {
+            return CompletableFuture.completedFuture(new CancelSubregionDeleteResult.NotSubregion());
+        }
+        return CompletableFuture.supplyAsync(() -> switch (realtyApi.unmarkForDeletion(regionId, worldId, ctx)) {
+            case RealtyBackend.UnmarkDeletionResult.Success ignored -> new CancelSubregionDeleteResult.Success();
+            case RealtyBackend.UnmarkDeletionResult.NotMarked ignored -> new CancelSubregionDeleteResult.NotScheduled();
+            case RealtyBackend.UnmarkDeletionResult.NotAuthorized ignored -> new CancelSubregionDeleteResult.NotAuthorized();
+            case RealtyBackend.UnmarkDeletionResult.NoLeaseholdContract ignored ->
+                    new CancelSubregionDeleteResult.NotSubregion();
+        }, executorState.dbExec());
+    }
+
     @Override
     public @NotNull CompletableFuture<CreateFreeholdResult> createFreehold(
             @NotNull WorldGuardRegion region,

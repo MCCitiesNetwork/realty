@@ -2974,4 +2974,176 @@ class RealtyPaperApiImplTest {
             Assertions.assertEquals(listings, api.listFees(wgRegion).join());
         }
     }
+
+    // ═══════════════════════════════════════════════════
+    // deleteSubregion() / cancelSubregionDelete()
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("deleteSubregion")
+    class DeleteSubregion {
+
+        private static final String PARENT_ID = "parent_plot";
+        private static final ActorContext AS_LANDLORD = ActorContext.player(LANDLORD_ID, false);
+        private final LocalDateTime effective = LocalDateTime.of(2026, 12, 1, 12, 0);
+        private RegionManager regionManager;
+
+        @BeforeEach
+        void subregionOfAFreehold() throws ProtectedRegion.CircularInheritanceException {
+            protectedRegion.setParent(new ProtectedCuboidRegion(PARENT_ID,
+                    BlockVector3.at(0, 0, 0), BlockVector3.at(200, 200, 200)));
+            lenient().when(realtyApi.getFreeholdContract(PARENT_ID, WORLD_ID))
+                    .thenReturn(new FreeholdContractEntity(1, LANDLORD, LANDLORD_ID, null, false));
+            regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            lenient().when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+        }
+
+        private LeaseholdContractEntity rentedLease(LocalDateTime terminationDate) {
+            return new LeaseholdContractEntity(1, LANDLORD, TENANT_ID, 200.0, 604800L,
+                    LocalDateTime.now().minusSeconds(1), LocalDateTime.now().plusDays(30),
+                    null, null, terminationDate, null, true);
+        }
+
+        @Test
+        @DisplayName("a region with no parent is not a subregion")
+        void noParent() throws ProtectedRegion.CircularInheritanceException {
+            protectedRegion.setParent(null);
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.NotSubregion.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(realtyApi, never()).deleteVacantLeasehold(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a parent that is not a registered freehold is not a subregion")
+        void parentNotFreehold() {
+            when(realtyApi.getFreeholdContract(PARENT_ID, WORLD_ID)).thenReturn(null);
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.NotSubregion.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(realtyApi, never()).deleteVacantLeasehold(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a vacant subregion is deleted with its WorldGuard region")
+        void vacantDeleted() throws Exception {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Success());
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.Deleted.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(regionManager).removeRegion(REGION_ID);
+            verify(regionManager).save();
+            verify(regionProfileService).clearAllFlags(wgRegion);
+        }
+
+        @Test
+        @DisplayName("a backend refusal for a non-manager is NotAuthorized")
+        void notAuthorized() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.NotAuthorized());
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.NotAuthorized.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(regionManager, never()).removeRegion(any());
+        }
+
+        @Test
+        @DisplayName("a rented subregion starts a landlord termination, then marks it")
+        void rentedStartsTermination() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(null));
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID)).thenReturn(rentedLease(null));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenAnswer(inv -> new RealtyBackend.MarkDeletionResult.Success(effective));
+
+            RealtyPaperApi.DeleteSubregionResult.Scheduled scheduled = Assertions.assertInstanceOf(
+                    RealtyPaperApi.DeleteSubregionResult.Scheduled.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            Assertions.assertNotNull(scheduled.termination(), "this call started the termination");
+            Assertions.assertEquals(effective, scheduled.effectiveDate(), "the stored termination date");
+            var order = inOrder(realtyApi);
+            order.verify(realtyApi).terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord"));
+            order.verify(realtyApi).markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD);
+        }
+
+        @Test
+        @DisplayName("a subregion already terminating is only marked")
+        void terminatingOnlyMarks() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(effective));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.MarkDeletionResult.Success(effective));
+            Assertions.assertEquals(new RealtyPaperApi.DeleteSubregionResult.Scheduled(effective, null),
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a refused termination leaves no mark")
+        void failedTerminationLeavesNoMark() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(null));
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(new LeaseholdContractEntity(1, Party.personal(UUID.randomUUID()), TENANT_ID,
+                            200.0, 604800L, LocalDateTime.now(), LocalDateTime.now().plusDays(30),
+                            null, null, null, null, true));
+            RealtyPaperApi.DeleteSubregionResult.TerminationFailed failed = Assertions.assertInstanceOf(
+                    RealtyPaperApi.DeleteSubregionResult.TerminationFailed.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.NotAuthorized.class, failed.reason());
+            verify(realtyApi, never()).markForDeletion(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a mark refused after the termination is reported")
+        void refusedMarkAfterTermination() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(null));
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID)).thenReturn(rentedLease(null));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.MarkDeletionResult.NotAuthorized());
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.TerminatedNotMarked.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+        }
+
+        @Test
+        @DisplayName("a subregion already marked is reported with its date")
+        void alreadyMarked() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(effective));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.MarkDeletionResult.AlreadyMarked(effective));
+            Assertions.assertEquals(new RealtyPaperApi.DeleteSubregionResult.AlreadyScheduled(effective),
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+        }
+
+        @Test
+        @DisplayName("cancelling maps the backend results")
+        void cancelMapsResults() {
+            when(realtyApi.unmarkForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.UnmarkDeletionResult.Success(),
+                            new RealtyBackend.UnmarkDeletionResult.NotMarked(),
+                            new RealtyBackend.UnmarkDeletionResult.NotAuthorized(),
+                            new RealtyBackend.UnmarkDeletionResult.NoLeaseholdContract());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.Success.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotScheduled.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotAuthorized.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotSubregion.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+        }
+
+        @Test
+        @DisplayName("cancelling refuses a region that is not a subregion")
+        void cancelNotSubregion() throws ProtectedRegion.CircularInheritanceException {
+            protectedRegion.setParent(null);
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotSubregion.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+            verify(realtyApi, never()).unmarkForDeletion(any(), any(), any());
+        }
+    }
 }
