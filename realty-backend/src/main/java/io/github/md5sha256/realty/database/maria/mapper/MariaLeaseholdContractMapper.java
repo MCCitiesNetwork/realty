@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import io.github.md5sha256.realty.database.mapper.LeaseholdContractMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -271,6 +272,20 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
                             @Param("newEndDate") @NotNull LocalDateTime newEndDate,
                             @Param("terminationEffectiveDate") @NotNull LocalDateTime terminationEffectiveDate,
                             @Param("terminatedByRole") @NotNull String terminatedByRole);
+
+    @Override
+    @Delete("""
+            DELETE lc FROM LeaseholdContract lc
+            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR lc.landlordPartyId = #{requiredLandlordPartyId})
+            AND lc.tenantId IS NULL
+            """)
+    int deleteVacantByRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                             @Param("worldId") @NotNull UUID worldId,
+                             @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId);
 
     @Override
     @Update("""

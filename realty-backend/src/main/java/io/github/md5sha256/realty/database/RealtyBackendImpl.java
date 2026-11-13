@@ -1805,6 +1805,40 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+    @Override
+    public @NotNull DeleteLeaseholdResult deleteVacantLeasehold(@NotNull String worldGuardRegionId,
+                                                                @NotNull UUID worldId,
+                                                                @NotNull ActorContext ctx) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new DeleteLeaseholdResult.NoLeaseholdContract();
+            }
+            if (!ctx.mayManage(lease.landlord())) {
+                return new DeleteLeaseholdResult.NotAuthorized();
+            }
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : namedPartyId(wrapper, lease.landlord());
+            endRead(wrapper);
+            // The lease row first: it has no foreign key to the region, so the region's cascade
+            // would leave it behind.
+            if (leaseholdMapper.deleteVacantByRegion(worldGuardRegionId, worldId, requiredLandlordPartyId) == 0) {
+                endRead(wrapper);
+                LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+                if (current == null) {
+                    return new DeleteLeaseholdResult.NoLeaseholdContract();
+                }
+                if (current.tenantId() != null) {
+                    return new DeleteLeaseholdResult.Occupied(current.terminationEffectiveDate());
+                }
+                return new DeleteLeaseholdResult.NotAuthorized();
+            }
+            wrapper.realtyRegionMapper().deleteByWorldGuardRegion(worldGuardRegionId, worldId);
+            wrapper.session().commit();
+            return new DeleteLeaseholdResult.Success();
+        }
+    }
+
     // --- Info ---
 
 
