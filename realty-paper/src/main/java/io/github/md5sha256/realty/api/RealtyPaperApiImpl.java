@@ -1505,6 +1505,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     @Override
+    public @NotNull CompletableFuture<Boolean> isMarkedForDeletion(@NotNull String regionId, @NotNull UUID worldId) {
+        return CompletableFuture.supplyAsync(() -> realtyApi.isMarkedForDeletion(regionId, worldId),
+                executorState.dbExec());
+    }
+
+    @Override
     public @NotNull CompletableFuture<CreateFreeholdResult> createFreehold(
             @NotNull WorldGuardRegion region,
             @Nullable Double price,
