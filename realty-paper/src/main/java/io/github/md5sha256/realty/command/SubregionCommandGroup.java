@@ -2,13 +2,10 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.api.DateTimeFormatters;
 import io.github.md5sha256.realty.api.ExecutorState;
-import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.RealtyPaperApi.CancelSubregionDeleteResult;
 import io.github.md5sha256.realty.api.RealtyPaperApi.DeleteSubregionResult;
-import io.github.md5sha256.realty.api.RealtyPaperApi.TerminateResult;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
-import io.github.md5sha256.realty.api.event.LeaseTerminationScheduledEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RegionDeleteEvent;
 import io.github.md5sha256.realty.api.event.RegionDeletedEvent;
@@ -19,6 +16,7 @@ import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.wand.SubregionWand;
 import io.github.md5sha256.realty.wand.SubregionWandManager;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -154,12 +152,7 @@ public record SubregionCommandGroup(
         CompletableFuture.supplyAsync(() -> actors.forRegion(player, bypass, region), executorState.dbExec())
                 .thenComposeAsync(actor -> api.deleteSubregion(region, actor), executorState.mainThreadExec())
                 .thenAcceptAsync(result -> reportDelete(player, region, result), executorState.mainThreadExec())
-                .exceptionally(ex -> {
-                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                    player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_ERROR,
-                            Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
-                    return null;
-                });
+                .exceptionally(ex -> reportError(player, ex));
     }
 
     /** Says what a confirmed delete would do, with a link that confirms it. Nothing is changed. */
@@ -172,10 +165,12 @@ public record SubregionCommandGroup(
             return;
         }
         String command = "/realty subregion delete " + regionId + " --confirm";
-        api.getLeaseholdContract(regionId, region.world().getUID()).thenAcceptAsync(lease -> {
+        UUID worldId = region.world().getUID();
+        api.getFreeholdContract(parent.getId(), worldId)
+                .thenCombine(api.getLeaseholdContract(regionId, worldId), (freehold, lease) -> freehold == null ? null : lease)
+                .thenAcceptAsync(lease -> {
             if (lease == null) {
-                player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_NOT_SUBREGION,
-                        Placeholder.unparsed("region", regionId)));
+                player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_SUBREGION, regionId));
                 return;
             }
             if (lease.tenantId() == null) {
@@ -200,8 +195,7 @@ public record SubregionCommandGroup(
         String regionId = region.region().getId();
         switch (result) {
             case DeleteSubregionResult.Deleted ignored -> {
-                player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_SUCCESS,
-                        Placeholder.unparsed("region", regionId)));
+                player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_SUCCESS, regionId));
                 events.fireSync(new RegionDeletedEvent(region, player.getUniqueId()));
             }
             case DeleteSubregionResult.Scheduled scheduled -> {
@@ -211,9 +205,9 @@ public record SubregionCommandGroup(
                         Placeholder.unparsed("region", regionId),
                         Placeholder.unparsed("date", format(scheduled.effectiveDate()))));
                 if (scheduled.termination() != null) {
-                    announceTermination(region, scheduled.termination());
+                    events.fireSync(TerminateCommand.scheduledEvent(region, scheduled.termination()));
                 }
-                tellTenantOfRemoval(region, scheduled.effectiveDate(), scheduled.termination());
+                tellTenantOfRemoval(region, scheduled);
             }
             case DeleteSubregionResult.AlreadyScheduled already ->
                     player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_ALREADY_SCHEDULED,
@@ -223,16 +217,14 @@ public record SubregionCommandGroup(
                 player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_TERMINATED_NOT_MARKED,
                         Placeholder.unparsed("region", regionId),
                         Placeholder.unparsed("date", format(notMarked.termination().effectiveDate()))));
-                announceTermination(region, notMarked.termination());
+                events.fireSync(TerminateCommand.scheduledEvent(region, notMarked.termination()));
             }
             case DeleteSubregionResult.TerminationFailed failed ->
                     player.sendMessage(TerminateCommand.failureMessage(messages, failed.reason(), regionId));
             case DeleteSubregionResult.NotSubregion ignored ->
-                    player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_NOT_SUBREGION,
-                            Placeholder.unparsed("region", regionId)));
+                    player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_SUBREGION, regionId));
             case DeleteSubregionResult.NotAuthorized ignored ->
-                    player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_NOT_AUTHORIZED,
-                            Placeholder.unparsed("region", regionId)));
+                    player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_AUTHORIZED, regionId));
             case DeleteSubregionResult.WorldGuardSaveError saveError ->
                     player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_WORLDGUARD_SAVE_ERROR,
                             Placeholder.unparsed("region", regionId),
@@ -243,32 +235,15 @@ public record SubregionCommandGroup(
         }
     }
 
-    /** Fires the event {@code /realty terminate} fires, so the tenant gets the usual notice. */
-    private void announceTermination(@NotNull WorldGuardRegion region, @NotNull TerminateResult.Success termination) {
-        events.fireSync(new LeaseTerminationScheduledEvent(region, termination.landlord(),
-                Party.playerUuidOf(termination.tenant()).orElse(null), termination.terminatedByRole(),
-                termination.effectiveDate(), termination.charged()));
-    }
-
-    /** Tells the tenant the plot goes when their lease ends. The tenant is read when this call did not terminate. */
-    private void tellTenantOfRemoval(@NotNull WorldGuardRegion region, @NotNull LocalDateTime effectiveDate,
-                                     @Nullable TerminateResult.Success termination) {
+    /** Tells the tenant the plot goes when their lease ends. */
+    private void tellTenantOfRemoval(@NotNull WorldGuardRegion region, @NotNull DeleteSubregionResult.Scheduled scheduled) {
         String regionId = region.region().getId();
-        CompletableFuture<@Nullable UUID> tenant = termination != null
-                ? CompletableFuture.completedFuture(Party.playerUuidOf(termination.tenant()).orElse(null))
-                : api.getLeaseholdContract(regionId, region.world().getUID())
-                        .thenApply(lease -> lease == null ? null : lease.tenantId());
-        tenant.thenAcceptAsync(tenantId -> {
-            if (tenantId == null) {
-                return;
-            }
-            events.fireSync(new RealtyNotificationEvent(List.of(tenantId),
-                    MessageKeys.NOTIFICATION_TERMINATION_SUBREGION_REMOVED,
-                    messages.messageFor(MessageKeys.NOTIFICATION_TERMINATION_SUBREGION_REMOVED,
-                            Placeholder.unparsed("region", regionId),
-                            Placeholder.unparsed("date", format(effectiveDate))),
-                    region));
-        }, executorState.mainThreadExec());
+        events.fireSync(new RealtyNotificationEvent(List.of(scheduled.tenantId()),
+                MessageKeys.NOTIFICATION_TERMINATION_SUBREGION_REMOVED,
+                messages.messageFor(MessageKeys.NOTIFICATION_TERMINATION_SUBREGION_REMOVED,
+                        Placeholder.unparsed("region", regionId),
+                        Placeholder.unparsed("date", format(scheduled.effectiveDate()))),
+                region));
     }
 
     private void executeCancelDelete(@NotNull CommandContext<Source> ctx) {
@@ -284,32 +259,34 @@ public record SubregionCommandGroup(
                 .thenAcceptAsync(result -> {
                     switch (result) {
                         case CancelSubregionDeleteResult.Success ignored -> {
-                            player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_CANCELLED,
-                                    Placeholder.unparsed("region", regionId)));
+                            player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_CANCELLED, regionId));
                             player.sendMessage(messages.commandLink(
                                     MessageKeys.SUBREGION_DELETE_CANCEL_TERMINATION_LINK,
                                     "/realty terminate cancel " + regionId));
                         }
                         case CancelSubregionDeleteResult.NotScheduled ignored ->
-                                player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_NOT_SCHEDULED,
-                                        Placeholder.unparsed("region", regionId)));
+                                player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_SCHEDULED, regionId));
                         case CancelSubregionDeleteResult.NotAuthorized ignored ->
-                                player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_NOT_AUTHORIZED,
-                                        Placeholder.unparsed("region", regionId)));
+                                player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_AUTHORIZED, regionId));
                         case CancelSubregionDeleteResult.NotSubregion ignored ->
-                                player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_NOT_SUBREGION,
-                                        Placeholder.unparsed("region", regionId)));
+                                player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_SUBREGION, regionId));
                     }
                 }, executorState.mainThreadExec())
-                .exceptionally(ex -> {
-                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                    player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_ERROR,
-                            Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
-                    return null;
-                });
+                .exceptionally(ex -> reportError(player, ex));
     }
 
     private static @NotNull String format(@NotNull LocalDateTime dateTime) {
         return dateTime.format(DateTimeFormatters.DATE_TIME);
+    }
+
+    private @NotNull Component regionMessage(@NotNull String key, @NotNull String regionId) {
+        return messages.messageFor(key, Placeholder.unparsed("region", regionId));
+    }
+
+    private @Nullable Void reportError(@NotNull Player player, @NotNull Throwable ex) {
+        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+        player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_ERROR,
+                Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
+        return null;
     }
 }

@@ -1819,20 +1819,24 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!ctx.mayManage(lease.landlord())) {
                 return new DeleteLeaseholdResult.NotAuthorized();
             }
+            if (lease.tenantId() != null) {
+                return new DeleteLeaseholdResult.Occupied(lease.tenantId(), lease.terminationEffectiveDate());
+            }
             Integer requiredLandlordPartyId = ctx.bypass() ? null : namedPartyId(wrapper, lease.landlord());
             endRead(wrapper);
             // The lease row first: it has no foreign key to the region, so the region's cascade
             // would leave it behind.
             if (leaseholdMapper.deleteVacantByRegion(worldGuardRegionId, worldId, requiredLandlordPartyId) == 0) {
-                endRead(wrapper);
+                WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        requiredLandlordPartyId, true);
+                if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                    return new DeleteLeaseholdResult.NotAuthorized();
+                }
                 LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
-                if (current == null) {
-                    return new DeleteLeaseholdResult.NoLeaseholdContract();
+                if (refusal == WriteRefusal.OCCUPIED && current != null && current.tenantId() != null) {
+                    return new DeleteLeaseholdResult.Occupied(current.tenantId(), current.terminationEffectiveDate());
                 }
-                if (current.tenantId() != null) {
-                    return new DeleteLeaseholdResult.Occupied(current.terminationEffectiveDate());
-                }
-                return new DeleteLeaseholdResult.NotAuthorized();
+                return new DeleteLeaseholdResult.NoLeaseholdContract();
             }
             wrapper.realtyRegionMapper().deleteByWorldGuardRegion(worldGuardRegionId, worldId);
             wrapper.session().commit();

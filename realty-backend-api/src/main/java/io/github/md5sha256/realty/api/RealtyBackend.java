@@ -838,8 +838,9 @@ public interface RealtyBackend {
         record Success() implements DeleteLeaseholdResult {}
         record NoLeaseholdContract() implements DeleteLeaseholdResult {}
         record NotAuthorized() implements DeleteLeaseholdResult {}
-        /** The lease has a tenant; {@code terminationEffectiveDate} is set while it is being terminated. */
-        record Occupied(@Nullable LocalDateTime terminationEffectiveDate) implements DeleteLeaseholdResult {}
+        /** The lease has {@code tenantId}; {@code terminationEffectiveDate} is set while it is being terminated. */
+        record Occupied(@NotNull UUID tenantId, @Nullable LocalDateTime terminationEffectiveDate)
+                implements DeleteLeaseholdResult {}
     }
 
     /**

@@ -105,7 +105,7 @@ class SubregionDeleteTest extends AbstractDatabaseTest {
     @Test
     void rentedLeaseIsRefusedAsOccupied() {
         String id = rentedLease();
-        Assertions.assertEquals(new DeleteLeaseholdResult.Occupied(null),
+        Assertions.assertEquals(new DeleteLeaseholdResult.Occupied(TENANT, null),
                 logic.deleteVacantLeasehold(id, WORLD_ID, AS_LANDLORD));
         Assertions.assertEquals(TENANT, lease(id).tenantId());
     }
@@ -115,7 +115,7 @@ class SubregionDeleteTest extends AbstractDatabaseTest {
         String id = rentedLease();
         LocalDateTime effective = LocalDateTime.now().plusDays(7).truncatedTo(ChronoUnit.SECONDS);
         logic.terminateLease(id, WORLD_ID, effective, effective, "landlord");
-        Assertions.assertEquals(new DeleteLeaseholdResult.Occupied(effective),
+        Assertions.assertEquals(new DeleteLeaseholdResult.Occupied(TENANT, effective),
                 logic.deleteVacantLeasehold(id, WORLD_ID, AS_LANDLORD));
     }
 
