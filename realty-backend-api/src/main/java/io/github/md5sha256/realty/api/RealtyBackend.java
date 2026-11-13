@@ -851,6 +851,49 @@ public interface RealtyBackend {
                                                          @NotNull UUID worldId,
                                                          @NotNull ActorContext ctx);
 
+    sealed interface MarkDeletionResult {
+        /** Marked; the region is deleted once the termination taking effect at {@code effectiveDate} ends it. */
+        record Success(@NotNull LocalDateTime effectiveDate) implements MarkDeletionResult {}
+        record NoLeaseholdContract() implements MarkDeletionResult {}
+        record NotAuthorized() implements MarkDeletionResult {}
+        /** Only a lease being terminated can be marked: the termination is what ends the tenancy. */
+        record NotTerminating() implements MarkDeletionResult {}
+        record AlreadyMarked(@NotNull LocalDateTime effectiveDate) implements MarkDeletionResult {}
+    }
+
+    /**
+     * Marks a terminating lease to be deleted once it has no tenant, and closes it to new tenants.
+     * Only a manager of the landlord may, unless the actor bypasses.
+     */
+    @NotNull MarkDeletionResult markForDeletion(@NotNull String worldGuardRegionId,
+                                                @NotNull UUID worldId,
+                                                @NotNull ActorContext ctx);
+
+    sealed interface UnmarkDeletionResult {
+        record Success() implements UnmarkDeletionResult {}
+        record NoLeaseholdContract() implements UnmarkDeletionResult {}
+        record NotAuthorized() implements UnmarkDeletionResult {}
+        record NotMarked() implements UnmarkDeletionResult {}
+    }
+
+    /**
+     * Removes a lease's deletion mark and opens it to tenants again. Any termination stands.
+     * Only a manager of the landlord may, unless the actor bypasses.
+     */
+    @NotNull UnmarkDeletionResult unmarkForDeletion(@NotNull String worldGuardRegionId,
+                                                    @NotNull UUID worldId,
+                                                    @NotNull ActorContext ctx);
+
+    /** Whether the region's lease is marked to be deleted once vacant; false when it has no lease. */
+    boolean isMarkedForDeletion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    /** A region the sweep deleted because its lease was marked and had no tenant. */
+    record DeletedLeasehold(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
+                            @NotNull Party landlord) {}
+
+    /** Deletes every marked lease that has no tenant, each with its region, and lists them. */
+    @NotNull List<DeletedLeasehold> deleteMarkedVacantLeaseholds();
+
     int deleteRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     // --- Info ---
