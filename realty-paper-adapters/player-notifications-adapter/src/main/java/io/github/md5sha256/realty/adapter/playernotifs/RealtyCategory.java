@@ -88,7 +88,9 @@ public enum RealtyCategory {
                     Map.entry("notification.termination-scheduled-landlord", "Tenant scheduled termination"),
                     Map.entry("notification.termination-cancelled", "Termination cancelled"),
                     Map.entry("notification.leasehold-terminated-tenant", "Lease ended"),
-                    Map.entry("notification.leasehold-terminated-landlord", "Tenant's lease ended"))),
+                    Map.entry("notification.leasehold-terminated-landlord", "Tenant's lease ended"),
+                    Map.entry("notification.termination-subregion-removed", "Rented subregion to be removed"),
+                    Map.entry("notification.subregion-deleted", "Subregion deleted"))),
 
     /**
      * Purchases, ownership transfers, and every key no other category claims. Being the fallback is

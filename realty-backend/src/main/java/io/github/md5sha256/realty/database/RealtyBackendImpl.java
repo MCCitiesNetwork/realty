@@ -27,6 +27,7 @@ import io.github.md5sha256.realty.database.entity.GroupMapping;
 import io.github.md5sha256.realty.database.entity.HistoryEntry;
 import io.github.md5sha256.realty.database.entity.LeaseholdHistoryEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.MarkedVacantLeaseholdView;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationEntity;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
 import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
@@ -491,6 +492,8 @@ public class RealtyBackendImpl implements RealtyBackend {
     enum WriteRefusal {
         HOLDER_DIFFERS,
         OCCUPIED,
+        /** The contract is gone; only the leasehold diagnosis reports it. */
+        NO_CONTRACT,
         OTHER
     }
 
@@ -534,7 +537,7 @@ public class RealtyBackendImpl implements RealtyBackend {
         LeaseholdContractEntity current = wrapper.leaseholdContractMapper()
                 .selectByRegion(worldGuardRegionId, worldId);
         if (current == null) {
-            return WriteRefusal.OTHER;
+            return WriteRefusal.NO_CONTRACT;
         }
         if (expectedLandlordPartyId != null
                 && expectedLandlordPartyId != namedPartyId(wrapper, current.landlord())) {
@@ -1752,6 +1755,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!mayCancel) {
                 return new CancelTerminationResult.NotAuthorized();
             }
+            // A delete waiting on this termination would otherwise happen whenever the tenant left
+            // later; the guarded write also says, exactly, whether there was a mark to remove.
+            boolean deleteMarkRemoved = leaseholdMapper.unmarkDeleteWhenVacant(worldGuardRegionId, worldId, null) == 1;
             int updated = leaseholdMapper.clearTermination(worldGuardRegionId, worldId);
             if (updated == 0) {
                 return new CancelTerminationResult.UpdateFailed();
@@ -1762,7 +1768,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     null, null, null);
             wrapper.session().commit();
             // A terminating lease has a tenant unless its row was changed by hand.
-            return new CancelTerminationResult.Success(role, lease.landlord(), lease.tenantId());
+            return new CancelTerminationResult.Success(role, lease.landlord(), lease.tenantId(), deleteMarkRemoved);
         }
     }
 
@@ -1803,6 +1809,140 @@ public class RealtyBackendImpl implements RealtyBackend {
             session.commit();
             return deleted;
         }
+    }
+
+    @Override
+    public @NotNull DeleteLeaseholdResult deleteVacantLeasehold(@NotNull String worldGuardRegionId,
+                                                                @NotNull UUID worldId,
+                                                                @NotNull ActorContext ctx) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new DeleteLeaseholdResult.NoLeaseholdContract();
+            }
+            if (!ctx.mayManage(lease.landlord())) {
+                return new DeleteLeaseholdResult.NotAuthorized();
+            }
+            if (lease.tenantId() != null) {
+                return new DeleteLeaseholdResult.Occupied(lease.tenantId(), lease.terminationEffectiveDate());
+            }
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : namedPartyId(wrapper, lease.landlord());
+            endRead(wrapper);
+            // The guarded delete of the lease row is where the landlord and vacancy checks hold; the
+            // region delete after it removes the rest.
+            if (leaseholdMapper.deleteVacantByRegion(worldGuardRegionId, worldId, requiredLandlordPartyId) == 0) {
+                WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                        requiredLandlordPartyId, true);
+                if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                    return new DeleteLeaseholdResult.NotAuthorized();
+                }
+                LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+                if (refusal == WriteRefusal.OCCUPIED && current != null && current.tenantId() != null) {
+                    return new DeleteLeaseholdResult.Occupied(current.tenantId(), current.terminationEffectiveDate());
+                }
+                return new DeleteLeaseholdResult.NoLeaseholdContract();
+            }
+            wrapper.realtyRegionMapper().deleteByWorldGuardRegion(worldGuardRegionId, worldId);
+            wrapper.session().commit();
+            return new DeleteLeaseholdResult.Success();
+        }
+    }
+
+    @Override
+    public @NotNull MarkDeletionResult markForDeletion(@NotNull String worldGuardRegionId,
+                                                       @NotNull UUID worldId,
+                                                       @NotNull ActorContext ctx) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new MarkDeletionResult.NoLeaseholdContract();
+            }
+            if (!ctx.mayManage(lease.landlord())) {
+                return new MarkDeletionResult.NotAuthorized();
+            }
+            if (lease.terminationEffectiveDate() == null) {
+                return new MarkDeletionResult.NotTerminating();
+            }
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : namedPartyId(wrapper, lease.landlord());
+            endRead(wrapper);
+            if (leaseholdMapper.markDeleteWhenVacant(worldGuardRegionId, worldId, requiredLandlordPartyId) == 1) {
+                wrapper.session().commit();
+                return new MarkDeletionResult.Success(lease.terminationEffectiveDate());
+            }
+            WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                    requiredLandlordPartyId, false);
+            if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                return new MarkDeletionResult.NotAuthorized();
+            }
+            if (refusal == WriteRefusal.NO_CONTRACT) {
+                return new MarkDeletionResult.NoLeaseholdContract();
+            }
+            LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (current == null || current.terminationEffectiveDate() == null) {
+                return new MarkDeletionResult.NotTerminating();
+            }
+            if (leaseholdMapper.selectDeleteWhenVacant(worldGuardRegionId, worldId)) {
+                return new MarkDeletionResult.AlreadyMarked(current.terminationEffectiveDate());
+            }
+            return new MarkDeletionResult.UpdateFailed();
+        }
+    }
+
+    @Override
+    public @NotNull UnmarkDeletionResult unmarkForDeletion(@NotNull String worldGuardRegionId,
+                                                           @NotNull UUID worldId,
+                                                           @NotNull ActorContext ctx) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            LeaseholdContractMapper leaseholdMapper = wrapper.leaseholdContractMapper();
+            LeaseholdContractEntity lease = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (lease == null) {
+                return new UnmarkDeletionResult.NoLeaseholdContract();
+            }
+            if (!ctx.mayManage(lease.landlord())) {
+                return new UnmarkDeletionResult.NotAuthorized();
+            }
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : namedPartyId(wrapper, lease.landlord());
+            endRead(wrapper);
+            if (leaseholdMapper.unmarkDeleteWhenVacant(worldGuardRegionId, worldId, requiredLandlordPartyId) == 1) {
+                wrapper.session().commit();
+                return new UnmarkDeletionResult.Success();
+            }
+            WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                    requiredLandlordPartyId, false);
+            if (refusal == WriteRefusal.HOLDER_DIFFERS) {
+                return new UnmarkDeletionResult.NotAuthorized();
+            }
+            if (refusal == WriteRefusal.NO_CONTRACT) {
+                return new UnmarkDeletionResult.NoLeaseholdContract();
+            }
+            if (!leaseholdMapper.selectDeleteWhenVacant(worldGuardRegionId, worldId)) {
+                return new UnmarkDeletionResult.NotMarked();
+            }
+            return new UnmarkDeletionResult.UpdateFailed();
+        }
+    }
+
+    @Override
+    public @NotNull List<DeletedLeasehold> deleteMarkedVacantLeaseholds() {
+        List<MarkedVacantLeaseholdView> marked;
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            marked = wrapper.leaseholdContractMapper().selectMarkedVacant();
+        }
+        List<DeletedLeasehold> deleted = new ArrayList<>();
+        for (MarkedVacantLeaseholdView lease : marked) {
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                // Guarded again, so a mark removed or a tenant arriving since the select is honoured.
+                if (wrapper.leaseholdContractMapper().deleteMarkedVacantById(lease.leaseholdContractId()) == 0) {
+                    continue;
+                }
+                wrapper.realtyRegionMapper().deleteByWorldGuardRegion(lease.worldGuardRegionId(), lease.worldId());
+                wrapper.session().commit();
+                deleted.add(new DeletedLeasehold(lease.worldGuardRegionId(), lease.worldId(), lease.landlord()));
+            }
+        }
+        return deleted;
     }
 
     // --- Info ---

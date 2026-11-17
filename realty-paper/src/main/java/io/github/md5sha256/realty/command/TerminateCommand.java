@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -23,6 +24,7 @@ import org.incendo.cloud.parser.flag.CommandFlag;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -104,35 +106,9 @@ public record TerminateCommand(
                                 Placeholder.unparsed("region", success.regionId()),
                                 Placeholder.unparsed("date", date)));
                     }
-                    events.fireSync(new LeaseTerminationScheduledEvent(region, success.landlord(),
-                            Party.playerUuidOf(success.tenant()).orElse(null), success.terminatedByRole(), success.effectiveDate(),
-                            success.charged()));
+                    events.fireSync(scheduledEvent(region, success));
                 }
-                case RealtyPaperApi.TerminateResult.NoLeaseholdContract ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_NO_LEASEHOLD_CONTRACT,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.TerminateResult.NotOccupied ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_NOT_OCCUPIED,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.TerminateResult.AlreadyTerminating ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_ALREADY_TERMINATING,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.TerminateResult.NotAuthorized ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_NOT_AUTHORIZED,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.TerminateResult.InsufficientFunds funds ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_INSUFFICIENT_FUNDS,
-                                Placeholder.unparsed("price", CurrencyFormatter.format(funds.price())),
-                                Placeholder.unparsed("balance", CurrencyFormatter.format(funds.balance()))));
-                case RealtyPaperApi.TerminateResult.PaymentFailed failed ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_PAYMENT_FAILED,
-                                Placeholder.unparsed("error", failed.error())));
-                case RealtyPaperApi.TerminateResult.UpdateFailed ignored ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_UPDATE_FAILED,
-                                Placeholder.unparsed("region", regionId)));
-                case RealtyPaperApi.TerminateResult.Error error ->
-                        sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_ERROR,
-                                Placeholder.unparsed("error", error.message())));
+                default -> sender.sendMessage(failureMessage(messages, result, regionId));
             }
         }).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
@@ -140,6 +116,49 @@ public record TerminateCommand(
                     Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
             return null;
         });
+    }
+
+    /** The event announcing a termination that went through, which tells the other side. */
+    static @NotNull LeaseTerminationScheduledEvent scheduledEvent(@NotNull WorldGuardRegion region,
+                                                                  @NotNull RealtyPaperApi.TerminateResult.Success success) {
+        return new LeaseTerminationScheduledEvent(region, success.landlord(),
+                Party.playerUuidOf(success.tenant()).orElse(null), success.terminatedByRole(),
+                success.effectiveDate(), success.charged());
+    }
+
+    /** The reply for a termination that did not go through; {@code result} is not a success. */
+    static @NotNull Component failureMessage(@NotNull MessageContainer messages,
+                                             @NotNull RealtyPaperApi.TerminateResult result,
+                                             @NotNull String regionId) {
+        return switch (result) {
+            case RealtyPaperApi.TerminateResult.NoLeaseholdContract ignored ->
+                    messages.messageFor(MessageKeys.TERMINATE_NO_LEASEHOLD_CONTRACT,
+                            Placeholder.unparsed("region", regionId));
+            case RealtyPaperApi.TerminateResult.NotOccupied ignored ->
+                    messages.messageFor(MessageKeys.TERMINATE_NOT_OCCUPIED,
+                            Placeholder.unparsed("region", regionId));
+            case RealtyPaperApi.TerminateResult.AlreadyTerminating ignored ->
+                    messages.messageFor(MessageKeys.TERMINATE_ALREADY_TERMINATING,
+                            Placeholder.unparsed("region", regionId));
+            case RealtyPaperApi.TerminateResult.NotAuthorized ignored ->
+                    messages.messageFor(MessageKeys.TERMINATE_NOT_AUTHORIZED,
+                            Placeholder.unparsed("region", regionId));
+            case RealtyPaperApi.TerminateResult.InsufficientFunds funds ->
+                    messages.messageFor(MessageKeys.TERMINATE_INSUFFICIENT_FUNDS,
+                            Placeholder.unparsed("price", CurrencyFormatter.format(funds.price())),
+                            Placeholder.unparsed("balance", CurrencyFormatter.format(funds.balance())));
+            case RealtyPaperApi.TerminateResult.PaymentFailed failed ->
+                    messages.messageFor(MessageKeys.TERMINATE_PAYMENT_FAILED,
+                            Placeholder.unparsed("error", failed.error()));
+            case RealtyPaperApi.TerminateResult.UpdateFailed ignored ->
+                    messages.messageFor(MessageKeys.TERMINATE_UPDATE_FAILED,
+                            Placeholder.unparsed("region", regionId));
+            case RealtyPaperApi.TerminateResult.Error error ->
+                    messages.messageFor(MessageKeys.TERMINATE_ERROR,
+                            Placeholder.unparsed("error", error.message()));
+            case RealtyPaperApi.TerminateResult.Success ignored ->
+                    throw new IllegalArgumentException("not a failure: " + result);
+        };
     }
 
     private void executeCancel(@NotNull CommandContext<Source> ctx) {
@@ -155,14 +174,19 @@ public record TerminateCommand(
         }
         boolean bypass = sender.hasPermission("realty.command.terminate.others");
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
-                .thenComposeAsync(actor -> api.cancelTermination(regionId, region.world().getUID(), actor),
+                .thenComposeAsync(actor -> api.cancelTermination(regionId, worldId, actor),
                         executorState.mainThreadExec())
                 .thenAccept(result -> {
                     switch (result) {
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_CANCEL_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
+                            if (success.deleteMarkRemoved()) {
+                                sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_CANCEL_DELETE_MARK,
+                                        Placeholder.unparsed("region", regionId)));
+                            }
                             events.fireSync(new LeaseTerminationCancelledEvent(region, success.landlord(),
                                     success.tenantId(), success.terminatedByRole()));
                         }

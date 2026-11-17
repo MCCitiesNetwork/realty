@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.database.mapper;
 
 import io.github.md5sha256.realty.database.entity.ExpiredLeaseholdView;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.MarkedVacantLeaseholdView;
 import io.github.md5sha256.realty.database.entity.RentedRegionView;
 import io.github.md5sha256.realty.database.entity.TerminatedLeaseholdView;
 import org.jetbrains.annotations.NotNull;
@@ -56,6 +57,38 @@ public interface LeaseholdContractMapper {
                             @NotNull LocalDateTime newEndDate,
                             @NotNull LocalDateTime terminationEffectiveDate,
                             @NotNull String terminatedByRole);
+
+    /**
+     * Deletes the lease row of a region with no tenant, guarded on the landlord when
+     * {@code requiredLandlordPartyId} is set. The region row is left for the caller to delete.
+     *
+     * @return rows deleted (1 on success, 0 if no vacant lease with that landlord matched)
+     */
+    int deleteVacantByRegion(@NotNull String worldGuardRegionId,
+                             @NotNull UUID worldId,
+                             @Nullable Integer requiredLandlordPartyId);
+
+    /**
+     * Marks a terminating lease for deletion and closes it to tenants, guarded on the landlord when
+     * {@code requiredLandlordPartyId} is set and on the lease not being marked already.
+     */
+    int markDeleteWhenVacant(@NotNull String worldGuardRegionId,
+                             @NotNull UUID worldId,
+                             @Nullable Integer requiredLandlordPartyId);
+
+    /** Removes a deletion mark and opens the lease to tenants, guarded as {@link #markDeleteWhenVacant}. */
+    int unmarkDeleteWhenVacant(@NotNull String worldGuardRegionId,
+                               @NotNull UUID worldId,
+                               @Nullable Integer requiredLandlordPartyId);
+
+    /** Whether the region has a lease marked for deletion. */
+    boolean selectDeleteWhenVacant(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    /** Marked leases with no tenant. */
+    @NotNull List<MarkedVacantLeaseholdView> selectMarkedVacant();
+
+    /** Deletes a lease row that is still marked and vacant. */
+    int deleteMarkedVacantById(int leaseholdContractId);
 
     /** Clears a pending termination (does not touch {@code endDate}). Guarded on a termination existing. */
     int clearTermination(@NotNull String worldGuardRegionId, @NotNull UUID worldId);

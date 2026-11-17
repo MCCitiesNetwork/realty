@@ -25,6 +25,7 @@ import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.OfferPlacedEvent;
 import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
+import io.github.md5sha256.realty.api.event.ScheduledSubregionDeletedEvent;
 import io.github.md5sha256.realty.api.event.RegionRentedEvent;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -129,6 +130,16 @@ class RegionNotificationListenerTest {
         ArgumentCaptor<RealtyNotificationEvent> captor = ArgumentCaptor.forClass(RealtyNotificationEvent.class);
         verify(events, times(1)).fireSync(captor.capture());
         Assertions.assertEquals(List.of(LANDLORD), captor.getValue().getTargets());
+    }
+
+    @Test
+    void scheduledSubregionDelete_notifiesTheLandlord() {
+        listener.onScheduledSubregionDeleted(new ScheduledSubregionDeletedEvent(region, Party.personal(LANDLORD)));
+
+        ArgumentCaptor<RealtyNotificationEvent> captor = ArgumentCaptor.forClass(RealtyNotificationEvent.class);
+        verify(events, times(1)).fireSync(captor.capture());
+        Assertions.assertEquals(List.of(LANDLORD), captor.getValue().getTargets());
+        Assertions.assertEquals(MessageKeys.NOTIFICATION_SUBREGION_DELETED, captor.getValue().getMessageKey());
     }
 
     private static AccountMember row(UUID uuid) {

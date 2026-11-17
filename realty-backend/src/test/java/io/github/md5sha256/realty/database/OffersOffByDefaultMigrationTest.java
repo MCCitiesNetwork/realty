@@ -62,8 +62,8 @@ class OffersOffByDefaultMigrationTest extends AbstractDatabaseTest {
                     """.formatted(payingOffer, payingRegion, OFFERER));
         }
 
-        MariaSchemaMigrator.migrate(freshUrl, "root", ROOT_PASSWORD,
-                Path.of("sql/migrations"), all, Logger.getLogger("test"));
+        MariaSchemaMigrator.migrate(freshUrl, "root", ROOT_PASSWORD, Path.of("sql/migrations"),
+                all.stream().filter(step -> step.version() <= 20).toList(), Logger.getLogger("test"));
 
         try (Connection connection = DriverManager.getConnection(freshUrl, "root", ROOT_PASSWORD);
              Statement statement = connection.createStatement()) {

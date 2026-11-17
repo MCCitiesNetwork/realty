@@ -123,6 +123,7 @@ class RealtyPaperApiImplTest {
     private MockedStatic<WorldGuard> worldGuardMock;
     private MockedStatic<BukkitAdapter> bukkitAdapterMock;
     private RegionContainer regionContainer;
+    private WorldGuardRegionRemoval regionRemoval;
 
     private ProtectedRegion protectedRegion;
     private WorldGuardRegion wgRegion;
@@ -216,6 +217,8 @@ class RealtyPaperApiImplTest {
         signCache = new SignCache();
         holding = HoldingAccount.vault(() -> new DefaultParties(null, null, null, false, ESCROW_ID, List.of()));
         settlement = new SaleSettlement(economyProvider, realtyApi, holding, events, LOG);
+        regionContainer = org.mockito.Mockito.mock(RegionContainer.class);
+        regionRemoval = new WorldGuardRegionRemoval(regionContainer, regionProfileService, LOG);
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         lenient().when(treasury.getMembers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
         lenient().when(treasury.getAuthorizers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
@@ -226,7 +229,8 @@ class RealtyPaperApiImplTest {
         api = new RealtyPaperApiImpl(server, realtyApi, economyProvider, executorState, database,
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
                 new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()),
-                actorContexts, events, holding, settlement, LOG);
+                actorContexts, events, holding, settlement,
+                regionRemoval, LOG);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
         // An instalment whose money moved is confirmed, as the backend does while its payment exists.
@@ -241,7 +245,6 @@ class RealtyPaperApiImplTest {
         // Returning null for RegionManager makes updateChildLandlords return early
         WorldGuard worldGuardInstance = org.mockito.Mockito.mock(WorldGuard.class);
         WorldGuardPlatform platform = org.mockito.Mockito.mock(WorldGuardPlatform.class);
-        regionContainer = org.mockito.Mockito.mock(RegionContainer.class);
         worldGuardMock = mockStatic(WorldGuard.class);
         worldGuardMock.when(WorldGuard::getInstance).thenReturn(worldGuardInstance);
         lenient().when(worldGuardInstance.getPlatform()).thenReturn(platform);
@@ -578,7 +581,7 @@ class RealtyPaperApiImplTest {
                             new AtomicReference<>(new Settings(null, null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi), events, holding, settlement, LOG);
+                            realtyApi), events, holding, settlement, regionRemoval, LOG);
         }
 
         private void runMainThread() {
@@ -1545,7 +1548,7 @@ class RealtyPaperApiImplTest {
                             new AtomicReference<>(new Settings(null, null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi), events, holding, settlement, LOG);
+                            realtyApi), events, holding, settlement, regionRemoval, LOG);
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
             regionIs(RegionState.FOR_SALE);
@@ -2169,7 +2172,7 @@ class RealtyPaperApiImplTest {
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
                             realtyApi),
-                    events, none, new SaleSettlement(economyProvider, realtyApi, none, events, LOG), LOG);
+                    events, none, new SaleSettlement(economyProvider, realtyApi, none, events, LOG), regionRemoval, LOG);
         }
 
         private void paidInFull(double amount, FeeQuote quote, boolean oldRules) {
@@ -2972,6 +2975,198 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertEquals(quote, api.previewFees(wgRegion, BUYER_ID, 500).join());
             Assertions.assertEquals(listings, api.listFees(wgRegion).join());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // deleteSubregion() / cancelSubregionDelete()
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("deleteSubregion")
+    class DeleteSubregion {
+
+        private static final String PARENT_ID = "parent_plot";
+        private static final ActorContext AS_LANDLORD = ActorContext.player(LANDLORD_ID, false);
+        private final LocalDateTime effective = LocalDateTime.of(2026, 12, 1, 12, 0);
+        private RegionManager regionManager;
+
+        @BeforeEach
+        void subregionOfAFreehold() throws ProtectedRegion.CircularInheritanceException {
+            protectedRegion.setParent(new ProtectedCuboidRegion(PARENT_ID,
+                    BlockVector3.at(0, 0, 0), BlockVector3.at(200, 200, 200)));
+            lenient().when(realtyApi.getFreeholdContract(PARENT_ID, WORLD_ID))
+                    .thenReturn(new FreeholdContractEntity(1, LANDLORD, LANDLORD_ID, null, false));
+            regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            lenient().when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+        }
+
+        private LeaseholdContractEntity rentedLease(LocalDateTime terminationDate) {
+            return new LeaseholdContractEntity(1, LANDLORD, TENANT_ID, 200.0, 604800L,
+                    LocalDateTime.now().minusSeconds(1), LocalDateTime.now().plusDays(30),
+                    null, null, terminationDate, null, true);
+        }
+
+        @Test
+        @DisplayName("a region with no parent is not a subregion")
+        void noParent() throws ProtectedRegion.CircularInheritanceException {
+            protectedRegion.setParent(null);
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.NotSubregion.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(realtyApi, never()).deleteVacantLeasehold(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a parent that is not a registered freehold is not a subregion")
+        void parentNotFreehold() {
+            when(realtyApi.getFreeholdContract(PARENT_ID, WORLD_ID)).thenReturn(null);
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.NotSubregion.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(realtyApi, never()).deleteVacantLeasehold(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a vacant subregion is deleted with its WorldGuard region")
+        void vacantDeleted() throws Exception {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Success());
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.Deleted.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(regionManager).removeRegion(REGION_ID);
+            verify(regionManager).save();
+            verify(regionProfileService).clearAllFlags(wgRegion);
+        }
+
+        @Test
+        @DisplayName("a backend refusal for a non-manager is NotAuthorized")
+        void notAuthorized() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.NotAuthorized());
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.NotAuthorized.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(regionManager, never()).removeRegion(any());
+        }
+
+        @Test
+        @DisplayName("a rented subregion starts a landlord termination, then marks it")
+        void rentedStartsTermination() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, null));
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID)).thenReturn(rentedLease(null));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenAnswer(inv -> new RealtyBackend.MarkDeletionResult.Success(effective));
+
+            RealtyPaperApi.DeleteSubregionResult.ScheduledWithTermination scheduled = Assertions.assertInstanceOf(
+                    RealtyPaperApi.DeleteSubregionResult.ScheduledWithTermination.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            Assertions.assertEquals(TENANT_ID, scheduled.tenantId());
+            Assertions.assertEquals(effective, scheduled.effectiveDate(), "the stored termination date");
+            var order = inOrder(realtyApi);
+            order.verify(realtyApi).terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord"));
+            order.verify(realtyApi).markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD);
+        }
+
+        @Test
+        @DisplayName("a subregion already terminating is only marked")
+        void terminatingOnlyMarks() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, effective));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.MarkDeletionResult.Success(effective));
+            Assertions.assertEquals(new RealtyPaperApi.DeleteSubregionResult.Scheduled(effective, TENANT_ID),
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            verify(realtyApi, never()).terminateLease(any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a refused termination leaves no mark")
+        void failedTerminationLeavesNoMark() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, null));
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(new LeaseholdContractEntity(1, Party.personal(UUID.randomUUID()), TENANT_ID,
+                            200.0, 604800L, LocalDateTime.now(), LocalDateTime.now().plusDays(30),
+                            null, null, null, null, true));
+            RealtyPaperApi.DeleteSubregionResult.TerminationFailed failed = Assertions.assertInstanceOf(
+                    RealtyPaperApi.DeleteSubregionResult.TerminationFailed.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.TerminateResult.NotAuthorized.class, failed.reason());
+            verify(realtyApi, never()).markForDeletion(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a mark refused after the termination is reported")
+        void refusedMarkAfterTermination() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, null));
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID)).thenReturn(rentedLease(null));
+            when(realtyApi.terminateLease(eq(REGION_ID), eq(WORLD_ID), any(), any(), eq("landlord")))
+                    .thenReturn(new RealtyBackend.TerminateLeaseholdResult.Success(TENANT_ID, LANDLORD));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.MarkDeletionResult.NotAuthorized());
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.TerminatedNotMarked.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+        }
+
+        @Test
+        @DisplayName("a subregion already marked is reported with its date")
+        void alreadyMarked() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, effective));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.MarkDeletionResult.AlreadyMarked(effective));
+            Assertions.assertEquals(new RealtyPaperApi.DeleteSubregionResult.AlreadyScheduled(effective),
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+        }
+
+        @Test
+        @DisplayName("a mark that loses a race asks the player to try again")
+        void markRaceIsChanged() {
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, effective));
+            when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.MarkDeletionResult.UpdateFailed());
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.UpdateFailed.class,
+                    api.deleteSubregion(wgRegion, AS_LANDLORD).join());
+        }
+
+        @Test
+        @DisplayName("an unmark that loses a race asks the player to try again")
+        void unmarkRaceIsChanged() {
+            when(realtyApi.unmarkForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.UnmarkDeletionResult.UpdateFailed());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.UpdateFailed.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+        }
+
+        @Test
+        @DisplayName("cancelling maps the backend results")
+        void cancelMapsResults() {
+            when(realtyApi.unmarkForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
+                    .thenReturn(new RealtyBackend.UnmarkDeletionResult.Success(),
+                            new RealtyBackend.UnmarkDeletionResult.NotMarked(),
+                            new RealtyBackend.UnmarkDeletionResult.NotAuthorized(),
+                            new RealtyBackend.UnmarkDeletionResult.NoLeaseholdContract());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.Success.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotScheduled.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotAuthorized.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotSubregion.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+        }
+
+        @Test
+        @DisplayName("cancelling refuses a region that is not a subregion")
+        void cancelNotSubregion() throws ProtectedRegion.CircularInheritanceException {
+            protectedRegion.setParent(null);
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotSubregion.class,
+                    api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
+            verify(realtyApi, never()).unmarkForDeletion(any(), any(), any());
         }
     }
 }

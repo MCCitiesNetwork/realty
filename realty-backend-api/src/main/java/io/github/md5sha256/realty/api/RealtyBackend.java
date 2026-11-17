@@ -814,9 +814,13 @@ public interface RealtyBackend {
                                                      @NotNull String terminatedByRole);
 
     sealed interface CancelTerminationResult {
-        /** {@code tenantId} is the lease's tenant, or {@code null} for a lease that has none. */
+        /**
+         * {@code tenantId} is the lease's tenant, or {@code null} for a lease that has none.
+         * {@code deleteMarkRemoved} is whether the lease was marked for deletion: cancelling the
+         * termination removes the mark and opens the lease to tenants again.
+         */
         record Success(@NotNull String terminatedByRole, @NotNull Party landlord,
-                       @Nullable UUID tenantId) implements CancelTerminationResult {}
+                       @Nullable UUID tenantId, boolean deleteMarkRemoved) implements CancelTerminationResult {}
         record NoLeaseholdContract() implements CancelTerminationResult {}
         record NotTerminating() implements CancelTerminationResult {}
         /** The caller did not initiate the termination (and is not an admin). */
@@ -833,6 +837,68 @@ public interface RealtyBackend {
                                                        @NotNull ActorContext ctx);
 
     // --- Delete ---
+
+    sealed interface DeleteLeaseholdResult {
+        record Success() implements DeleteLeaseholdResult {}
+        record NoLeaseholdContract() implements DeleteLeaseholdResult {}
+        record NotAuthorized() implements DeleteLeaseholdResult {}
+        /** The lease has {@code tenantId}; {@code terminationEffectiveDate} is set while it is being terminated. */
+        record Occupied(@NotNull UUID tenantId, @Nullable LocalDateTime terminationEffectiveDate)
+                implements DeleteLeaseholdResult {}
+    }
+
+    /**
+     * Deletes a leasehold region while it has no tenant. Only a manager of the landlord may, unless
+     * the actor bypasses; a tenant always refuses it. The landlord and vacancy conditions are part of
+     * the delete itself, so a rent or landlord change committing meanwhile makes it delete nothing.
+     */
+    @NotNull DeleteLeaseholdResult deleteVacantLeasehold(@NotNull String worldGuardRegionId,
+                                                         @NotNull UUID worldId,
+                                                         @NotNull ActorContext ctx);
+
+    sealed interface MarkDeletionResult {
+        /** Marked; the region is deleted once the termination taking effect at {@code effectiveDate} ends it. */
+        record Success(@NotNull LocalDateTime effectiveDate) implements MarkDeletionResult {}
+        record NoLeaseholdContract() implements MarkDeletionResult {}
+        record NotAuthorized() implements MarkDeletionResult {}
+        /** Only a lease being terminated can be marked: the termination is what ends the tenancy. */
+        record NotTerminating() implements MarkDeletionResult {}
+        record AlreadyMarked(@NotNull LocalDateTime effectiveDate) implements MarkDeletionResult {}
+        /** The lease changed between the check and the write; the caller may try again. */
+        record UpdateFailed() implements MarkDeletionResult {}
+    }
+
+    /**
+     * Marks a terminating lease to be deleted once it has no tenant, and closes it to new tenants.
+     * Only a manager of the landlord may, unless the actor bypasses.
+     */
+    @NotNull MarkDeletionResult markForDeletion(@NotNull String worldGuardRegionId,
+                                                @NotNull UUID worldId,
+                                                @NotNull ActorContext ctx);
+
+    sealed interface UnmarkDeletionResult {
+        record Success() implements UnmarkDeletionResult {}
+        record NoLeaseholdContract() implements UnmarkDeletionResult {}
+        record NotAuthorized() implements UnmarkDeletionResult {}
+        record NotMarked() implements UnmarkDeletionResult {}
+        /** The lease changed between the check and the write; the caller may try again. */
+        record UpdateFailed() implements UnmarkDeletionResult {}
+    }
+
+    /**
+     * Removes a lease's deletion mark and opens it to tenants again. Any termination stands.
+     * Only a manager of the landlord may, unless the actor bypasses.
+     */
+    @NotNull UnmarkDeletionResult unmarkForDeletion(@NotNull String worldGuardRegionId,
+                                                    @NotNull UUID worldId,
+                                                    @NotNull ActorContext ctx);
+
+    /** A region the sweep deleted because its lease was marked and had no tenant. */
+    record DeletedLeasehold(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
+                            @NotNull Party landlord) {}
+
+    /** Deletes every marked lease that has no tenant, each with its region, and lists them. */
+    @NotNull List<DeletedLeasehold> deleteMarkedVacantLeaseholds();
 
     int deleteRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 

@@ -27,6 +27,7 @@ import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
 import io.github.md5sha256.realty.api.event.PaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.RefundPaidEvent;
 import io.github.md5sha256.realty.api.event.SaleProceedsPaidEvent;
+import io.github.md5sha256.realty.api.event.ScheduledSubregionDeletedEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.api.event.RegionBoughtEvent;
 import io.github.md5sha256.realty.api.event.RegionRentedEvent;
@@ -307,6 +308,12 @@ public final class RegionNotificationListener implements Listener {
                     Placeholder.unparsed("region", event.getRegionId()));
             default -> { }
         }
+    }
+
+    @EventHandler
+    public void onScheduledSubregionDeleted(@NotNull ScheduledSubregionDeletedEvent event) {
+        notifyParty(event.getLandlord(), event.getRegion(), MessageKeys.NOTIFICATION_SUBREGION_DELETED,
+                Placeholder.unparsed("region", event.getRegionId()));
     }
 
     @EventHandler
