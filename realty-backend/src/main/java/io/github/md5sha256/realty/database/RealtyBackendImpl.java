@@ -492,6 +492,8 @@ public class RealtyBackendImpl implements RealtyBackend {
     enum WriteRefusal {
         HOLDER_DIFFERS,
         OCCUPIED,
+        /** The contract is gone; only the leasehold diagnosis reports it. */
+        NO_CONTRACT,
         OTHER
     }
 
@@ -535,7 +537,7 @@ public class RealtyBackendImpl implements RealtyBackend {
         LeaseholdContractEntity current = wrapper.leaseholdContractMapper()
                 .selectByRegion(worldGuardRegionId, worldId);
         if (current == null) {
-            return WriteRefusal.OTHER;
+            return WriteRefusal.NO_CONTRACT;
         }
         if (expectedLandlordPartyId != null
                 && expectedLandlordPartyId != namedPartyId(wrapper, current.landlord())) {
@@ -1869,15 +1871,16 @@ public class RealtyBackendImpl implements RealtyBackend {
                 wrapper.session().commit();
                 return new MarkDeletionResult.Success(lease.terminationEffectiveDate());
             }
-            if (diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId, requiredLandlordPartyId, false)
-                    == WriteRefusal.HOLDER_DIFFERS) {
+            WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                    requiredLandlordPartyId, false);
+            if (refusal == WriteRefusal.HOLDER_DIFFERS) {
                 return new MarkDeletionResult.NotAuthorized();
             }
-            LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
-            if (current == null) {
+            if (refusal == WriteRefusal.NO_CONTRACT) {
                 return new MarkDeletionResult.NoLeaseholdContract();
             }
-            if (current.terminationEffectiveDate() == null) {
+            LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
+            if (current == null || current.terminationEffectiveDate() == null) {
                 return new MarkDeletionResult.NotTerminating();
             }
             if (leaseholdMapper.selectDeleteWhenVacant(worldGuardRegionId, worldId)) {
@@ -1906,24 +1909,18 @@ public class RealtyBackendImpl implements RealtyBackend {
                 wrapper.session().commit();
                 return new UnmarkDeletionResult.Success();
             }
-            if (diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId, requiredLandlordPartyId, false)
-                    == WriteRefusal.HOLDER_DIFFERS) {
+            WriteRefusal refusal = diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId,
+                    requiredLandlordPartyId, false);
+            if (refusal == WriteRefusal.HOLDER_DIFFERS) {
                 return new UnmarkDeletionResult.NotAuthorized();
             }
-            if (leaseholdMapper.selectByRegion(worldGuardRegionId, worldId) == null) {
+            if (refusal == WriteRefusal.NO_CONTRACT) {
                 return new UnmarkDeletionResult.NoLeaseholdContract();
             }
             if (!leaseholdMapper.selectDeleteWhenVacant(worldGuardRegionId, worldId)) {
                 return new UnmarkDeletionResult.NotMarked();
             }
             return new UnmarkDeletionResult.UpdateFailed();
-        }
-    }
-
-    @Override
-    public boolean isMarkedForDeletion(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
-        try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.leaseholdContractMapper().selectDeleteWhenVacant(worldGuardRegionId, worldId);
         }
     }
 

@@ -123,6 +123,7 @@ class RealtyPaperApiImplTest {
     private MockedStatic<WorldGuard> worldGuardMock;
     private MockedStatic<BukkitAdapter> bukkitAdapterMock;
     private RegionContainer regionContainer;
+    private WorldGuardRegionRemoval regionRemoval;
 
     private ProtectedRegion protectedRegion;
     private WorldGuardRegion wgRegion;
@@ -217,6 +218,7 @@ class RealtyPaperApiImplTest {
         holding = HoldingAccount.vault(() -> new DefaultParties(null, null, null, false, ESCROW_ID, List.of()));
         settlement = new SaleSettlement(economyProvider, realtyApi, holding, events, LOG);
         regionContainer = org.mockito.Mockito.mock(RegionContainer.class);
+        regionRemoval = new WorldGuardRegionRemoval(regionContainer, regionProfileService, LOG);
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         lenient().when(treasury.getMembers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
         lenient().when(treasury.getAuthorizers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
@@ -228,7 +230,7 @@ class RealtyPaperApiImplTest {
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
                 new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()),
                 actorContexts, events, holding, settlement,
-                new WorldGuardRegionRemoval(regionContainer, regionProfileService, LOG), LOG);
+                regionRemoval, LOG);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
         // An instalment whose money moved is confirmed, as the backend does while its payment exists.
@@ -579,7 +581,7 @@ class RealtyPaperApiImplTest {
                             new AtomicReference<>(new Settings(null, null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi), events, holding, settlement, new WorldGuardRegionRemoval(regionContainer, regionProfileService, LOG), LOG);
+                            realtyApi), events, holding, settlement, regionRemoval, LOG);
         }
 
         private void runMainThread() {
@@ -1546,7 +1548,7 @@ class RealtyPaperApiImplTest {
                             new AtomicReference<>(new Settings(null, null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi), events, holding, settlement, new WorldGuardRegionRemoval(regionContainer, regionProfileService, LOG), LOG);
+                            realtyApi), events, holding, settlement, regionRemoval, LOG);
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
             regionIs(RegionState.FOR_SALE);
@@ -2170,7 +2172,7 @@ class RealtyPaperApiImplTest {
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
                             realtyApi),
-                    events, none, new SaleSettlement(economyProvider, realtyApi, none, events, LOG), new WorldGuardRegionRemoval(regionContainer, regionProfileService, LOG), LOG);
+                    events, none, new SaleSettlement(economyProvider, realtyApi, none, events, LOG), regionRemoval, LOG);
         }
 
         private void paidInFull(double amount, FeeQuote quote, boolean oldRules) {
@@ -3127,7 +3129,7 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Occupied(TENANT_ID, effective));
             when(realtyApi.markForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
                     .thenReturn(new RealtyBackend.MarkDeletionResult.UpdateFailed());
-            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.Changed.class,
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.UpdateFailed.class,
                     api.deleteSubregion(wgRegion, AS_LANDLORD).join());
         }
 
@@ -3136,7 +3138,7 @@ class RealtyPaperApiImplTest {
         void unmarkRaceIsChanged() {
             when(realtyApi.unmarkForDeletion(REGION_ID, WORLD_ID, AS_LANDLORD))
                     .thenReturn(new RealtyBackend.UnmarkDeletionResult.UpdateFailed());
-            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.Changed.class,
+            Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.UpdateFailed.class,
                     api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
         }
 

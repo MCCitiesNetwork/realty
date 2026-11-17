@@ -1409,7 +1409,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 executorState.dbExec()
         ).thenComposeAsync(deleted -> deleted.isEmpty()
                 ? done(new DeleteSubregionResult.NotSubregion())
-                : afterVacantDelete(region, ctx, deleted.get()),
+                : afterVacantDelete(region, regionId, worldId, ctx, deleted.get()),
                 executorState.mainThreadExec()
         ).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
@@ -1420,10 +1420,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     /** Main thread: a vacant subregion is gone; a rented one is terminated if need be, then marked. */
     private @NotNull CompletableFuture<DeleteSubregionResult> afterVacantDelete(
-            @NotNull WorldGuardRegion region, @NotNull ActorContext ctx,
-            @NotNull RealtyBackend.DeleteLeaseholdResult deleted) {
-        String regionId = region.region().getId();
-        UUID worldId = region.world().getUID();
+            @NotNull WorldGuardRegion region, @NotNull String regionId, @NotNull UUID worldId,
+            @NotNull ActorContext ctx, @NotNull RealtyBackend.DeleteLeaseholdResult deleted) {
         return switch (deleted) {
             case RealtyBackend.DeleteLeaseholdResult.Success ignored -> done(worldGuardRegionRemoval.remove(region)
                     .<DeleteSubregionResult>map(DeleteSubregionResult.WorldGuardSaveError::new)
@@ -1472,8 +1470,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             case RealtyBackend.MarkDeletionResult.NotAuthorized ignored -> new DeleteSubregionResult.NotAuthorized();
             case RealtyBackend.MarkDeletionResult.NoLeaseholdContract ignored -> new DeleteSubregionResult.NotSubregion();
             // The termination was cancelled or took effect since the delete looked, or the write lost a race.
-            case RealtyBackend.MarkDeletionResult.NotTerminating ignored -> new DeleteSubregionResult.Changed();
-            case RealtyBackend.MarkDeletionResult.UpdateFailed ignored -> new DeleteSubregionResult.Changed();
+            case RealtyBackend.MarkDeletionResult.NotTerminating _, RealtyBackend.MarkDeletionResult.UpdateFailed _ ->
+                    new DeleteSubregionResult.UpdateFailed(regionId);
         }, executorState.dbExec());
     }
 
@@ -1497,7 +1495,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         new CancelSubregionDeleteResult.NotAuthorized();
                 case RealtyBackend.UnmarkDeletionResult.NoLeaseholdContract ignored ->
                         new CancelSubregionDeleteResult.NotSubregion();
-                case RealtyBackend.UnmarkDeletionResult.UpdateFailed ignored -> new CancelSubregionDeleteResult.Changed();
+                case RealtyBackend.UnmarkDeletionResult.UpdateFailed ignored ->
+                        new CancelSubregionDeleteResult.UpdateFailed(regionId);
             };
         }, executorState.dbExec());
     }

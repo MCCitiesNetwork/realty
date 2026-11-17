@@ -893,9 +893,6 @@ public interface RealtyBackend {
                                                     @NotNull UUID worldId,
                                                     @NotNull ActorContext ctx);
 
-    /** Whether the region's lease is marked to be deleted once vacant; false when it has no lease. */
-    boolean isMarkedForDeletion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
-
     /** A region the sweep deleted because its lease was marked and had no tenant. */
     record DeletedLeasehold(@NotNull String worldGuardRegionId, @NotNull UUID worldId,
                             @NotNull Party landlord) {}

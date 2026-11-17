@@ -228,7 +228,7 @@ public record SubregionCommandGroup(
                     player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_SUBREGION, regionId));
             case DeleteSubregionResult.NotAuthorized ignored ->
                     player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_AUTHORIZED, regionId));
-            case DeleteSubregionResult.Changed ignored ->
+            case DeleteSubregionResult.UpdateFailed ignored ->
                     player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_CHANGED, regionId));
             case DeleteSubregionResult.WorldGuardSaveError saveError ->
                     player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_DELETE_WORLDGUARD_SAVE_ERROR,
@@ -276,7 +276,7 @@ public record SubregionCommandGroup(
                                 player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_AUTHORIZED, regionId));
                         case CancelSubregionDeleteResult.NotSubregion ignored ->
                                 player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_NOT_SUBREGION, regionId));
-                        case CancelSubregionDeleteResult.Changed ignored ->
+                        case CancelSubregionDeleteResult.UpdateFailed ignored ->
                                 player.sendMessage(regionMessage(MessageKeys.SUBREGION_DELETE_CHANGED, regionId));
                     }
                 }, executorState.mainThreadExec())

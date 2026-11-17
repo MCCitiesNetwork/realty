@@ -471,7 +471,7 @@ public interface RealtyPaperApi {
         record NotSubregion() implements DeleteSubregionResult {}
         record NotAuthorized() implements DeleteSubregionResult {}
         /** The lease changed while this ran, for example its termination was cancelled; try again. */
-        record Changed() implements DeleteSubregionResult {}
+        record UpdateFailed(@NotNull String regionId) implements DeleteSubregionResult {}
         /** The Realty rows are gone, but the WorldGuard region could not be saved as removed. */
         record WorldGuardSaveError(@NotNull String error) implements DeleteSubregionResult {}
         record Error(@NotNull String message) implements DeleteSubregionResult {}
@@ -493,7 +493,7 @@ public interface RealtyPaperApi {
         record NotAuthorized() implements CancelSubregionDeleteResult {}
         record NotSubregion() implements CancelSubregionDeleteResult {}
         /** The lease changed while this ran; try again. */
-        record Changed() implements CancelSubregionDeleteResult {}
+        record UpdateFailed(@NotNull String regionId) implements CancelSubregionDeleteResult {}
     }
 
     /**
