@@ -230,8 +230,9 @@ class SubregionDeleteTest extends AbstractDatabaseTest {
     void cancelTerminationClearsMarkAndReopens() {
         String id = terminatingLease();
         logic.markForDeletion(id, WORLD_ID, AS_LANDLORD);
-        Assertions.assertInstanceOf(CancelTerminationResult.Success.class,
+        CancelTerminationResult.Success success = Assertions.assertInstanceOf(CancelTerminationResult.Success.class,
                 logic.cancelTermination(id, WORLD_ID, AS_LANDLORD));
+        Assertions.assertTrue(success.deleteMarkRemoved());
         Assertions.assertFalse(logic.isMarkedForDeletion(id, WORLD_ID));
         Assertions.assertTrue(lease(id).acceptingTenants());
     }
@@ -243,7 +244,9 @@ class SubregionDeleteTest extends AbstractDatabaseTest {
             wrapper.leaseholdContractMapper().updateAcceptingTenantsByRegion(id, WORLD_ID, false);
             wrapper.session().commit();
         }
-        logic.cancelTermination(id, WORLD_ID, AS_LANDLORD);
+        CancelTerminationResult.Success success = Assertions.assertInstanceOf(CancelTerminationResult.Success.class,
+                logic.cancelTermination(id, WORLD_ID, AS_LANDLORD));
+        Assertions.assertFalse(success.deleteMarkRemoved());
         Assertions.assertFalse(lease(id).acceptingTenants());
     }
 
@@ -272,6 +275,11 @@ class SubregionDeleteTest extends AbstractDatabaseTest {
         Assertions.assertInstanceOf(UnmarkDeletionResult.NotAuthorized.class,
                 logic.unmarkForDeletion(id, WORLD_ID, AS_STRANGER));
         Assertions.assertTrue(logic.isMarkedForDeletion(id, WORLD_ID));
+    }
+
+    @Test
+    void regionWithoutLeaseIsUnmarked() {
+        Assertions.assertFalse(logic.isMarkedForDeletion("subregion_delete_none", WORLD_ID));
     }
 
     @Test

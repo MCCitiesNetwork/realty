@@ -485,6 +485,7 @@ public final class MessageKeys {
     public static final String SUBREGION_DELETE_NOT_SCHEDULED = "subregion.delete.not-scheduled";
     public static final String SUBREGION_DELETE_NOT_SUBREGION = "subregion.delete.not-subregion";
     public static final String SUBREGION_DELETE_NOT_AUTHORIZED = "subregion.delete.not-authorized";
+    public static final String SUBREGION_DELETE_CHANGED = "subregion.delete.changed";
     public static final String SUBREGION_DELETE_WORLDGUARD_SAVE_ERROR = "subregion.delete.worldguard-save-error";
     public static final String SUBREGION_DELETE_ERROR = "subregion.delete.error";
     public static final String SUBREGION_SELECTION_CLEARED = "subregion.selection-cleared";

@@ -26,7 +26,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Groups the termination subcommands under {@code /realty terminate}:
@@ -176,13 +175,7 @@ public record TerminateCommand(
         boolean bypass = sender.hasPermission("realty.command.terminate.others");
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        // Read before cancelling: cancelling the termination also removes a deletion mark.
-        AtomicBoolean wasMarked = new AtomicBoolean();
         CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
-                .thenCompose(actor -> api.isMarkedForDeletion(regionId, worldId).thenApply(marked -> {
-                    wasMarked.set(marked);
-                    return actor;
-                }))
                 .thenComposeAsync(actor -> api.cancelTermination(regionId, worldId, actor),
                         executorState.mainThreadExec())
                 .thenAccept(result -> {
@@ -190,7 +183,7 @@ public record TerminateCommand(
                         case io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult.Success success -> {
                             sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_CANCEL_SUCCESS,
                                     Placeholder.unparsed("region", regionId)));
-                            if (wasMarked.get()) {
+                            if (success.deleteMarkRemoved()) {
                                 sender.sendMessage(messages.messageFor(MessageKeys.TERMINATE_CANCEL_DELETE_MARK,
                                         Placeholder.unparsed("region", regionId)));
                             }

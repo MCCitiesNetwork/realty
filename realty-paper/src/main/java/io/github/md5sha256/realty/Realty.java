@@ -21,6 +21,7 @@ import io.github.md5sha256.realty.api.ProfileApplicator;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.PlayerNameService;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
+import io.github.md5sha256.realty.api.WorldGuardRegionRemoval;
 import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
@@ -215,6 +216,7 @@ public final class Realty extends JavaPlugin {
     private Database database;
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApiImpl paperApi;
+    private WorldGuardRegionRemoval worldGuardRegionRemoval;
     private RealtyEventDispatch eventDispatch;
     private ModuleLifecycleManager<Realty> moduleManager;
     private boolean failedLoad = false;
@@ -400,13 +402,16 @@ public final class Realty extends JavaPlugin {
                 task -> getServer().getScheduler().runTaskAsynchronously(this, task));
         this.settlement = new SaleSettlement(economyProvider, this.logic, this.holdingAccount, this.eventDispatch,
                 getLogger());
+        this.worldGuardRegionRemoval = new WorldGuardRegionRemoval(
+                WorldGuard.getInstance().getPlatform().getRegionContainer(), this.regionProfileService, getLogger());
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
                 () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
                 this.playerNameService,
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
-                this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement, getLogger());
+                this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement,
+                this.worldGuardRegionRemoval, getLogger());
         reportStuckSalePayments();
         this.moduleManager = new ModuleLifecycleManager<>(this,
                 new ModuleLoader(getDataFolder().toPath().resolve("modules")),
@@ -728,11 +733,9 @@ public final class Realty extends JavaPlugin {
                     + deleted.worldId() + " or its WorldGuard region could not be found, so nothing was removed.");
             return;
         }
-        String saveError = this.paperApi.removeWorldGuardRegion(wgRegion);
-        if (saveError != null) {
-            getLogger().warning("Subregion " + deleted.worldGuardRegionId()
-                    + " was deleted, but WorldGuard could not save its removal: " + saveError);
-        }
+        this.worldGuardRegionRemoval.remove(wgRegion).ifPresent(saveError -> getLogger().warning(
+                "Subregion " + deleted.worldGuardRegionId()
+                        + " was deleted, but WorldGuard could not save its removal: " + saveError));
         this.eventDispatch.fireSync(new ScheduledSubregionDeletedEvent(wgRegion, deleted.landlord()));
     }
 

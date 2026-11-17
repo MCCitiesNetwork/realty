@@ -35,6 +35,7 @@ class SubregionDeleteMessagesTest {
             MessageKeys.SUBREGION_DELETE_NOT_SCHEDULED,
             MessageKeys.SUBREGION_DELETE_NOT_SUBREGION,
             MessageKeys.SUBREGION_DELETE_NOT_AUTHORIZED,
+            MessageKeys.SUBREGION_DELETE_CHANGED,
             MessageKeys.SUBREGION_DELETE_WORLDGUARD_SAVE_ERROR,
             MessageKeys.SUBREGION_DELETE_ERROR,
             MessageKeys.NOTIFICATION_SUBREGION_DELETED,

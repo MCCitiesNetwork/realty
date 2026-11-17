@@ -1753,6 +1753,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!mayCancel) {
                 return new CancelTerminationResult.NotAuthorized();
             }
+            // A delete waiting on this termination would otherwise happen whenever the tenant left
+            // later; the guarded write also says, exactly, whether there was a mark to remove.
+            boolean deleteMarkRemoved = leaseholdMapper.unmarkDeleteWhenVacant(worldGuardRegionId, worldId, null) == 1;
             int updated = leaseholdMapper.clearTermination(worldGuardRegionId, worldId);
             if (updated == 0) {
                 return new CancelTerminationResult.UpdateFailed();
@@ -1763,7 +1766,7 @@ public class RealtyBackendImpl implements RealtyBackend {
                     null, null, null);
             wrapper.session().commit();
             // A terminating lease has a tenant unless its row was changed by hand.
-            return new CancelTerminationResult.Success(role, lease.landlord(), lease.tenantId());
+            return new CancelTerminationResult.Success(role, lease.landlord(), lease.tenantId(), deleteMarkRemoved);
         }
     }
 
@@ -1866,7 +1869,10 @@ public class RealtyBackendImpl implements RealtyBackend {
                 wrapper.session().commit();
                 return new MarkDeletionResult.Success(lease.terminationEffectiveDate());
             }
-            endRead(wrapper);
+            if (diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId, requiredLandlordPartyId, false)
+                    == WriteRefusal.HOLDER_DIFFERS) {
+                return new MarkDeletionResult.NotAuthorized();
+            }
             LeaseholdContractEntity current = leaseholdMapper.selectByRegion(worldGuardRegionId, worldId);
             if (current == null) {
                 return new MarkDeletionResult.NoLeaseholdContract();
@@ -1874,10 +1880,10 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (current.terminationEffectiveDate() == null) {
                 return new MarkDeletionResult.NotTerminating();
             }
-            if (Boolean.TRUE.equals(leaseholdMapper.selectDeleteWhenVacant(worldGuardRegionId, worldId))) {
+            if (leaseholdMapper.selectDeleteWhenVacant(worldGuardRegionId, worldId)) {
                 return new MarkDeletionResult.AlreadyMarked(current.terminationEffectiveDate());
             }
-            return new MarkDeletionResult.NotAuthorized();
+            return new MarkDeletionResult.UpdateFailed();
         }
     }
 
@@ -1900,19 +1906,24 @@ public class RealtyBackendImpl implements RealtyBackend {
                 wrapper.session().commit();
                 return new UnmarkDeletionResult.Success();
             }
-            endRead(wrapper);
-            if (!Boolean.TRUE.equals(leaseholdMapper.selectDeleteWhenVacant(worldGuardRegionId, worldId))) {
+            if (diagnoseLeaseholdRefusal(wrapper, worldGuardRegionId, worldId, requiredLandlordPartyId, false)
+                    == WriteRefusal.HOLDER_DIFFERS) {
+                return new UnmarkDeletionResult.NotAuthorized();
+            }
+            if (leaseholdMapper.selectByRegion(worldGuardRegionId, worldId) == null) {
+                return new UnmarkDeletionResult.NoLeaseholdContract();
+            }
+            if (!leaseholdMapper.selectDeleteWhenVacant(worldGuardRegionId, worldId)) {
                 return new UnmarkDeletionResult.NotMarked();
             }
-            return new UnmarkDeletionResult.NotAuthorized();
+            return new UnmarkDeletionResult.UpdateFailed();
         }
     }
 
     @Override
     public boolean isMarkedForDeletion(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return Boolean.TRUE.equals(wrapper.leaseholdContractMapper()
-                    .selectDeleteWhenVacant(worldGuardRegionId, worldId));
+            return wrapper.leaseholdContractMapper().selectDeleteWhenVacant(worldGuardRegionId, worldId);
         }
     }
 

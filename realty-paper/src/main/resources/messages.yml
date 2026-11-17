@@ -899,6 +899,8 @@ subregion:
         not-subregion: <prefix> <yellow><region></yellow> is not a subregion of a freehold,
             so it cannot be deleted this way.
         not-authorized: <prefix> You do not manage the landlord of <yellow><region></yellow>.
+        changed: <prefix> The lease on <yellow><region></yellow> changed while this ran.
+            Run the command again.
         worldguard-save-error: '<prefix> Subregion <yellow><region></yellow> was deleted,
             but WorldGuard could not save its removal: <error>'
         error: '<prefix> Failed to delete subregion: <error>'

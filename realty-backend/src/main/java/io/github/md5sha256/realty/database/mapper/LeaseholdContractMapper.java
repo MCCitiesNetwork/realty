@@ -81,8 +81,8 @@ public interface LeaseholdContractMapper {
                                @NotNull UUID worldId,
                                @Nullable Integer requiredLandlordPartyId);
 
-    /** The region's deletion mark, or {@code null} when it has no lease. */
-    @Nullable Boolean selectDeleteWhenVacant(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+    /** Whether the region has a lease marked for deletion. */
+    boolean selectDeleteWhenVacant(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     /** Marked leases with no tenant. */
     @NotNull List<MarkedVacantLeaseholdView> selectMarkedVacant();

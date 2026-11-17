@@ -814,9 +814,13 @@ public interface RealtyBackend {
                                                      @NotNull String terminatedByRole);
 
     sealed interface CancelTerminationResult {
-        /** {@code tenantId} is the lease's tenant, or {@code null} for a lease that has none. */
+        /**
+         * {@code tenantId} is the lease's tenant, or {@code null} for a lease that has none.
+         * {@code deleteMarkRemoved} is whether the lease was marked for deletion: cancelling the
+         * termination removes the mark and opens the lease to tenants again.
+         */
         record Success(@NotNull String terminatedByRole, @NotNull Party landlord,
-                       @Nullable UUID tenantId) implements CancelTerminationResult {}
+                       @Nullable UUID tenantId, boolean deleteMarkRemoved) implements CancelTerminationResult {}
         record NoLeaseholdContract() implements CancelTerminationResult {}
         record NotTerminating() implements CancelTerminationResult {}
         /** The caller did not initiate the termination (and is not an admin). */
@@ -860,6 +864,8 @@ public interface RealtyBackend {
         /** Only a lease being terminated can be marked: the termination is what ends the tenancy. */
         record NotTerminating() implements MarkDeletionResult {}
         record AlreadyMarked(@NotNull LocalDateTime effectiveDate) implements MarkDeletionResult {}
+        /** The lease changed between the check and the write; the caller may try again. */
+        record UpdateFailed() implements MarkDeletionResult {}
     }
 
     /**
@@ -875,6 +881,8 @@ public interface RealtyBackend {
         record NoLeaseholdContract() implements UnmarkDeletionResult {}
         record NotAuthorized() implements UnmarkDeletionResult {}
         record NotMarked() implements UnmarkDeletionResult {}
+        /** The lease changed between the check and the write; the caller may try again. */
+        record UpdateFailed() implements UnmarkDeletionResult {}
     }
 
     /**

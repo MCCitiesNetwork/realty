@@ -324,14 +324,17 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
 
     @Override
     @Select("""
-            SELECT lc.deleteWhenVacant
-            FROM LeaseholdContract lc
-            INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
-            INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
-            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
-            AND rr.worldId = #{worldId}
+            SELECT EXISTS (
+                SELECT 1
+                FROM LeaseholdContract lc
+                INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
+                INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
+                WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+                AND rr.worldId = #{worldId}
+                AND lc.deleteWhenVacant = TRUE
+            )
             """)
-    @Nullable Boolean selectDeleteWhenVacant(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+    boolean selectDeleteWhenVacant(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
                                              @Param("worldId") @NotNull UUID worldId);
 
     @Override
@@ -368,9 +371,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             SET lc.terminationEffectiveDate = NULL,
-                lc.terminatedByRole = NULL,
-                lc.acceptingTenants = lc.acceptingTenants OR lc.deleteWhenVacant,
-                lc.deleteWhenVacant = FALSE
+                lc.terminatedByRole = NULL
             WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
             AND rr.worldId = #{worldId}
             AND lc.terminationEffectiveDate IS NOT NULL

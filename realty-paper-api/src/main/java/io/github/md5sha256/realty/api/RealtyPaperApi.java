@@ -449,12 +449,19 @@ public interface RealtyPaperApi {
         /** The subregion had no tenant and is gone, with its WorldGuard region. */
         record Deleted() implements DeleteSubregionResult {}
         /**
-         * The subregion is rented by {@code tenantId}: it is deleted once the termination taking
-         * effect at {@code effectiveDate} ends the lease. {@code termination} is set when this call
-         * started that termination, so the caller can announce it as {@code terminate} would.
+         * The subregion is rented by {@code tenantId} and was already being terminated: it is
+         * deleted once that termination takes effect at {@code effectiveDate}.
          */
-        record Scheduled(@NotNull LocalDateTime effectiveDate, @NotNull UUID tenantId,
-                         @Nullable TerminateResult.Success termination) implements DeleteSubregionResult {}
+        record Scheduled(@NotNull LocalDateTime effectiveDate, @NotNull UUID tenantId)
+                implements DeleteSubregionResult {}
+        /**
+         * The subregion is rented by {@code tenantId}: this call started {@code termination}, and
+         * the subregion is deleted once it takes effect at {@code effectiveDate}. The caller can
+         * announce the termination as {@code terminate} would.
+         */
+        record ScheduledWithTermination(@NotNull LocalDateTime effectiveDate, @NotNull UUID tenantId,
+                                        @NotNull TerminateResult.Success termination)
+                implements DeleteSubregionResult {}
         record AlreadyScheduled(@NotNull LocalDateTime effectiveDate) implements DeleteSubregionResult {}
         /** This call started a termination, but the deletion mark was then refused. The termination stands. */
         record TerminatedNotMarked(@NotNull TerminateResult.Success termination) implements DeleteSubregionResult {}
@@ -463,6 +470,8 @@ public interface RealtyPaperApi {
         /** Not a leasehold whose WorldGuard parent is a registered freehold. */
         record NotSubregion() implements DeleteSubregionResult {}
         record NotAuthorized() implements DeleteSubregionResult {}
+        /** The lease changed while this ran, for example its termination was cancelled; try again. */
+        record Changed() implements DeleteSubregionResult {}
         /** The Realty rows are gone, but the WorldGuard region could not be saved as removed. */
         record WorldGuardSaveError(@NotNull String error) implements DeleteSubregionResult {}
         record Error(@NotNull String message) implements DeleteSubregionResult {}
@@ -483,16 +492,16 @@ public interface RealtyPaperApi {
         record NotScheduled() implements CancelSubregionDeleteResult {}
         record NotAuthorized() implements CancelSubregionDeleteResult {}
         record NotSubregion() implements CancelSubregionDeleteResult {}
+        /** The lease changed while this ran; try again. */
+        record Changed() implements CancelSubregionDeleteResult {}
     }
 
     /**
      * Cancels a subregion's scheduled delete and opens it to tenants again. Any termination stands.
+     * Call it on the main thread.
      */
     @NotNull CompletableFuture<CancelSubregionDeleteResult> cancelSubregionDelete(@NotNull WorldGuardRegion region,
                                                                                   @NotNull ActorContext ctx);
-
-    /** Whether the region's lease is marked to be deleted when it ends. */
-    @NotNull CompletableFuture<Boolean> isMarkedForDeletion(@NotNull String regionId, @NotNull UUID worldId);
 
     // --- Create/Register Freehold ---
 
