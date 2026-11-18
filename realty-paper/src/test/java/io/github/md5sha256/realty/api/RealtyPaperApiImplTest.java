@@ -9,6 +9,14 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.internal.platform.WorldGuardPlatform;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.managers.RegionManager;
+import com.sk89q.worldguard.protection.flags.registry.SimpleFlagRegistry;
+import com.sk89q.worldguard.protection.managers.index.ChunkHashTable;
+import com.sk89q.worldguard.protection.managers.index.PriorityRTreeIndex;
+import com.sk89q.worldguard.protection.managers.storage.MemoryRegionDatabase;
+import com.sk89q.worldguard.protection.regions.GlobalProtectedRegion;
+import io.github.md5sha256.realty.schematic.CaptureCooldown;
+import io.github.md5sha256.realty.schematic.CaptureRegistry;
+import io.github.md5sha256.realty.schematic.TickSlicedCopy;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.auth.ActorContexts;
@@ -124,6 +132,9 @@ class RealtyPaperApiImplTest {
     private MockedStatic<BukkitAdapter> bukkitAdapterMock;
     private RegionContainer regionContainer;
     private WorldGuardRegionRemoval regionRemoval;
+    private WorldGuardRegionRename regionRename;
+    private CaptureRegistry captureRegistry;
+    private CaptureCooldown captureCooldown;
 
     private ProtectedRegion protectedRegion;
     private WorldGuardRegion wgRegion;
@@ -219,6 +230,9 @@ class RealtyPaperApiImplTest {
         settlement = new SaleSettlement(economyProvider, realtyApi, holding, events, LOG);
         regionContainer = org.mockito.Mockito.mock(RegionContainer.class);
         regionRemoval = new WorldGuardRegionRemoval(regionContainer, regionProfileService, LOG);
+        regionRename = new WorldGuardRegionRename(regionContainer, LOG);
+        captureRegistry = new CaptureRegistry();
+        captureCooldown = new CaptureCooldown(Instant::now);
         ExecutorState executorState = new ExecutorState(Runnable::run, sameThreadExecutorService(), sameThreadExecutorService());
         lenient().when(treasury.getMembers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
         lenient().when(treasury.getAuthorizers(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
@@ -230,7 +244,8 @@ class RealtyPaperApiImplTest {
                 regionProfileService, signTextApplicator, signCache, () -> 604800,
                 new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()),
                 actorContexts, events, holding, settlement,
-                regionRemoval, LOG);
+                regionRemoval,
+                    regionRename, captureRegistry, captureCooldown, LOG);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
         // An instalment whose money moved is confirmed, as the backend does while its payment exists.
@@ -581,7 +596,8 @@ class RealtyPaperApiImplTest {
                             new AtomicReference<>(new Settings(null, null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi), events, holding, settlement, regionRemoval, LOG);
+                            realtyApi), events, holding, settlement, regionRemoval,
+                    regionRename, captureRegistry, captureCooldown, LOG);
         }
 
         private void runMainThread() {
@@ -1548,7 +1564,8 @@ class RealtyPaperApiImplTest {
                             new AtomicReference<>(new Settings(null, null, null, null,
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
-                            realtyApi), events, holding, settlement, regionRemoval, LOG);
+                            realtyApi), events, holding, settlement, regionRemoval,
+                    regionRename, captureRegistry, captureCooldown, LOG);
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
             regionIs(RegionState.FOR_SALE);
@@ -2172,7 +2189,8 @@ class RealtyPaperApiImplTest {
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
                             realtyApi),
-                    events, none, new SaleSettlement(economyProvider, realtyApi, none, events, LOG), regionRemoval, LOG);
+                    events, none, new SaleSettlement(economyProvider, realtyApi, none, events, LOG), regionRemoval,
+                    regionRename, captureRegistry, captureCooldown, LOG);
         }
 
         private void paidInFull(double amount, FeeQuote quote, boolean oldRules) {
@@ -3167,6 +3185,239 @@ class RealtyPaperApiImplTest {
             Assertions.assertInstanceOf(RealtyPaperApi.CancelSubregionDeleteResult.NotSubregion.class,
                     api.cancelSubregionDelete(wgRegion, AS_LANDLORD).join());
             verify(realtyApi, never()).unmarkForDeletion(any(), any(), any());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // renameRegion()
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("renameRegion")
+    class RenameRegion {
+
+        private static final String PARENT_ID = "parent_plot";
+        private static final String NEW_NAME = "renamed-plot";
+        private static final ActorContext AS_LANDLORD = ActorContext.player(LANDLORD_ID, false);
+        private static final ActorContext AS_STAFF = ActorContext.player(BUYER_ID, true);
+        private RegionManager regionManager;
+
+        @BeforeEach
+        void subregionOfAFreeholdInARealManager() throws ProtectedRegion.CircularInheritanceException {
+            ProtectedCuboidRegion parent = new ProtectedCuboidRegion(PARENT_ID,
+                    BlockVector3.at(0, 0, 0), BlockVector3.at(200, 200, 200));
+            protectedRegion.setParent(parent);
+            regionManager = new RegionManager(new MemoryRegionDatabase(),
+                    new ChunkHashTable.Factory(new PriorityRTreeIndex.Factory()), new SimpleFlagRegistry());
+            regionManager.addRegion(parent);
+            regionManager.addRegion(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+            lenient().when(realtyApi.getFreeholdContract(PARENT_ID, WORLD_ID))
+                    .thenReturn(new FreeholdContractEntity(1, LANDLORD, LANDLORD_ID, null, false));
+        }
+
+        private RealtyPaperApi.RenameRegionResult rename(String newName, ActorContext ctx) {
+            return api.renameRegion(wgRegion, newName, ctx).join();
+        }
+
+        private void backendRenames(ActorContext ctx, RealtyBackend.RenameRegionResult result) {
+            when(realtyApi.renameRegion(REGION_ID, NEW_NAME, WORLD_ID, ctx)).thenReturn(result);
+        }
+
+        private ProtectedCuboidRegion smallRegion(String id) {
+            return new ProtectedCuboidRegion(id, BlockVector3.at(0, 0, 0), BlockVector3.at(1, 1, 1));
+        }
+
+        private void assertNothingRenamed() {
+            verify(realtyApi, never()).renameRegion(any(), any(), any(), any());
+            Assertions.assertTrue(regionManager.hasRegion(REGION_ID));
+        }
+
+        @Test
+        @DisplayName("a name outside the create pattern is refused")
+        void invalidName() {
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.InvalidName.class,
+                    rename("bad name!", AS_LANDLORD));
+            assertNothingRenamed();
+        }
+
+        @Test
+        @DisplayName("the current name in another case is the same name")
+        void sameName() {
+            WorldGuardRegion plot = new WorldGuardRegion(smallRegion("plot-a"), world);
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.SameName.class,
+                    api.renameRegion(plot, "PLOT-A", AS_STAFF).join());
+            verify(realtyApi, never()).renameRegion(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a name WorldGuard already has is refused")
+        void takenName() {
+            regionManager.addRegion(smallRegion(NEW_NAME));
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.NameTaken.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+            assertNothingRenamed();
+        }
+
+        @Test
+        @DisplayName("a region that is neither a cuboid nor a polygon is refused")
+        void unsupportedRegion() {
+            WorldGuardRegion global = new WorldGuardRegion(new GlobalProtectedRegion("global-plot"), world);
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.UnsupportedRegion.class,
+                    api.renameRegion(global, NEW_NAME, AS_STAFF).join());
+            verify(realtyApi, never()).renameRegion(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a region being captured is refused")
+        void captureRunning() {
+            captureRegistry.begin(REGION_ID, WORLD_ID, org.mockito.Mockito.mock(TickSlicedCopy.class));
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.CaptureRunning.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+            assertNothingRenamed();
+        }
+
+        @Test
+        @DisplayName("without the bypass, a region with no parent is refused")
+        void noParentWithoutBypass() throws ProtectedRegion.CircularInheritanceException {
+            protectedRegion.setParent(null);
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.NotAuthorized.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+            assertNothingRenamed();
+        }
+
+        @Test
+        @DisplayName("without the bypass, a parent that is not a registered freehold is refused")
+        void parentNotFreehold() {
+            when(realtyApi.getFreeholdContract(PARENT_ID, WORLD_ID)).thenReturn(null);
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.NotAuthorized.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+            assertNothingRenamed();
+        }
+
+        @Test
+        @DisplayName("a landlord renames a subregion: WorldGuard, signs and cooldown follow")
+        void landlordRenamesSubregion() {
+            backendRenames(AS_LANDLORD, new RealtyBackend.RenameRegionResult.Success(TENANT_ID));
+            Map<String, String> placeholders = Map.of("region", NEW_NAME);
+            when(realtyApi.getRegionWithState(NEW_NAME, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
+                    new RealtyRegionEntity(1, NEW_NAME, WORLD_ID), RegionState.LEASED, placeholders));
+            signCache.put(WORLD_ID, 1, 64, 1, 1, REGION_ID, WORLD_ID);
+            captureCooldown.record(REGION_ID, WORLD_ID);
+
+            RealtyPaperApi.RenameRegionResult.Renamed renamed = Assertions.assertInstanceOf(
+                    RealtyPaperApi.RenameRegionResult.Renamed.class, rename("Renamed-Plot", AS_LANDLORD));
+
+            Assertions.assertEquals(NEW_NAME, renamed.region().region().getId());
+            Assertions.assertEquals(REGION_ID, renamed.oldName());
+            Assertions.assertEquals(TENANT_ID, renamed.tenantId());
+            Assertions.assertFalse(renamed.leftGroupedProfile());
+            Assertions.assertTrue(regionManager.hasRegion(NEW_NAME));
+            Assertions.assertFalse(regionManager.hasRegion(REGION_ID));
+            Assertions.assertEquals(1, signCache.getSignsByRegion(NEW_NAME, WORLD_ID).size());
+            Assertions.assertNotNull(captureCooldown.remaining(NEW_NAME, WORLD_ID, java.time.Duration.ofHours(1)));
+            verify(signTextApplicator).updateLoadedSigns(world, NEW_NAME, RegionState.LEASED, placeholders);
+            // Applying the profile resets a region's flags; the rename keeps them as copied.
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("the bypass renames a region with no parent, without the subregion check")
+        void bypassRenamesStandaloneRegion() throws ProtectedRegion.CircularInheritanceException {
+            protectedRegion.setParent(null);
+            backendRenames(AS_STAFF, new RealtyBackend.RenameRegionResult.Success(null));
+
+            RealtyPaperApi.RenameRegionResult.Renamed renamed = Assertions.assertInstanceOf(
+                    RealtyPaperApi.RenameRegionResult.Renamed.class, rename(NEW_NAME, AS_STAFF));
+
+            Assertions.assertNull(renamed.tenantId());
+            Assertions.assertTrue(regionManager.hasRegion(NEW_NAME));
+            verify(realtyApi, never()).getFreeholdContract(any(), any());
+        }
+
+        @Test
+        @DisplayName("an old name listed in a grouped profile is reported")
+        void groupedProfileIsReported() {
+            when(regionProfileService.hasGroupedProfile(REGION_ID)).thenReturn(true);
+            backendRenames(AS_LANDLORD, new RealtyBackend.RenameRegionResult.Success(null));
+
+            RealtyPaperApi.RenameRegionResult.Renamed renamed = Assertions.assertInstanceOf(
+                    RealtyPaperApi.RenameRegionResult.Renamed.class, rename(NEW_NAME, AS_LANDLORD));
+
+            Assertions.assertTrue(renamed.leftGroupedProfile());
+        }
+
+        @Test
+        @DisplayName("backend refusals are mapped and leave WorldGuard alone")
+        void backendRefusals() {
+            backendRenames(AS_LANDLORD, new RealtyBackend.RenameRegionResult.NoRegion());
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.NotRegistered.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+            backendRenames(AS_LANDLORD, new RealtyBackend.RenameRegionResult.NameTaken());
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.NameTaken.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+            backendRenames(AS_LANDLORD, new RealtyBackend.RenameRegionResult.NotAuthorized());
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.NotAuthorized.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+            Assertions.assertTrue(regionManager.hasRegion(REGION_ID));
+            Assertions.assertFalse(regionManager.hasRegion(NEW_NAME));
+        }
+
+        @Test
+        @DisplayName("a name taken in WorldGuard during the database write puts the old name back")
+        void collisionAtTheSwapReversesTheDatabase() {
+            when(realtyApi.renameRegion(REGION_ID, NEW_NAME, WORLD_ID, AS_LANDLORD)).thenAnswer(invocation -> {
+                regionManager.addRegion(smallRegion(NEW_NAME));
+                return new RealtyBackend.RenameRegionResult.Success(null);
+            });
+            when(realtyApi.renameRegion(NEW_NAME, REGION_ID, WORLD_ID, ActorContext.console()))
+                    .thenReturn(new RealtyBackend.RenameRegionResult.Success(null));
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.NameTaken.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+
+            verify(realtyApi).renameRegion(NEW_NAME, REGION_ID, WORLD_ID, ActorContext.console());
+            Assertions.assertTrue(regionManager.hasRegion(REGION_ID));
+        }
+
+        @Test
+        @DisplayName("a reversal that fails is an error")
+        void failedReversalIsAnError() {
+            when(realtyApi.renameRegion(REGION_ID, NEW_NAME, WORLD_ID, AS_LANDLORD)).thenAnswer(invocation -> {
+                regionManager.addRegion(smallRegion(NEW_NAME));
+                return new RealtyBackend.RenameRegionResult.Success(null);
+            });
+            when(realtyApi.renameRegion(NEW_NAME, REGION_ID, WORLD_ID, ActorContext.console()))
+                    .thenReturn(new RealtyBackend.RenameRegionResult.NameTaken());
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.Error.class,
+                    rename(NEW_NAME, AS_LANDLORD));
+        }
+
+        @Test
+        @DisplayName("a backend failure is an error")
+        void backendFailure() {
+            when(realtyApi.renameRegion(REGION_ID, NEW_NAME, WORLD_ID, AS_LANDLORD))
+                    .thenThrow(new IllegalStateException("database down"));
+
+            RealtyPaperApi.RenameRegionResult.Error error = Assertions.assertInstanceOf(
+                    RealtyPaperApi.RenameRegionResult.Error.class, rename(NEW_NAME, AS_LANDLORD));
+
+            Assertions.assertEquals("database down", error.message());
+        }
+
+        @Test
+        @DisplayName("a renamed region can be renamed again")
+        void renamedRegionCanBeRenamedAgain() {
+            backendRenames(AS_LANDLORD, new RealtyBackend.RenameRegionResult.Success(null));
+            rename(NEW_NAME, AS_LANDLORD);
+            WorldGuardRegion renamedRegion = new WorldGuardRegion(regionManager.getRegion(NEW_NAME), world);
+            when(realtyApi.renameRegion(NEW_NAME, "third-name", WORLD_ID, AS_STAFF))
+                    .thenReturn(new RealtyBackend.RenameRegionResult.Success(null));
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.Renamed.class,
+                    api.renameRegion(renamedRegion, "third-name", AS_STAFF).join());
+            Assertions.assertTrue(regionManager.hasRegion("third-name"));
         }
     }
 }

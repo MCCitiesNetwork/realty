@@ -503,6 +503,49 @@ public interface RealtyPaperApi {
     @NotNull CompletableFuture<CancelSubregionDeleteResult> cancelSubregionDelete(@NotNull WorldGuardRegion region,
                                                                                   @NotNull ActorContext ctx);
 
+    // --- Rename ---
+
+    sealed interface RenameRegionResult {
+        /**
+         * @param region             the region under its new name; the WorldGuard region with the
+         *                           old name no longer exists
+         * @param oldName            the name it had
+         * @param tenantId           the tenant of the region's lease, if it is rented
+         * @param leftGroupedProfile whether a grouped profile in the configuration lists the old
+         *                           name, and so no longer applies to the region
+         */
+        record Renamed(@NotNull WorldGuardRegion region, @NotNull String oldName,
+                       @Nullable UUID tenantId, boolean leftGroupedProfile) implements RenameRegionResult {}
+        /** Renamed, but WorldGuard could not save. It holds the change and writes it on its next save. */
+        record WorldGuardSaveError(@NotNull Renamed renamed, @NotNull String error)
+                implements RenameRegionResult {}
+        /** The new name has characters a region name may not have. */
+        record InvalidName() implements RenameRegionResult {}
+        record SameName() implements RenameRegionResult {}
+        record NameTaken() implements RenameRegionResult {}
+        /** The region is not registered with Realty. */
+        record NotRegistered() implements RenameRegionResult {}
+        record NotAuthorized() implements RenameRegionResult {}
+        /** The WorldGuard region is neither a cuboid nor a polygon. */
+        record UnsupportedRegion() implements RenameRegionResult {}
+        /** A schematic capture of the region is running. */
+        record CaptureRunning() implements RenameRegionResult {}
+        record Error(@NotNull String message) implements RenameRegionResult {}
+    }
+
+    /**
+     * Renames a registered region and keeps everything attached to it: contracts, history, tags,
+     * signs, schematic and fees, and the WorldGuard region's shape, owners, members, flags,
+     * priority, parent and children. Region names are lower case, so {@code newName} is
+     * lower-cased. Without a bypass, the region must be a subregion (a leasehold whose WorldGuard
+     * parent is a registered freehold) whose landlord the actor manages. Fires no event; a caller
+     * that renames for a player fires {@code RegionRenameEvent} and {@code RegionRenamedEvent}.
+     * Call it on the main thread.
+     */
+    @NotNull CompletableFuture<RenameRegionResult> renameRegion(@NotNull WorldGuardRegion region,
+                                                                @NotNull String newName,
+                                                                @NotNull ActorContext ctx);
+
     // --- Create/Register Freehold ---
 
     sealed interface CreateFreeholdResult {
