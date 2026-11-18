@@ -1059,7 +1059,17 @@ public interface RealtyPaperApi {
 
     // --- Region Tags ---
 
+    /**
+     * The tags on any region with this name, whatever world it is in.
+     *
+     * @deprecated a name is unique only within a world; use {@link #getTagIdsByRegion(String, UUID)}
+     */
+    @Deprecated
     @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(@NotNull String worldGuardRegionId);
+
+    /** The tags on the region with this name in this world. */
+    @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(@NotNull String worldGuardRegionId,
+                                                                        @NotNull UUID worldId);
 
     @NotNull CompletableFuture<@NotNull List<String>> getRegionIdsByTag(@NotNull String tagId);
 

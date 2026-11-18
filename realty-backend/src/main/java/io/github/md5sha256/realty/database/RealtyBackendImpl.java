@@ -3755,6 +3755,7 @@ public class RealtyBackendImpl implements RealtyBackend {
     }
 
     @Override
+    @Deprecated
     public @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             return wrapper.regionTagMapper().selectTagIdsByRegionName(worldGuardRegionId);

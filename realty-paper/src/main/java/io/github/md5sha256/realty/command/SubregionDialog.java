@@ -161,7 +161,7 @@ public final class SubregionDialog {
             CompletableFuture<FreeholdContractEntity> freehold = api.getFreeholdContract(id, worldId);
             CompletableFuture<List<String>> tags = blacklist.isEmpty()
                     ? CompletableFuture.completedFuture(List.of())
-                    : api.getTagIdsByRegion(id);
+                    : api.getTagIdsByRegion(id, worldId);
             checks.add(freehold.thenCombine(tags, (contract, tagList) -> {
                 boolean isFreehold = contract != null;
                 boolean blacklisted = false;

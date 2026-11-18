@@ -2497,10 +2497,19 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     // --- Region Tags ---
 
     @Override
+    @Deprecated
     public @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(
             @NotNull String worldGuardRegionId) {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.getTagIdsByRegion(worldGuardRegionId),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(
+            @NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.getTagIdsByRegion(worldGuardRegionId, worldId),
                 executorState.dbExec());
     }
 

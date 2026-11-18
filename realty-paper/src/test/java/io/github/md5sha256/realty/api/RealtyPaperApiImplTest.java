@@ -3184,6 +3184,14 @@ class RealtyPaperApiImplTest {
         }
     }
 
+    @Test
+    @DisplayName("a region's tags are read for its world")
+    void tagsAreReadForTheRegionsWorld() {
+        when(realtyApi.getTagIdsByRegion(REGION_ID, WORLD_ID)).thenReturn(List.of("commercial"));
+
+        Assertions.assertEquals(List.of("commercial"), api.getTagIdsByRegion(REGION_ID, WORLD_ID).join());
+    }
+
     // ═══════════════════════════════════════════════════
     // renameRegion()
     // ═══════════════════════════════════════════════════
