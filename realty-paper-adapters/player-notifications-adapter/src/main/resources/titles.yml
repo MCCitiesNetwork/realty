@@ -65,6 +65,7 @@ titles:
   notification.leasehold-terminated-landlord:  Tenant's lease ended
   notification.termination-subregion-removed:  Rented subregion to be removed
   notification.subregion-deleted:              Subregion deleted
+  notification.region-renamed:                 Rented region renamed
 
   # Realty (realty.general) -- purchases, sale payouts and refunds, fees, ownership transfers and
   # anything uncategorised
