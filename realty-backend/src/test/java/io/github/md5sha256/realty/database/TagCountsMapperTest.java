@@ -29,9 +29,9 @@ class TagCountsMapperTest extends AbstractDatabaseTest {
         Assertions.assertTrue(logic.createFreehold("tags_b", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.regionTagMapper().insert("commercial", "tags_a");
-            wrapper.regionTagMapper().insert("commercial", "tags_b");
-            wrapper.regionTagMapper().insert("waterfront", "tags_b");
+            wrapper.regionTagMapper().insert("commercial", "tags_a", WORLD_ID);
+            wrapper.regionTagMapper().insert("commercial", "tags_b", WORLD_ID);
+            wrapper.regionTagMapper().insert("waterfront", "tags_b", WORLD_ID);
             session.commit();
         }
 
@@ -47,7 +47,7 @@ class TagCountsMapperTest extends AbstractDatabaseTest {
         Assertions.assertTrue(logic.createFreehold("tags_c", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.regionTagMapper().insert("island", "tags_c");
+            wrapper.regionTagMapper().insert("island", "tags_c", WORLD_ID);
             session.commit();
         }
 

@@ -301,6 +301,7 @@ public interface MariaFreeholdContractMapper extends FreeholdContractMapper {
             INNER JOIN Contract c ON c.contractId = fc.freeholdContractId AND c.contractType = 'freehold'
             INNER JOIN RealtyRegion rr ON rr.realtyRegionId = c.realtyRegionId
             LEFT JOIN RegionTag rt ON rt.worldGuardRegionId = rr.worldGuardRegionId
+                AND rt.worldId = rr.worldId
             WHERE fc.titleHolderId IS NOT NULL
             """)
     @ConstructorArgs({

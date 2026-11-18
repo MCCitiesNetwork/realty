@@ -50,6 +50,7 @@ public interface MariaSearchMapper extends SearchMapper {
                         AND (
                             SELECT COUNT(*) FROM RegionTag rt
                             WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.worldId = rr.worldId
                             AND rt.tagId IN
                             <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
                                 #{tag}
@@ -60,6 +61,7 @@ public interface MariaSearchMapper extends SearchMapper {
                         AND EXISTS (
                             SELECT 1 FROM RegionTag rt
                             WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.worldId = rr.worldId
                             AND rt.tagId IN
                             <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
                                 #{tag}
@@ -72,6 +74,7 @@ public interface MariaSearchMapper extends SearchMapper {
                     AND NOT EXISTS (
                         SELECT 1 FROM RegionTag rt
                         WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                        AND rt.worldId = rr.worldId
                         AND rt.tagId IN
                         <foreach item="tag" collection="excludedTagIds" open="(" separator="," close=")">
                             #{tag}
@@ -107,6 +110,7 @@ public interface MariaSearchMapper extends SearchMapper {
                         AND (
                             SELECT COUNT(*) FROM RegionTag rt
                             WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.worldId = rr.worldId
                             AND rt.tagId IN
                             <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
                                 #{tag}
@@ -117,6 +121,7 @@ public interface MariaSearchMapper extends SearchMapper {
                         AND EXISTS (
                             SELECT 1 FROM RegionTag rt
                             WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.worldId = rr.worldId
                             AND rt.tagId IN
                             <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
                                 #{tag}
@@ -129,6 +134,7 @@ public interface MariaSearchMapper extends SearchMapper {
                     AND NOT EXISTS (
                         SELECT 1 FROM RegionTag rt
                         WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                        AND rt.worldId = rr.worldId
                         AND rt.tagId IN
                         <foreach item="tag" collection="excludedTagIds" open="(" separator="," close=")">
                             #{tag}
@@ -201,6 +207,7 @@ public interface MariaSearchMapper extends SearchMapper {
                         AND (
                             SELECT COUNT(*) FROM RegionTag rt
                             WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.worldId = rr.worldId
                             AND rt.tagId IN
                             <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
                                 #{tag}
@@ -211,6 +218,7 @@ public interface MariaSearchMapper extends SearchMapper {
                         AND EXISTS (
                             SELECT 1 FROM RegionTag rt
                             WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.worldId = rr.worldId
                             AND rt.tagId IN
                             <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
                                 #{tag}
@@ -223,6 +231,7 @@ public interface MariaSearchMapper extends SearchMapper {
                     AND NOT EXISTS (
                         SELECT 1 FROM RegionTag rt
                         WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                        AND rt.worldId = rr.worldId
                         AND rt.tagId IN
                         <foreach item="tag" collection="excludedTagIds" open="(" separator="," close=")">
                             #{tag}
@@ -256,6 +265,7 @@ public interface MariaSearchMapper extends SearchMapper {
                         AND (
                             SELECT COUNT(*) FROM RegionTag rt
                             WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.worldId = rr.worldId
                             AND rt.tagId IN
                             <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
                                 #{tag}
@@ -266,6 +276,7 @@ public interface MariaSearchMapper extends SearchMapper {
                         AND EXISTS (
                             SELECT 1 FROM RegionTag rt
                             WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                            AND rt.worldId = rr.worldId
                             AND rt.tagId IN
                             <foreach item="tag" collection="tagIds" open="(" separator="," close=")">
                                 #{tag}
@@ -278,6 +289,7 @@ public interface MariaSearchMapper extends SearchMapper {
                     AND NOT EXISTS (
                         SELECT 1 FROM RegionTag rt
                         WHERE rt.worldGuardRegionId = rr.worldGuardRegionId
+                        AND rt.worldId = rr.worldId
                         AND rt.tagId IN
                         <foreach item="tag" collection="excludedTagIds" open="(" separator="," close=")">
                             #{tag}

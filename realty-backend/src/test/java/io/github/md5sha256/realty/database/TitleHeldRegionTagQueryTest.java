@@ -32,8 +32,8 @@ class TitleHeldRegionTagQueryTest extends AbstractDatabaseTest {
         Assertions.assertTrue(logic.createFreehold(regionB, world, 100.0, Party.personal(authority), owner));
 
         try (SqlSessionWrapper session = database.openSession(true)) {
-            session.regionTagMapper().insert("commercial", regionA);
-            session.regionTagMapper().insert("industrial", regionA);
+            session.regionTagMapper().insert("commercial", regionA, world);
+            session.regionTagMapper().insert("industrial", regionA, world);
             // regionB intentionally left untagged
         }
 

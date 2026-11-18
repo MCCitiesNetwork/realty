@@ -61,7 +61,8 @@ public final class MariaSchemaMigrator {
             new MigrationStep(20, "offers off by default", "V20__offers_off_by_default.sql"),
             new MigrationStep(21, "sale fees", "V21__sale_fees.sql"),
             new MigrationStep(22, "lease delete when vacant", "V22__lease_delete_when_vacant.sql"),
-            new MigrationStep(23, "contract region cascade", "V23__contract_region_cascade.sql")
+            new MigrationStep(23, "contract region cascade", "V23__contract_region_cascade.sql"),
+            new MigrationStep(24, "region tag world", "V24__region_tag_world.sql")
     );
 
     private MariaSchemaMigrator() {

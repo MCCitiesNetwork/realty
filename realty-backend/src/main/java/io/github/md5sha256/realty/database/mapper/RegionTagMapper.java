@@ -5,23 +5,31 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
+/**
+ * The tags on regions. A tag names its region by name and world, as {@code RealtyRegion} does.
+ */
 public interface RegionTagMapper {
 
-    boolean exists(@NotNull String tagId, @NotNull String worldGuardRegionId);
+    boolean exists(@NotNull String tagId, @NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    int insert(@NotNull String tagId, @NotNull String worldGuardRegionId);
+    int insert(@NotNull String tagId, @NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     /** Inserts the tag if the region doesn't already have it; a no-op (0 rows) when it does. */
-    int insertIfAbsent(@NotNull String tagId, @NotNull String worldGuardRegionId);
+    int insertIfAbsent(@NotNull String tagId, @NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
+    /** The names of the regions with the tag, each once, whatever world they are in. */
     @NotNull List<String> selectRegionIdsByTagId(@NotNull String tagId);
 
-    @NotNull List<String> selectTagIdsByRegionId(@NotNull String worldGuardRegionId);
+    @NotNull List<String> selectTagIdsByRegionId(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
-    int deleteByTagAndRegion(@NotNull String tagId, @NotNull String worldGuardRegionId);
+    /** The tags on any region with this name, each once, whatever world it is in. */
+    @NotNull List<String> selectTagIdsByRegionName(@NotNull String worldGuardRegionId);
 
-    int deleteByRegionId(@NotNull String worldGuardRegionId);
+    int deleteByTagAndRegion(@NotNull String tagId, @NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    int deleteByRegionId(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 
     @NotNull List<String> selectDistinctTagIds();
 
@@ -34,9 +42,7 @@ public interface RegionTagMapper {
 
     int countByTagId(@NotNull String tagId);
 
-    /**
-     * Moves a renamed region's tags to its new name. A tag the new name already has stays under
-     * the old name; the caller deletes what is left there.
-     */
-    int moveToRegion(@NotNull String worldGuardRegionId, @NotNull String newWorldGuardRegionId);
+    /** Moves a renamed region's tags to its new name. The new name must have no tags in that world. */
+    int moveToRegion(@NotNull String worldGuardRegionId, @NotNull String newWorldGuardRegionId,
+                     @NotNull UUID worldId);
 }

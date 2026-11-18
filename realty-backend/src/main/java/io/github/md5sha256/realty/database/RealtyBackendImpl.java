@@ -1893,9 +1893,9 @@ public class RealtyBackendImpl implements RealtyBackend {
             wrapper.leaseholdHistoryMapper().renameRegion(worldGuardRegionId, newWorldGuardRegionId, worldId);
             wrapper.agentHistoryMapper().renameRegion(worldGuardRegionId, newWorldGuardRegionId, worldId);
             RegionTagMapper tagMapper = wrapper.regionTagMapper();
-            tagMapper.moveToRegion(worldGuardRegionId, newWorldGuardRegionId);
-            // What is left under the old name is a tag the new name already had.
-            tagMapper.deleteByRegionId(worldGuardRegionId);
+            // No region in this world has the new name, so tags under it were left by a region delete.
+            tagMapper.deleteByRegionId(newWorldGuardRegionId, worldId);
+            tagMapper.moveToRegion(worldGuardRegionId, newWorldGuardRegionId, worldId);
             wrapper.session().commit();
             return new RenameRegionResult.Success(lease == null ? null : lease.tenantId());
         }
@@ -3757,7 +3757,14 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.regionTagMapper().selectTagIdsByRegionId(worldGuardRegionId);
+            return wrapper.regionTagMapper().selectTagIdsByRegionName(worldGuardRegionId);
+        }
+    }
+
+    @Override
+    public @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            return wrapper.regionTagMapper().selectTagIdsByRegionId(worldGuardRegionId, worldId);
         }
     }
 
@@ -3956,7 +3963,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             LevyDefinition levy = SaleFeeResolver.resolveLevy(wrapper, this.levies.get(), realtyRegionId, freehold.authority());
             if (levy != null) {
                 Set<String> tags = new HashSet<>();
-                for (String tag : wrapper.regionTagMapper().selectTagIdsByRegionId(worldGuardRegionId)) {
+                for (String tag : wrapper.regionTagMapper().selectTagIdsByRegionId(worldGuardRegionId, worldId)) {
                     tags.add(tag.toLowerCase(Locale.ROOT));
                 }
                 String rate = levyRate(levy, tags, freehold.authority());

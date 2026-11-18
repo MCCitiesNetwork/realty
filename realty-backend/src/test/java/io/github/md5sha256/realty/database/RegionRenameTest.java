@@ -85,15 +85,21 @@ class RegionRenameTest extends AbstractDatabaseTest {
     }
 
     private static void tag(String tagId, String regionId) {
+        tag(tagId, regionId, WORLD_ID);
+    }
+
+    private static void tag(String tagId, String regionId, UUID worldId) {
         try (SqlSessionWrapper wrapper = database.openSession(true)) {
-            wrapper.regionTagMapper().insert(tagId, regionId);
+            wrapper.regionTagMapper().insert(tagId, regionId, worldId);
         }
     }
 
     private static List<String> tags(String regionId) {
-        try (SqlSessionWrapper wrapper = database.openSession()) {
-            return wrapper.regionTagMapper().selectTagIdsByRegionId(regionId).stream().sorted().toList();
-        }
+        return tags(regionId, WORLD_ID);
+    }
+
+    private static List<String> tags(String regionId, UUID worldId) {
+        return logic.getTagIdsByRegion(regionId, worldId).stream().sorted().toList();
     }
 
     private static SaleFeeEntity saleFeeLine(String regionId, int saleRef) {
@@ -251,16 +257,61 @@ class RegionRenameTest extends AbstractDatabaseTest {
     }
 
     @Test
-    void aTagTheNewNameAlreadyHasLeavesOneRow() {
+    void tagsOfTheSameNameInAnotherWorldStay() {
+        String oldName = vacantLease();
+        String newName = freshName();
+        tag("commercial", oldName);
+        tag("island", oldName, OTHER_WORLD_ID);
+        tag("harbour", newName, OTHER_WORLD_ID);
+
+        logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
+
+        Assertions.assertEquals(List.of("commercial"), tags(newName));
+        Assertions.assertEquals(List.of("island"), tags(oldName, OTHER_WORLD_ID));
+        Assertions.assertEquals(List.of("harbour"), tags(newName, OTHER_WORLD_ID));
+    }
+
+    /** No region has the new name, so a tag under it was left behind by a region delete. */
+    @Test
+    void tagsLeftUnderTheNewNameAreDropped() {
         String oldName = vacantLease();
         String newName = freshName();
         tag("shop", oldName);
         tag("shop", newName);
+        tag("stale", newName);
 
         logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
 
         Assertions.assertEquals(List.of("shop"), tags(newName));
         Assertions.assertEquals(List.of(), tags(oldName));
+    }
+
+    @Test
+    void renamingBackRestoresExactlyTheTagsThatMoved() {
+        String oldName = vacantLease();
+        String newName = freshName();
+        tag("commercial", oldName);
+        tag("waterfront", oldName);
+        tag("stale", newName);
+
+        logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
+        logic.renameRegion(newName, oldName, WORLD_ID, ActorContext.console());
+
+        Assertions.assertEquals(List.of("commercial", "waterfront"), tags(oldName));
+        Assertions.assertEquals(List.of(), tags(newName));
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void theNameOnlyLookupStillAnswersAcrossWorlds() {
+        String name = vacantLease();
+        tag("commercial", name);
+        tag("commercial", name, OTHER_WORLD_ID);
+        tag("island", name, OTHER_WORLD_ID);
+
+        Assertions.assertEquals(List.of("commercial", "island"),
+                logic.getTagIdsByRegion(name).stream().sorted().toList());
+        Assertions.assertEquals(List.of(name), logic.getRegionIdsByTag("commercial"));
     }
 
     @Test

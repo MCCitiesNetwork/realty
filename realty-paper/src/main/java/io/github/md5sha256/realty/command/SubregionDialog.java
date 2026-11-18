@@ -516,7 +516,7 @@ public final class SubregionDialog {
                         case RealtyPaperApi.QuickCreateSubregionResult.Success s -> {
                             wandManager.clear(player.getUniqueId());
                             playerStates.remove(player.getUniqueId());
-                            applyTags(s.regionId(), new LinkedHashSet<>(state.selectedTags));
+                            applyTags(s.regionId(), state.world.getUID(), new LinkedHashSet<>(state.selectedTags));
                             player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_CREATE_SUCCESS,
                                     Placeholder.unparsed("region", s.regionId()),
                                     Placeholder.unparsed("parent", s.parentId())));
@@ -540,7 +540,7 @@ public final class SubregionDialog {
                 });
     }
 
-    private void applyTags(@NotNull String regionId, @NotNull Set<String> tagIds) {
+    private void applyTags(@NotNull String regionId, @NotNull UUID worldId, @NotNull Set<String> tagIds) {
         if (tagIds.isEmpty()) {
             return;
         }
@@ -548,7 +548,7 @@ public final class SubregionDialog {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RegionTagMapper mapper = session.regionTagMapper();
                 for (String tagId : tagIds) {
-                    mapper.insertIfAbsent(tagId, regionId);
+                    mapper.insertIfAbsent(tagId, regionId, worldId);
                 }
             }
         });

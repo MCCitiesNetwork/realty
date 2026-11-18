@@ -1583,8 +1583,18 @@ public interface RealtyBackend {
      */
     @NotNull List<TagCountEntity> countRegionsPerTag();
 
+    /**
+     * The tags on any region with this name, whatever world it is in.
+     *
+     * @deprecated a name is unique only within a world; use {@link #getTagIdsByRegion(String, UUID)}
+     */
+    @Deprecated
     @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId);
 
+    /** The tags on the region with this name in this world. */
+    @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    /** The names of the regions with the tag, each once, whatever world they are in. */
     @NotNull List<String> getRegionIdsByTag(@NotNull String tagId);
 
     int countRegionsByTag(@NotNull String tagId);

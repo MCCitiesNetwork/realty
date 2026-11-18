@@ -64,7 +64,7 @@ public final class SaleFeeResolver {
                                      double price,
                                      @Nullable UUID ranBy) {
         Set<String> tags = new HashSet<>();
-        for (String tag : wrapper.regionTagMapper().selectTagIdsByRegionId(region.worldGuardRegionId())) {
+        for (String tag : wrapper.regionTagMapper().selectTagIdsByRegionId(region.worldGuardRegionId(), region.worldId())) {
             tags.add(tag.toLowerCase(Locale.ROOT));
         }
         int buyerPlots = wrapper.realtyRegionMapper().countRegionsByTitleHolder(buyerId);

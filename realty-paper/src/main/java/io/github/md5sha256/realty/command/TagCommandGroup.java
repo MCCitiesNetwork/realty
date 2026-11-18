@@ -24,6 +24,7 @@ import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -97,16 +98,17 @@ public record TagCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RegionTagMapper mapper = session.regionTagMapper();
-                if (mapper.exists(tagId, regionId)) {
+                if (mapper.exists(tagId, regionId, worldId)) {
                     sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_ALREADY_TAGGED,
                             Placeholder.unparsed("tag", tagId),
                             Placeholder.unparsed("region", regionId)));
                     return;
                 }
-                int inserted = mapper.insert(tagId, regionId);
+                int inserted = mapper.insert(tagId, regionId, worldId);
                 if (inserted > 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_SUCCESS,
                             Placeholder.unparsed("tag", tagId),
@@ -144,10 +146,11 @@ public record TagCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RegionTagMapper mapper = session.regionTagMapper();
-                int deleted = mapper.deleteByTagAndRegion(tagId, regionId);
+                int deleted = mapper.deleteByTagAndRegion(tagId, regionId, worldId);
                 if (deleted > 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.TAG_REMOVE_SUCCESS,
                             Placeholder.unparsed("tag", tagId),
@@ -174,9 +177,10 @@ public record TagCommandGroup(
             return;
         }
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         CompletableFuture.runAsync(() -> {
             try (SqlSessionWrapper session = database.openSession(true)) {
-                int deleted = session.regionTagMapper().deleteByRegionId(regionId);
+                int deleted = session.regionTagMapper().deleteByRegionId(regionId, worldId);
                 if (deleted > 0) {
                     sender.sendMessage(messages.messageFor(MessageKeys.TAG_CLEAR_SUCCESS,
                             Placeholder.unparsed("count", String.valueOf(deleted)),
