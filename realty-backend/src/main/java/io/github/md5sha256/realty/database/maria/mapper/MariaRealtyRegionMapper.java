@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -360,5 +361,22 @@ public interface MariaRealtyRegionMapper extends RealtyRegionMapper {
                                                              @Param("limit") int limit,
                                                              @Param("offset") int offset);
 
-
+    @Override
+    @Update("""
+            UPDATE RealtyRegion rr
+            SET rr.worldGuardRegionId = #{newWorldGuardRegionId}
+            WHERE rr.worldGuardRegionId = #{worldGuardRegionId}
+            AND rr.worldId = #{worldId}
+            AND (#{requiredLandlordPartyId} IS NULL OR EXISTS (
+                SELECT 1
+                FROM Contract c
+                INNER JOIN LeaseholdContract lc ON lc.leaseholdContractId = c.contractId
+                WHERE c.realtyRegionId = rr.realtyRegionId
+                AND c.contractType = 'leasehold'
+                AND lc.landlordPartyId = #{requiredLandlordPartyId}))
+            """)
+    int renameGuarded(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                      @Param("newWorldGuardRegionId") @NotNull String newWorldGuardRegionId,
+                      @Param("worldId") @NotNull UUID worldId,
+                      @Param("requiredLandlordPartyId") @Nullable Integer requiredLandlordPartyId);
 }

@@ -856,6 +856,28 @@ public interface RealtyBackend {
                                                          @NotNull UUID worldId,
                                                          @NotNull ActorContext ctx);
 
+    // --- Rename ---
+
+    sealed interface RenameRegionResult {
+        /** {@code tenantId} is the tenant of the region's lease, if it has one. */
+        record Success(@Nullable UUID tenantId) implements RenameRegionResult {}
+        record NoRegion() implements RenameRegionResult {}
+        /** A region in the same world already has the new name. */
+        record NameTaken() implements RenameRegionResult {}
+        record NotAuthorized() implements RenameRegionResult {}
+    }
+
+    /**
+     * Renames a region and moves its history and tags to the new name. Everything else follows by
+     * the region's id. Without a bypass, the region must be a leasehold whose landlord the actor
+     * manages; that condition is part of the rename itself, so a landlord change committing
+     * meanwhile makes it rename nothing. Records of past sales keep the name the region had.
+     */
+    @NotNull RenameRegionResult renameRegion(@NotNull String worldGuardRegionId,
+                                             @NotNull String newWorldGuardRegionId,
+                                             @NotNull UUID worldId,
+                                             @NotNull ActorContext ctx);
+
     sealed interface MarkDeletionResult {
         /** Marked; the region is deleted once the termination taking effect at {@code effectiveDate} ends it. */
         record Success(@NotNull LocalDateTime effectiveDate) implements MarkDeletionResult {}

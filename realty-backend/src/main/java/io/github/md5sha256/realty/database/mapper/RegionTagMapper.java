@@ -34,4 +34,9 @@ public interface RegionTagMapper {
 
     int countByTagId(@NotNull String tagId);
 
+    /**
+     * Moves a renamed region's tags to its new name. A tag the new name already has stays under
+     * the old name; the caller deletes what is left there.
+     */
+    int moveToRegion(@NotNull String worldGuardRegionId, @NotNull String newWorldGuardRegionId);
 }

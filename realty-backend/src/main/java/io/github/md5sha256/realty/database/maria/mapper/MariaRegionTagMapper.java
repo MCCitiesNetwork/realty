@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.database.entity.TagCountEntity;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -120,4 +121,12 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
     })
     @NotNull List<TagCountEntity> selectTagCounts();
 
+    @Override
+    @Update("""
+            UPDATE IGNORE RegionTag
+            SET worldGuardRegionId = #{newWorldGuardRegionId}
+            WHERE worldGuardRegionId = #{worldGuardRegionId}
+            """)
+    int moveToRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                     @Param("newWorldGuardRegionId") @NotNull String newWorldGuardRegionId);
 }

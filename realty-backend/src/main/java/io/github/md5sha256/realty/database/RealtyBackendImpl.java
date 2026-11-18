@@ -58,6 +58,7 @@ import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferMapper;
 import io.github.md5sha256.realty.database.mapper.FreeholdContractOfferPaymentMapper;
 import io.github.md5sha256.realty.database.mapper.PartyMapper;
 import io.github.md5sha256.realty.database.mapper.RegionFeeMapper;
+import io.github.md5sha256.realty.database.mapper.RegionTagMapper;
 import io.github.md5sha256.realty.fees.SaleFeeResolver;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.apache.ibatis.session.SqlSession;
@@ -66,6 +67,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -1846,6 +1848,56 @@ public class RealtyBackendImpl implements RealtyBackend {
             wrapper.realtyRegionMapper().deleteByWorldGuardRegion(worldGuardRegionId, worldId);
             wrapper.session().commit();
             return new DeleteLeaseholdResult.Success();
+        }
+    }
+
+    @Override
+    public @NotNull RenameRegionResult renameRegion(@NotNull String worldGuardRegionId,
+                                                    @NotNull String newWorldGuardRegionId,
+                                                    @NotNull UUID worldId,
+                                                    @NotNull ActorContext ctx) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
+            if (regionMapper.selectByWorldGuardRegion(worldGuardRegionId, worldId) == null) {
+                return new RenameRegionResult.NoRegion();
+            }
+            if (regionMapper.selectByWorldGuardRegion(newWorldGuardRegionId, worldId) != null) {
+                return new RenameRegionResult.NameTaken();
+            }
+            LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
+                    .selectByRegion(worldGuardRegionId, worldId);
+            if (!ctx.bypass() && (lease == null || !ctx.mayManage(lease.landlord()))) {
+                return new RenameRegionResult.NotAuthorized();
+            }
+            Integer requiredLandlordPartyId = ctx.bypass() ? null : namedPartyId(wrapper, lease.landlord());
+            endRead(wrapper);
+            int renamed;
+            try {
+                // The landlord check holds here, in the statement, and not in the read above.
+                renamed = regionMapper.renameGuarded(worldGuardRegionId, newWorldGuardRegionId, worldId,
+                        requiredLandlordPartyId);
+            } catch (PersistenceException ex) {
+                if (ex.getCause() instanceof SQLIntegrityConstraintViolationException) {
+                    // Another transaction took the name after the read.
+                    return new RenameRegionResult.NameTaken();
+                }
+                throw ex;
+            }
+            if (renamed == 0) {
+                endRead(wrapper);
+                return regionMapper.selectByWorldGuardRegion(worldGuardRegionId, worldId) == null
+                        ? new RenameRegionResult.NoRegion()
+                        : new RenameRegionResult.NotAuthorized();
+            }
+            wrapper.freeholdHistoryMapper().renameRegion(worldGuardRegionId, newWorldGuardRegionId, worldId);
+            wrapper.leaseholdHistoryMapper().renameRegion(worldGuardRegionId, newWorldGuardRegionId, worldId);
+            wrapper.agentHistoryMapper().renameRegion(worldGuardRegionId, newWorldGuardRegionId, worldId);
+            RegionTagMapper tagMapper = wrapper.regionTagMapper();
+            tagMapper.moveToRegion(worldGuardRegionId, newWorldGuardRegionId);
+            // What is left under the old name is a tag the new name already had.
+            tagMapper.deleteByRegionId(worldGuardRegionId);
+            wrapper.session().commit();
+            return new RenameRegionResult.Success(lease == null ? null : lease.tenantId());
         }
     }
 

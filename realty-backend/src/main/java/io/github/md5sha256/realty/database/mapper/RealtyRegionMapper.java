@@ -85,4 +85,12 @@ public interface RealtyRegionMapper {
      */
     @NotNull List<String> selectRegisteredIds(@NotNull UUID worldId, @NotNull List<String> candidates);
 
+    /**
+     * Renames a region. With {@code requiredLandlordPartyId} set, only while the region's lease
+     * names that landlord.
+     *
+     * @return the number of rows renamed: 0 means there is no such region, or the landlord differs
+     */
+    int renameGuarded(@NotNull String worldGuardRegionId, @NotNull String newWorldGuardRegionId,
+                      @NotNull UUID worldId, @Nullable Integer requiredLandlordPartyId);
 }

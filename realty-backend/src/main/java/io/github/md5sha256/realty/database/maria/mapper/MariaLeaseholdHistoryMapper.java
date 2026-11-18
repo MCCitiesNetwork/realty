@@ -11,6 +11,7 @@ import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.SelectProvider;
+import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -93,4 +94,15 @@ public interface MariaLeaseholdHistoryMapper extends LeaseholdHistoryMapper {
                      @Param("eventType") @Nullable String eventType,
                      @Param("since") @Nullable LocalDateTime since,
                      @Param("playerId") @Nullable UUID playerId);
+
+    @Override
+    @Update("""
+            UPDATE LeaseholdHistory
+            SET worldGuardRegionId = #{newWorldGuardRegionId}
+            WHERE worldGuardRegionId = #{worldGuardRegionId}
+            AND worldId = #{worldId}
+            """)
+    int renameRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                     @Param("newWorldGuardRegionId") @NotNull String newWorldGuardRegionId,
+                     @Param("worldId") @NotNull UUID worldId);
 }
