@@ -48,7 +48,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
 import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.wand.WandSelection;
@@ -63,7 +62,6 @@ import io.github.md5sha256.realty.wand.WandSelection;
 public final class SubregionDialog {
 
     static final String BYPASS_PERMISSION = "realty.command.subregion.confirm.bypass";
-    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9-]+$");
 
     private static final String INPUT_PARENT = "parent";
     private static final String INPUT_NAME = "name";
@@ -564,7 +562,7 @@ public final class SubregionDialog {
      */
     private @Nullable Component validate(@NotNull SubregionState state,
                                          @NotNull RegionManager regionManager) {
-        if (state.name == null || !VALID_NAME_PATTERN.matcher(state.name).matches()) {
+        if (state.name == null || !WorldGuardRegion.isValidName(state.name)) {
             return messages.messageFor(MessageKeys.SUBREGION_INVALID_NAME,
                     Placeholder.unparsed("region", String.valueOf(state.name)));
         }

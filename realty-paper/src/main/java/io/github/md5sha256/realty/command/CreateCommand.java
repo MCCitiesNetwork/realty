@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
 /**
  * Handles {@code /realty create leasehold <name> <price> <period> <maxextensions>}
@@ -75,7 +74,6 @@ public record CreateCommand(@NotNull Server server,
                              @NotNull RealtyEventDispatch events) implements CustomCommandBean {
 
     private static final CloudKey<String> NAME = CloudKey.of("name", String.class);
-    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9-]+$");
     private static final CloudKey<Double> PRICE = CloudKey.of("price", Double.class);
     private static final CloudKey<Duration> PERIOD = CloudKey.of("period", Duration.class);
     private static final CloudKey<Integer> MAX_EXTENSIONS = CloudKey.of("maxextensions", Integer.class);
@@ -127,7 +125,7 @@ public record CreateCommand(@NotNull Server server,
             return;
         }
         String name = ctx.get(NAME);
-        if (!VALID_NAME_PATTERN.matcher(name).matches()) {
+        if (!WorldGuardRegion.isValidName(name)) {
             player.sendMessage(messages.messageFor(MessageKeys.CREATE_INVALID_NAME,
                     Placeholder.unparsed("region", name)));
             return;
@@ -205,7 +203,7 @@ public record CreateCommand(@NotNull Server server,
             return;
         }
         String name = ctx.get(NAME);
-        if (!VALID_NAME_PATTERN.matcher(name).matches()) {
+        if (!WorldGuardRegion.isValidName(name)) {
             player.sendMessage(messages.messageFor(MessageKeys.CREATE_INVALID_NAME,
                     Placeholder.unparsed("region", name)));
             return;

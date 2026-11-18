@@ -66,12 +66,10 @@ public class SignCache {
             return;
         }
         for (BlockPosition pos : positions) {
-            SignCacheEntry entry = cache.get(pos);
-            if (entry != null) {
-                put(pos.worldId(), pos.x(), pos.y(), pos.z(), entry.realtyRegionId(),
-                        newWorldGuardRegionId, worldId);
-            }
+            cache.computeIfPresent(pos, (ignored, entry) ->
+                    new SignCacheEntry(entry.realtyRegionId(), newWorldGuardRegionId, worldId));
         }
+        regionToSigns.put(new RegionKey(newWorldGuardRegionId, worldId), positions);
     }
 
     /**

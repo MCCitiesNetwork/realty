@@ -72,8 +72,7 @@ public record RenameCommand(
                         executorState.mainThreadExec())
                 .exceptionally(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_ERROR,
-                            Placeholder.unparsed("error", String.valueOf(cause.getMessage()))));
+                    reply(sender, MessageKeys.RENAME_ERROR, "error", String.valueOf(cause.getMessage()));
                     return null;
                 });
     }
@@ -100,30 +99,25 @@ public record RenameCommand(
                         Placeholder.unparsed("error", saveError.error())));
             }
             case RenameRegionResult.InvalidName ignored ->
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_INVALID_NAME,
-                            Placeholder.unparsed("name", newName)));
-            case RenameRegionResult.SameName ignored ->
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_SAME_NAME,
-                            Placeholder.unparsed("region", regionId)));
-            case RenameRegionResult.NameTaken ignored ->
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_NAME_TAKEN,
-                            Placeholder.unparsed("name", newName)));
+                    reply(sender, MessageKeys.RENAME_INVALID_NAME, "name", newName);
+            case RenameRegionResult.SameName ignored -> reply(sender, MessageKeys.RENAME_SAME_NAME, "region", regionId);
+            case RenameRegionResult.NameTaken ignored -> reply(sender, MessageKeys.RENAME_NAME_TAKEN, "name", newName);
             case RenameRegionResult.NotRegistered ignored ->
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_NOT_REGISTERED,
-                            Placeholder.unparsed("region", regionId)));
+                    reply(sender, MessageKeys.RENAME_NOT_REGISTERED, "region", regionId);
             case RenameRegionResult.NotAuthorized ignored ->
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_NOT_AUTHORIZED,
-                            Placeholder.unparsed("region", regionId)));
+                    reply(sender, MessageKeys.RENAME_NOT_AUTHORIZED, "region", regionId);
             case RenameRegionResult.UnsupportedRegion ignored ->
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_UNSUPPORTED_REGION,
-                            Placeholder.unparsed("region", regionId)));
+                    reply(sender, MessageKeys.RENAME_UNSUPPORTED_REGION, "region", regionId);
             case RenameRegionResult.CaptureRunning ignored ->
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_CAPTURE_RUNNING,
-                            Placeholder.unparsed("region", regionId)));
-            case RenameRegionResult.Error error ->
-                    sender.sendMessage(messages.messageFor(MessageKeys.RENAME_ERROR,
-                            Placeholder.unparsed("error", error.message())));
+                    reply(sender, MessageKeys.RENAME_CAPTURE_RUNNING, "region", regionId);
+            case RenameRegionResult.Error error -> reply(sender, MessageKeys.RENAME_ERROR, "error", error.message());
         }
+    }
+
+    /** Sends a message that has one placeholder. */
+    private void reply(@NotNull CommandSender sender, @NotNull String key,
+                       @NotNull String placeholder, @NotNull String value) {
+        sender.sendMessage(messages.messageFor(key, Placeholder.unparsed(placeholder, value)));
     }
 
     /** Replies, tells other plugins, and tells the tenant. */
@@ -134,8 +128,7 @@ public record RenameCommand(
                 Placeholder.unparsed("old", renamed.oldName()),
                 Placeholder.unparsed("region", newId)));
         if (renamed.leftGroupedProfile()) {
-            sender.sendMessage(messages.messageFor(MessageKeys.RENAME_LEFT_GROUPED_PROFILE,
-                    Placeholder.unparsed("old", renamed.oldName())));
+            reply(sender, MessageKeys.RENAME_LEFT_GROUPED_PROFILE, "old", renamed.oldName());
         }
         events.fireSync(new RegionRenamedEvent(renamed.region(), actorId, renamed.oldName()));
         UUID tenantId = renamed.tenantId();

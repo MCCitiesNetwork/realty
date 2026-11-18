@@ -4,10 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.protection.flags.StringFlag;
-import com.sk89q.worldguard.protection.flags.registry.SimpleFlagRegistry;
 import com.sk89q.worldguard.protection.managers.RegionManager;
-import com.sk89q.worldguard.protection.managers.index.ChunkHashTable;
-import com.sk89q.worldguard.protection.managers.index.PriorityRTreeIndex;
 import com.sk89q.worldguard.protection.managers.storage.MemoryRegionDatabase;
 import com.sk89q.worldguard.protection.managers.storage.RegionDatabase;
 import com.sk89q.worldguard.protection.managers.storage.StorageException;
@@ -55,8 +52,7 @@ class WorldGuardRegionRenameTest {
     }
 
     private void useManager(RegionDatabase store) {
-        this.manager = new RegionManager(store,
-                new ChunkHashTable.Factory(new PriorityRTreeIndex.Factory()), new SimpleFlagRegistry());
+        this.manager = TestRegionManagers.storedIn(store);
         Mockito.when(this.regionContainer.get(Mockito.any())).thenReturn(this.manager);
     }
 

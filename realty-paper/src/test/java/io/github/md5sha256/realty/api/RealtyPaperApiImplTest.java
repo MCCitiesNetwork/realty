@@ -9,10 +9,6 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.internal.platform.WorldGuardPlatform;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.managers.RegionManager;
-import com.sk89q.worldguard.protection.flags.registry.SimpleFlagRegistry;
-import com.sk89q.worldguard.protection.managers.index.ChunkHashTable;
-import com.sk89q.worldguard.protection.managers.index.PriorityRTreeIndex;
-import com.sk89q.worldguard.protection.managers.storage.MemoryRegionDatabase;
 import com.sk89q.worldguard.protection.regions.GlobalProtectedRegion;
 import io.github.md5sha256.realty.schematic.CaptureCooldown;
 import io.github.md5sha256.realty.schematic.CaptureRegistry;
@@ -3207,8 +3203,7 @@ class RealtyPaperApiImplTest {
             ProtectedCuboidRegion parent = new ProtectedCuboidRegion(PARENT_ID,
                     BlockVector3.at(0, 0, 0), BlockVector3.at(200, 200, 200));
             protectedRegion.setParent(parent);
-            regionManager = new RegionManager(new MemoryRegionDatabase(),
-                    new ChunkHashTable.Factory(new PriorityRTreeIndex.Factory()), new SimpleFlagRegistry());
+            regionManager = TestRegionManagers.inMemory();
             regionManager.addRegion(parent);
             regionManager.addRegion(protectedRegion);
             lenient().when(regionContainer.get(any())).thenReturn(regionManager);
@@ -3226,6 +3221,16 @@ class RealtyPaperApiImplTest {
 
         private ProtectedCuboidRegion smallRegion(String id) {
             return new ProtectedCuboidRegion(id, BlockVector3.at(0, 0, 0), BlockVector3.at(1, 1, 1));
+        }
+
+        /** Someone makes a WorldGuard region with the new name while the database is written. */
+        private void nameTakenDuringTheDatabaseWrite(RealtyBackend.RenameRegionResult reversal) {
+            when(realtyApi.renameRegion(REGION_ID, NEW_NAME, WORLD_ID, AS_LANDLORD)).thenAnswer(invocation -> {
+                regionManager.addRegion(smallRegion(NEW_NAME));
+                return new RealtyBackend.RenameRegionResult.Success(null);
+            });
+            when(realtyApi.renameRegion(NEW_NAME, REGION_ID, WORLD_ID, ActorContext.console()))
+                    .thenReturn(reversal);
         }
 
         private void assertNothingRenamed() {
@@ -3366,12 +3371,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("a name taken in WorldGuard during the database write puts the old name back")
         void collisionAtTheSwapReversesTheDatabase() {
-            when(realtyApi.renameRegion(REGION_ID, NEW_NAME, WORLD_ID, AS_LANDLORD)).thenAnswer(invocation -> {
-                regionManager.addRegion(smallRegion(NEW_NAME));
-                return new RealtyBackend.RenameRegionResult.Success(null);
-            });
-            when(realtyApi.renameRegion(NEW_NAME, REGION_ID, WORLD_ID, ActorContext.console()))
-                    .thenReturn(new RealtyBackend.RenameRegionResult.Success(null));
+            nameTakenDuringTheDatabaseWrite(new RealtyBackend.RenameRegionResult.Success(null));
 
             Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.NameTaken.class,
                     rename(NEW_NAME, AS_LANDLORD));
@@ -3383,12 +3383,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("a reversal that fails is an error")
         void failedReversalIsAnError() {
-            when(realtyApi.renameRegion(REGION_ID, NEW_NAME, WORLD_ID, AS_LANDLORD)).thenAnswer(invocation -> {
-                regionManager.addRegion(smallRegion(NEW_NAME));
-                return new RealtyBackend.RenameRegionResult.Success(null);
-            });
-            when(realtyApi.renameRegion(NEW_NAME, REGION_ID, WORLD_ID, ActorContext.console()))
-                    .thenReturn(new RealtyBackend.RenameRegionResult.NameTaken());
+            nameTakenDuringTheDatabaseWrite(new RealtyBackend.RenameRegionResult.NameTaken());
 
             Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.Error.class,
                     rename(NEW_NAME, AS_LANDLORD));
