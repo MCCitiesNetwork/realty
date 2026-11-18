@@ -201,4 +201,49 @@ class SignCacheTest {
             Assertions.assertEquals(WORLD_B, signsWorldB.get(0).worldId());
         }
     }
+
+    @Nested
+    @DisplayName("renameRegion")
+    class RenameRegion {
+
+        @Test
+        @DisplayName("a renamed region keeps its signs under the new name")
+        void renamedRegionKeepsItsSigns() {
+            cache.put(WORLD_A, 10, 64, 20, 1, REGION_A, WORLD_A);
+            cache.put(WORLD_B, 11, 64, 20, 1, REGION_A, WORLD_A);
+
+            cache.renameRegion(REGION_A, "renamed", WORLD_A);
+
+            Assertions.assertEquals(2, cache.getSignsByRegion("renamed", WORLD_A).size());
+            Assertions.assertTrue(cache.getSignsByRegion(REGION_A, WORLD_A).isEmpty());
+            Assertions.assertEquals(new SignCache.SignCacheEntry(1, "renamed", WORLD_A),
+                    cache.get(WORLD_A, 10, 64, 20));
+            Assertions.assertEquals(new SignCache.SignCacheEntry(1, "renamed", WORLD_A),
+                    cache.get(WORLD_B, 11, 64, 20));
+        }
+
+        @Test
+        @DisplayName("a rename leaves other regions and other worlds alone")
+        void renameLeavesOtherRegionsAlone() {
+            cache.put(WORLD_A, 10, 64, 20, 2, REGION_B, WORLD_A);
+            cache.put(WORLD_A, 12, 64, 20, 3, REGION_A, WORLD_B);
+
+            cache.renameRegion(REGION_A, "renamed", WORLD_A);
+
+            Assertions.assertEquals(REGION_B, cache.get(WORLD_A, 10, 64, 20).worldGuardRegionId());
+            Assertions.assertEquals(REGION_A, cache.get(WORLD_A, 12, 64, 20).worldGuardRegionId());
+            Assertions.assertTrue(cache.getSignsByRegion("renamed", WORLD_A).isEmpty());
+        }
+
+        @Test
+        @DisplayName("a sign removed after the rename leaves the new name's index")
+        void removedSignLeavesTheNewIndex() {
+            cache.put(WORLD_A, 10, 64, 20, 1, REGION_A, WORLD_A);
+            cache.renameRegion(REGION_A, "renamed", WORLD_A);
+
+            cache.remove(WORLD_A, 10, 64, 20);
+
+            Assertions.assertTrue(cache.getSignsByRegion("renamed", WORLD_A).isEmpty());
+        }
+    }
 }

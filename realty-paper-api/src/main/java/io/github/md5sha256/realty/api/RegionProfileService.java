@@ -114,6 +114,14 @@ public class RegionProfileService {
     }
 
     /**
+     * @return whether a grouped flag or sign profile lists {@code regionName}
+     */
+    public boolean hasGroupedProfile(@NotNull String regionName) {
+        return this.groupedFlagProfiles.containsKey(regionName)
+                || this.groupedSignProfiles.containsKey(regionName);
+    }
+
+    /**
      * Clears all grouped flag profiles.
      */
     public void clearGroupedFlagProfiles() {
