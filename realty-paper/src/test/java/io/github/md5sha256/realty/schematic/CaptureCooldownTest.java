@@ -84,4 +84,26 @@ class CaptureCooldownTest {
 
         Assertions.assertEquals(Duration.ofMinutes(10), cooldown.remaining("plot_a", WORLD_ID, COOLDOWN));
     }
+
+    @Test
+    void aRenamedRegionKeepsItsCooldown() {
+        AtomicReference<Instant> now = new AtomicReference<>(Instant.parse("2026-09-04T12:00:00Z"));
+        CaptureCooldown cooldown = new CaptureCooldown(now::get);
+        cooldown.record("plot_a", WORLD_ID);
+
+        cooldown.rename("plot_a", "plot_b", WORLD_ID);
+        now.set(Instant.parse("2026-09-04T12:04:00Z"));
+
+        Assertions.assertEquals(Duration.ofMinutes(6), cooldown.remaining("plot_b", WORLD_ID, COOLDOWN));
+        Assertions.assertNull(cooldown.remaining("plot_a", WORLD_ID, COOLDOWN));
+    }
+
+    @Test
+    void renamingARegionNeverCapturedSetsNoCooldown() {
+        CaptureCooldown cooldown = new CaptureCooldown(Instant::now);
+
+        cooldown.rename("plot_a", "plot_b", WORLD_ID);
+
+        Assertions.assertNull(cooldown.remaining("plot_b", WORLD_ID, COOLDOWN));
+    }
 }
