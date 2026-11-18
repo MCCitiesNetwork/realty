@@ -274,3 +274,15 @@ public record RenameCommand(@NotNull RealtyPaperApi api, @NotNull ActorContexts 
 - [ ] Commit `feat(command): /realty rename`.
 
 There is no `CLAUDE.md` in this repository to update. The API additions are a minor version; this stack does not change the version, which is set when the release is cut.
+
+## Notes from the build
+
+Changes made while executing this plan, recorded here so the plan matches the code:
+
+- Task 1 adds `renamingOntoATakenNameFailsOnTheUniqueKey`. It pins the exception the rename reads as "name taken" when another transaction takes the name after the read.
+- Task 2: `SignCacheTest` is in `realty-paper-api/src/test`, not `realty-paper`. The grouped profile lookup has its own `GroupedProfileLookupTest` there, because `SignProfileNamesTest` is about names in sign text. The two events have a `RegionRenameEventsTest`.
+- Task 3 adds `aFailedSaveStillRenamesAndReportsTheError`, with a region store that refuses to save.
+- Task 4 does not call `regionProfileService.applyFlags` after the swap. That method clears every flag before it sets the profile's, so it would remove the hand-set flags the copy had just carried over. Only the signs are redrawn. The spec's Step 4 and Known limitations record this.
+- Task 4 redraws signs in `region.world()`; it does not look the world up through the server.
+- Task 5 puts `notification.region-renamed` in the adapter's leases category with the title "Rented region renamed".
+- `./gradlew build` on the development machine fails two `StaticSiteTest` cases in `realty-rest` with and without this work, and the web explorer's `npmTest` fails in some full builds and passes when run alone. Neither is touched by the rename.

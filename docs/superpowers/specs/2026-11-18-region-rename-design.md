@@ -89,7 +89,7 @@ RenameCommand.execute                                main thread
           └─ on Success:                               main thread
                swap the WorldGuard region and save
                move sign cache and capture cooldown entries
-               re-apply the flag profile, redraw loaded signs
+               redraw loaded signs
   fire RegionRenamedEvent, send the result message, notify the tenant
 ```
 
@@ -160,11 +160,18 @@ fires the renamed event.
   from the database by region id.
 - `CaptureCooldown.rename(oldName, newName, worldId)` (new method) moves the
   cooldown entry. Why: otherwise a rename would reset the capture cooldown.
-- `regionProfileService.applyFlags(newRegion, state, placeholders)` and
-  `signTextApplicator.updateLoadedSigns(world, newName, state, placeholders)`,
+- `signTextApplicator.updateLoadedSigns(world, newName, state, placeholders)`,
   with the state and placeholders from `getRegionWithState(newName, worldId)`.
-  This is what redraws the name on signs. A grouped profile that lists the new
-  name now applies; one that listed the old name no longer does.
+  This is what redraws the name on signs.
+
+The flag profile is not applied again. Why: `applyFlags` first clears every
+flag on the region and then sets the profile's flags, so it would remove any
+flag set by hand that the copy has just carried over. The flags therefore stay
+exactly as they were. The cost is that a profile flag whose text includes the
+region's name (a greeting, say) shows the old name until the region next
+changes state or the configuration is reloaded, when the profile is applied as
+usual. For the same reason a grouped profile that lists the new name starts to
+apply then, and one that listed the old name stops applying then.
 
 ## Backend
 
@@ -230,8 +237,8 @@ It follows `deleteVacantLeasehold`. In one non-autocommit session:
 6. Commit.
 
 New mapper methods: `RealtyRegionMapper.renameGuarded`, a `renameRegion` on each
-of the three history mappers, and `RegionTagMapper.moveToRegion` and
-`deleteByRegion` (if no equivalent delete exists). Each has the neutral
+of the three history mappers, and `RegionTagMapper.moveToRegion`. The
+leftover tag rows are removed with the existing `deleteByRegionId`. Each has the neutral
 declaration and the `Maria…` statement, as the other mappers do.
 
 No migration. No table or column changes; the history rows are moved by the
@@ -277,9 +284,9 @@ sealed interface RenameRegionResult {
 
 `NoRegion` from the backend becomes `NotRegistered`.
 
-`RealtyPaperApiImpl` gains two constructor parameters: `WorldGuardRegionRename`
-and `CaptureRegistry`. Both are passed in from `Realty`, where
-`WorldGuardRegionRemoval` and the registry are built today.
+`RealtyPaperApiImpl` gains three constructor parameters: `WorldGuardRegionRename`,
+`CaptureRegistry` and `CaptureCooldown`. All are passed in from `Realty`, which
+now holds one `CaptureCooldown` shared with the schematic command.
 
 Two small additions to classes in `realty-paper-api`, both additive:
 
@@ -420,6 +427,9 @@ explorer shows the region at the new address.
   region falls back to the global profile until an operator edits the
   configuration. The reply warns about this. Realty does not rewrite the
   operator's file.
+- **Flag text keeps the old name for a while.** The rename does not apply the
+  flag profile again (see Step 4), so a profile flag that includes the region's
+  name shows the old one until the next state change or reload.
 - **Tags have no world column.** `RegionTag` is keyed by name only. If two
   worlds each have a region with the old name, the rename moves the tags of
   both. Tags already behave this way: the two regions share their tags today.
