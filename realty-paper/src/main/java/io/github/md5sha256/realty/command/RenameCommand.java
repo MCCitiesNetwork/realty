@@ -6,8 +6,6 @@ import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.RealtyPaperApi.RenameRegionResult;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
-import io.github.md5sha256.realty.api.event.RegionRenameEvent;
-import io.github.md5sha256.realty.api.event.RegionRenamedEvent;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionParser;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
@@ -32,7 +30,8 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>{@code realty.command.rename} lets a player rename a subregion whose landlord they manage.
  * {@code realty.command.rename.others} lets them rename any other registered region. The console
- * may rename any registered region.</p>
+ * may rename any registered region. The API fires the rename events; this command replies and
+ * notifies the tenant.</p>
  */
 public record RenameCommand(
         @NotNull RealtyPaperApi api,
@@ -60,12 +59,8 @@ public record RenameCommand(
         CommandSender sender = ctx.sender().source();
         WorldGuardRegion region = ctx.get("region");
         String newName = ctx.get("name");
-        // The console has no player id; the events then carry no actor.
+        // The console has no player id.
         UUID actorId = sender instanceof Player player ? player.getUniqueId() : null;
-        if (!events.fireSync(new RegionRenameEvent(region, actorId, newName))) {
-            sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
-            return;
-        }
         actorFor(sender, region)
                 .thenComposeAsync(actor -> api.renameRegion(region, newName, actor), executorState.mainThreadExec())
                 .thenAcceptAsync(result -> report(sender, actorId, region, newName, result),
@@ -102,6 +97,8 @@ public record RenameCommand(
                     reply(sender, MessageKeys.RENAME_INVALID_NAME, "name", newName);
             case RenameRegionResult.SameName ignored -> reply(sender, MessageKeys.RENAME_SAME_NAME, "region", regionId);
             case RenameRegionResult.NameTaken ignored -> reply(sender, MessageKeys.RENAME_NAME_TAKEN, "name", newName);
+            case RenameRegionResult.Cancelled ignored ->
+                    sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
             case RenameRegionResult.NotRegistered ignored ->
                     reply(sender, MessageKeys.RENAME_NOT_REGISTERED, "region", regionId);
             case RenameRegionResult.NotAuthorized ignored ->
@@ -120,7 +117,7 @@ public record RenameCommand(
         sender.sendMessage(messages.messageFor(key, Placeholder.unparsed(placeholder, value)));
     }
 
-    /** Replies, tells other plugins, and tells the tenant. */
+    /** Replies and tells the tenant. The API has already told other plugins. */
     private void reportRenamed(@NotNull CommandSender sender, @Nullable UUID actorId,
                                @NotNull RenameRegionResult.Renamed renamed) {
         String newId = renamed.region().region().getId();
@@ -130,15 +127,13 @@ public record RenameCommand(
         if (renamed.leftGroupedProfile()) {
             reply(sender, MessageKeys.RENAME_LEFT_GROUPED_PROFILE, "old", renamed.oldName());
         }
-        events.fireSync(new RegionRenamedEvent(renamed.region(), actorId, renamed.oldName()));
-        UUID tenantId = renamed.tenantId();
-        if (tenantId != null && !tenantId.equals(actorId)) {
+        // A tenant who renamed the region themself needs no notice.
+        renamed.tenantId().filter(tenantId -> !tenantId.equals(actorId)).ifPresent(tenantId ->
             events.fireSync(new RealtyNotificationEvent(List.of(tenantId),
                     MessageKeys.NOTIFICATION_REGION_RENAMED,
                     messages.messageFor(MessageKeys.NOTIFICATION_REGION_RENAMED,
                             Placeholder.unparsed("old", renamed.oldName()),
                             Placeholder.unparsed("region", newId)),
-                    renamed.region()));
-        }
+                    renamed.region())));
     }
 }

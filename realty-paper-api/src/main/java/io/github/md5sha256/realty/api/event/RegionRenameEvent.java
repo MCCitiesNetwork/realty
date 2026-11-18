@@ -6,10 +6,14 @@ import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Called before a region is renamed. The region still has its current name.
+ * Called before a region is renamed, once the new name is known to be valid and free in
+ * WorldGuard. The region still has its current name. The rename can still be refused afterwards,
+ * for example when the actor does not manage the landlord; {@link RegionRenamedEvent} is what
+ * says it happened.
  */
 public class RegionRenameEvent extends RealtyRegionEvent implements Cancellable {
 
@@ -26,14 +30,15 @@ public class RegionRenameEvent extends RealtyRegionEvent implements Cancellable 
     }
 
     /**
-     * The player renaming the region, or {@code null} when the console does.
+     * The player renaming the region; empty when the console does.
      */
-    public @Nullable UUID getActorId() {
-        return this.actorId;
+    public @NotNull Optional<UUID> getActorId() {
+        return Optional.ofNullable(this.actorId);
     }
 
     /**
-     * The name the region is to get, as the actor typed it.
+     * The name the region is to get. Region names are lower case, so this is the lower-cased form
+     * of what the actor typed.
      */
     public @NotNull String getNewName() {
         return this.newName;

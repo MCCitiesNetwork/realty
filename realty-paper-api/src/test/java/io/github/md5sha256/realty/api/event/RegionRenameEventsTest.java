@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
 import java.util.UUID;
 
 class RegionRenameEventsTest {
@@ -16,7 +17,7 @@ class RegionRenameEventsTest {
         RegionRenameEvent event = new RegionRenameEvent(REGION, ACTOR, "new-name");
 
         Assertions.assertSame(REGION, event.getRegion());
-        Assertions.assertEquals(ACTOR, event.getActorId());
+        Assertions.assertEquals(Optional.of(ACTOR), event.getActorId());
         Assertions.assertEquals("new-name", event.getNewName());
         Assertions.assertFalse(event.isCancelled());
         event.setCancelled(true);
@@ -28,13 +29,13 @@ class RegionRenameEventsTest {
         RegionRenamedEvent event = new RegionRenamedEvent(REGION, ACTOR, "old-name");
 
         Assertions.assertSame(REGION, event.getRegion());
-        Assertions.assertEquals(ACTOR, event.getActorId());
+        Assertions.assertEquals(Optional.of(ACTOR), event.getActorId());
         Assertions.assertEquals("old-name", event.getOldName());
     }
 
     @Test
     void aConsoleRenameHasNoActor() {
-        Assertions.assertNull(new RegionRenameEvent(REGION, null, "new-name").getActorId());
-        Assertions.assertNull(new RegionRenamedEvent(REGION, null, "old-name").getActorId());
+        Assertions.assertEquals(Optional.empty(), new RegionRenameEvent(REGION, null, "new-name").getActorId());
+        Assertions.assertEquals(Optional.empty(), new RegionRenamedEvent(REGION, null, "old-name").getActorId());
     }
 }

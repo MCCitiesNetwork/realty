@@ -5,6 +5,7 @@ import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -26,10 +27,10 @@ public class RegionRenamedEvent extends RealtyRegionEvent {
     }
 
     /**
-     * The player who renamed the region, or {@code null} when the console did.
+     * The player who renamed the region; empty when the console did.
      */
-    public @Nullable UUID getActorId() {
-        return this.actorId;
+    public @NotNull Optional<UUID> getActorId() {
+        return Optional.ofNullable(this.actorId);
     }
 
     /**

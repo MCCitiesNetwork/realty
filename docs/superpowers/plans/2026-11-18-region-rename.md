@@ -286,3 +286,5 @@ Changes made while executing this plan, recorded here so the plan matches the co
 - Task 4 redraws signs in `region.world()`; it does not look the world up through the server.
 - Task 5 puts `notification.region-renamed` in the adapter's leases category with the title "Rented region renamed".
 - `./gradlew build` on the development machine fails two `StaticSiteTest` cases in `realty-rest` with and without this work, and the web explorer's `npmTest` fails in some full builds and passes when run alone. Neither is touched by the rename.
+- After the plan, a simplify pass put the region name rule in `WorldGuardRegion.isValidName` and removed duplication.
+- After review, two further changes were made; the spec's "Changes after review" section describes them. One keys region tags by world (migration V24). The other moves the subregion check into the rename statement, has the API fire the rename events after its checks, and replaces nullable return types with `Optional` and a separate save-failed outcome.

@@ -92,7 +92,6 @@ class WorldGuardRegionRenameTest {
         Assertions.assertNotNull(copy);
         Assertions.assertSame(copy, outcome.region().region());
         Assertions.assertSame(this.world, outcome.region().world());
-        Assertions.assertNull(outcome.saveError());
         Assertions.assertInstanceOf(ProtectedCuboidRegion.class, copy);
         Assertions.assertEquals(old.getMinimumPoint(), copy.getMinimumPoint());
         Assertions.assertEquals(old.getMaximumPoint(), copy.getMaximumPoint());
@@ -154,9 +153,12 @@ class WorldGuardRegionRenameTest {
         Mockito.doThrow(new StorageException("disk full")).when(failing).saveChanges(Mockito.any());
         useManager(failing);
 
-        WorldGuardRegionRename.Outcome.Renamed outcome = renamed(added(cuboid(OLD_ID)));
+        WorldGuardRegionRename.Outcome.RenamedSaveFailed outcome = Assertions.assertInstanceOf(
+                WorldGuardRegionRename.Outcome.RenamedSaveFailed.class,
+                this.rename.rename(added(cuboid(OLD_ID)), NEW_ID));
 
-        Assertions.assertEquals("disk full", outcome.saveError());
+        Assertions.assertEquals("disk full", outcome.error());
+        Assertions.assertSame(this.manager.getRegion(NEW_ID), outcome.region().region());
         Assertions.assertTrue(this.manager.hasRegion(NEW_ID));
         Assertions.assertFalse(this.manager.hasRegion(OLD_ID));
     }

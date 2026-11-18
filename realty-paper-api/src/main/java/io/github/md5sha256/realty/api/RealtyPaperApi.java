@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
@@ -515,7 +516,7 @@ public interface RealtyPaperApi {
          *                           name, and so no longer applies to the region
          */
         record Renamed(@NotNull WorldGuardRegion region, @NotNull String oldName,
-                       @Nullable UUID tenantId, boolean leftGroupedProfile) implements RenameRegionResult {}
+                       @NotNull Optional<UUID> tenantId, boolean leftGroupedProfile) implements RenameRegionResult {}
         /** Renamed, but WorldGuard could not save. It holds the change and writes it on its next save. */
         record WorldGuardSaveError(@NotNull Renamed renamed, @NotNull String error)
                 implements RenameRegionResult {}
@@ -523,6 +524,8 @@ public interface RealtyPaperApi {
         record InvalidName() implements RenameRegionResult {}
         record SameName() implements RenameRegionResult {}
         record NameTaken() implements RenameRegionResult {}
+        /** A listener cancelled the {@code RegionRenameEvent}. */
+        record Cancelled() implements RenameRegionResult {}
         /** The region is not registered with Realty. */
         record NotRegistered() implements RenameRegionResult {}
         record NotAuthorized() implements RenameRegionResult {}
@@ -538,9 +541,18 @@ public interface RealtyPaperApi {
      * signs, schematic and fees, and the WorldGuard region's shape, owners, members, flags,
      * priority, parent and children. Region names are lower case, so {@code newName} is
      * lower-cased. Without a bypass, the region must be a subregion (a leasehold whose WorldGuard
-     * parent is a registered freehold) whose landlord the actor manages. Fires no event; a caller
-     * that renames for a player fires {@code RegionRenameEvent} and {@code RegionRenamedEvent}.
-     * Call it on the main thread.
+     * parent is a registered freehold) whose landlord the actor manages.
+     *
+     * <p>Once the name is known to be valid, different and free in WorldGuard, it fires a
+     * cancellable {@code RegionRenameEvent} with the lower-cased name. After the rename it fires
+     * {@code RegionRenamedEvent}. The actor of both is {@code ctx}'s player.</p>
+     *
+     * <p>The database is renamed first, then WorldGuard. If a WorldGuard region with the new name
+     * appeared in between, the database rename is reversed and the result is {@code NameTaken}.
+     * The reversal puts back the region's name, history and tags. It cannot separate history that
+     * a region deleted earlier left under the new name: that history ends up under the old name.</p>
+     *
+     * <p>Call it on the main thread.</p>
      */
     @NotNull CompletableFuture<RenameRegionResult> renameRegion(@NotNull WorldGuardRegion region,
                                                                 @NotNull String newName,

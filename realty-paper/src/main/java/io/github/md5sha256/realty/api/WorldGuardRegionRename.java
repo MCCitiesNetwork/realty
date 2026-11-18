@@ -8,7 +8,6 @@ import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.logging.Level;
@@ -31,13 +30,15 @@ public final class WorldGuardRegionRename {
 
     public sealed interface Outcome {
 
+        /** {@code region} is the copy that replaced the region. */
+        record Renamed(@NotNull WorldGuardRegion region) implements Outcome {
+        }
+
         /**
-         * @param region    the copy that replaced the region
-         * @param saveError the WorldGuard save error, if the save failed. The rename still stands:
-         *                  the region manager holds the copy and WorldGuard writes it on its next
-         *                  save.
+         * Renamed, but WorldGuard could not save. The rename still stands: the region manager
+         * holds the copy and WorldGuard writes it on its next save.
          */
-        record Renamed(@NotNull WorldGuardRegion region, @Nullable String saveError) implements Outcome {
+        record RenamedSaveFailed(@NotNull WorldGuardRegion region, @NotNull String error) implements Outcome {
         }
 
         /** A region with the new id exists, or the world has no region manager. Nothing changed. */
@@ -93,9 +94,9 @@ public final class WorldGuardRegionRename {
         } catch (StorageException ex) {
             this.logger.log(Level.WARNING, "Could not save the rename of WorldGuard region "
                     + old.getId() + " to " + newId, ex);
-            return new Outcome.Renamed(renamed, String.valueOf(ex.getMessage()));
+            return new Outcome.RenamedSaveFailed(renamed, String.valueOf(ex.getMessage()));
         }
-        return new Outcome.Renamed(renamed, null);
+        return new Outcome.Renamed(renamed);
     }
 
     private static @NotNull ProtectedRegion sameShape(@NotNull ProtectedRegion old, @NotNull String newId) {

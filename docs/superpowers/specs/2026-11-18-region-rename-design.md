@@ -1,7 +1,9 @@
 # Region Rename — Design
 
 Date: 2026-11-18
-Status: Draft, awaiting review
+Status: Built. Review of the pull requests changed five points; they are listed
+under "Changes after review" at the end, and where that section and an earlier
+one differ, that section is what the code does.
 
 Builds on `2026-10-05-set-command-authority-design.md` (the authority rule and
 the conditional-write pattern) and `2026-11-13-landlord-subregion-delete-design.md`
@@ -430,9 +432,6 @@ explorer shows the region at the new address.
 - **Flag text keeps the old name for a while.** The rename does not apply the
   flag profile again (see Step 4), so a profile flag that includes the region's
   name shows the old one until the next state change or reload.
-- **Tags have no world column.** `RegionTag` is keyed by name only. If two
-  worlds each have a region with the old name, the rename moves the tags of
-  both. Tags already behave this way: the two regions share their tags today.
 - **A reused name inherits history.** History rows are keyed by name and
   survive a delete. If the new name belonged to a region deleted earlier, its
   rows appear under the renamed region. The subregion delete has the same
@@ -449,5 +448,42 @@ explorer shows the region at the new address.
 - **Other WorldGuard region types.** A region that is neither a cuboid nor a
   polygon is refused. Realty never creates one.
 - **Other plugins.** A plugin that stores region names must listen for
-  `RegionRenamedEvent`. A rename made through the API without the command
-  fires no event.
+  `RegionRenamedEvent`.
+
+## Changes after review
+
+1. **Tags are keyed by world.** Migration `V24__region_tag_world.sql` adds
+   `worldId` to `RegionTag` and makes the key `(tagId, worldGuardRegionId,
+   worldId)`. Each existing tag row becomes one row per registered region with
+   that name. A tag on a name that no registered region has is dropped: a region
+   delete left it behind, or the region was never registered, and no world can
+   be given to it. Every tag query now takes or joins on the world. The
+   name-only `getTagIdsByRegion(String)` on `RealtyBackend` and `RealtyPaperApi`
+   stays for other plugins, is deprecated, and answers across worlds. Why: with
+   a name-only key, a rename in one world moved the tags of a same-named region
+   in another, and renaming onto a name used in another world merged the two
+   regions' tags.
+2. **The rename moves tags exactly.** No region in the world has the new name,
+   so any tag rows under it were left by a region delete. The rename removes
+   them, then moves the region's tags with a plain `UPDATE`. Renaming back
+   therefore restores exactly the tags that moved, which the reversal in Step 3
+   relies on. History is different: rows a deleted region left under the new
+   name stay, and a reversal moves them to the old name with the region's own.
+3. **The subregion check is part of the rename statement.** The backend has two
+   methods. `renameRegion` renames any region and needs a bypass.
+   `renameSubregion` also takes the name of the region's WorldGuard parent, and
+   its `UPDATE` requires both that the lease names the landlord and that the
+   parent is a registered freehold. The paper layer no longer reads the parent's
+   freehold contract itself.
+4. **The API fires the events, after its checks.** `RealtyPaperApi.renameRegion`
+   fires `RegionRenameEvent` once the name is valid, different, free in
+   WorldGuard and the other main-thread checks have passed, and it carries the
+   lower-cased name. A cancelled event gives the new result `Cancelled`. It
+   fires `RegionRenamedEvent` after the swap. The command fires neither, so a
+   plugin that calls the API gets the same events. A listener can still see a
+   rename that the database then refuses (the actor does not manage the
+   landlord), because that check needs the database.
+5. **No nullable return types on the public surface.** The tenant in both
+   `Success` and `Renamed` and the actor on both events are `Optional<UUID>`. A
+   WorldGuard save that fails is its own `WorldGuardRegionRename.Outcome`,
+   `RenamedSaveFailed`, in place of a nullable error on `Renamed`.

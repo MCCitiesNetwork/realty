@@ -5,6 +5,7 @@ import io.github.md5sha256.realty.api.FeeSide;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend.RenameRegionResult;
 import io.github.md5sha256.realty.database.entity.SaleFeeEntity;
+import io.github.md5sha256.realty.database.mapper.RealtyRegionMapper;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,6 +50,15 @@ class RegionRenameTest extends AbstractDatabaseTest {
         String regionId = freshName();
         Assertions.assertTrue(logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, Party.personal(LANDLORD)));
         return regionId;
+    }
+
+    /** A registered freehold for a subregion to sit in. The backend is told which region is the parent. */
+    private static String parentFreehold() {
+        return freehold();
+    }
+
+    private static RenameRegionResult renameSubregion(String oldName, String newName, ActorContext ctx) {
+        return logic.renameSubregion(oldName, newName, WORLD_ID, parentFreehold(), ctx);
     }
 
     private static String freehold() {
@@ -113,39 +124,59 @@ class RegionRenameTest extends AbstractDatabaseTest {
     // --- Who may rename ---
 
     @Test
-    void landlordManagerRenamesALeasehold() {
+    void landlordManagerRenamesASubregion() {
         String oldName = vacantLease();
         String newName = freshName();
 
-        RenameRegionResult result = logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
+        RenameRegionResult result = renameSubregion(oldName, newName, AS_LANDLORD);
 
-        Assertions.assertEquals(new RenameRegionResult.Success(null), result);
+        Assertions.assertEquals(new RenameRegionResult.Success(Optional.empty()), result);
         Assertions.assertNotNull(logic.getLeaseholdContract(newName, WORLD_ID));
         Assertions.assertNull(logic.getLeaseholdContract(oldName, WORLD_ID));
     }
 
     @Test
-    void rentedLeaseholdReportsItsTenant() {
+    void rentedSubregionReportsItsTenant() {
         String oldName = vacantLease();
         logic.rentRegion(oldName, WORLD_ID, TENANT);
 
-        RenameRegionResult result = logic.renameRegion(oldName, freshName(), WORLD_ID, AS_LANDLORD);
+        RenameRegionResult result = renameSubregion(oldName, freshName(), AS_LANDLORD);
 
-        Assertions.assertEquals(new RenameRegionResult.Success(TENANT), result);
+        Assertions.assertEquals(new RenameRegionResult.Success(Optional.of(TENANT)), result);
     }
 
     @Test
     void nonManagerIsRefused() {
         String oldName = vacantLease();
 
-        RenameRegionResult result = logic.renameRegion(oldName, freshName(), WORLD_ID, AS_STRANGER);
+        RenameRegionResult result = renameSubregion(oldName, freshName(), AS_STRANGER);
 
         Assertions.assertInstanceOf(RenameRegionResult.NotAuthorized.class, result);
         Assertions.assertNotNull(logic.getLeaseholdContract(oldName, WORLD_ID));
     }
 
     @Test
-    void freeholdNeedsTheBypass() {
+    void aParentThatIsNotARegisteredFreeholdIsRefused() {
+        String oldName = vacantLease();
+        String leaseholdParent = vacantLease();
+
+        Assertions.assertInstanceOf(RenameRegionResult.NotAuthorized.class,
+                logic.renameSubregion(oldName, freshName(), WORLD_ID, leaseholdParent, AS_LANDLORD));
+        Assertions.assertInstanceOf(RenameRegionResult.NotAuthorized.class,
+                logic.renameSubregion(oldName, freshName(), WORLD_ID, "no-such-region", AS_LANDLORD));
+        Assertions.assertNotNull(logic.getLeaseholdContract(oldName, WORLD_ID));
+    }
+
+    @Test
+    void aFreeholdIsNotASubregion() {
+        String oldName = freehold();
+
+        Assertions.assertInstanceOf(RenameRegionResult.NotAuthorized.class,
+                renameSubregion(oldName, freshName(), AS_LANDLORD));
+    }
+
+    @Test
+    void renamingAnyRegionNeedsTheBypass() {
         String oldName = freehold();
         String newName = freshName();
 
@@ -170,15 +201,20 @@ class RegionRenameTest extends AbstractDatabaseTest {
                 logic.renameRegion(freshName(), freshName(), WORLD_ID, AS_STAFF));
     }
 
+    /** Both conditions hold in the statement, so a change committed after the read renames nothing. */
     @Test
-    void landlordChangedAfterTheReadRenamesNothing() {
+    void theLandlordAndTheParentAreCheckedByTheRenameItself() {
         String oldName = vacantLease();
+        String parent = parentFreehold();
+        String leaseholdParent = vacantLease();
         try (SqlSessionWrapper wrapper = database.openSession()) {
+            int landlord = landlordPartyId(wrapper);
             int notTheLandlord = wrapper.partyMapper().findOrInsert(Party.personal(STRANGER));
+            RealtyRegionMapper mapper = wrapper.realtyRegionMapper();
 
-            int renamed = wrapper.realtyRegionMapper().renameGuarded(oldName, freshName(), WORLD_ID, notTheLandlord);
-
-            Assertions.assertEquals(0, renamed);
+            Assertions.assertEquals(0, mapper.renameGuarded(oldName, freshName(), WORLD_ID, notTheLandlord, parent));
+            Assertions.assertEquals(0, mapper.renameGuarded(oldName, freshName(), WORLD_ID, landlord, leaseholdParent));
+            Assertions.assertEquals(1, mapper.renameGuarded(oldName, freshName(), WORLD_ID, landlord, parent));
         }
     }
 
@@ -189,7 +225,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         String oldName = vacantLease();
         String taken = vacantLease();
 
-        RenameRegionResult result = logic.renameRegion(oldName, taken, WORLD_ID, AS_LANDLORD);
+        RenameRegionResult result = logic.renameRegion(oldName, taken, WORLD_ID, AS_STAFF);
 
         Assertions.assertInstanceOf(RenameRegionResult.NameTaken.class, result);
         Assertions.assertNotNull(logic.getLeaseholdContract(oldName, WORLD_ID));
@@ -203,7 +239,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         String taken = vacantLease();
         try (SqlSessionWrapper wrapper = database.openSession()) {
             PersistenceException failure = Assertions.assertThrows(PersistenceException.class,
-                    () -> wrapper.realtyRegionMapper().renameGuarded(oldName, taken, WORLD_ID, null));
+                    () -> wrapper.realtyRegionMapper().renameGuarded(oldName, taken, WORLD_ID, null, null));
 
             Assertions.assertInstanceOf(SQLIntegrityConstraintViolationException.class, failure.getCause());
         }
@@ -216,7 +252,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         Assertions.assertTrue(logic.createLeasehold(newName, OTHER_WORLD_ID, 200.0, 3600, 5, Party.personal(LANDLORD)));
 
         Assertions.assertInstanceOf(RenameRegionResult.Success.class,
-                logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD));
+                logic.renameRegion(oldName, newName, WORLD_ID, AS_STAFF));
     }
 
     // --- What moves with the region ---
@@ -227,7 +263,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         String newName = freshName();
         writeHistory(oldName, WORLD_ID);
 
-        logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
+        logic.renameRegion(oldName, newName, WORLD_ID, AS_STAFF);
 
         Assertions.assertEquals(3, historyRows(newName, WORLD_ID));
         Assertions.assertEquals(0, historyRows(oldName, WORLD_ID));
@@ -238,7 +274,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         String oldName = vacantLease();
         writeHistory(oldName, OTHER_WORLD_ID);
 
-        logic.renameRegion(oldName, freshName(), WORLD_ID, AS_LANDLORD);
+        logic.renameRegion(oldName, freshName(), WORLD_ID, AS_STAFF);
 
         Assertions.assertEquals(3, historyRows(oldName, OTHER_WORLD_ID));
     }
@@ -250,7 +286,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         tag("commercial", oldName);
         tag("waterfront", oldName);
 
-        logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
+        logic.renameRegion(oldName, newName, WORLD_ID, AS_STAFF);
 
         Assertions.assertEquals(List.of("commercial", "waterfront"), tags(newName));
         Assertions.assertEquals(List.of(), tags(oldName));
@@ -264,7 +300,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         tag("island", oldName, OTHER_WORLD_ID);
         tag("harbour", newName, OTHER_WORLD_ID);
 
-        logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
+        logic.renameRegion(oldName, newName, WORLD_ID, AS_STAFF);
 
         Assertions.assertEquals(List.of("commercial"), tags(newName));
         Assertions.assertEquals(List.of("island"), tags(oldName, OTHER_WORLD_ID));
@@ -280,7 +316,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         tag("shop", newName);
         tag("stale", newName);
 
-        logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
+        logic.renameRegion(oldName, newName, WORLD_ID, AS_STAFF);
 
         Assertions.assertEquals(List.of("shop"), tags(newName));
         Assertions.assertEquals(List.of(), tags(oldName));
@@ -294,7 +330,7 @@ class RegionRenameTest extends AbstractDatabaseTest {
         tag("waterfront", oldName);
         tag("stale", newName);
 
-        logic.renameRegion(oldName, newName, WORLD_ID, AS_LANDLORD);
+        logic.renameRegion(oldName, newName, WORLD_ID, AS_STAFF);
         logic.renameRegion(newName, oldName, WORLD_ID, ActorContext.console());
 
         Assertions.assertEquals(List.of("commercial", "waterfront"), tags(oldName));

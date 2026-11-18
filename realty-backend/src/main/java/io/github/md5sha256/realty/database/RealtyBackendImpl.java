@@ -80,6 +80,7 @@ import java.util.Locale;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
@@ -1856,6 +1857,30 @@ public class RealtyBackendImpl implements RealtyBackend {
                                                     @NotNull String newWorldGuardRegionId,
                                                     @NotNull UUID worldId,
                                                     @NotNull ActorContext ctx) {
+        if (!ctx.bypass()) {
+            return new RenameRegionResult.NotAuthorized();
+        }
+        return rename(worldGuardRegionId, newWorldGuardRegionId, worldId, null, ctx);
+    }
+
+    @Override
+    public @NotNull RenameRegionResult renameSubregion(@NotNull String worldGuardRegionId,
+                                                       @NotNull String newWorldGuardRegionId,
+                                                       @NotNull UUID worldId,
+                                                       @NotNull String parentWorldGuardRegionId,
+                                                       @NotNull ActorContext ctx) {
+        return rename(worldGuardRegionId, newWorldGuardRegionId, worldId, parentWorldGuardRegionId, ctx);
+    }
+
+    /**
+     * @param subregionParentId the region's WorldGuard parent when it is renamed as a subregion;
+     *                          {@code null} when any region may be renamed, which needs a bypass
+     */
+    private @NotNull RenameRegionResult rename(@NotNull String worldGuardRegionId,
+                                               @NotNull String newWorldGuardRegionId,
+                                               @NotNull UUID worldId,
+                                               @Nullable String subregionParentId,
+                                               @NotNull ActorContext ctx) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             RealtyRegionMapper regionMapper = wrapper.realtyRegionMapper();
             if (regionMapper.selectByWorldGuardRegion(worldGuardRegionId, worldId) == null) {
@@ -1870,12 +1895,13 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new RenameRegionResult.NotAuthorized();
             }
             Integer requiredLandlordPartyId = ctx.bypass() ? null : namedPartyId(wrapper, lease.landlord());
+            String requiredFreeholdParentId = ctx.bypass() ? null : subregionParentId;
             endRead(wrapper);
             int renamed;
             try {
-                // The landlord check holds here, in the statement, and not in the read above.
+                // The landlord and the parent are checked here, in the statement, not in the read above.
                 renamed = regionMapper.renameGuarded(worldGuardRegionId, newWorldGuardRegionId, worldId,
-                        requiredLandlordPartyId);
+                        requiredLandlordPartyId, requiredFreeholdParentId);
             } catch (PersistenceException ex) {
                 if (ex.getCause() instanceof SQLIntegrityConstraintViolationException) {
                     // Another transaction took the name after the read.
@@ -1897,7 +1923,7 @@ public class RealtyBackendImpl implements RealtyBackend {
             tagMapper.deleteByRegionId(newWorldGuardRegionId, worldId);
             tagMapper.moveToRegion(worldGuardRegionId, newWorldGuardRegionId, worldId);
             wrapper.session().commit();
-            return new RenameRegionResult.Success(lease == null ? null : lease.tenantId());
+            return new RenameRegionResult.Success(Optional.ofNullable(lease).map(LeaseholdContractEntity::tenantId));
         }
     }
 
