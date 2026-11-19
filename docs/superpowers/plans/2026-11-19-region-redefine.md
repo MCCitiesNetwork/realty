@@ -325,3 +325,11 @@ No code. On a test server with this build, WorldGuard, WorldEdit and a landlord 
 8. `/realty redefine` with no WorldEdit selection: `redefine.no-selection`.
 
 Record the results in the stack's last PR description.
+
+## Notes from the build
+
+- `Redefined` names the player to tell `occupantId`, not `notify` as the spec has it: a record component may not be called `notify`, because `Object.notify()` exists.
+- `RealtyPaperApiImplTest` builds `RealtyPaperApiImpl` in four places, not five.
+- The message tests load `messages.yml` through a new test helper, `ShippedMessages`, instead of copying the loader again.
+- Added after Task 4 (its own commit on the API layer): the database step runs in the region's queue, so a redefine waiting behind another one on the same region would still hold the region object the first one replaced, and would leave the children pointing at a region no longer in WorldGuard. The main-thread step now reads the region from WorldGuard again (`WorldGuardRegionRedefine.current`); a region removed meanwhile is `NotRegistered`.
+- The wand's `/realty subregion confirm` drops a redefine the player started, so the height dialog cannot route a new subregion into a redefine.
