@@ -1851,8 +1851,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     /** Main thread: checks the shape against its surroundings, then swaps it in and removes the capture. */
     private @NotNull CompletableFuture<RedefineRegionResult> redefineInWorldGuard(
-            @NotNull WorldGuardRegion region, @NotNull Region selection, @NotNull ProtectedRegion replacement,
+            @NotNull WorldGuardRegion queued, @NotNull Region selection, @NotNull ProtectedRegion replacement,
             @NotNull RedefineCheck check, @NotNull ActorContext ctx) {
+        // A redefine queued behind another one holds the region the other one replaced.
+        Optional<WorldGuardRegion> current = worldGuardRegionRedefine.current(queued);
+        if (current.isEmpty()) {
+            return done(new RedefineRegionResult.NotRegistered());
+        }
+        WorldGuardRegion region = current.get();
         Optional<WorldGuardRegionRedefine.Problem> problem = worldGuardRegionRedefine.check(
                 region, selection, replacement, check.subregion(), subregionMinVolume.getAsInt());
         if (problem.isPresent()) {

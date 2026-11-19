@@ -217,6 +217,17 @@ class WorldGuardRegionRedefineTest {
     }
 
     @Test
+    void currentReadsTheRegionWorldGuardHasNow() {
+        WorldGuardRegion stale = added(cuboid(ID, 0, 20));
+        ProtectedCuboidRegion now = cuboid(ID, 0, 30);
+        this.manager.addRegion(now);
+
+        Assertions.assertSame(now, this.redefine.current(stale).orElseThrow().region());
+        this.manager.removeRegion(ID);
+        Assertions.assertEquals(Optional.empty(), this.redefine.current(stale));
+    }
+
+    @Test
     void checkRefusesASubregionOutsideItsParent() throws ProtectedRegion.CircularInheritanceException {
         Assertions.assertEquals(Optional.of(new WorldGuardRegionRedefine.Problem.OutsideParent("parent")),
                 check(subregionOfAFreehold(), selection(90, 110), true, 1));

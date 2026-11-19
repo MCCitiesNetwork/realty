@@ -3861,6 +3861,37 @@ class RealtyPaperApiImplTest {
             Assertions.assertNotSame(protectedRegion, regionManager.getRegion(REGION_ID));
         }
 
+        @Test
+        @DisplayName("a queued redefine works on the region as WorldGuard has it when it runs")
+        void aQueuedRedefineUsesTheCurrentRegion() throws ProtectedRegion.CircularInheritanceException {
+            leaseIs(VACANT);
+            // An earlier redefine replaced protectedRegion after this caller looked it up.
+            ProtectedCuboidRegion current = new ProtectedCuboidRegion(REGION_ID,
+                    BlockVector3.at(0, 0, 0), BlockVector3.at(90, 90, 90));
+            current.setParent(protectedRegion.getParent());
+            regionManager.addRegion(current);
+            ProtectedCuboidRegion child = new ProtectedCuboidRegion("child",
+                    BlockVector3.at(10, 10, 10), BlockVector3.at(20, 20, 20));
+            child.setParent(current);
+            regionManager.addRegion(child);
+
+            RealtyPaperApi.RedefineRegionResult.Redefined redefined = Assertions.assertInstanceOf(
+                    RealtyPaperApi.RedefineRegionResult.Redefined.class, redefine(cuboid(0, 50), AS_STAFF));
+
+            Assertions.assertSame(regionManager.getRegion(REGION_ID), child.getParent());
+            Assertions.assertEquals(91L * 91 * 91, redefined.oldVolume());
+        }
+
+        @Test
+        @DisplayName("a region removed from WorldGuard while queued is not registered")
+        void aRegionRemovedWhileQueued() {
+            leaseIs(VACANT);
+            regionManager.removeRegion(REGION_ID);
+            Assertions.assertInstanceOf(RealtyPaperApi.RedefineRegionResult.NotRegistered.class,
+                    redefine(cuboid(0, 50), AS_STAFF));
+            verify(realtyApi, never()).deleteSchematic(any(), any());
+        }
+
         private void assertRefusedAfterTheDatabase() {
             verify(realtyApi, never()).deleteSchematic(any(), any());
             verify(events, never()).fireSync(any(RegionRedefineEvent.class));
