@@ -78,7 +78,7 @@ final class RegionHandler {
         WorldRef worldRef = this.worldLookup.refFor(worldId);
         List<String> tags;
         try (SqlSessionWrapper session = this.database.openSession(true)) {
-            tags = session.regionTagMapper().selectTagIdsByRegionId(regionParam);
+            tags = session.regionTagMapper().selectTagIdsByRegionId(regionParam, worldId);
         }
 
         List<Party> parties = new ArrayList<>();

@@ -18,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Map;
 import java.util.Set;
@@ -856,6 +857,44 @@ public interface RealtyBackend {
                                                          @NotNull UUID worldId,
                                                          @NotNull ActorContext ctx);
 
+    // --- Rename ---
+
+    sealed interface RenameRegionResult {
+        /** {@code tenantId} is the tenant of the region's lease, if it is rented. */
+        record Success(@NotNull Optional<UUID> tenantId) implements RenameRegionResult {}
+        record NoRegion() implements RenameRegionResult {}
+        /** A region in the same world already has the new name. */
+        record NameTaken() implements RenameRegionResult {}
+        record NotAuthorized() implements RenameRegionResult {}
+    }
+
+    /**
+     * Renames any registered region and moves its history and tags to the new name. Everything
+     * else follows by the region's id. Only an actor who bypasses may; a landlord renames a
+     * subregion with {@link #renameSubregion}. Records of past sales keep the name the region had.
+     *
+     * <p>Tags and history are keyed by name and survive a region delete. Tags left under the new
+     * name by a deleted region are removed. History left under it stays and is from then on shown
+     * as the renamed region's; renaming back moves that history to the old name too.</p>
+     */
+    @NotNull RenameRegionResult renameRegion(@NotNull String worldGuardRegionId,
+                                             @NotNull String newWorldGuardRegionId,
+                                             @NotNull UUID worldId,
+                                             @NotNull ActorContext ctx);
+
+    /**
+     * Renames a subregion as {@link #renameRegion} does. A subregion is a leasehold whose
+     * WorldGuard parent is a registered freehold; the caller reads the parent from WorldGuard and
+     * passes its name. The actor must manage the lease's landlord, unless they bypass. Both
+     * conditions, the landlord and the parent being a registered freehold, are part of the rename
+     * itself, so a change committing meanwhile makes it rename nothing.
+     */
+    @NotNull RenameRegionResult renameSubregion(@NotNull String worldGuardRegionId,
+                                                @NotNull String newWorldGuardRegionId,
+                                                @NotNull UUID worldId,
+                                                @NotNull String parentWorldGuardRegionId,
+                                                @NotNull ActorContext ctx);
+
     sealed interface MarkDeletionResult {
         /** Marked; the region is deleted once the termination taking effect at {@code effectiveDate} ends it. */
         record Success(@NotNull LocalDateTime effectiveDate) implements MarkDeletionResult {}
@@ -1561,8 +1600,18 @@ public interface RealtyBackend {
      */
     @NotNull List<TagCountEntity> countRegionsPerTag();
 
+    /**
+     * The tags on any region with this name, whatever world it is in.
+     *
+     * @deprecated a name is unique only within a world; use {@link #getTagIdsByRegion(String, UUID)}
+     */
+    @Deprecated
     @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId);
 
+    /** The tags on the region with this name in this world. */
+    @NotNull List<String> getTagIdsByRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    /** The names of the regions with the tag, each once, whatever world they are in. */
     @NotNull List<String> getRegionIdsByTag(@NotNull String tagId);
 
     int countRegionsByTag(@NotNull String tagId);

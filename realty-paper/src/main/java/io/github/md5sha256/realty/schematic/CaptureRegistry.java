@@ -33,6 +33,13 @@ public final class CaptureRegistry {
     }
 
     /**
+     * @return whether a capture of this region is running
+     */
+    public boolean isInFlight(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        return this.inFlight.containsKey(new Key(worldGuardRegionId, worldId));
+    }
+
+    /**
      * Cancels every running capture. Called from {@code onDisable}: a copy still
      * running at shutdown would hold a task against a disabled plugin and deliver a
      * partial clipboard into a closing database.

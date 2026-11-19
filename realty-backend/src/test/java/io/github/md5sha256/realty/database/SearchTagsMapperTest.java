@@ -31,10 +31,10 @@ class SearchTagsMapperTest extends AbstractDatabaseTest {
         Assertions.assertTrue(logic.createFreehold("house", WORLD_ID, 100.0, Party.personal(AUTHORITY), null));
         try (SqlSessionWrapper wrapper = database.openSession();
              SqlSession session = wrapper.session()) {
-            wrapper.regionTagMapper().insert("commercial", "shop_water");
-            wrapper.regionTagMapper().insert("waterfront", "shop_water");
-            wrapper.regionTagMapper().insert("commercial", "shop_only");
-            wrapper.regionTagMapper().insert("residential", "house");
+            wrapper.regionTagMapper().insert("commercial", "shop_water", WORLD_ID);
+            wrapper.regionTagMapper().insert("waterfront", "shop_water", WORLD_ID);
+            wrapper.regionTagMapper().insert("commercial", "shop_only", WORLD_ID);
+            wrapper.regionTagMapper().insert("residential", "house", WORLD_ID);
             session.commit();
         }
     }

@@ -431,6 +431,35 @@ rent:
     not-accepting-tenants: <prefix> Region <yellow><region></yellow> is not accepting
         new tenants.
     error: '<prefix> Failed to rent region: <error>'
+rename:
+    # <old> <region>
+    success: <prefix> Renamed <yellow><old></yellow> to <yellow><region></yellow>.
+    # <old>
+    left-grouped-profile: <prefix> <gray>A profile in the configuration lists <yellow><old></yellow>
+        by name. It no longer applies to this region until the configuration is edited.</gray>
+    # <name>
+    invalid-name: <prefix> <red><yellow><name></yellow> is not a valid region name. Use letters,
+        digits and hyphens only.</red>
+    # <region>
+    same-name: <prefix> <red>The region is already named <yellow><region></yellow>.</red>
+    # <name>
+    name-taken: <prefix> <red>A region named <yellow><name></yellow> already exists.</red>
+    # <region>
+    not-registered: <prefix> <red>Region <yellow><region></yellow> is not registered in Realty.</red>
+    # <region>
+    not-authorized: <prefix> <red>You can only rename a subregion whose landlord you manage.
+        <yellow><region></yellow> is not one.</red>
+    # <region>
+    unsupported-region: <prefix> <red>Region <yellow><region></yellow> is neither a cuboid nor a
+        polygon, so it cannot be renamed.</red>
+    # <region>
+    capture-running: <prefix> <red>A schematic of <yellow><region></yellow> is being captured.
+        Try again when it has finished.</red>
+    # <region> <error>
+    worldguard-save-error: '<prefix> <red>The region is renamed to <yellow><region></yellow>, but
+        WorldGuard could not save it and will try again on its next save: <error></red>'
+    # <error>
+    error: '<prefix> <red>Failed to rename the region: <error></red>'
 rentable:
     enabled: <prefix> Region <yellow><region></yellow> is <green>now accepting new
         tenants</green>.
@@ -600,6 +629,8 @@ notification:
         removed when your lease ends <yellow><date></yellow>.
     subregion-deleted: <prefix> <gray></gray> Your subregion <yellow><region></yellow> was
         deleted now that its lease has ended.
+    region-renamed: <prefix> <gray></gray> <yellow><old></yellow>, which you rent, was renamed
+        to <yellow><region></yellow>.
     termination-scheduled-landlord: <prefix> <gray></gray> The tenant of <yellow><region></yellow>
         scheduled termination, effective <yellow><date></yellow>.
     termination-cancelled: <prefix> <gray></gray> The scheduled termination of <yellow><region></yellow>
@@ -958,6 +989,8 @@ tag:
     list-none: <prefix> <red>No tags available.
     error: '<red>Tag operation failed: <error>'
     add-already-tagged: <prefix> <red>Region <region> already has the tag <tag>.
+    add-not-registered: <prefix> <red>Region <region> is not registered in Realty, so it cannot
+        be tagged.
     clear-success: <prefix> Cleared <red><count> tag(s)</red> from region <gold><region></gold>.
     clear-none: <prefix> <red>Region <region> has no tags to clear.
 search:

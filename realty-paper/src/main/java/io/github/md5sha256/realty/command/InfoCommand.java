@@ -143,7 +143,7 @@ public record InfoCommand(@NotNull RealtyPaperApi api,
             }
 
             try (SqlSessionWrapper session = database.openSession(true)) {
-                List<String> tags = session.regionTagMapper().selectTagIdsByRegionId(regionId);
+                List<String> tags = session.regionTagMapper().selectTagIdsByRegionId(regionId, worldId);
                 Component tagsComponent = buildTagsComponent(tags);
                 builder.appendNewline()
                         .append(messages.messageFor(MessageKeys.INFO_TAGS,

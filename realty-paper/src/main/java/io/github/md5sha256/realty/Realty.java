@@ -22,6 +22,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.PlayerNameService;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegionRemoval;
+import io.github.md5sha256.realty.api.WorldGuardRegionRename;
 import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
 import io.github.md5sha256.realty.api.RegionProfileService;
 import io.github.md5sha256.realty.api.RegionState;
@@ -61,6 +62,7 @@ import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ModuleCommandGroup;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
+import io.github.md5sha256.realty.command.RenameCommand;
 import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.RentableCommand;
 import io.github.md5sha256.realty.command.SearchCommand;
@@ -210,6 +212,8 @@ public final class Realty extends JavaPlugin {
     private PlayerNameService playerNameService;
     private ExecutorState executorState;
     private final CaptureRegistry captureRegistry = new CaptureRegistry();
+    /** Shared by the schematic command and the rename, which moves a region's cooldown to its new name. */
+    private final CaptureCooldown captureCooldown = new CaptureCooldown(Instant::now);
     private RealtyBackend logic;
     private ProfileApplicator profileApplicator;
     private DatabaseSettings databaseSettings;
@@ -411,7 +415,9 @@ public final class Realty extends JavaPlugin {
                 this.playerNameService,
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
                 this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement,
-                this.worldGuardRegionRemoval, getLogger());
+                this.worldGuardRegionRemoval,
+                new WorldGuardRegionRename(WorldGuard.getInstance().getPlatform().getRegionContainer(), getLogger()),
+                this.captureRegistry, this.captureCooldown, getLogger());
         reportStuckSalePayments();
         this.moduleManager = new ModuleLifecycleManager<>(this,
                 new ModuleLoader(getDataFolder().toPath().resolve("modules")),
@@ -1189,6 +1195,8 @@ public final class Realty extends JavaPlugin {
                 new RegisterCommand(getServer(), paperApi, this.defaultParties, this.partyResolver, partySuggestions,
                         executorState, messageContainer, this.eventDispatch),
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
+                new RenameCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        this.eventDispatch),
                 new GroupCommandGroup(paperApi, this.partyResolver,
                         PartyFlags.groupSuggestions(this.logic, executorState.dbExec()),
                         PartyFlags.accountSuggestions(this.treasury, executorState.dbExec()),
@@ -1222,7 +1230,7 @@ public final class Realty extends JavaPlugin {
                 new SchematicCommandGroup(this.logic,
                         this.executorState,
                         new TickScheduler.Bukkit(this),
-                        new CaptureCooldown(Instant::now),
+                        this.captureCooldown,
                         this.captureRegistry,
                         this.settings,
                         messageContainer,

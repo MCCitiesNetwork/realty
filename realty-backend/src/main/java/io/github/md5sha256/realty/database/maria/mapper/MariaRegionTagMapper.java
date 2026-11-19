@@ -8,10 +8,12 @@ import io.github.md5sha256.realty.database.entity.TagCountEntity;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 public interface MariaRegionTagMapper extends RegionTagMapper {
 
@@ -21,29 +23,33 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
             FROM RegionTag
             WHERE tagId = #{tagId}
             AND worldGuardRegionId = #{worldGuardRegionId}
+            AND worldId = #{worldId}
             """)
     boolean exists(@Param("tagId") @NotNull String tagId,
-                   @Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+                   @Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                   @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Insert("""
-            INSERT INTO RegionTag (tagId, worldGuardRegionId)
-            VALUES (#{tagId}, #{worldGuardRegionId})
+            INSERT INTO RegionTag (tagId, worldGuardRegionId, worldId)
+            VALUES (#{tagId}, #{worldGuardRegionId}, #{worldId})
             """)
     int insert(@Param("tagId") @NotNull String tagId,
-               @Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+               @Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+               @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Insert("""
-            INSERT IGNORE INTO RegionTag (tagId, worldGuardRegionId)
-            VALUES (#{tagId}, #{worldGuardRegionId})
+            INSERT IGNORE INTO RegionTag (tagId, worldGuardRegionId, worldId)
+            VALUES (#{tagId}, #{worldGuardRegionId}, #{worldId})
             """)
     int insertIfAbsent(@Param("tagId") @NotNull String tagId,
-                       @Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+                       @Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                       @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Select("""
-            SELECT worldGuardRegionId
+            SELECT DISTINCT worldGuardRegionId
             FROM RegionTag
             WHERE tagId = #{tagId}
             """)
@@ -54,24 +60,38 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
             SELECT tagId
             FROM RegionTag
             WHERE worldGuardRegionId = #{worldGuardRegionId}
+            AND worldId = #{worldId}
             """)
-    @NotNull List<String> selectTagIdsByRegionId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+    @NotNull List<String> selectTagIdsByRegionId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                                 @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Select("""
+            SELECT DISTINCT tagId
+            FROM RegionTag
+            WHERE worldGuardRegionId = #{worldGuardRegionId}
+            """)
+    @NotNull List<String> selectTagIdsByRegionName(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
 
     @Override
     @Delete("""
             DELETE FROM RegionTag
             WHERE worldGuardRegionId = #{worldGuardRegionId}
+            AND worldId = #{worldId}
             """)
-    int deleteByRegionId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+    int deleteByRegionId(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                         @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Delete("""
             DELETE FROM RegionTag
             WHERE tagId = #{tagId}
             AND worldGuardRegionId = #{worldGuardRegionId}
+            AND worldId = #{worldId}
             """)
     int deleteByTagAndRegion(@Param("tagId") @NotNull String tagId,
-                             @Param("worldGuardRegionId") @NotNull String worldGuardRegionId);
+                             @Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                             @Param("worldId") @NotNull UUID worldId);
 
     @Override
     @Select("""
@@ -120,4 +140,14 @@ public interface MariaRegionTagMapper extends RegionTagMapper {
     })
     @NotNull List<TagCountEntity> selectTagCounts();
 
+    @Override
+    @Update("""
+            UPDATE RegionTag
+            SET worldGuardRegionId = #{newWorldGuardRegionId}
+            WHERE worldGuardRegionId = #{worldGuardRegionId}
+            AND worldId = #{worldId}
+            """)
+    int moveToRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                     @Param("newWorldGuardRegionId") @NotNull String newWorldGuardRegionId,
+                     @Param("worldId") @NotNull UUID worldId);
 }

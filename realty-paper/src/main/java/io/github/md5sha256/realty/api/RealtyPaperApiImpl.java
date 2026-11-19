@@ -32,6 +32,8 @@ import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
 import io.github.md5sha256.realty.api.event.OffersToggledEvent;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
+import io.github.md5sha256.realty.api.event.RegionRenamedEvent;
+import io.github.md5sha256.realty.api.event.RegionRenameEvent;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
@@ -51,6 +53,8 @@ import io.github.md5sha256.realty.economy.EconomyProvider;
 import io.github.md5sha256.realty.economy.HoldingAccount;
 import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.economy.SaleSettlement;
+import io.github.md5sha256.realty.schematic.CaptureCooldown;
+import io.github.md5sha256.realty.schematic.CaptureRegistry;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.World;
@@ -64,6 +68,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
@@ -90,6 +95,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final SignCache signCache;
     private final java.util.function.LongSupplier terminationNoticeSeconds;
     private final WorldGuardRegionRemoval worldGuardRegionRemoval;
+    private final WorldGuardRegionRename worldGuardRegionRename;
+    private final CaptureRegistry captureRegistry;
+    private final CaptureCooldown captureCooldown;
     private final SafeLocationFinder safeLocationFinder;
     private final PlayerNameService playerNameService;
     private final AccountNameService accountNameService;
@@ -124,8 +132,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull HoldingAccount holding,
                               @NotNull SaleSettlement settlement,
                               @NotNull WorldGuardRegionRemoval worldGuardRegionRemoval,
+                              @NotNull WorldGuardRegionRename worldGuardRegionRename,
+                              @NotNull CaptureRegistry captureRegistry,
+                              @NotNull CaptureCooldown captureCooldown,
                               @NotNull Logger logger) {
         this.worldGuardRegionRemoval = worldGuardRegionRemoval;
+        this.worldGuardRegionRename = worldGuardRegionRename;
+        this.captureRegistry = captureRegistry;
+        this.captureCooldown = captureCooldown;
         this.server = server;
         this.realtyApi = realtyApi;
         this.economyProvider = economyProvider;
@@ -1440,7 +1454,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         };
     }
 
-    private static @NotNull CompletableFuture<DeleteSubregionResult> done(@NotNull DeleteSubregionResult result) {
+    private static <T> @NotNull CompletableFuture<T> done(@NotNull T result) {
         return CompletableFuture.completedFuture(result);
     }
 
@@ -1499,6 +1513,137 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         new CancelSubregionDeleteResult.UpdateFailed(regionId);
             };
         }, executorState.dbExec());
+    }
+
+    // --- Rename ---
+
+    @Override
+    public @NotNull CompletableFuture<RenameRegionResult> renameRegion(@NotNull WorldGuardRegion region,
+                                                                       @NotNull String newName,
+                                                                       @NotNull ActorContext ctx) {
+        String oldId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        if (!WorldGuardRegion.isValidName(newName)) {
+            return done(new RenameRegionResult.InvalidName());
+        }
+        // WorldGuard lower-cases region ids.
+        String newId = newName.toLowerCase(Locale.ROOT);
+        if (newId.equals(oldId)) {
+            return done(new RenameRegionResult.SameName());
+        }
+        // Read on the calling (main) thread: WorldGuard's region tree is not thread-safe.
+        if (!WorldGuardRegionRename.isSupported(region.region())) {
+            return done(new RenameRegionResult.UnsupportedRegion());
+        }
+        if (!worldGuardRegionRename.isFree(region, newId)) {
+            return done(new RenameRegionResult.NameTaken());
+        }
+        // A running capture saves under the name it started with.
+        if (captureRegistry.isInFlight(oldId, worldId)) {
+            return done(new RenameRegionResult.CaptureRunning());
+        }
+        Optional<String> parentId = parentId(region);
+        if (!ctx.bypass() && parentId.isEmpty()) {
+            return done(new RenameRegionResult.NotAuthorized());
+        }
+        // Listeners only hear of a rename that can go ahead, and under the name the region will get.
+        if (!events.fireSync(new RegionRenameEvent(region, ctx.player(), newId))) {
+            return done(new RenameRegionResult.Cancelled());
+        }
+        // Both names are held, always in the same order, so two crossing renames cannot wait on each other.
+        String first = oldId.compareTo(newId) < 0 ? oldId : newId;
+        String second = first.equals(oldId) ? newId : oldId;
+        return serializeByRegion(first, worldId, () -> serializeByRegion(second, worldId,
+                () -> renameHoldingBothNames(region, newId, ctx, parentId))
+        ).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            logger.log(Level.SEVERE, "Could not rename region " + oldId + " to " + newId, cause);
+            return new RenameRegionResult.Error(String.valueOf(cause.getMessage()));
+        });
+    }
+
+    /** The database step of a rename: its result and, when it renamed, the region's state for the sign redraw. */
+    private record DatabaseRename(@NotNull RealtyBackend.RenameRegionResult result,
+                                  @Nullable RealtyBackend.RegionWithState state) {
+    }
+
+    private @NotNull CompletableFuture<RenameRegionResult> renameHoldingBothNames(
+            @NotNull WorldGuardRegion region, @NotNull String newId, @NotNull ActorContext ctx,
+            @NotNull Optional<String> parentId) {
+        String oldId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(() -> {
+            // Without the bypass only a subregion may be renamed. The backend checks, in the rename
+            // itself, that the parent WorldGuard names is a registered freehold.
+            RealtyBackend.RenameRegionResult result = ctx.bypass()
+                    ? realtyApi.renameRegion(oldId, newId, worldId, ctx)
+                    : realtyApi.renameSubregion(oldId, newId, worldId, parentId.orElseThrow(), ctx);
+            RealtyBackend.RegionWithState state = null;
+            if (result instanceof RealtyBackend.RenameRegionResult.Success) {
+                // The rename has committed: a failed read only costs the sign redraw, not the answer.
+                try {
+                    state = realtyApi.getRegionWithState(newId, worldId);
+                } catch (RuntimeException ex) {
+                    logger.log(Level.WARNING, "Could not read region " + newId + " to redraw its signs", ex);
+                }
+            }
+            return new DatabaseRename(result, state);
+        }, executorState.dbExec()).thenComposeAsync(database -> switch (database.result()) {
+            case RealtyBackend.RenameRegionResult.Success success -> renameInWorldGuard(
+                    region, newId, ctx.player(), success.tenantId(), database.state());
+            case RealtyBackend.RenameRegionResult.NoRegion ignored ->
+                    done(new RenameRegionResult.NotRegistered());
+            case RealtyBackend.RenameRegionResult.NameTaken ignored ->
+                    done(new RenameRegionResult.NameTaken());
+            case RealtyBackend.RenameRegionResult.NotAuthorized ignored ->
+                    done(new RenameRegionResult.NotAuthorized());
+        }, executorState.mainThreadExec());
+    }
+
+    /** Main thread: the region has its new name everywhere durable; the in-memory state and listeners follow. */
+    private @NotNull RenameRegionResult.Renamed afterWorldGuardRename(
+            @NotNull WorldGuardRegion renamed, @NotNull String oldId, @Nullable UUID actorId,
+            @NotNull Optional<UUID> tenantId, @Nullable RealtyBackend.RegionWithState state) {
+        String newId = renamed.region().getId();
+        UUID worldId = renamed.world().getUID();
+        signCache.renameRegion(oldId, newId, worldId);
+        captureCooldown.rename(oldId, newId, worldId);
+        if (state != null) {
+            // Signs show the name. The flags are left as copied: applying the profile resets them.
+            signTextApplicator.updateLoadedSigns(renamed.world(), newId, state.state(), state.placeholders());
+        }
+        events.fireSync(new RegionRenamedEvent(renamed, actorId, oldId));
+        return new RenameRegionResult.Renamed(renamed, oldId, tenantId,
+                regionProfileService.hasGroupedProfile(oldId));
+    }
+
+    /** Main thread: the database has the new name; WorldGuard and the in-memory state follow. */
+    private @NotNull CompletableFuture<RenameRegionResult> renameInWorldGuard(
+            @NotNull WorldGuardRegion region, @NotNull String newId, @Nullable UUID actorId,
+            @NotNull Optional<UUID> tenantId, @Nullable RealtyBackend.RegionWithState state) {
+        String oldId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        return switch (worldGuardRegionRename.rename(region, newId)) {
+            // Someone made a WorldGuard region with the new name while the database was written.
+            case WorldGuardRegionRename.Outcome.NameTaken ignored -> CompletableFuture.supplyAsync(() -> {
+                RealtyBackend.RenameRegionResult reversed =
+                        realtyApi.renameRegion(newId, oldId, worldId, ActorContext.console());
+                if (reversed instanceof RealtyBackend.RenameRegionResult.Success) {
+                    return new RenameRegionResult.NameTaken();
+                }
+                logger.severe("Region " + oldId + " was renamed to " + newId + " in the database, but WorldGuard"
+                        + " already has a region named " + newId + " and the database rename could not be"
+                        + " reversed (" + reversed + "). Realty knows the region as " + newId
+                        + "; WorldGuard still has it as " + oldId + ".");
+                return new RenameRegionResult.Error("the region is renamed in the database but not in WorldGuard");
+            }, executorState.dbExec());
+            case WorldGuardRegionRename.Outcome.Renamed swapped ->
+                    done(afterWorldGuardRename(swapped.region(), oldId, actorId, tenantId, state));
+            case WorldGuardRegionRename.Outcome.RenamedSaveFailed swapped ->
+                    done(new RenameRegionResult.WorldGuardSaveError(
+                            afterWorldGuardRename(swapped.region(), oldId, actorId, tenantId, state),
+                            swapped.error()));
+        };
     }
 
     @Override
@@ -2371,10 +2516,19 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     // --- Region Tags ---
 
     @Override
+    @Deprecated
     public @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(
             @NotNull String worldGuardRegionId) {
         return CompletableFuture.supplyAsync(
                 () -> realtyApi.getTagIdsByRegion(worldGuardRegionId),
+                executorState.dbExec());
+    }
+
+    @Override
+    public @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(
+            @NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        return CompletableFuture.supplyAsync(
+                () -> realtyApi.getTagIdsByRegion(worldGuardRegionId, worldId),
                 executorState.dbExec());
     }
 

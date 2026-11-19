@@ -48,7 +48,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
 import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.wand.WandSelection;
@@ -63,7 +62,6 @@ import io.github.md5sha256.realty.wand.WandSelection;
 public final class SubregionDialog {
 
     static final String BYPASS_PERMISSION = "realty.command.subregion.confirm.bypass";
-    private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9-]+$");
 
     private static final String INPUT_PARENT = "parent";
     private static final String INPUT_NAME = "name";
@@ -163,7 +161,7 @@ public final class SubregionDialog {
             CompletableFuture<FreeholdContractEntity> freehold = api.getFreeholdContract(id, worldId);
             CompletableFuture<List<String>> tags = blacklist.isEmpty()
                     ? CompletableFuture.completedFuture(List.of())
-                    : api.getTagIdsByRegion(id);
+                    : api.getTagIdsByRegion(id, worldId);
             checks.add(freehold.thenCombine(tags, (contract, tagList) -> {
                 boolean isFreehold = contract != null;
                 boolean blacklisted = false;
@@ -518,7 +516,7 @@ public final class SubregionDialog {
                         case RealtyPaperApi.QuickCreateSubregionResult.Success s -> {
                             wandManager.clear(player.getUniqueId());
                             playerStates.remove(player.getUniqueId());
-                            applyTags(s.regionId(), new LinkedHashSet<>(state.selectedTags));
+                            applyTags(s.regionId(), state.world.getUID(), new LinkedHashSet<>(state.selectedTags));
                             player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_CREATE_SUCCESS,
                                     Placeholder.unparsed("region", s.regionId()),
                                     Placeholder.unparsed("parent", s.parentId())));
@@ -542,7 +540,7 @@ public final class SubregionDialog {
                 });
     }
 
-    private void applyTags(@NotNull String regionId, @NotNull Set<String> tagIds) {
+    private void applyTags(@NotNull String regionId, @NotNull UUID worldId, @NotNull Set<String> tagIds) {
         if (tagIds.isEmpty()) {
             return;
         }
@@ -550,7 +548,7 @@ public final class SubregionDialog {
             try (SqlSessionWrapper session = database.openSession(true)) {
                 RegionTagMapper mapper = session.regionTagMapper();
                 for (String tagId : tagIds) {
-                    mapper.insertIfAbsent(tagId, regionId);
+                    mapper.insertIfAbsent(tagId, regionId, worldId);
                 }
             }
         });
@@ -564,7 +562,7 @@ public final class SubregionDialog {
      */
     private @Nullable Component validate(@NotNull SubregionState state,
                                          @NotNull RegionManager regionManager) {
-        if (state.name == null || !VALID_NAME_PATTERN.matcher(state.name).matches()) {
+        if (state.name == null || !WorldGuardRegion.isValidName(state.name)) {
             return messages.messageFor(MessageKeys.SUBREGION_INVALID_NAME,
                     Placeholder.unparsed("region", String.valueOf(state.name)));
         }

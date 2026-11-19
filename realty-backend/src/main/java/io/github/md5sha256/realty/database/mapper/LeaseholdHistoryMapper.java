@@ -48,4 +48,8 @@ public interface LeaseholdHistoryMapper {
                      @Nullable String eventType,
                      @Nullable LocalDateTime since,
                      @Nullable UUID playerId);
+
+    /** Moves a renamed region's history to its new name. */
+    int renameRegion(@NotNull String worldGuardRegionId, @NotNull String newWorldGuardRegionId,
+                     @NotNull UUID worldId);
 }

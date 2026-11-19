@@ -53,6 +53,17 @@ public final class CaptureCooldown {
         this.lastCapture.put(new Key(worldGuardRegionId, worldId), this.clock.get());
     }
 
+    /**
+     * Moves a renamed region's cooldown to its new name, so that a rename does not reset it.
+     */
+    public void rename(@NotNull String worldGuardRegionId, @NotNull String newWorldGuardRegionId,
+                       @NotNull UUID worldId) {
+        Instant last = this.lastCapture.remove(new Key(worldGuardRegionId, worldId));
+        if (last != null) {
+            this.lastCapture.put(new Key(newWorldGuardRegionId, worldId), last);
+        }
+    }
+
     private record Key(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
     }
 }

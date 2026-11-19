@@ -57,6 +57,22 @@ public class SignCache {
     }
 
     /**
+     * Moves a renamed region's signs to its new name.
+     */
+    public void renameRegion(@NotNull String worldGuardRegionId, @NotNull String newWorldGuardRegionId,
+                             @NotNull UUID worldId) {
+        Set<BlockPosition> positions = regionToSigns.remove(new RegionKey(worldGuardRegionId, worldId));
+        if (positions == null) {
+            return;
+        }
+        for (BlockPosition pos : positions) {
+            cache.computeIfPresent(pos, (ignored, entry) ->
+                    new SignCacheEntry(entry.realtyRegionId(), newWorldGuardRegionId, worldId));
+        }
+        regionToSigns.put(new RegionKey(newWorldGuardRegionId, worldId), positions);
+    }
+
+    /**
      * Evicts all cached signs within a given chunk.
      */
     public void evictChunk(@NotNull UUID worldId, int chunkX, int chunkZ) {

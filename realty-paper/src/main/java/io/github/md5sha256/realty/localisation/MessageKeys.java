@@ -154,6 +154,19 @@ public final class MessageKeys {
     public static final String DELETE_SUCCESS = "delete.success";
     public static final String DELETE_ERROR = "delete.error";
 
+    // Rename
+    public static final String RENAME_SUCCESS = "rename.success";
+    public static final String RENAME_LEFT_GROUPED_PROFILE = "rename.left-grouped-profile";
+    public static final String RENAME_INVALID_NAME = "rename.invalid-name";
+    public static final String RENAME_SAME_NAME = "rename.same-name";
+    public static final String RENAME_NAME_TAKEN = "rename.name-taken";
+    public static final String RENAME_NOT_REGISTERED = "rename.not-registered";
+    public static final String RENAME_NOT_AUTHORIZED = "rename.not-authorized";
+    public static final String RENAME_UNSUPPORTED_REGION = "rename.unsupported-region";
+    public static final String RENAME_CAPTURE_RUNNING = "rename.capture-running";
+    public static final String RENAME_WORLDGUARD_SAVE_ERROR = "rename.worldguard-save-error";
+    public static final String RENAME_ERROR = "rename.error";
+
     // help
     public static final String HELP_MAIN = "help.main";
     public static final String HELP_UNKNOWN_CATEGORY = "help.unknown-category";
@@ -554,6 +567,7 @@ public final class MessageKeys {
     public static final String NOTIFICATION_TERMINATION_SCHEDULED_TENANT = "notification.termination-scheduled-tenant";
     public static final String NOTIFICATION_TERMINATION_SUBREGION_REMOVED = "notification.termination-subregion-removed";
     public static final String NOTIFICATION_SUBREGION_DELETED = "notification.subregion-deleted";
+    public static final String NOTIFICATION_REGION_RENAMED = "notification.region-renamed";
     public static final String NOTIFICATION_TERMINATION_SCHEDULED_LANDLORD = "notification.termination-scheduled-landlord";
     public static final String NOTIFICATION_TERMINATION_CANCELLED = "notification.termination-cancelled";
     public static final String NOTIFICATION_LEASEHOLD_TERMINATED_TENANT = "notification.leasehold-terminated-tenant";
@@ -631,6 +645,7 @@ public final class MessageKeys {
     public static final String TAG_ADD_SUCCESS = "tag.add-success";
     public static final String TAG_ADD_ALREADY_TAGGED = "tag.add-already-tagged";
     public static final String TAG_ADD_FAILED = "tag.add-failed";
+    public static final String TAG_ADD_NOT_REGISTERED = "tag.add-not-registered";
     public static final String TAG_REMOVE_SUCCESS = "tag.remove-success";
     public static final String TAG_REMOVE_NOT_FOUND = "tag.remove-not-found";
     public static final String TAG_LIST_HEADER = "tag.list-header";

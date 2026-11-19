@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
@@ -502,6 +503,60 @@ public interface RealtyPaperApi {
      */
     @NotNull CompletableFuture<CancelSubregionDeleteResult> cancelSubregionDelete(@NotNull WorldGuardRegion region,
                                                                                   @NotNull ActorContext ctx);
+
+    // --- Rename ---
+
+    sealed interface RenameRegionResult {
+        /**
+         * @param region             the region under its new name; the WorldGuard region with the
+         *                           old name no longer exists
+         * @param oldName            the name it had
+         * @param tenantId           the tenant of the region's lease, if it is rented
+         * @param leftGroupedProfile whether a grouped profile in the configuration lists the old
+         *                           name, and so no longer applies to the region
+         */
+        record Renamed(@NotNull WorldGuardRegion region, @NotNull String oldName,
+                       @NotNull Optional<UUID> tenantId, boolean leftGroupedProfile) implements RenameRegionResult {}
+        /** Renamed, but WorldGuard could not save. It holds the change and writes it on its next save. */
+        record WorldGuardSaveError(@NotNull Renamed renamed, @NotNull String error)
+                implements RenameRegionResult {}
+        /** The new name has characters a region name may not have. */
+        record InvalidName() implements RenameRegionResult {}
+        record SameName() implements RenameRegionResult {}
+        record NameTaken() implements RenameRegionResult {}
+        /** A listener cancelled the {@code RegionRenameEvent}. */
+        record Cancelled() implements RenameRegionResult {}
+        /** The region is not registered with Realty. */
+        record NotRegistered() implements RenameRegionResult {}
+        record NotAuthorized() implements RenameRegionResult {}
+        /** The WorldGuard region is neither a cuboid nor a polygon. */
+        record UnsupportedRegion() implements RenameRegionResult {}
+        /** A schematic capture of the region is running. */
+        record CaptureRunning() implements RenameRegionResult {}
+        record Error(@NotNull String message) implements RenameRegionResult {}
+    }
+
+    /**
+     * Renames a registered region and keeps everything attached to it: contracts, history, tags,
+     * signs, schematic and fees, and the WorldGuard region's shape, owners, members, flags,
+     * priority, parent and children. Region names are lower case, so {@code newName} is
+     * lower-cased. Without a bypass, the region must be a subregion (a leasehold whose WorldGuard
+     * parent is a registered freehold) whose landlord the actor manages.
+     *
+     * <p>Once the name is known to be valid, different and free in WorldGuard, it fires a
+     * cancellable {@code RegionRenameEvent} with the lower-cased name. After the rename it fires
+     * {@code RegionRenamedEvent}. The actor of both is {@code ctx}'s player.</p>
+     *
+     * <p>The database is renamed first, then WorldGuard. If a WorldGuard region with the new name
+     * appeared in between, the database rename is reversed and the result is {@code NameTaken}.
+     * The reversal puts back the region's name, history and tags. It cannot separate history that
+     * a region deleted earlier left under the new name: that history ends up under the old name.</p>
+     *
+     * <p>Call it on the main thread.</p>
+     */
+    @NotNull CompletableFuture<RenameRegionResult> renameRegion(@NotNull WorldGuardRegion region,
+                                                                @NotNull String newName,
+                                                                @NotNull ActorContext ctx);
 
     // --- Create/Register Freehold ---
 
@@ -1016,7 +1071,17 @@ public interface RealtyPaperApi {
 
     // --- Region Tags ---
 
+    /**
+     * The tags on any region with this name, whatever world it is in.
+     *
+     * @deprecated a name is unique only within a world; use {@link #getTagIdsByRegion(String, UUID)}
+     */
+    @Deprecated
     @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(@NotNull String worldGuardRegionId);
+
+    /** The tags on the region with this name in this world. */
+    @NotNull CompletableFuture<@NotNull List<String>> getTagIdsByRegion(@NotNull String worldGuardRegionId,
+                                                                        @NotNull UUID worldId);
 
     @NotNull CompletableFuture<@NotNull List<String>> getRegionIdsByTag(@NotNull String tagId);
 
