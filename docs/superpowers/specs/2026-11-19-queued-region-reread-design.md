@@ -123,6 +123,11 @@ In `RealtyPaperApiImplTest`, with a real in-memory region manager:
   `terminateHoldingQueue`, because the queue is not reentrant and `terminate` would wait on itself.
 - **`createAuction` is not queued.** It looks the region up again by id when it writes the flags,
   as `cancelAuction` and the id-based redraws do, so it writes to the region WorldGuard has.
+- **The scheduler writes outside the queue.** `Realty`'s lease expiry and scheduled termination
+  change owners and flags, and its sweep removes subregions marked for deletion, without taking
+  the region's queue. A sweep that removes a region while a redefine waits on its swap can have the
+  region put back with no Realty rows, as `deleteSubregion` could before it took the queue. Moving
+  the scheduler onto the queue is its own change.
 - **Checks before queuing read the caller's object.** They read only the id, the world and, for
   redefine, the shape; the id and world cannot change, and a redefine that compares against a
   stale shape only risks refusing a no-op or letting one through.

@@ -748,18 +748,18 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                                                  @NotNull ActorContext ctx,
                                                                  boolean immediate) {
         String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
         // Serialized per region: the read→charge→commit sequence cannot interleave with a concurrent
         // extend/unrent/terminate on the same lease.
         return serializeRegion(region, () -> new TerminateResult.NoLeaseholdContract(regionId),
-                current -> terminateHoldingQueue(current, ctx, immediate));
+                current -> terminateHoldingQueue(regionId, worldId, ctx, immediate));
     }
 
     /** {@link #terminate} for a caller that already holds the region's queue, such as a subregion delete. */
-    private @NotNull CompletableFuture<TerminateResult> terminateHoldingQueue(@NotNull WorldGuardRegion current,
+    private @NotNull CompletableFuture<TerminateResult> terminateHoldingQueue(@NotNull String regionId,
+                                                                             @NotNull UUID worldId,
                                                                              @NotNull ActorContext ctx,
                                                                              boolean immediate) {
-        String regionId = current.region().getId();
-        UUID worldId = current.world().getUID();
         long noticeSeconds = immediate ? 0L : terminationNoticeSeconds.getAsLong();
         return CompletableFuture.supplyAsync(
                 () -> computeTerminationPlan(regionId, realtyApi.getLeaseholdContract(regionId, worldId),
@@ -1498,7 +1498,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     markSubregionForDeletion(regionId, worldId, ctx, occupied.tenantId(), Optional.empty());
             // Rented and not terminating: the landlord's termination, with notice, ends the lease first.
             // This delete holds the region's queue, so it terminates from inside it.
-            case RealtyBackend.DeleteLeaseholdResult.Occupied occupied -> terminateHoldingQueue(region, ctx, false)
+            case RealtyBackend.DeleteLeaseholdResult.Occupied occupied -> terminateHoldingQueue(regionId, worldId, ctx, false)
                     .thenCompose(terminated -> terminated instanceof TerminateResult.Success success
                             ? markSubregionForDeletion(regionId, worldId, ctx, occupied.tenantId(), Optional.of(success))
                             : done(new DeleteSubregionResult.TerminationFailed(terminated)));
@@ -2106,13 +2106,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         return shown(result, result instanceof RealtyBackend.CreateAuctionResult.Success,
                                 regionId, worldId);
                     }, executorState.dbExec()).thenApplyAsync(shown -> {
-                        if (shown.result() instanceof RealtyBackend.CreateAuctionResult.Success
-                                && gate.region() != null) {
-                            events.fireSync(new AuctionCreatedEvent(gate.region(), auctioneerId, minBid, minBidStep,
+                        // Looked up again: a redefine during the write replaces the region object.
+                        WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
+                        if (shown.result() instanceof RealtyBackend.CreateAuctionResult.Success && region != null) {
+                            events.fireSync(new AuctionCreatedEvent(region, auctioneerId, minBid, minBidStep,
                                     biddingDurationSeconds, paymentDurationSeconds,
                                     Instant.now().plusSeconds(biddingDurationSeconds)));
-                            // Looked up again: a redefine during the write replaces the region object.
-                            showStoredState(regionId, worldId, shown.stored());
+                            showStoredState(region, shown.stored());
                         }
                         return shown.result();
                     }, executorState.mainThreadExec());
