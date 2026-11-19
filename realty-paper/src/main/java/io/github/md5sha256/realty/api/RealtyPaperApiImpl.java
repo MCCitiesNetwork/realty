@@ -752,7 +752,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Serialized per region: the read→charge→commit sequence cannot interleave with a concurrent
         // extend/unrent/terminate on the same lease.
         return serializeRegion(region, () -> new TerminateResult.NoLeaseholdContract(regionId),
-                current -> terminateHoldingQueue(regionId, worldId, ctx, immediate));
+                _ -> terminateHoldingQueue(regionId, worldId, ctx, immediate));
     }
 
     /** {@link #terminate} for a caller that already holds the region's queue, such as a subregion delete. */
@@ -2053,18 +2053,15 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 executorState.dbExec());
     }
 
-    /** A region resolved on the main thread, and whether its pre-event let the action go ahead. */
-    private record Gate(@Nullable WorldGuardRegion region, boolean proceed) {}
-
     /**
      * Resolves the region and fires its cancellable pre-event, both on the main thread. A region
      * WorldGuard no longer knows fires no events and goes ahead, so the backend decides the outcome.
      */
-    private @NotNull CompletableFuture<Gate> gate(@NotNull String regionId, @NotNull UUID worldId,
-                                                  @NotNull Function<WorldGuardRegion, RealtyRegionEvent> preEvent) {
+    private @NotNull CompletableFuture<Boolean> gate(@NotNull String regionId, @NotNull UUID worldId,
+                                                     @NotNull Function<WorldGuardRegion, RealtyRegionEvent> preEvent) {
         return CompletableFuture.supplyAsync(() -> {
             WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
-            return new Gate(region, region == null || events.fireSync(preEvent.apply(region)));
+            return region == null || events.fireSync(preEvent.apply(region));
         }, executorState.mainThreadExec());
     }
 
@@ -2096,27 +2093,25 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID auctioneerId = ctx.requirePlayer();
         return gate(regionId, worldId, region -> new AuctionCreateEvent(region, auctioneerId, minBid, minBidStep,
                 biddingDurationSeconds, paymentDurationSeconds))
-                .thenComposeAsync(gate -> {
-                    if (!gate.proceed()) {
-                        return CompletableFuture.completedFuture(new RealtyBackend.CreateAuctionResult.Cancelled());
-                    }
-                    return CompletableFuture.supplyAsync(() -> {
-                        RealtyBackend.CreateAuctionResult result = realtyApi.createAuction(regionId, worldId, ctx,
-                                biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep);
-                        return shown(result, result instanceof RealtyBackend.CreateAuctionResult.Success,
-                                regionId, worldId);
-                    }, executorState.dbExec()).thenApplyAsync(shown -> {
-                        // Looked up again: a redefine during the write replaces the region object.
-                        WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
-                        if (shown.result() instanceof RealtyBackend.CreateAuctionResult.Success && region != null) {
-                            events.fireSync(new AuctionCreatedEvent(region, auctioneerId, minBid, minBidStep,
-                                    biddingDurationSeconds, paymentDurationSeconds,
-                                    Instant.now().plusSeconds(biddingDurationSeconds)));
-                            showStoredState(region, shown.stored());
-                        }
-                        return shown.result();
-                    }, executorState.mainThreadExec());
-                }, executorState.mainThreadExec());
+                .thenComposeAsync(proceed -> !proceed
+                        ? CompletableFuture.completedFuture(new RealtyBackend.CreateAuctionResult.Cancelled())
+                        : thenFire(regionId, worldId,
+                                () -> {
+                                    RealtyBackend.CreateAuctionResult result = realtyApi.createAuction(regionId,
+                                            worldId, ctx, biddingDurationSeconds, paymentDurationSeconds, minBid,
+                                            minBidStep);
+                                    return shown(result, result instanceof RealtyBackend.CreateAuctionResult.Success,
+                                            regionId, worldId);
+                                },
+                                (region, shown) -> {
+                                    if (shown.result() instanceof RealtyBackend.CreateAuctionResult.Success) {
+                                        events.fireSync(new AuctionCreatedEvent(region, auctioneerId, minBid,
+                                                minBidStep, biddingDurationSeconds, paymentDurationSeconds,
+                                                Instant.now().plusSeconds(biddingDurationSeconds)));
+                                        showStoredState(region, shown.stored());
+                                    }
+                                }).thenApply(Shown::result),
+                        executorState.mainThreadExec());
     }
 
     @Override
@@ -2144,30 +2139,29 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict) {
         UUID bidderId = bidder.requirePlayer();
         return gate(regionId, worldId, region -> new AuctionBidEvent(region, bidderId, bidAmount))
-                .thenComposeAsync(gate -> {
-                    if (!gate.proceed()) {
-                        return CompletableFuture.completedFuture(new RealtyBackend.BidResult.Cancelled());
-                    }
-                    return CompletableFuture.supplyAsync(() -> {
-                        RealtyBackend.BidResult result = realtyApi.performBid(regionId, worldId, bidder,
-                                bidAmount, bypassConflict);
-                        if (!(result instanceof RealtyBackend.BidResult.Success)) {
-                            return new PlacedBid(result, null);
-                        }
-                        RealtyBackend.RegionInfo info = realtyApi.getRegionInfo(regionId, worldId);
-                        Instant endsAt = info.auction() == null || info.highestBid() == null ? null
-                                : toInstant(info.highestBid().bidTime())
-                                        .plusSeconds(info.auction().biddingDurationSeconds());
-                        return new PlacedBid(result, endsAt);
-                    }, executorState.dbExec()).thenApplyAsync(placed -> {
-                        if (placed.result() instanceof RealtyBackend.BidResult.Success success
-                                && gate.region() != null && placed.biddingEndsAt() != null) {
-                            events.fireSync(new AuctionBidPlacedEvent(gate.region(), bidderId, bidAmount,
-                                    success.previousBidderId(), placed.biddingEndsAt()));
-                        }
-                        return placed.result();
-                    }, executorState.mainThreadExec());
-                }, executorState.mainThreadExec());
+                .thenComposeAsync(proceed -> !proceed
+                        ? CompletableFuture.completedFuture(new RealtyBackend.BidResult.Cancelled())
+                        : thenFire(regionId, worldId,
+                                () -> {
+                                    RealtyBackend.BidResult result = realtyApi.performBid(regionId, worldId, bidder,
+                                            bidAmount, bypassConflict);
+                                    if (!(result instanceof RealtyBackend.BidResult.Success)) {
+                                        return new PlacedBid(result, null);
+                                    }
+                                    RealtyBackend.RegionInfo info = realtyApi.getRegionInfo(regionId, worldId);
+                                    Instant endsAt = info.auction() == null || info.highestBid() == null ? null
+                                            : toInstant(info.highestBid().bidTime())
+                                                    .plusSeconds(info.auction().biddingDurationSeconds());
+                                    return new PlacedBid(result, endsAt);
+                                },
+                                (region, placed) -> {
+                                    if (placed.result() instanceof RealtyBackend.BidResult.Success success
+                                            && placed.biddingEndsAt() != null) {
+                                        events.fireSync(new AuctionBidPlacedEvent(region, bidderId, bidAmount,
+                                                success.previousBidderId(), placed.biddingEndsAt()));
+                                    }
+                                }).thenApply(PlacedBid::result),
+                        executorState.mainThreadExec());
     }
 
     @Override
@@ -2186,7 +2180,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext offerer, double price, boolean bypassConflict) {
         UUID offererId = offerer.requirePlayer();
         return gate(regionId, worldId, region -> new OfferPlaceEvent(region, offererId, price))
-                .thenComposeAsync(gate -> gate.proceed()
+                .thenComposeAsync(proceed -> proceed
                         ? thenFire(regionId, worldId,
                                 () -> realtyApi.placeOffer(regionId, worldId, offerer, price, bypassConflict),
                                 (region, result) -> {
@@ -2205,7 +2199,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext ctx, @NotNull UUID offererId) {
         UUID accepterId = ctx.requirePlayer();
         return gate(regionId, worldId, region -> new OfferAcceptEvent(region, accepterId, offererId))
-                .thenComposeAsync(gate -> gate.proceed()
+                .thenComposeAsync(proceed -> proceed
                         ? thenFire(regionId, worldId,
                                 () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
                                 (region, result) -> {
