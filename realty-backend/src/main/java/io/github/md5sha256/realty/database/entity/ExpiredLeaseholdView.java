@@ -10,6 +10,7 @@ public record ExpiredLeaseholdView(
         @NotNull Party landlord,
         @NotNull UUID tenantId,
         @NotNull String worldGuardRegionId,
-        @NotNull UUID worldId
+        @NotNull UUID worldId,
+        int realtyRegionId
 ) {
 }

@@ -353,9 +353,27 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
             RealtyBackend.TerminatedLeasehold ended = swept.get(0);
             Assertions.assertEquals(PLAYER_B, ended.tenantId());
             Assertions.assertEquals(100.0, ended.refund(), 0.5, "Refund should be half of one period");
+            Assertions.assertEquals(logic.getRegionWithState(regionId, WORLD_ID).region().realtyRegionId(),
+                    ended.realtyRegionId());
 
             // The tenant has been cleared.
             Assertions.assertNull(logic.getLeaseholdContract(regionId, WORLD_ID).tenantId());
+        }
+
+        @Test
+        @DisplayName("a region's current name is read by its stable id, and follows a rename")
+        void currentNameFollowsARename() {
+            String regionId = uniqueRegionId();
+            String renamed = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 3600, 5, Party.personal(PLAYER_A));
+            int id = logic.getRegionWithState(regionId, WORLD_ID).region().realtyRegionId();
+            Assertions.assertEquals(regionId, logic.getWorldGuardRegionId(id));
+
+            Assertions.assertInstanceOf(RealtyBackend.RenameRegionResult.Success.class,
+                    logic.renameRegion(regionId, renamed, WORLD_ID, ActorContext.console()));
+
+            Assertions.assertEquals(renamed, logic.getWorldGuardRegionId(id));
+            Assertions.assertNull(logic.getWorldGuardRegionId(Integer.MAX_VALUE));
         }
 
         @Test

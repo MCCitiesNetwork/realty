@@ -1518,24 +1518,40 @@ public interface RealtyBackend {
 
     // --- Expired Leaseholds ---
 
+    /**
+     * @param realtyRegionId the region's stable id, which a rename does not change; see
+     *                       {@link #getWorldGuardRegionId(int)}
+     */
     record ExpiredLeasehold(
             @NotNull UUID tenantId,
             @NotNull Party landlord,
             @NotNull String worldGuardRegionId,
-            @NotNull UUID worldId
+            @NotNull UUID worldId,
+            int realtyRegionId
     ) {}
 
     @NotNull List<ExpiredLeasehold> clearExpiredLeaseholds();
 
+    /**
+     * The region's current WorldGuard name, read by its stable id; {@code null} when no region has
+     * that id. A rename changes the name but not the id.
+     */
+    @Nullable String getWorldGuardRegionId(int realtyRegionId);
+
     // --- Terminated Leaseholds (scheduled termination date elapsed) ---
 
+    /**
+     * @param realtyRegionId the region's stable id, which a rename does not change; see
+     *                       {@link #getWorldGuardRegionId(int)}
+     */
     record TerminatedLeasehold(
             @NotNull UUID tenantId,
             @NotNull Party landlord,
             @NotNull String worldGuardRegionId,
             @NotNull UUID worldId,
             double refund,
-            @NotNull String terminatedByRole
+            @NotNull String terminatedByRole,
+            int realtyRegionId
     ) {}
 
     /**

@@ -3959,6 +3959,8 @@ class RealtyPaperApiImplTest {
     @DisplayName("a queued operation's region")
     class QueuedRegion {
 
+        /** The stable id of the region under {@code REGION_ID}. */
+        private static final int REALTY_REGION_ID = 7;
         private RegionManager regionManager;
         /** Holds the region's queue until completed. */
         private CompletableFuture<String> gate;
@@ -4227,7 +4229,7 @@ class RealtyPaperApiImplTest {
         void anExpiredLeaseReleasesTheCurrentRegionInItsTurn() {
             storedForLease();
             CompletableFuture<Void> released = api.releaseExpiredLease(
-                    new RealtyBackend.ExpiredLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID));
+                    new RealtyBackend.ExpiredLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, REALTY_REGION_ID));
             ProtectedCuboidRegion replacement = replaceRegion(40);
             replacement.getOwners().addPlayer(TENANT_ID);
             verify(events, never()).fireSync(any(LeaseExpiredEvent.class));
@@ -4249,7 +4251,8 @@ class RealtyPaperApiImplTest {
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
             CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord"));
+                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
+                            REALTY_REGION_ID));
 
             gate.complete("done");
             released.join();
@@ -4267,7 +4270,8 @@ class RealtyPaperApiImplTest {
                     .thenReturn(new PaymentResult.Success());
             protectedRegion.getOwners().addPlayer(TENANT_ID);
             CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord"));
+                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
+                            REALTY_REGION_ID));
 
             gate.complete("done");
             released.join();
@@ -4278,12 +4282,37 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
+        @DisplayName("a lease whose region was renamed before its release releases the region under its new name")
+        void aLeaseFollowsARenameToItsRegion() {
+            ProtectedCuboidRegion renamed = new ProtectedCuboidRegion("renamed-plot",
+                    BlockVector3.at(0, 0, 0), BlockVector3.at(100, 100, 100));
+            renamed.getOwners().addPlayer(TENANT_ID);
+            regionManager.removeRegion(REGION_ID);
+            regionManager.addRegion(renamed);
+            when(realtyApi.getWorldGuardRegionId(REALTY_REGION_ID)).thenReturn("renamed-plot");
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            CompletableFuture<Void> released = api.releaseTerminatedLease(
+                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
+                            REALTY_REGION_ID));
+
+            gate.complete("done");
+            released.join();
+
+            Assertions.assertFalse(renamed.getOwners().contains(TENANT_ID));
+            // Paid once, by the release that found the region, not by the one that moved it on.
+            verify(economyProvider, times(1)).transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull());
+            verify(events, times(1)).fireSync(any(LeaseTerminatedEvent.class));
+        }
+
+        @Test
         @DisplayName("a terminated lease whose region WorldGuard no longer has still pays its refund")
         void aTerminationOfAGoneRegionStillRefunds() {
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
             CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord"));
+                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
+                            REALTY_REGION_ID));
             regionManager.removeRegion(REGION_ID);
 
             gate.complete("done");

@@ -1851,8 +1851,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * on the region. Not part of {@link RealtyPaperApi}; the scheduler calls it.
      */
     public @NotNull CompletableFuture<Void> releaseExpiredLease(@NotNull RealtyBackend.ExpiredLeasehold expired) {
-        return releaseEndedLease(expired.worldGuardRegionId(), expired.worldId(), expired.tenantId(), () -> { },
-                region -> new LeaseExpiredEvent(region, expired.tenantId(), expired.landlord()));
+        return releaseEndedLease(expired.worldGuardRegionId(), new EndedLease(expired.worldId(),
+                expired.realtyRegionId(), expired.tenantId(), () -> { },
+                region -> new LeaseExpiredEvent(region, expired.tenantId(), expired.landlord())));
     }
 
     /**
@@ -1861,33 +1862,64 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * of {@link RealtyPaperApi}; the scheduler calls it.
      */
     public @NotNull CompletableFuture<Void> releaseTerminatedLease(@NotNull RealtyBackend.TerminatedLeasehold terminated) {
-        return releaseEndedLease(terminated.worldGuardRegionId(), terminated.worldId(), terminated.tenantId(),
-                () -> refundTermination(terminated),
+        return releaseEndedLease(terminated.worldGuardRegionId(), new EndedLease(terminated.worldId(),
+                terminated.realtyRegionId(), terminated.tenantId(), () -> refundTermination(terminated),
                 region -> new LeaseTerminatedEvent(region, terminated.tenantId(), terminated.landlord(),
-                        terminated.refund(), terminated.terminatedByRole()));
+                        terminated.refund(), terminated.terminatedByRole())));
+    }
+
+    /**
+     * An ended lease as its release needs it, apart from the region's name, which can change
+     * while it waits.
+     *
+     * @param settle     run on the main thread in the release's turn, whether or not WorldGuard
+     *                   still has the region: a termination's refund
+     * @param endedEvent the event the release fires once the region is released
+     */
+    private record EndedLease(@NotNull UUID worldId, int realtyRegionId, @NotNull UUID tenantId,
+                              @NotNull Runnable settle,
+                              @NotNull Function<WorldGuardRegion, RealtyRegionEvent> endedEvent) {
     }
 
     /**
      * Releases the region of an ended lease in its turn on the region, so a rename or redefine
-     * already running on it finishes first. On the main thread it runs {@code settle}, whether or
-     * not WorldGuard still has the region; then the tenant stops owning it, its flags and signs are
-     * redrawn from the stored state, and {@code endedEvent} is fired.
+     * already running on it finishes first. In its turn it reads the region's current name by its
+     * stable id: a rename that committed after the scheduler read the lease, while it waited, moves
+     * the release to the new name; otherwise {@link #releaseInTurn} releases it.
      */
-    private @NotNull CompletableFuture<Void> releaseEndedLease(@NotNull String regionId, @NotNull UUID worldId,
-                                                              @NotNull UUID tenantId, @NotNull Runnable settle,
-                                                              @NotNull Function<WorldGuardRegion, RealtyRegionEvent> endedEvent) {
-        return logFailure(this.<Void>serializeByRegion(regionId, worldId, () -> CompletableFuture
-                // A failed read only skips the redraw; the lease is still released, refunded and reported.
-                .supplyAsync(() -> readStoredState(regionId, worldId), executorState.dbExec())
+    private @NotNull CompletableFuture<Void> releaseEndedLease(@NotNull String regionId, @NotNull EndedLease lease) {
+        return logFailure(this.<Void>serializeByRegion(regionId, lease.worldId(), () -> CompletableFuture
+                .supplyAsync(() -> realtyApi.getWorldGuardRegionId(lease.realtyRegionId()), executorState.dbExec())
+                .thenCompose(current -> {
+                    if (current != null && !current.equals(regionId)) {
+                        // Not waited for: a rename takes both names' queues, so holding this one while
+                        // waiting on the new name's could deadlock against a rename back.
+                        releaseEndedLease(current, lease);
+                        return CompletableFuture.<Void>completedFuture(null);
+                    }
+                    return releaseInTurn(regionId, lease);
+                })), "release the region of ended lease " + regionId);
+    }
+
+    /**
+     * The release of an ended lease once its turn on {@code regionId} has come and the name has
+     * held: on the main thread it runs the lease's settle step, whether or not WorldGuard still has
+     * the region; then the tenant stops owning it, its flags and signs are redrawn from the stored
+     * state, and the lease's event is fired.
+     */
+    private @NotNull CompletableFuture<Void> releaseInTurn(@NotNull String regionId, @NotNull EndedLease lease) {
+        UUID worldId = lease.worldId();
+        // A failed read only skips the redraw; the lease is still released, settled and reported.
+        return CompletableFuture.supplyAsync(() -> readStoredState(regionId, worldId), executorState.dbExec())
                 .thenApplyAsync(stored -> {
-                    settle.run();
+                    lease.settle().run();
                     ifInWorldGuard(regionId, worldId, "The lease of " + regionId + " ended", region -> {
-                        region.region().getOwners().removePlayer(tenantId);
+                        region.region().getOwners().removePlayer(lease.tenantId());
                         showStoredState(region, stored);
-                        events.fireSync(endedEvent.apply(region));
+                        events.fireSync(lease.endedEvent().apply(region));
                     });
                     return null;
-                }, executorState.mainThreadExec())), "release the region of ended lease " + regionId);
+                }, executorState.mainThreadExec());
     }
 
     /** Pays a terminated lease's refund, landlord to tenant, and logs a failed one for an admin. Main thread. */

@@ -205,7 +205,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
     @Override
     @Select("""
             SELECT lc.leaseholdContractId, lc.tenantId,
-                   rr.worldGuardRegionId, rr.worldId,
+                   rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId,
             """ + PartySql.LANDLORD_COLUMNS + """
             FROM LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
@@ -219,7 +219,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "landlord_", javaType = Party.class),
             @Arg(column = "tenantId", javaType = UUID.class),
             @Arg(column = "worldGuardRegionId", javaType = String.class),
-            @Arg(column = "worldId", javaType = UUID.class)
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "realtyRegionId", javaType = int.class)
     })
     @NotNull List<ExpiredLeaseholdView> selectExpiredLeaseholds();
 
@@ -339,7 +340,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
 
     @Override
     @Select("""
-            SELECT lc.leaseholdContractId, rr.worldGuardRegionId, rr.worldId,
+            SELECT lc.leaseholdContractId, rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId,
             """ + PartySql.LANDLORD_COLUMNS + """
             FROM LeaseholdContract lc
             INNER JOIN Contract c ON c.contractId = lc.leaseholdContractId AND c.contractType = 'leasehold'
@@ -352,7 +353,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             @Arg(column = "leaseholdContractId", javaType = int.class),
             @Arg(resultMap = PartySql.RESULT_MAP, columnPrefix = "landlord_", javaType = Party.class),
             @Arg(column = "worldGuardRegionId", javaType = String.class),
-            @Arg(column = "worldId", javaType = UUID.class)
+            @Arg(column = "worldId", javaType = UUID.class),
+            @Arg(column = "realtyRegionId", javaType = int.class)
     })
     @NotNull List<MarkedVacantLeaseholdView> selectMarkedVacant();
 
@@ -382,7 +384,7 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
     @Override
     @Select("""
             SELECT lc.leaseholdContractId, lc.tenantId,
-                   rr.worldGuardRegionId, rr.worldId,
+                   rr.worldGuardRegionId, rr.worldId, rr.realtyRegionId,
                    lc.price, lc.durationSeconds, lc.endDate,
                    lc.terminationEffectiveDate, lc.terminatedByRole,
             """ + PartySql.LANDLORD_COLUMNS + """
@@ -404,7 +406,8 @@ public interface MariaLeaseholdContractMapper extends LeaseholdContractMapper {
             @Arg(column = "durationSeconds", javaType = long.class),
             @Arg(column = "endDate", javaType = LocalDateTime.class),
             @Arg(column = "terminationEffectiveDate", javaType = LocalDateTime.class),
-            @Arg(column = "terminatedByRole", javaType = String.class)
+            @Arg(column = "terminatedByRole", javaType = String.class),
+            @Arg(column = "realtyRegionId", javaType = int.class)
     })
     @NotNull List<TerminatedLeaseholdView> selectTerminatedLeaseholds();
 

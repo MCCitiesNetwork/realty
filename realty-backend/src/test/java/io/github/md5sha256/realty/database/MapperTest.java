@@ -573,9 +573,11 @@ class MapperTest extends AbstractDatabaseTest {
             try (SqlSessionWrapper wrapper = database.openSession()) {
                 List<ExpiredLeaseholdView> expired = wrapper.leaseholdContractMapper().selectExpiredLeaseholds();
                 Assertions.assertFalse(expired.isEmpty());
-                boolean found = expired.stream()
-                        .anyMatch(e -> e.worldGuardRegionId().equals(regionId));
-                Assertions.assertTrue(found);
+                ExpiredLeaseholdView view = expired.stream()
+                        .filter(e -> e.worldGuardRegionId().equals(regionId)).findFirst().orElseThrow();
+                // The region's stable id, which a rename does not change.
+                Assertions.assertEquals(wrapper.realtyRegionMapper().selectByWorldGuardRegion(regionId, WORLD_ID)
+                        .realtyRegionId(), view.realtyRegionId());
             }
         }
 

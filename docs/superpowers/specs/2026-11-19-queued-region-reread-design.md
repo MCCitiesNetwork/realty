@@ -125,14 +125,18 @@ In `RealtyPaperApiImplTest`, with a real in-memory region manager:
   as `cancelAuction` and the id-based redraws do, so it writes to the region WorldGuard has.
 - **The scheduler.** Lease expiry and scheduled termination clear their rows in one database call,
   then release each region through `RealtyPaperApiImpl.releaseExpiredLease` or
-  `releaseTerminatedLease`, which wait their turn on the region, look it up when they run, redraw
-  from the state stored then, and pay a termination's refund before the event that reports it. The
-  sweep of subregions marked for deletion removes each one through `removeSweptSubregion` in the
-  same way. A rename that has committed before the rows are read is seen, because the rows carry the
-  new name; one queued after the release waits behind it. One window is left: a rename already
-  queued whose database step lands just after the clear. The release then finds no region under the
-  old name and logs it, and the former tenant stays a WorldGuard owner until an admin removes them.
-  Closing it needs the backend to return the region's stable id with each ended lease.
+  `releaseTerminatedLease`, which wait their turn on the region, redraw from the state stored then,
+  and pay a termination's refund before the event that reports it. The sweep of subregions marked
+  for deletion removes each one through `removeSweptSubregion` in the same way. Each ended lease
+  carries its region's stable id (`realtyRegionId`), and in its turn the release reads the region's
+  current name by that id (`RealtyBackend.getWorldGuardRegionId`). A rename that committed after the
+  rows were read moves the release to the new name, without waiting for it, because a rename takes
+  both names' queues and a release holding one while waiting on the other could deadlock against a
+  rename back. The sweep's database step deletes each marked region row by the same id and reports
+  the name the row has when it is deleted, so a rename between the sweep's read and its delete
+  neither leaves the row behind nor sends the WorldGuard removal to the wrong name. The added field
+  changes the constructors of the public `ExpiredLeasehold`, `TerminatedLeasehold` and
+  `TerminatedLeaseholdView` records, so the release notes must say so.
 - **Checks before queuing read the caller's object.** They read only the id, the world and, for
   redefine, the shape; the id and world cannot change, and a redefine that compares against a
   stale shape only risks refusing a no-op or letting one through.
