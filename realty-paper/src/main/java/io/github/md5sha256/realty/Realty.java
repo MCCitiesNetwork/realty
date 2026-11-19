@@ -1169,7 +1169,7 @@ public final class Realty extends JavaPlugin {
         RedefineReplies redefineReplies = new RedefineReplies(messageContainer, this.eventDispatch);
         SubregionDialog subregionDialog = new SubregionDialog(paperApi, executorState,
                 this.database, subregionWandManager, this.settings, this.realtyTags,
-                messageContainer);
+                messageContainer, this.actorContexts, redefineReplies);
         PluginManager pluginManager = getServer().getPluginManager();
         pluginManager.registerEvents(
                 new SubregionWandListener(this, subregionWand, subregionWandManager,

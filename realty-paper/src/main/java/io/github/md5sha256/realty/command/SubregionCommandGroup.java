@@ -44,12 +44,17 @@ import java.util.function.LongSupplier;
  *     <li>{@code /realty subregion delete <region> [--confirm]} — deletes a subregion at once while
  *     vacant, or, while rented, when its lease ends.</li>
  *     <li>{@code /realty subregion delete cancel <region>} — cancels a scheduled delete.</li>
+ *     <li>{@code /realty subregion redefine <region>} — gives a subregion the shape of the marked
+ *     footprint, through the height dialog and a confirm dialog.</li>
  * </ul>
  *
  * <p>Selection geometry, parent auto-detection and validation live in
  * {@link SubregionDialog} and {@code SubregionSelectionValidator}. Deleting needs
  * {@code realty.command.subregion.delete}; {@code realty.command.subregion.delete.others} lets the
- * player act for a landlord they do not manage.</p>
+ * player act for a landlord they do not manage. Redefining needs
+ * {@code realty.command.subregion.redefine} and, without
+ * {@code realty.command.subregion.redefine.others}, a vacant subregion whose landlord the player
+ * manages.</p>
  */
 public record SubregionCommandGroup(
         @NotNull SubregionWand wand,
@@ -97,6 +102,11 @@ public record SubregionCommandGroup(
                         .permission(DELETE_PERMISSION)
                         .required("region", WorldGuardRegionParser.worldGuardRegion())
                         .handler(this::executeCancelDelete)
+                        .build(),
+                base.literal("redefine")
+                        .permission("realty.command.subregion.redefine")
+                        .required("region", WorldGuardRegionParser.worldGuardRegion())
+                        .handler(this::executeRedefine)
                         .build()
         );
     }
@@ -123,6 +133,14 @@ public record SubregionCommandGroup(
         }
         wandManager.clear(player.getUniqueId());
         player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_SELECTION_CLEARED));
+    }
+
+    private void executeRedefine(@NotNull CommandContext<Source> ctx) {
+        if (!(ctx.sender().source() instanceof Player player)) {
+            ctx.sender().source().sendMessage(messages.messageFor(MessageKeys.COMMON_PLAYERS_ONLY));
+            return;
+        }
+        dialog.openRedefine(player, ctx.get("region"));
     }
 
     private void executeConfirm(@NotNull CommandContext<Source> ctx) {
