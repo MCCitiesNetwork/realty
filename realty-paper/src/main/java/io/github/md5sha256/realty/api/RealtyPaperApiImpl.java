@@ -1350,12 +1350,15 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // Serialized per region: see serializeByRegion for why a write waits its turn.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
-                () -> realtyApi.setLandlord(regionId, worldId, landlord, ctx, vacantOnly),
-                executorState.dbExec()
-        ).thenApplyAsync(result -> switch (result) {
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
+            RealtyBackend.SetLandlordResult result =
+                    realtyApi.setLandlord(regionId, worldId, landlord, ctx, vacantOnly);
+            return new Shown<>(result, result instanceof RealtyBackend.SetLandlordResult.Success
+                    ? readStoredState(regionId, worldId) : null);
+        }, executorState.dbExec()).thenApplyAsync(shown -> switch (shown.result()) {
             case RealtyBackend.SetLandlordResult.Success success -> {
                 region.region().getMembers().clear();
+                showStoredState(regionId, worldId, shown.stored());
                 yield (SetLandlordResult) new SetLandlordResult.Success(
                         success.previousLandlord(), regionId);
             }
@@ -1946,17 +1949,20 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     if (!gate.proceed()) {
                         return CompletableFuture.completedFuture(new RealtyBackend.CreateAuctionResult.Cancelled());
                     }
-                    return CompletableFuture.supplyAsync(
-                            () -> realtyApi.createAuction(regionId, worldId, ctx,
-                                    biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep),
-                            executorState.dbExec()
-                    ).thenApplyAsync(result -> {
-                        if (result instanceof RealtyBackend.CreateAuctionResult.Success && gate.region() != null) {
+                    return CompletableFuture.supplyAsync(() -> {
+                        RealtyBackend.CreateAuctionResult result = realtyApi.createAuction(regionId, worldId, ctx,
+                                biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep);
+                        return new Shown<>(result, result instanceof RealtyBackend.CreateAuctionResult.Success
+                                ? readStoredState(regionId, worldId) : null);
+                    }, executorState.dbExec()).thenApplyAsync(shown -> {
+                        if (shown.result() instanceof RealtyBackend.CreateAuctionResult.Success
+                                && gate.region() != null) {
                             events.fireSync(new AuctionCreatedEvent(gate.region(), auctioneerId, minBid, minBidStep,
                                     biddingDurationSeconds, paymentDurationSeconds,
                                     Instant.now().plusSeconds(biddingDurationSeconds)));
                         }
-                        return result;
+                        showStoredState(regionId, worldId, shown.stored());
+                        return shown.result();
                     }, executorState.mainThreadExec());
                 }, executorState.mainThreadExec());
     }
@@ -1965,12 +1971,16 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<RealtyBackend.CancelAuctionResult> cancelAuction(
             @NotNull String regionId, @NotNull UUID worldId, @Nullable UUID actorId) {
         return thenFire(regionId, worldId,
-                () -> realtyApi.cancelAuction(regionId, worldId),
-                (region, result) -> {
-                    if (result.deleted() > 0) {
-                        events.fireSync(new AuctionCancelledEvent(region, actorId, result.bidderIds()));
+                () -> {
+                    RealtyBackend.CancelAuctionResult result = realtyApi.cancelAuction(regionId, worldId);
+                    return new Shown<>(result, result.deleted() > 0 ? readStoredState(regionId, worldId) : null);
+                },
+                (region, shown) -> {
+                    if (shown.result().deleted() > 0) {
+                        events.fireSync(new AuctionCancelledEvent(region, actorId, shown.result().bidderIds()));
                     }
-                });
+                    showStoredState(regionId, worldId, shown.stored());
+                }).thenApply(Shown::result);
     }
 
     /** What the bid's post-event needs beyond the result: when bidding now ends. */
@@ -2303,9 +2313,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     @Override
     public @NotNull CompletableFuture<RealtyBackend.SetAuthorityResult> setAuthority(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull Party authority) {
-        return CompletableFuture.supplyAsync(
-                () -> realtyApi.setAuthority(regionId, worldId, authority),
-                executorState.dbExec());
+        return writeAndShow(regionId, worldId, RealtyBackend.SetAuthorityResult.Success.class,
+                () -> realtyApi.setAuthority(regionId, worldId, authority));
     }
 
     @Override
@@ -2332,7 +2341,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<RealtyBackend.SetPriceResult> setPrice(
             @NotNull String regionId, @NotNull UUID worldId, double price,
             @NotNull ActorContext ctx, boolean vacantOnly) {
-        return writeTerms(regionId, worldId, RealtyBackend.SetPriceResult.Success.class,
+        return writeAndShow(regionId, worldId, RealtyBackend.SetPriceResult.Success.class,
                 () -> realtyApi.setPrice(regionId, worldId, price, ctx, vacantOnly));
     }
 
@@ -2340,7 +2349,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<RealtyBackend.UnsetPriceResult> unsetPrice(
             @NotNull String regionId, @NotNull UUID worldId,
             @NotNull ActorContext ctx) {
-        return writeTerms(regionId, worldId, RealtyBackend.UnsetPriceResult.Success.class,
+        return writeAndShow(regionId, worldId, RealtyBackend.UnsetPriceResult.Success.class,
                 () -> realtyApi.unsetPrice(regionId, worldId, ctx));
     }
 
@@ -2348,7 +2357,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<RealtyBackend.SetDurationResult> setDuration(
             @NotNull String regionId, @NotNull UUID worldId, long durationSeconds,
             @NotNull ActorContext ctx, boolean vacantOnly) {
-        return writeTerms(regionId, worldId, RealtyBackend.SetDurationResult.Success.class,
+        return writeAndShow(regionId, worldId, RealtyBackend.SetDurationResult.Success.class,
                 () -> realtyApi.setDuration(regionId, worldId, durationSeconds, ctx, vacantOnly));
     }
 
@@ -2356,7 +2365,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     public @NotNull CompletableFuture<RealtyBackend.SetMaxRenewalsResult> setMaxRenewals(
             @NotNull String regionId, @NotNull UUID worldId, int maxRenewals,
             @NotNull ActorContext ctx, boolean vacantOnly) {
-        return writeTerms(regionId, worldId, RealtyBackend.SetMaxRenewalsResult.Success.class,
+        return writeAndShow(regionId, worldId, RealtyBackend.SetMaxRenewalsResult.Success.class,
                 () -> realtyApi.setMaxRenewals(regionId, worldId, maxRenewals, ctx, vacantOnly));
     }
 
@@ -2556,51 +2565,67 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     // PRIVATE HELPERS
     // ═══════════════════════════════════════
 
-    /** The answer of a write of a region's terms and, when it succeeded, the region as it now stands. */
-    private record TermsWritten<T>(@NotNull T result, @Nullable RealtyBackend.RegionWithState region) {}
+    /** A backend call's answer and, when it succeeded, the region as it is now stored. */
+    private record Shown<T>(@NotNull T result, @Nullable RealtyBackend.RegionWithState stored) {}
 
     /**
-     * Runs a write of a region's price, duration or extension limit and, when it answers with
-     * {@code successType}, rewrites the region's flags and redraws its loaded signs from what is
-     * now stored, since a flag value such as a greeting can show the terms through placeholders.
-     * The returned future completes on the main thread with the write's own answer.
+     * Database thread: the region's stored state and placeholders, read after a committed write so
+     * its flags and signs can show them. Returns {@code null} when the region cannot be read: the
+     * write has committed, so a failed read only costs the redraw, not the answer.
+     */
+    private @Nullable RealtyBackend.RegionWithState readStoredState(@NotNull String regionId,
+                                                                    @NotNull UUID worldId) {
+        try {
+            return realtyApi.getRegionWithState(regionId, worldId);
+        } catch (RuntimeException ex) {
+            logger.log(Level.WARNING, "Could not read region " + regionId + " to redraw its flags and signs", ex);
+            return null;
+        }
+    }
+
+    /**
+     * Main thread: rewrites the region's flags and redraws its loaded signs from {@code stored}.
+     * Flag values such as a greeting can show any placeholder, so every write that changes one
+     * calls this, not only a change of state. Does nothing when {@code stored} is null or the world
+     * is not loaded; a region WorldGuard no longer has still gets its signs redrawn. A failure is
+     * logged and never reaches the caller, whose write has already committed.
+     */
+    private void showStoredState(@NotNull String regionId, @NotNull UUID worldId,
+                                 @Nullable RealtyBackend.RegionWithState stored) {
+        World world = stored != null ? server.getWorld(worldId) : null;
+        if (world == null) {
+            return;
+        }
+        try {
+            WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(server, worldId, regionId);
+            if (wgRegion != null) {
+                regionProfileService.applyFlags(wgRegion, stored.state(), stored.placeholders());
+            }
+            signTextApplicator.updateLoadedSigns(world, regionId, stored.state(), stored.placeholders());
+        } catch (RuntimeException ex) {
+            logger.log(Level.WARNING, "Could not redraw the flags and signs of region " + regionId, ex);
+        }
+    }
+
+    /**
+     * Runs a write of a region's terms or authority and, when it answers with {@code successType},
+     * shows what is now stored, see {@link #showStoredState}. The returned future completes on
+     * the main thread with the write's own answer.
      *
      * <p>The write waits its turn on the region, see {@link #serializeByRegion}. The redraw is
      * left out of that turn: it always hops to the main thread, which is what makes the future
      * complete there whichever thread the turn came up on.
      */
-    private <T> @NotNull CompletableFuture<T> writeTerms(@NotNull String regionId,
-                                                         @NotNull UUID worldId,
-                                                         @NotNull Class<? extends T> successType,
-                                                         @NotNull Supplier<T> write) {
+    private <T> @NotNull CompletableFuture<T> writeAndShow(@NotNull String regionId,
+                                                           @NotNull UUID worldId,
+                                                           @NotNull Class<? extends T> successType,
+                                                           @NotNull Supplier<T> write) {
         return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             T result = write.get();
-            RealtyBackend.RegionWithState region = null;
-            if (successType.isInstance(result)) {
-                // The write has committed: a failed read only costs the redraw, not the answer.
-                try {
-                    region = realtyApi.getRegionWithState(regionId, worldId);
-                } catch (RuntimeException ex) {
-                    ex.printStackTrace();
-                }
-            }
-            return new TermsWritten<>(result, region);
-        }, executorState.dbExec())).thenApplyAsync(written -> {
-            RealtyBackend.RegionWithState region = written.region();
-            try {
-                World world = region != null ? server.getWorld(worldId) : null;
-                if (world != null) {
-                    WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(server, worldId, regionId);
-                    if (wgRegion != null) {
-                        regionProfileService.applyFlags(wgRegion, region.state(), region.placeholders());
-                    }
-                    signTextApplicator.updateLoadedSigns(world, regionId,
-                            region.state(), region.placeholders());
-                }
-            } catch (RuntimeException ex) {
-                ex.printStackTrace();
-            }
-            return written.result();
+            return new Shown<>(result, successType.isInstance(result) ? readStoredState(regionId, worldId) : null);
+        }, executorState.dbExec())).thenApplyAsync(shown -> {
+            showStoredState(regionId, worldId, shown.stored());
+            return shown.result();
         }, executorState.mainThreadExec());
     }
 
