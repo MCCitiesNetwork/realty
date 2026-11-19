@@ -1308,7 +1308,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID titleHolderId = Party.playerUuidOf(titleHolder).orElse(null);
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        return CompletableFuture.supplyAsync(() -> {
+        // Queued like setTitleHolder, so the owners are written to the region WorldGuard has.
+        return serializeRegion(region, () -> new SetTitleHolderResult.NoFreeholdContract(regionId), current ->
+                CompletableFuture.supplyAsync(() -> {
             RealtyBackend.SetTitleHolderResult result = realtyApi.transferTitleHolder(regionId, worldId, titleHolderId);
             if (result instanceof RealtyBackend.SetTitleHolderResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -1317,19 +1319,19 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return Map.<RealtyBackend.SetTitleHolderResult, Map<String, String>>entry(result, Map.of());
         }, executorState.dbExec()).thenApplyAsync(entry -> switch (entry.getKey()) {
             case RealtyBackend.SetTitleHolderResult.Success success -> {
-                ProtectedRegion protectedRegion = region.region();
+                ProtectedRegion protectedRegion = current.region();
                 protectedRegion.getOwners().clear();
                 protectedRegion.getMembers().clear();
                 RegionState state;
                 if (titleHolderId != null) {
                     protectedRegion.getOwners().addPlayer(titleHolderId);
                     state = RegionState.SOLD;
-                    updateChildLandlords(regionId, region.world(), titleHolderId);
+                    updateChildLandlords(regionId, current.world(), titleHolderId);
                 } else {
                     state = RegionState.FOR_SALE;
                 }
-                regionProfileService.applyFlags(region, state, entry.getValue());
-                signTextApplicator.updateLoadedSigns(region.world(), regionId,
+                regionProfileService.applyFlags(current, state, entry.getValue());
+                signTextApplicator.updateLoadedSigns(current.world(), regionId,
                         state, entry.getValue());
                 yield (SetTitleHolderResult) new SetTitleHolderResult.Success(
                         playerParty(success.previousTitleHolder()), regionId);
@@ -1344,7 +1346,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     (SetTitleHolderResult) new SetTitleHolderResult.SaleInPayment(regionId);
             case RealtyBackend.SetTitleHolderResult.UpdateFailed ignored ->
                     (SetTitleHolderResult) new SetTitleHolderResult.UpdateFailed(regionId);
-        }, executorState.mainThreadExec()).exceptionally(ex -> {
+        }, executorState.mainThreadExec())).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new SetTitleHolderResult.Error(String.valueOf(cause.getMessage()));
         });
@@ -1786,7 +1788,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull UUID landlordId) {
         String parentId = parentRegion.region().getId();
         UUID worldId = parentRegion.world().getUID();
-        return CompletableFuture.supplyAsync(() -> {
+        // In the parent's queue, so a redefine of the parent and this create are ordered, and the
+        // child gets the parent WorldGuard has.
+        return serializeRegion(parentRegion, () -> new QuickCreateSubregionResult.NoFreeholdContract(parentId),
+                parent -> CompletableFuture.supplyAsync(() -> {
             FreeholdContractEntity freehold = realtyApi.getFreeholdContract(parentId, worldId);
             if (freehold == null) {
                 return (QuickCreateSubregionResult) new QuickCreateSubregionResult.NoFreeholdContract(parentId);
@@ -1803,22 +1808,22 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(childName, worldId);
                 ProtectedRegion childRegion = createProtectedRegion(childName, selection);
                 try {
-                    childRegion.setParent(parentRegion.region());
+                    childRegion.setParent(parent.region());
                 } catch (ProtectedRegion.CircularInheritanceException ex) {
                     return CompletableFuture.completedFuture(
                             (QuickCreateSubregionResult) new QuickCreateSubregionResult.Error(
                                     "Circular region inheritance"));
                 }
-                RegionManager regionManager = regionManager(parentRegion.world());
+                RegionManager regionManager = regionManager(parent.world());
                 if (regionManager != null) {
                     regionManager.addRegion(childRegion);
                 }
                 childRegion.getOwners().addPlayer(landlordId);
-                WorldGuardRegion childWgRegion = new WorldGuardRegion(childRegion, parentRegion.world());
+                WorldGuardRegion childWgRegion = new WorldGuardRegion(childRegion, parent.world());
                 regionProfileService.applyFlags(childWgRegion, RegionState.FOR_LEASE, placeholders);
             }
             return CompletableFuture.completedFuture(result);
-        }, executorState.mainThreadExec()).exceptionally(ex -> {
+        }, executorState.mainThreadExec())).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             cause.printStackTrace();
             return new QuickCreateSubregionResult.Error(String.valueOf(cause.getMessage()));

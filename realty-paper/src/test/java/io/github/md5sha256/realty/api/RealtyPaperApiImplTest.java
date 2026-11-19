@@ -96,6 +96,8 @@ import java.util.logging.Logger;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
@@ -3988,6 +3990,41 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.Success.class, bought.join());
             Assertions.assertTrue(replacement.getOwners().contains(BUYER_ID));
+        }
+
+        @Test
+        @DisplayName("a transfer queued behind a redefine gives the region WorldGuard has its new owner")
+        void aTransferQueuedBehindARedefineOwnsTheRegionWorldGuardHas() {
+            when(realtyApi.transferTitleHolder(REGION_ID, WORLD_ID, BUYER_ID))
+                    .thenReturn(new RealtyBackend.SetTitleHolderResult.Success(null));
+            CompletableFuture<RealtyPaperApi.SetTitleHolderResult> transferred =
+                    api.transferTitleHolder(wgRegion, BUYER);
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.SetTitleHolderResult.Success.class, transferred.join());
+            Assertions.assertTrue(replacement.getOwners().contains(BUYER_ID));
+        }
+
+        @Test
+        @DisplayName("a subregion created from a parent since redefined gets the parent WorldGuard has")
+        void aSubregionFromAReplacedParentGetsTheCurrentParent() {
+            // The caller looked the parent up before a redefine replaced it.
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+            when(realtyApi.getFreeholdContract(REGION_ID, WORLD_ID))
+                    .thenReturn(new FreeholdContractEntity(1, GOVERNMENT, null, null, false));
+            when(realtyApi.createLeasehold(eq("child_plot"), eq(WORLD_ID), anyDouble(), anyLong(), anyInt(), any()))
+                    .thenReturn(true);
+            CompletableFuture<RealtyPaperApi.QuickCreateSubregionResult> created = api.quickCreateSubregion(
+                    wgRegion, "child_plot", new com.sk89q.worldedit.regions.CuboidRegion(
+                            BlockVector3.at(1, 1, 1), BlockVector3.at(5, 5, 5)),
+                    100.0, 3600, 1, LANDLORD_ID);
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.QuickCreateSubregionResult.Success.class, created.join());
+            Assertions.assertSame(replacement, regionManager.getRegion("child_plot").getParent());
         }
 
         @Test
