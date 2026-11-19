@@ -98,6 +98,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
@@ -4017,14 +4018,56 @@ class RealtyPaperApiImplTest {
             when(realtyApi.createLeasehold(eq("child_plot"), eq(WORLD_ID), anyDouble(), anyLong(), anyInt(), any()))
                     .thenReturn(true);
             CompletableFuture<RealtyPaperApi.QuickCreateSubregionResult> created = api.quickCreateSubregion(
-                    wgRegion, "child_plot", new com.sk89q.worldedit.regions.CuboidRegion(
-                            BlockVector3.at(1, 1, 1), BlockVector3.at(5, 5, 5)),
+                    wgRegion, "child_plot", new CuboidRegion(BlockVector3.at(1, 1, 1), BlockVector3.at(5, 5, 5)),
                     100.0, 3600, 1, LANDLORD_ID);
 
             gate.complete("done");
 
             Assertions.assertInstanceOf(RealtyPaperApi.QuickCreateSubregionResult.Success.class, created.join());
             Assertions.assertSame(replacement, regionManager.getRegion("child_plot").getParent());
+        }
+
+        @Test
+        @DisplayName("a freehold registered while the region is redefined writes to the region WorldGuard has")
+        void aFreeholdCreateQueuedBehindARedefineWritesTheCurrentRegion() {
+            Party authority = Party.personal(AUTHORITY_ID);
+            when(realtyApi.createFreehold(REGION_ID, WORLD_ID, 100.0, authority, (UUID) null)).thenReturn(true);
+            CompletableFuture<RealtyPaperApi.CreateFreeholdResult> created =
+                    api.createFreehold(wgRegion, 100.0, authority, (Party) null);
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.CreateFreeholdResult.Success.class, created.join());
+            Assertions.assertTrue(replacement.getMembers().contains(AUTHORITY_ID));
+        }
+
+        @Test
+        @DisplayName("a leasehold registered while the region is redefined gets its flags on the region WorldGuard has")
+        void aLeaseholdCreateQueuedBehindARedefineFlagsTheCurrentRegion() {
+            when(realtyApi.createLeasehold(REGION_ID, WORLD_ID, 100.0, 3600, 1, LANDLORD)).thenReturn(true);
+            CompletableFuture<RealtyPaperApi.CreateLeaseholdResult> created =
+                    api.createLeasehold(wgRegion, 100.0, 3600, 1, LANDLORD);
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.CreateLeaseholdResult.Success.class, created.join());
+            verify(regionProfileService).applyFlags(argThat(region -> region.region() == replacement),
+                    eq(RegionState.FOR_LEASE), any());
+        }
+
+        @Test
+        @DisplayName("a delete that keeps WorldGuard clears the flags of the region WorldGuard has")
+        void aDeleteQueuedBehindARedefineClearsTheCurrentRegion() {
+            when(realtyApi.deleteRegion(REGION_ID, WORLD_ID)).thenReturn(1);
+            CompletableFuture<RealtyPaperApi.DeleteResult> deleted = api.deleteRegion(wgRegion, false);
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteResult.Success.class, deleted.join());
+            verify(regionProfileService).clearAllFlags(argThat(region -> region.region() == replacement));
         }
 
         @Test
