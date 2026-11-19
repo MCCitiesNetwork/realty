@@ -95,6 +95,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
@@ -4223,6 +4224,12 @@ class RealtyPaperApiImplTest {
             verify(events, never()).fireSync(any(ScheduledSubregionDeletedEvent.class));
         }
 
+        /** A lease of the region the scheduler terminated, with a refund of 50 to the tenant. */
+        private RealtyBackend.TerminatedLeasehold terminated() {
+            return new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
+                    REALTY_REGION_ID);
+        }
+
         /** The backend reads the region back for lease once the lease has ended. */
         private void storedForLease() {
             when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
@@ -4255,9 +4262,7 @@ class RealtyPaperApiImplTest {
             storedForLease();
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
-            CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
-                            REALTY_REGION_ID));
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
 
             gate.complete("done");
             released.join();
@@ -4274,9 +4279,7 @@ class RealtyPaperApiImplTest {
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
             protectedRegion.getOwners().addPlayer(TENANT_ID);
-            CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
-                            REALTY_REGION_ID));
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
 
             gate.complete("done");
             released.join();
@@ -4297,9 +4300,7 @@ class RealtyPaperApiImplTest {
             when(realtyApi.getWorldGuardRegionId(REALTY_REGION_ID)).thenReturn("renamed-plot");
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
-            CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
-                            REALTY_REGION_ID));
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
 
             gate.complete("done");
             released.join();
@@ -4320,9 +4321,7 @@ class RealtyPaperApiImplTest {
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
             protectedRegion.getOwners().addPlayer(TENANT_ID);
-            CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
-                            REALTY_REGION_ID));
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
 
             gate.complete("done");
             released.join();
@@ -4340,9 +4339,7 @@ class RealtyPaperApiImplTest {
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
             protectedRegion.getOwners().addPlayer(TENANT_ID);
-            CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
-                            REALTY_REGION_ID));
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
 
             gate.complete("done");
             released.join();
@@ -4352,12 +4349,8 @@ class RealtyPaperApiImplTest {
             verify(events, never()).fireSync(any(LeaseTerminatedEvent.class));
         }
 
-        @Test
-        @DisplayName("a failed termination release logs the refund an admin may have to pay by hand")
-        void aFailedTerminationReleaseLogsTheRefund() {
-            storedForLease();
-            when(economyProvider.transfer(any(), any(), anyDouble(), any(), any()))
-                    .thenThrow(new IllegalStateException("economy down"));
+        /** The messages {@code LOG} gets while {@code release} runs and completes. */
+        private List<String> loggedWhile(Supplier<CompletableFuture<Void>> release) {
             List<String> logged = new ArrayList<>();
             Handler handler = new Handler() {
                 @Override
@@ -4375,18 +4368,39 @@ class RealtyPaperApiImplTest {
             };
             LOG.addHandler(handler);
             try {
-                CompletableFuture<Void> released = api.releaseTerminatedLease(
-                        new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0,
-                                "landlord", REALTY_REGION_ID));
-
+                CompletableFuture<Void> released = release.get();
                 gate.complete("done");
                 released.join();
             } finally {
                 LOG.removeHandler(handler);
             }
+            return logged;
+        }
+
+        @Test
+        @DisplayName("a refund transfer that throws logs the refund an admin has to pay by hand")
+        void aThrowingRefundLogsTheRefund() {
+            storedForLease();
+            when(economyProvider.transfer(any(), any(), anyDouble(), any(), any()))
+                    .thenThrow(new IllegalStateException("economy down"));
+
+            List<String> logged = loggedWhile(() -> api.releaseTerminatedLease(terminated()));
 
             Assertions.assertTrue(logged.stream().anyMatch(message -> message.contains(TENANT_ID.toString())
-                            && message.contains(CurrencyFormatter.format(50.0))),
+                    && message.contains(CurrencyFormatter.format(50.0))), "logged: " + logged);
+        }
+
+        @Test
+        @DisplayName("a release that fails after paying the refund does not report it unpaid")
+        void aReleaseFailingAfterTheRefundDoesNotReportItUnpaid() {
+            storedForLease();
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            when(events.fireSync(any(LeaseTerminatedEvent.class))).thenThrow(new IllegalStateException("listener"));
+
+            List<String> logged = loggedWhile(() -> api.releaseTerminatedLease(terminated()));
+
+            Assertions.assertTrue(logged.stream().noneMatch(message -> message.contains("not paid")),
                     "logged: " + logged);
         }
 
@@ -4395,9 +4409,7 @@ class RealtyPaperApiImplTest {
         void aTerminationOfAGoneRegionStillRefunds() {
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
-            CompletableFuture<Void> released = api.releaseTerminatedLease(
-                    new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
-                            REALTY_REGION_ID));
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
             regionManager.removeRegion(REGION_ID);
 
             gate.complete("done");
