@@ -166,14 +166,14 @@ fires the renamed event.
   with the state and placeholders from `getRegionWithState(newName, worldId)`.
   This is what redraws the name on signs.
 
-The flag profile is not applied again. Why: `applyFlags` first clears every
-flag on the region and then sets the profile's flags, so it would remove any
-flag set by hand that the copy has just carried over. The flags therefore stay
-exactly as they were. The cost is that a profile flag whose text includes the
-region's name (a greeting, say) shows the old name until the region next
-changes state or the configuration is reloaded, when the profile is applied as
-usual. For the same reason a grouped profile that lists the new name starts to
-apply then, and one that listed the old name stops applying then.
+The flag profile is applied again under the new name, with
+`regionProfileService.applyFlags(renamed, state, placeholders)`, so a profile
+flag whose text includes the region's name (a greeting, say) shows the new
+name at once. This replaced the original choice to leave the flags as copied.
+`applyFlags` clears every flag first, so a flag set by hand is lost, as it
+already is on every state change and every change to a region's terms. For the
+same reason a grouped profile that listed the old name stops applying straight
+away, and one that lists the new name starts to.
 
 ## Backend
 
@@ -429,9 +429,8 @@ explorer shows the region at the new address.
   region falls back to the global profile until an operator edits the
   configuration. The reply warns about this. Realty does not rewrite the
   operator's file.
-- **Flag text keeps the old name for a while.** The rename does not apply the
-  flag profile again (see Step 4), so a profile flag that includes the region's
-  name shows the old one until the next state change or reload.
+- **Flags set by hand are lost.** The rename applies the flag profile again
+  (see Step 4), which clears every flag before setting the profile's.
 - **A reused name inherits history.** History rows are keyed by name and
   survive a delete. If the new name belonged to a region deleted earlier, its
   rows appear under the renamed region. The subregion delete has the same

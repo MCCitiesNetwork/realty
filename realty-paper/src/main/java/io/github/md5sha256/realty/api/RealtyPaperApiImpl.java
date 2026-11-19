@@ -1582,11 +1582,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     : realtyApi.renameSubregion(oldId, newId, worldId, parentId.orElseThrow(), ctx);
             RealtyBackend.RegionWithState state = null;
             if (result instanceof RealtyBackend.RenameRegionResult.Success) {
-                // The rename has committed: a failed read only costs the sign redraw, not the answer.
+                // The rename has committed: a failed read only costs the flags and signs, not the answer.
                 try {
                     state = realtyApi.getRegionWithState(newId, worldId);
                 } catch (RuntimeException ex) {
-                    logger.log(Level.WARNING, "Could not read region " + newId + " to redraw its signs", ex);
+                    logger.log(Level.WARNING, "Could not read region " + newId + " to rewrite its flags and redraw its signs", ex);
                 }
             }
             return new DatabaseRename(result, state);
@@ -1611,7 +1611,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         signCache.renameRegion(oldId, newId, worldId);
         captureCooldown.rename(oldId, newId, worldId);
         if (state != null) {
-            // Signs show the name. The flags are left as copied: applying the profile resets them.
+            // Flags and signs can show the name. Applying the profile under the new name resets
+            // flags set by hand, as every state change does, and drops a grouped profile that
+            // listed the old name; the reply warns about the latter.
+            regionProfileService.applyFlags(renamed, state.state(), state.placeholders());
             signTextApplicator.updateLoadedSigns(renamed.world(), newId, state.state(), state.placeholders());
         }
         events.fireSync(new RegionRenamedEvent(renamed, actorId, oldId));

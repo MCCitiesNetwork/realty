@@ -3378,7 +3378,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("a landlord renames a subregion: WorldGuard, signs and cooldown follow")
+        @DisplayName("a landlord renames a subregion: WorldGuard, flags, signs and cooldown follow")
         void landlordRenamesSubregion() {
             backendRenames(new RealtyBackend.RenameRegionResult.Success(Optional.of(TENANT_ID)));
             Map<String, String> placeholders = Map.of("region", NEW_NAME);
@@ -3399,8 +3399,8 @@ class RealtyPaperApiImplTest {
             Assertions.assertEquals(1, signCache.getSignsByRegion(NEW_NAME, WORLD_ID).size());
             Assertions.assertNotNull(captureCooldown.remaining(NEW_NAME, WORLD_ID, java.time.Duration.ofHours(1)));
             verify(signTextApplicator).updateLoadedSigns(world, NEW_NAME, RegionState.LEASED, placeholders);
-            // Applying the profile resets a region's flags; the rename keeps them as copied.
-            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            // A flag such as a greeting can show the name, so the profile is applied under the new name.
+            verify(regionProfileService).applyFlags(renamed.region(), RegionState.LEASED, placeholders);
         }
 
         @Test
