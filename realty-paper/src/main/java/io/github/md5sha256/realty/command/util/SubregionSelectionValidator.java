@@ -6,6 +6,8 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Polygonal2DRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldguard.protection.managers.RegionManager;
+import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
+import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -13,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -92,13 +95,15 @@ public final class SubregionSelectionValidator {
 
     /**
      * Returns the first sibling subregion (a child of {@code parent}) that the selection overlaps,
-     * or {@code null} if the selection is clear.
+     * or {@code null} if the selection is clear. The region {@code excludeId}, when given, is not
+     * counted: a region being redefined does not overlap itself.
      */
     public static @Nullable ProtectedRegion overlappingSibling(@NotNull Region selection,
                                                                @NotNull ProtectedRegion parent,
-                                                               @NotNull RegionManager regionManager) {
+                                                               @NotNull RegionManager regionManager,
+                                                               @Nullable String excludeId) {
         for (ProtectedRegion sibling : regionManager.getRegions().values()) {
-            if (!Objects.equals(sibling.getParent(), parent)) {
+            if (!Objects.equals(sibling.getParent(), parent) || sibling.getId().equals(excludeId)) {
                 continue;
             }
             for (BlockVector3 point : selection) {
@@ -108,6 +113,41 @@ public final class SubregionSelectionValidator {
             }
         }
         return null;
+    }
+
+    /**
+     * The region as a WorldEdit selection, so the selection checks can be run on it. Empty for a
+     * shape other than a cuboid or a polygon.
+     */
+    public static @NotNull Optional<Region> asSelection(@NotNull ProtectedRegion region) {
+        if (region instanceof ProtectedCuboidRegion) {
+            return Optional.of(new CuboidRegion(region.getMinimumPoint(), region.getMaximumPoint()));
+        }
+        if (region instanceof ProtectedPolygonalRegion polygon) {
+            return Optional.of(new Polygonal2DRegion(null, polygon.getPoints(),
+                    polygon.getMinimumPoint().y(), polygon.getMaximumPoint().y()));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The first WorldGuard child of {@code old} that does not lie fully inside {@code replacement}.
+     * A child that {@link #asSelection} cannot read counts as outside.
+     */
+    public static @NotNull Optional<ProtectedRegion> firstChildOutside(@NotNull ProtectedRegion old,
+                                                                       @NotNull ProtectedRegion replacement,
+                                                                       @NotNull RegionManager regionManager) {
+        for (ProtectedRegion child : regionManager.getRegions().values()) {
+            // Children hold the parent object itself.
+            if (child.getParent() != old) {
+                continue;
+            }
+            Optional<Region> shape = asSelection(child);
+            if (shape.isEmpty() || !regionIsFullyContainedByParent(shape.get(), replacement)) {
+                return Optional.of(child);
+            }
+        }
+        return Optional.empty();
     }
 
     public static boolean regionIsFullyContainedByParent(@NotNull Region region,

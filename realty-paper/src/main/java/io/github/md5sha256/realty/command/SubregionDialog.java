@@ -576,7 +576,7 @@ public final class SubregionDialog {
                     Placeholder.unparsed("region", String.valueOf(state.parentId)));
         }
         ProtectedRegion sibling = SubregionSelectionValidator.overlappingSibling(
-                state.selection, parent, regionManager);
+                state.selection, parent, regionManager, null);
         if (sibling != null) {
             return messages.messageFor(MessageKeys.SUBREGION_OVERLAPS_SIBLING,
                     Placeholder.unparsed("sibling", sibling.getId()));
