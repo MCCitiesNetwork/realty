@@ -1834,4 +1834,11 @@ public interface RealtyBackend {
      * The region's most recent schematic, or {@code null} if it has never been captured.
      */
     byte @Nullable [] getSchematic(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
+
+    /**
+     * Deletes the region's captured schematic.
+     *
+     * @return whether there was one
+     */
+    boolean deleteSchematic(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 }
