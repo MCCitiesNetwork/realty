@@ -32,6 +32,8 @@ import io.github.md5sha256.realty.api.event.OfferRejectedEvent;
 import io.github.md5sha256.realty.api.event.OfferWithdrawnEvent;
 import io.github.md5sha256.realty.api.event.OffersToggledEvent;
 import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
+import io.github.md5sha256.realty.api.event.RegionRedefineEvent;
+import io.github.md5sha256.realty.api.event.RegionRedefinedEvent;
 import io.github.md5sha256.realty.api.event.RegionRenamedEvent;
 import io.github.md5sha256.realty.api.event.RegionRenameEvent;
 import io.github.md5sha256.realty.auth.ActorContexts;
@@ -47,6 +49,7 @@ import io.github.md5sha256.realty.database.entity.RealtyRegionEntity;
 import io.github.md5sha256.realty.database.entity.RealtySignEntity;
 import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.command.util.SafeLocationFinder;
+import io.github.md5sha256.realty.command.util.SubregionSelectionValidator;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.economy.EconomyProvider;
@@ -94,8 +97,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final SignTextApplicator signTextApplicator;
     private final SignCache signCache;
     private final java.util.function.LongSupplier terminationNoticeSeconds;
+    private final java.util.function.IntSupplier subregionMinVolume;
     private final WorldGuardRegionRemoval worldGuardRegionRemoval;
     private final WorldGuardRegionRename worldGuardRegionRename;
+    private final WorldGuardRegionRedefine worldGuardRegionRedefine;
     private final CaptureRegistry captureRegistry;
     private final CaptureCooldown captureCooldown;
     private final SafeLocationFinder safeLocationFinder;
@@ -124,6 +129,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull SignTextApplicator signTextApplicator,
                               @NotNull SignCache signCache,
                               @NotNull java.util.function.LongSupplier terminationNoticeSeconds,
+                              @NotNull java.util.function.IntSupplier subregionMinVolume,
                               @NotNull SafeLocationFinder safeLocationFinder,
                               @NotNull PlayerNameService playerNameService,
                               @NotNull AccountNameService accountNameService,
@@ -133,11 +139,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull SaleSettlement settlement,
                               @NotNull WorldGuardRegionRemoval worldGuardRegionRemoval,
                               @NotNull WorldGuardRegionRename worldGuardRegionRename,
+                              @NotNull WorldGuardRegionRedefine worldGuardRegionRedefine,
                               @NotNull CaptureRegistry captureRegistry,
                               @NotNull CaptureCooldown captureCooldown,
                               @NotNull Logger logger) {
         this.worldGuardRegionRemoval = worldGuardRegionRemoval;
         this.worldGuardRegionRename = worldGuardRegionRename;
+        this.worldGuardRegionRedefine = worldGuardRegionRedefine;
         this.captureRegistry = captureRegistry;
         this.captureCooldown = captureCooldown;
         this.server = server;
@@ -149,6 +157,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         this.signTextApplicator = signTextApplicator;
         this.signCache = signCache;
         this.terminationNoticeSeconds = terminationNoticeSeconds;
+        this.subregionMinVolume = subregionMinVolume;
         this.safeLocationFinder = safeLocationFinder;
         this.playerNameService = playerNameService;
         this.accountNameService = accountNameService;
@@ -1763,6 +1772,140 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             cause.printStackTrace();
             return new QuickCreateSubregionResult.Error(String.valueOf(cause.getMessage()));
         });
+    }
+
+    // --- Redefine ---
+
+    /**
+     * What the database says about a redefine: a refusal, or whether the region is a subregion
+     * and whom to notify.
+     */
+    private record RedefineCheck(@NotNull Optional<RedefineRegionResult> refusal, boolean subregion,
+                                 @NotNull Optional<UUID> occupantId) {
+
+        static @NotNull RedefineCheck refused(@NotNull RedefineRegionResult refusal) {
+            return new RedefineCheck(Optional.of(refusal), false, Optional.empty());
+        }
+    }
+
+    @Override
+    public @NotNull CompletableFuture<RedefineRegionResult> redefineRegion(@NotNull WorldGuardRegion region,
+                                                                           @NotNull Region selection,
+                                                                           @NotNull ActorContext ctx) {
+        String regionId = region.region().getId();
+        UUID worldId = region.world().getUID();
+        // Read on the calling (main) thread: WorldGuard's region tree is not thread-safe.
+        if (!WorldGuardRegionRename.isSupported(region.region())) {
+            return done(new RedefineRegionResult.UnsupportedRegion());
+        }
+        Optional<ProtectedRegion> built = WorldGuardRegionRedefine.fromSelection(regionId, selection);
+        if (built.isEmpty()) {
+            return done(new RedefineRegionResult.UnsupportedSelection());
+        }
+        ProtectedRegion replacement = built.get();
+        if (selection.getWorld() != null && !selection.getWorld().getName().equals(region.world().getName())) {
+            return done(new RedefineRegionResult.WrongWorld());
+        }
+        if (WorldGuardRegionRedefine.sameShape(region.region(), replacement)) {
+            return done(new RedefineRegionResult.SameShape());
+        }
+        if (captureRegistry.isInFlight(regionId, worldId)) {
+            return done(new RedefineRegionResult.CaptureRunning());
+        }
+        Optional<String> parentId = parentId(region);
+        // Serialised with rent and buy, so the region cannot be let between the check and the swap.
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture
+                .supplyAsync(() -> checkRedefine(regionId, worldId, parentId, ctx), executorState.dbExec())
+                .thenComposeAsync(check -> check.refusal().map(RealtyPaperApiImpl::done)
+                                .orElseGet(() -> redefineInWorldGuard(region, selection, replacement, check, ctx)),
+                        executorState.mainThreadExec())
+        ).exceptionally(ex -> {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            logger.log(Level.SEVERE, "Could not redefine region " + regionId, cause);
+            return new RedefineRegionResult.Error(String.valueOf(cause.getMessage()));
+        });
+    }
+
+    /** Database thread: whether the actor may redefine the region, and whom to tell. */
+    private @NotNull RedefineCheck checkRedefine(@NotNull String regionId, @NotNull UUID worldId,
+                                                 @NotNull Optional<String> parentId, @NotNull ActorContext ctx) {
+        LeaseholdContractEntity lease = realtyApi.getLeaseholdContract(regionId, worldId);
+        FreeholdContractEntity freehold = realtyApi.getFreeholdContract(regionId, worldId);
+        if (lease == null && freehold == null) {
+            return RedefineCheck.refused(new RedefineRegionResult.NotRegistered());
+        }
+        boolean subregion = lease != null && parentId.isPresent() && isFreehold(parentId.get(), worldId);
+        if (!ctx.bypass()) {
+            if (!subregion || !ctx.mayManage(lease.landlord())) {
+                return RedefineCheck.refused(new RedefineRegionResult.NotAuthorized());
+            }
+            if (lease.tenantId() != null) {
+                return RedefineCheck.refused(new RedefineRegionResult.Occupied());
+            }
+        }
+        Optional<UUID> occupantId = lease != null && lease.tenantId() != null
+                ? Optional.of(lease.tenantId())
+                : Optional.ofNullable(freehold == null ? null : freehold.titleHolderId());
+        return new RedefineCheck(Optional.empty(), subregion, occupantId);
+    }
+
+    /** Main thread: checks the shape against its surroundings, then swaps it in and removes the capture. */
+    private @NotNull CompletableFuture<RedefineRegionResult> redefineInWorldGuard(
+            @NotNull WorldGuardRegion region, @NotNull Region selection, @NotNull ProtectedRegion replacement,
+            @NotNull RedefineCheck check, @NotNull ActorContext ctx) {
+        Optional<WorldGuardRegionRedefine.Problem> problem = worldGuardRegionRedefine.check(
+                region, selection, replacement, check.subregion(), subregionMinVolume.getAsInt());
+        if (problem.isPresent()) {
+            return done(switch (problem.get()) {
+                case WorldGuardRegionRedefine.Problem.TooSmall tooSmall ->
+                        new RedefineRegionResult.TooSmall(tooSmall.volume(), tooSmall.minVolume());
+                case WorldGuardRegionRedefine.Problem.OutsideParent outside ->
+                        new RedefineRegionResult.OutsideParent(outside.parentId());
+                case WorldGuardRegionRedefine.Problem.OverlapsSibling overlap ->
+                        new RedefineRegionResult.OverlapsSibling(overlap.siblingId());
+                case WorldGuardRegionRedefine.Problem.ChildOutside child ->
+                        new RedefineRegionResult.ChildOutside(child.childId());
+                case WorldGuardRegionRedefine.Problem.NoRegionManager ignored -> new RedefineRegionResult.Error(
+                        "WorldGuard has no region manager for " + region.world().getName());
+            });
+        }
+        if (!events.fireSync(new RegionRedefineEvent(region, ctx.player(), replacement))) {
+            return done(new RedefineRegionResult.Cancelled());
+        }
+        ProtectedRegion old = region.region();
+        long oldVolume = SubregionSelectionValidator.asSelection(old)
+                .map(SubregionSelectionValidator::blockVolume).orElse(0L);
+        long newVolume = SubregionSelectionValidator.blockVolume(selection);
+        WorldGuardRegionRedefine.Outcome outcome = worldGuardRegionRedefine.redefine(region, replacement);
+        WorldGuardRegion redefined = switch (outcome) {
+            case WorldGuardRegionRedefine.Outcome.Redefined saved -> saved.region();
+            case WorldGuardRegionRedefine.Outcome.RedefinedSaveFailed failed -> failed.region();
+        };
+        String regionId = old.getId();
+        UUID worldId = region.world().getUID();
+        return CompletableFuture.supplyAsync(() -> deleteCapture(regionId, worldId), executorState.dbExec())
+                .thenApplyAsync(captureRemoved -> {
+                    events.fireSync(new RegionRedefinedEvent(redefined, ctx.player(), old));
+                    RedefineRegionResult.Redefined result = new RedefineRegionResult.Redefined(
+                            redefined, oldVolume, newVolume, check.occupantId(), captureRemoved);
+                    if (outcome instanceof WorldGuardRegionRedefine.Outcome.RedefinedSaveFailed failed) {
+                        return new RedefineRegionResult.WorldGuardSaveError(result, failed.error());
+                    }
+                    return result;
+                }, executorState.mainThreadExec());
+    }
+
+    /**
+     * Database thread: deletes the region's captured schematic, which shows the old shape. A
+     * failure is logged and does not undo the redefine.
+     */
+    private boolean deleteCapture(@NotNull String regionId, @NotNull UUID worldId) {
+        try {
+            return realtyApi.deleteSchematic(regionId, worldId);
+        } catch (RuntimeException ex) {
+            logger.log(Level.WARNING, "Could not delete the capture of redefined region " + regionId, ex);
+            return false;
+        }
     }
 
     // --- Sign Operations ---

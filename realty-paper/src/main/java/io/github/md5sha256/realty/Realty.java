@@ -22,6 +22,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.PlayerNameService;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegionRemoval;
+import io.github.md5sha256.realty.api.WorldGuardRegionRedefine;
 import io.github.md5sha256.realty.api.WorldGuardRegionRename;
 import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
 import io.github.md5sha256.realty.api.RegionProfileService;
@@ -411,12 +412,14 @@ public final class Realty extends JavaPlugin {
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
-                () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
+                () -> this.settings.get().terminationNoticeSeconds(),
+                () -> this.settings.get().subregionMinVolume(), safeLocationFinder,
                 this.playerNameService,
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
                 this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement,
                 this.worldGuardRegionRemoval,
                 new WorldGuardRegionRename(WorldGuard.getInstance().getPlatform().getRegionContainer(), getLogger()),
+                new WorldGuardRegionRedefine(WorldGuard.getInstance().getPlatform().getRegionContainer(), getLogger()),
                 this.captureRegistry, this.captureCooldown, getLogger());
         reportStuckSalePayments();
         this.moduleManager = new ModuleLifecycleManager<>(this,
