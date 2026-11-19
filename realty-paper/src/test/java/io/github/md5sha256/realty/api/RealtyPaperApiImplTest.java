@@ -3898,4 +3898,85 @@ class RealtyPaperApiImplTest {
             Assertions.assertSame(protectedRegion, regionManager.getRegion(REGION_ID));
         }
     }
+
+    // ═══════════════════════════════════════════════════
+    // A queued operation's region
+    // ═══════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("a queued operation's region")
+    class QueuedRegion {
+
+        private RegionManager regionManager;
+        /** Holds the region's queue until completed. */
+        private CompletableFuture<String> gate;
+
+        @BeforeEach
+        void regionInARealManager() {
+            regionManager = TestRegionManagers.inMemory();
+            regionManager.addRegion(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+            lenient().when(events.fireSync(any(RealtyRegionEvent.class))).thenReturn(true);
+            gate = new CompletableFuture<>();
+            api.serializeByRegion(REGION_ID, WORLD_ID, () -> gate);
+        }
+
+        /** What a redefine ahead in the queue does: a new object with the same id takes the region's place. */
+        private ProtectedCuboidRegion replaceRegion(int to) {
+            ProtectedCuboidRegion replacement = new ProtectedCuboidRegion(REGION_ID,
+                    BlockVector3.at(0, 0, 0), BlockVector3.at(to, to, to));
+            regionManager.addRegion(replacement);
+            return replacement;
+        }
+
+        @Test
+        @DisplayName("the operation gets the region WorldGuard has when its turn comes")
+        void theOperationGetsTheRegionWorldGuardHasWhenItsTurnComes() {
+            CompletableFuture<ProtectedRegion> seen = api.serializeRegion(wgRegion, () -> null,
+                    now -> CompletableFuture.completedFuture(now.region()));
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+
+            gate.complete("done");
+
+            Assertions.assertSame(replacement, seen.join());
+        }
+
+        @Test
+        @DisplayName("a region gone when its turn comes gives the gone result")
+        void aRegionGoneWhenItsTurnComesGivesGone() {
+            java.util.concurrent.atomic.AtomicBoolean ran = new java.util.concurrent.atomic.AtomicBoolean();
+            Object marker = new Object();
+            CompletableFuture<Object> result = api.serializeRegion(wgRegion, () -> marker, now -> {
+                ran.set(true);
+                return CompletableFuture.completedFuture(now);
+            });
+            regionManager.removeRegion(REGION_ID);
+
+            gate.complete("done");
+
+            Assertions.assertSame(marker, result.join());
+            Assertions.assertFalse(ran.get());
+        }
+
+        @Test
+        @DisplayName("a world without a region manager passes the region as given")
+        void aWorldWithoutARegionManagerPassesTheRegionAsGiven() {
+            when(regionContainer.get(any())).thenReturn(null);
+            CompletableFuture<ProtectedRegion> seen = api.serializeRegion(wgRegion, () -> null,
+                    now -> CompletableFuture.completedFuture(now.region()));
+
+            gate.complete("done");
+
+            Assertions.assertSame(protectedRegion, seen.join());
+        }
+
+        @Test
+        @DisplayName("current reads the region manager")
+        void currentReadsTheManager() {
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+            Assertions.assertSame(replacement, api.current(wgRegion).orElseThrow().region());
+            regionManager.removeRegion(REGION_ID);
+            Assertions.assertEquals(Optional.empty(), api.current(wgRegion));
+        }
+    }
 }

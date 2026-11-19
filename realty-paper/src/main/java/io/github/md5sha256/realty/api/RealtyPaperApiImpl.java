@@ -227,9 +227,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * @param <T>       the operation result type
      * @return a future completing with the operation's result
      */
-    private <T> @NotNull CompletableFuture<T> serializeByRegion(@NotNull String regionId,
-                                                                @NotNull UUID worldId,
-                                                                @NotNull Supplier<CompletableFuture<T>> operation) {
+    <T> @NotNull CompletableFuture<T> serializeByRegion(@NotNull String regionId,
+                                                        @NotNull UUID worldId,
+                                                        @NotNull Supplier<CompletableFuture<T>> operation) {
         String key = worldId + ":" + regionId;
         CompletableFuture<T> result = new CompletableFuture<>();
         // The tail never completes exceptionally, so the chain always keeps flowing.
@@ -257,6 +257,45 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // has since been queued behind it (conditional remove is atomic).
         result.whenComplete((value, ex) -> regionLocks.remove(key, newTail));
         return result;
+    }
+
+    /**
+     * Runs {@code operation} in the region's queue with the region as WorldGuard has it when the
+     * operation's turn comes: an operation queued behind a redefine would otherwise act on the
+     * region object the redefine replaced, which WorldGuard no longer has. When WorldGuard no
+     * longer has the region, {@code gone} is the result and the operation does not run.
+     */
+    <T> @NotNull CompletableFuture<T> serializeRegion(@NotNull WorldGuardRegion region,
+                                                      @NotNull Supplier<T> gone,
+                                                      @NotNull Function<WorldGuardRegion, CompletableFuture<T>> operation) {
+        return serializeByRegion(region.region().getId(), region.world().getUID(), () ->
+                onMainThread(() -> current(region)).thenCompose(now -> now.map(operation)
+                        .orElseGet(() -> CompletableFuture.completedFuture(gone.get()))));
+    }
+
+    /**
+     * The region as WorldGuard has it now; empty when it is gone. A world without a region manager
+     * has nothing to re-read, so the region is given back as it is. Main thread.
+     */
+    @NotNull Optional<WorldGuardRegion> current(@NotNull WorldGuardRegion region) {
+        RegionManager regionManager = WorldGuard.getInstance().getPlatform().getRegionContainer()
+                .get(BukkitAdapter.adapt(region.world()));
+        if (regionManager == null) {
+            return Optional.of(region);
+        }
+        return Optional.ofNullable(regionManager.getRegion(region.region().getId()))
+                .map(now -> new WorldGuardRegion(now, region.world()));
+    }
+
+    /**
+     * Runs {@code supplier} on the main thread: at once when already there, else on the next tick.
+     * Not always the next tick, which would delay every call that did not have to wait.
+     */
+    private <U> @NotNull CompletableFuture<U> onMainThread(@NotNull Supplier<U> supplier) {
+        if (server.isPrimaryThread()) {
+            return CompletableFuture.completedFuture(supplier.get());
+        }
+        return CompletableFuture.supplyAsync(supplier, executorState.mainThreadExec());
     }
 
     // ═══════════════════════════════════════════════════
