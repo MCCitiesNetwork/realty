@@ -2566,13 +2566,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     /**
-     * Reads the region's stored state and shows it on the main thread, see
-     * {@link #showStoredState(String, UUID, RealtyBackend.RegionWithState)}. For changes made
-     * outside this class, such as the scheduler ending an auction. The future completes once the
-     * redraw has run; a region that cannot be read is skipped.
+     * Redraws the region's flags and signs from its stored state, for changes made outside this
+     * class such as the scheduler ending an auction. The read waits its turn on the region, as
+     * {@link #writeAndShow} does. A region that cannot be read is skipped.
      */
     public @NotNull CompletableFuture<Void> redrawFromStore(@NotNull String regionId, @NotNull UUID worldId) {
-        return CompletableFuture.supplyAsync(() -> readStoredState(regionId, worldId), executorState.dbExec())
+        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
+                        () -> readStoredState(regionId, worldId), executorState.dbExec()))
                 .thenAcceptAsync(stored -> showStoredState(regionId, worldId, stored), executorState.mainThreadExec());
     }
 

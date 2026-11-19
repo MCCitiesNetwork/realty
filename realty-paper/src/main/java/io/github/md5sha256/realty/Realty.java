@@ -601,12 +601,10 @@ public final class Realty extends JavaPlugin {
                             this.eventDispatch.fireSync(new AuctionEndedEvent(
                                     wgRegion, auction.winnerId(), auction.auctioneerId()));
                         }
+                        // Bidding has closed, which flags and signs can show.
+                        this.paperApi.redrawFromStore(auction.worldGuardRegionId(), auction.worldId());
                     }
                 });
-                // The auction placeholders changed, so flags and signs show the region without it.
-                for (RealtyBackend.ExpiredBiddingAuction auction : endedAuctions) {
-                    this.paperApi.redrawFromStore(auction.worldGuardRegionId(), auction.worldId());
-                }
             }
             // Each expiry recorded its refund with the expiry itself. It is tried here at once, off
             // the main thread, and its event fired there; a failure is retried like any refund.
@@ -617,6 +615,8 @@ public final class Realty extends JavaPlugin {
                         payment.regionId(), payment.worldId(),
                         WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
                         payment.bidderId(), refund.amount(), refund.paid(), payment.oldRules())));
+                // With no runner-up left the auction has ended, which flags and signs can show.
+                this.paperApi.redrawFromStore(payment.regionId(), payment.worldId());
             }
             for (RealtyBackend.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 SaleSettlement.ExpiryRefund refund = settleExpiry(payment.refundId(), payment.offererId(),
