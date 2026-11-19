@@ -600,6 +600,8 @@ class RealtyPaperApiImplTest {
 
         @BeforeEach
         void holdTheMainThread() {
+            // The test thread is the main thread the API is called on; only later steps wait for it.
+            lenient().when(server.isPrimaryThread()).thenReturn(true);
             ExecutorState controlled = new ExecutorState(mainThread::add,
                     sameThreadExecutorService(), sameThreadExecutorService());
             held = new RealtyPaperApiImpl(server, realtyApi, economyProvider,
@@ -3885,10 +3887,10 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("a region removed from WorldGuard while queued is not registered")
         void aRegionRemovedWhileQueued() {
-            leaseIs(VACANT);
             regionManager.removeRegion(REGION_ID);
             Assertions.assertInstanceOf(RealtyPaperApi.RedefineRegionResult.NotRegistered.class,
                     redefine(cuboid(0, 50), AS_STAFF));
+            verify(realtyApi, never()).getLeaseholdContract(any(), any());
             verify(realtyApi, never()).deleteSchematic(any(), any());
         }
 
@@ -3968,6 +3970,40 @@ class RealtyPaperApiImplTest {
             gate.complete("done");
 
             Assertions.assertSame(protectedRegion, seen.join());
+        }
+
+        @Test
+        @DisplayName("a buy queued behind a redefine makes the buyer own the region WorldGuard has")
+        void aBuyQueuedBehindARedefineOwnsTheRegionWorldGuardHas() {
+            when(realtyApi.executeBuy(REGION_ID, WORLD_ID, BUYER_CTX, false)).thenReturn(RESERVED);
+            when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID)).thenReturn(Map.of());
+            when(economyProvider.getBalance(BUYER)).thenReturn(2000.0);
+            when(economyProvider.transfer(eq(BUYER), eq(TITLE_HOLDER), eq(1000.0), any(), eq(BUYER_ID)))
+                    .thenReturn(new PaymentResult.Success());
+            CompletableFuture<RealtyPaperApi.BuyResult> bought = api.buy(wgRegion, BUYER_CTX, false);
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.BuyResult.Success.class, bought.join());
+            Assertions.assertTrue(replacement.getOwners().contains(BUYER_ID));
+        }
+
+        @Test
+        @DisplayName("a rename queued behind a redefine keeps the new shape")
+        void aRenameQueuedBehindARedefineKeepsTheNewShape() {
+            ActorContext staff = ActorContext.player(BUYER_ID, true);
+            when(realtyApi.renameRegion(REGION_ID, "renamed-plot", WORLD_ID, staff))
+                    .thenReturn(new RealtyBackend.RenameRegionResult.Success(Optional.empty()));
+            CompletableFuture<RealtyPaperApi.RenameRegionResult> renamed =
+                    api.renameRegion(wgRegion, "renamed-plot", staff);
+            replaceRegion(40);
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.Renamed.class, renamed.join());
+            Assertions.assertEquals(BlockVector3.at(40, 40, 40),
+                    regionManager.getRegion("renamed-plot").getMaximumPoint());
         }
 
         @Test

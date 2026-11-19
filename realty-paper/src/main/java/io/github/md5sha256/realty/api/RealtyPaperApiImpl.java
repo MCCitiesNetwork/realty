@@ -318,7 +318,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Serialized per region so nothing else can act on the region while the
         // database names a buyer who has not paid: until the payment or its
         // rollback has finished, that buyer is the stored titleholder.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
+        return serializeRegion(region, () -> new BuyResult.NoFreeholdContract(regionId), current -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.BuyResult result = realtyApi.executeBuy(regionId, worldId, buyer, bypassConflict);
             if (result instanceof RealtyBackend.BuyResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -327,7 +327,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return Map.<RealtyBackend.BuyResult, Map<String, String>>entry(result, Map.of());
         }, executorState.dbExec()).thenComposeAsync(entry -> switch (entry.getKey()) {
             case RealtyBackend.BuyResult.Success success ->
-                    handleBuyPayment(region, regionId, worldId, buyerId, success, entry.getValue());
+                    handleBuyPayment(current, regionId, worldId, buyerId, success, entry.getValue());
             case RealtyBackend.BuyResult.NoFreeholdContract ignored ->
                     CompletableFuture.completedFuture(new BuyResult.NoFreeholdContract(regionId));
             case RealtyBackend.BuyResult.NotForFreehold ignored ->
@@ -506,7 +506,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // rentRegion uses WHERE tenantId IS NULL, preventing races.
         // Serialized per region so the DB reservation and payment cannot
         // interleave with a concurrent extend/unrent on the same lease.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
+        return serializeRegion(region, () -> new RentResult.NoLeaseholdContract(regionId), current -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.RentResult result = realtyApi.rentRegion(regionId, worldId, tenantId);
             if (result instanceof RealtyBackend.RentResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -515,7 +515,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return Map.<RealtyBackend.RentResult, Map<String, String>>entry(result, Map.of());
         }, executorState.dbExec()).thenComposeAsync(entry -> switch (entry.getKey()) {
             case RealtyBackend.RentResult.Success success ->
-                    handleRentPayment(region, regionId, worldId, tenantId, success, entry.getValue());
+                    handleRentPayment(current, regionId, worldId, tenantId, success, entry.getValue());
             case RealtyBackend.RentResult.NoLeaseholdContract ignored ->
                     CompletableFuture.completedFuture(new RentResult.NoLeaseholdContract(regionId));
             case RealtyBackend.RentResult.AlreadyOccupied ignored ->
@@ -581,7 +581,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Serialized per region so the refund is computed from an endDate that
         // reflects only fully-paid extensions, never one a concurrent extend
         // has committed but not yet paid for.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
+        return serializeRegion(region, () -> new UnrentResult.NoLeaseholdContract(regionId), current -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.UnrentResult result = realtyApi.unrentRegion(regionId, worldId, tenantId);
             if (result instanceof RealtyBackend.UnrentResult.Success success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -590,7 +590,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return Map.<RealtyBackend.UnrentResult, Map<String, String>>entry(result, Map.of());
         }, executorState.dbExec()).thenComposeAsync(entry -> switch (entry.getKey()) {
             case RealtyBackend.UnrentResult.Success success ->
-                    handleUnrentRefund(region, regionId, worldId, tenantId, success, entry.getValue());
+                    handleUnrentRefund(current, regionId, worldId, tenantId, success, entry.getValue());
             case RealtyBackend.UnrentResult.NoLeaseholdContract ignored ->
                     CompletableFuture.completedFuture(
                             (UnrentResult) new UnrentResult.NoLeaseholdContract(regionId));
@@ -650,7 +650,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // renewLeasehold uses WHERE currentMaxExtensions < maxExtensions AND tenantId = ?, preventing races.
         // Serialized per region so the committed endDate extension and its
         // payment cannot interleave with a concurrent unrent on the same lease.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
+        return serializeRegion(region, () -> new ExtendResult.NoLeaseholdContract(regionId), current -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.RenewLeaseholdResult result = realtyApi.renewLeasehold(regionId, worldId, tenantId);
             if (result instanceof RealtyBackend.RenewLeaseholdResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -659,7 +659,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return Map.<RealtyBackend.RenewLeaseholdResult, Map<String, String>>entry(result, Map.of());
         }, executorState.dbExec()).thenComposeAsync(entry -> switch (entry.getKey()) {
             case RealtyBackend.RenewLeaseholdResult.Success success ->
-                    handleExtendPayment(region, regionId, worldId, tenantId, success, entry.getValue());
+                    handleExtendPayment(current, regionId, worldId, tenantId, success, entry.getValue());
             case RealtyBackend.RenewLeaseholdResult.NoLeaseholdContract ignored ->
                     CompletableFuture.completedFuture(new ExtendResult.NoLeaseholdContract(regionId));
             case RealtyBackend.RenewLeaseholdResult.NoExtensionsRemaining ignored ->
@@ -733,7 +733,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         long noticeSeconds = immediate ? 0L : terminationNoticeSeconds.getAsLong();
         // Serialized per region: the read→charge→commit sequence cannot interleave with a concurrent
         // extend/unrent/terminate on the same lease.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
+        return serializeRegion(region, () -> new TerminateResult.NoLeaseholdContract(regionId), current -> CompletableFuture.supplyAsync(
                 () -> computeTerminationPlan(regionId, realtyApi.getLeaseholdContract(regionId, worldId),
                         ctx, noticeSeconds),
                 executorState.dbExec()
@@ -835,14 +835,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // payBid uses optimistic locking on currentPayment, preventing races.
         // Serialized per region so the scheduler never finishes a sale whose final payment is
         // counted but whose transfer has not yet run; see finishPendingSales.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
+        return serializeRegion(region, () -> new PayBidResult.NoPaymentRecord(regionId), current -> CompletableFuture.supplyAsync(
                 () -> realtyApi.payBid(regionId, worldId, bidderId, amount),
                 executorState.dbExec()
         ).thenComposeAsync(result -> switch (result) {
             case RealtyBackend.PayBidResult.Success success ->
-                    handlePayBidPayment(region, regionId, worldId, bidderId, amount, success);
+                    handlePayBidPayment(current, regionId, worldId, bidderId, amount, success);
             case RealtyBackend.PayBidResult.FullyPaid fullyPaid ->
-                    handlePayBidFullyPaid(region, regionId, worldId, bidderId, amount, fullyPaid);
+                    handlePayBidFullyPaid(current, regionId, worldId, bidderId, amount, fullyPaid);
             case RealtyBackend.PayBidResult.NoPaymentRecord ignored ->
                     CompletableFuture.completedFuture(
                             (PayBidResult) new PayBidResult.NoPaymentRecord(regionId));
@@ -968,14 +968,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // payOffer uses optimistic locking on currentPayment, preventing races.
         // Serialized per region so the scheduler never finishes a sale whose final payment is
         // counted but whose transfer has not yet run; see finishPendingSales.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(
+        return serializeRegion(region, () -> new PayOfferResult.NoPaymentRecord(regionId), current -> CompletableFuture.supplyAsync(
                 () -> realtyApi.payOffer(regionId, worldId, offererId, amount),
                 executorState.dbExec()
         ).thenComposeAsync(result -> switch (result) {
             case RealtyBackend.PayOfferResult.Success success ->
-                    handlePayOfferPayment(region, regionId, worldId, offererId, amount, success);
+                    handlePayOfferPayment(current, regionId, worldId, offererId, amount, success);
             case RealtyBackend.PayOfferResult.FullyPaid fullyPaid ->
-                    handlePayOfferFullyPaid(region, regionId, worldId, offererId, amount, fullyPaid);
+                    handlePayOfferFullyPaid(current, regionId, worldId, offererId, amount, fullyPaid);
             case RealtyBackend.PayOfferResult.NoPaymentRecord ignored ->
                     CompletableFuture.completedFuture(
                             (PayOfferResult) new PayOfferResult.NoPaymentRecord(regionId));
@@ -1243,7 +1243,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // Serialized per region: see serializeByRegion for why a write waits its turn.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
+        return serializeRegion(region, () -> new SetTitleHolderResult.NoFreeholdContract(regionId), current -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.SetTitleHolderResult result = realtyApi.setTitleHolder(regionId, worldId, titleHolderId, ctx);
             if (result instanceof RealtyBackend.SetTitleHolderResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -1252,19 +1252,19 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return Map.<RealtyBackend.SetTitleHolderResult, Map<String, String>>entry(result, Map.of());
         }, executorState.dbExec()).thenApplyAsync(entry -> switch (entry.getKey()) {
             case RealtyBackend.SetTitleHolderResult.Success success -> {
-                ProtectedRegion protectedRegion = region.region();
+                ProtectedRegion protectedRegion = current.region();
                 protectedRegion.getOwners().clear();
                 protectedRegion.getMembers().clear();
                 RegionState state;
                 if (titleHolderId != null) {
                     protectedRegion.getOwners().addPlayer(titleHolderId);
                     state = RegionState.SOLD;
-                    updateChildLandlords(regionId, region.world(), titleHolderId);
+                    updateChildLandlords(regionId, current.world(), titleHolderId);
                 } else {
                     state = RegionState.FOR_SALE;
                 }
-                regionProfileService.applyFlags(region, state, entry.getValue());
-                signTextApplicator.updateLoadedSigns(region.world(), regionId,
+                regionProfileService.applyFlags(current, state, entry.getValue());
+                signTextApplicator.updateLoadedSigns(current.world(), regionId,
                         state, entry.getValue());
                 yield (SetTitleHolderResult) new SetTitleHolderResult.Success(
                         playerParty(success.previousTitleHolder()), regionId);
@@ -1347,7 +1347,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // Serialized per region: see serializeByRegion for why a write waits its turn.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
+        return serializeRegion(region, () -> new SetTenantResult.NoLeaseholdContract(regionId), current -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.SetTenantResult result = realtyApi.setTenant(regionId, worldId, tenantId, ctx, vacantOnly);
             if (result instanceof RealtyBackend.SetTenantResult.Success) {
                 Map<String, String> placeholders = realtyApi.getRegionPlaceholders(regionId, worldId);
@@ -1356,7 +1356,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return Map.<RealtyBackend.SetTenantResult, Map<String, String>>entry(result, Map.of());
         }, executorState.dbExec()).thenApplyAsync(entry -> switch (entry.getKey()) {
             case RealtyBackend.SetTenantResult.Success success -> {
-                ProtectedRegion protectedRegion = region.region();
+                ProtectedRegion protectedRegion = current.region();
                 protectedRegion.getOwners().clear();
                 protectedRegion.getMembers().clear();
                 RegionState state;
@@ -1366,8 +1366,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 } else {
                     state = RegionState.FOR_LEASE;
                 }
-                regionProfileService.applyFlags(region, state, entry.getValue());
-                signTextApplicator.updateLoadedSigns(region.world(), regionId,
+                regionProfileService.applyFlags(current, state, entry.getValue());
+                signTextApplicator.updateLoadedSigns(current.world(), regionId,
                         state, entry.getValue());
                 yield (SetTenantResult) new SetTenantResult.Success(
                         playerParty(success.previousTenant()), success.landlord(), regionId);
@@ -1395,14 +1395,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         // Serialized per region: see serializeByRegion for why a write waits its turn.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
+        return serializeRegion(region, () -> new SetLandlordResult.NoLeaseholdContract(regionId), current -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.SetLandlordResult result =
                     realtyApi.setLandlord(regionId, worldId, landlord, ctx, vacantOnly);
             return shown(result, result instanceof RealtyBackend.SetLandlordResult.Success, regionId, worldId);
         }, executorState.dbExec()).thenApplyAsync(shown -> switch (shown.result()) {
             case RealtyBackend.SetLandlordResult.Success success -> {
-                region.region().getMembers().clear();
-                showStoredState(region, shown.stored());
+                current.region().getMembers().clear();
+                showStoredState(current, shown.stored());
                 yield (SetLandlordResult) new SetLandlordResult.Success(
                         success.previousLandlord(), regionId);
             }
@@ -1602,8 +1602,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Both names are held, always in the same order, so two crossing renames cannot wait on each other.
         String first = oldId.compareTo(newId) < 0 ? oldId : newId;
         String second = first.equals(oldId) ? newId : oldId;
+        // Once both are held, the region as WorldGuard has it: one queued behind a redefine holds
+        // the object the redefine replaced.
         return serializeByRegion(first, worldId, () -> serializeByRegion(second, worldId,
-                () -> renameHoldingBothNames(region, newId, ctx, parentId))
+                () -> onMainThread(() -> current(region)).thenCompose(now -> now
+                        .map(current -> renameHoldingBothNames(current, newId, ctx, parentId))
+                        .orElseGet(() -> done(new RenameRegionResult.NotRegistered()))))
         ).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             logger.log(Level.SEVERE, "Could not rename region " + oldId + " to " + newId, cause);
@@ -1850,10 +1854,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }
         Optional<String> parentId = parentId(region);
         // Serialised with rent and buy, so the region cannot be let between the check and the swap.
-        return serializeByRegion(regionId, worldId, () -> CompletableFuture
+        return serializeRegion(region, RedefineRegionResult.NotRegistered::new, current -> CompletableFuture
                 .supplyAsync(() -> checkRedefine(regionId, worldId, parentId, ctx), executorState.dbExec())
                 .thenComposeAsync(check -> check.refusal().map(RealtyPaperApiImpl::done)
-                                .orElseGet(() -> redefineInWorldGuard(region, selection, replacement, check, ctx)),
+                                .orElseGet(() -> redefineInWorldGuard(current, selection, replacement, check, ctx)),
                         executorState.mainThreadExec())
         ).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
@@ -1887,14 +1891,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     /** Main thread: checks the shape against its surroundings, then swaps it in and removes the capture. */
     private @NotNull CompletableFuture<RedefineRegionResult> redefineInWorldGuard(
-            @NotNull WorldGuardRegion queued, @NotNull Region selection, @NotNull ProtectedRegion replacement,
+            @NotNull WorldGuardRegion region, @NotNull Region selection, @NotNull ProtectedRegion replacement,
             @NotNull RedefineCheck check, @NotNull ActorContext ctx) {
-        // A redefine queued behind another one holds the region the other one replaced.
-        Optional<WorldGuardRegion> current = worldGuardRegionRedefine.current(queued);
-        if (current.isEmpty()) {
-            return done(new RedefineRegionResult.NotRegistered());
-        }
-        WorldGuardRegion region = current.get();
         Optional<RedefineRegionResult> refusal = worldGuardRegionRedefine.check(
                 region, selection, replacement, check.subregion(), subregionMinVolume.getAsInt());
         if (refusal.isPresent()) {

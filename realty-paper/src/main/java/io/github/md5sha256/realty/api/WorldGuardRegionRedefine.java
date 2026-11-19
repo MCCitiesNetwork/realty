@@ -52,20 +52,6 @@ public final class WorldGuardRegionRedefine {
     }
 
     /**
-     * The region as WorldGuard has it now. A caller's {@link WorldGuardRegion} can hold a region
-     * that a redefine has since replaced; the replaced object is no longer in WorldGuard and its
-     * children no longer point at it. Empty when the region is gone.
-     */
-    public @NotNull Optional<WorldGuardRegion> current(@NotNull WorldGuardRegion region) {
-        RegionManager regionManager = this.regionContainer.get(BukkitAdapter.adapt(region.world()));
-        if (regionManager == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(regionManager.getRegion(region.region().getId()))
-                .map(now -> new WorldGuardRegion(now, region.world()));
-    }
-
-    /**
      * Checks a new shape against the region's surroundings, and gives the refusal if it fails.
      * With {@code subregion}, the shape must have at least {@code minVolume} blocks, lie fully
      * inside the region's parent, and not overlap a sibling. Always, every child of the region must
