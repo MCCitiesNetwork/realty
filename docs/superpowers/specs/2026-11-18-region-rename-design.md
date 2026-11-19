@@ -455,9 +455,10 @@ explorer shows the region at the new address.
 1. **Tags are keyed by world.** Migration `V24__region_tag_world.sql` adds
    `worldId` to `RegionTag` and makes the key `(tagId, worldGuardRegionId,
    worldId)`. Each existing tag row becomes one row per registered region with
-   that name. A tag on a name that no registered region has is dropped: a region
-   delete left it behind, or the region was never registered, and no world can
-   be given to it. Every tag query now takes or joins on the world. The
+   that name. A tag on a name that no registered region has is dropped, because
+   no world can be given to it. Such a tag had no effect: everything that reads
+   tags starts from a Realty region. From now on `/realty tag add` refuses a
+   region that is not registered with Realty, so no such row is made again. Every tag query now takes or joins on the world. The
    name-only `getTagIdsByRegion(String)` on `RealtyBackend` and `RealtyPaperApi`
    stays for other plugins, is deprecated, and answers across worlds. Why: with
    a name-only key, a rename in one world moved the tags of a same-named region

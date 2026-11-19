@@ -1562,6 +1562,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         });
     }
 
+    /** The database step of a rename: its result and, when it renamed, the region's state for the sign redraw. */
+    private record DatabaseRename(@NotNull RealtyBackend.RenameRegionResult result,
+                                  @Nullable RealtyBackend.RegionWithState state) {
+    }
+
     private @NotNull CompletableFuture<RenameRegionResult> renameHoldingBothNames(
             @NotNull WorldGuardRegion region, @NotNull String newId, @NotNull ActorContext ctx,
             @NotNull Optional<String> parentId) {
@@ -1582,10 +1587,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     logger.log(Level.WARNING, "Could not read region " + newId + " to redraw its signs", ex);
                 }
             }
-            return new TermsWritten<>(result, state);
-        }, executorState.dbExec()).thenComposeAsync(written -> switch (written.result()) {
+            return new DatabaseRename(result, state);
+        }, executorState.dbExec()).thenComposeAsync(database -> switch (database.result()) {
             case RealtyBackend.RenameRegionResult.Success success -> renameInWorldGuard(
-                    region, newId, ctx.player(), success.tenantId(), written.region());
+                    region, newId, ctx.player(), success.tenantId(), database.state());
             case RealtyBackend.RenameRegionResult.NoRegion ignored ->
                     done(new RenameRegionResult.NotRegistered());
             case RealtyBackend.RenameRegionResult.NameTaken ignored ->
