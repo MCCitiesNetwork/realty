@@ -123,15 +123,16 @@ In `RealtyPaperApiImplTest`, with a real in-memory region manager:
   `terminateHoldingQueue`, because the queue is not reentrant and `terminate` would wait on itself.
 - **`createAuction` is not queued.** It looks the region up again by id when it writes the flags,
   as `cancelAuction` and the id-based redraws do, so it writes to the region WorldGuard has.
-- **The scheduler.** Its lease expiry and scheduled termination write outside the queue, but each
-  looks the region up by id on the main thread when it writes, so against a redefine it writes to
-  the region WorldGuard has: either the object a waiting redefine will copy from, or the region a
-  redefine has put in place. Against a rename it does not hold: they read the id when they clear
-  the rows and look the region up a tick later, so a rename in that gap makes the lookup miss, the
-  region is skipped without a log, and the former tenant stays a WorldGuard owner with the flags
-  and signs still showing the lease. The gap predates this change and is left for its own fix. Its sweep of subregions marked for deletion removes each WorldGuard region
-  through `RealtyPaperApiImpl.removeSweptSubregion`, which waits its turn on the region, so a
-  redefine that passed its checks before the sweep cannot put the region back after it.
+- **The scheduler.** Lease expiry and scheduled termination clear their rows in one database call,
+  then release each region through `RealtyPaperApiImpl.releaseExpiredLease` or
+  `releaseTerminatedLease`, which wait their turn on the region, look it up when they run, redraw
+  from the state stored then, and pay a termination's refund before the event that reports it. The
+  sweep of subregions marked for deletion removes each one through `removeSweptSubregion` in the
+  same way. A rename that has committed before the rows are read is seen, because the rows carry the
+  new name; one queued after the release waits behind it. One window is left: a rename already
+  queued whose database step lands just after the clear. The release then finds no region under the
+  old name and logs it, and the former tenant stays a WorldGuard owner until an admin removes them.
+  Closing it needs the backend to return the region's stable id with each ended lease.
 - **Checks before queuing read the caller's object.** They read only the id, the world and, for
   redefine, the shape; the id and world cannot change, and a redefine that compares against a
   stale shape only risks refusing a no-op or letting one through.

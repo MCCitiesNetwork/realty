@@ -5,10 +5,7 @@ import com.minecraftcitiesnetwork.pluginInfrastructure.configurate.SimpleDateFor
 import com.minecraftcitiesnetwork.pluginInfrastructure.modules.ModuleLifecycleManager;
 import com.minecraftcitiesnetwork.pluginInfrastructure.modules.ModuleLoader;
 import com.minecraftcitiesnetwork.pluginInfrastructure.util.DateFormatter;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.protection.managers.RegionManager;
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.auth.ActorContexts;
@@ -35,8 +32,6 @@ import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.AuctionEndedEvent;
 import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
-import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
-import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
@@ -131,11 +126,9 @@ import io.github.md5sha256.realty.economy.HoldingWatch;
 import io.github.md5sha256.realty.economy.SaleSettlement;
 import io.github.md5sha256.realty.economy.TreasuryHoldingAccount;
 import io.github.md5sha256.realty.economy.PartyWallets;
-import io.github.md5sha256.realty.economy.PaymentResult;
 import io.github.md5sha256.realty.economy.TreasuryEconomyProvider;
 import io.github.md5sha256.realty.economy.VaultEconomyProvider;
 import net.milkbowl.vault.economy.Economy;
-import org.bukkit.World;
 import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.PluginManager;
@@ -642,100 +635,12 @@ public final class Realty extends JavaPlugin {
             } catch (RuntimeException ex) {
                 getLogger().log(Level.WARNING, "Could not check for stuck instalments", ex);
             }
-            List<RealtyBackend.ExpiredLeasehold> expiredLeaseholds = this.logic.clearExpiredLeaseholds();
-            if (!expiredLeaseholds.isEmpty()) {
-                Map<String, Map<String, String>> leaseholdPlaceholders = new HashMap<>();
-                for (RealtyBackend.ExpiredLeasehold expired : expiredLeaseholds) {
-                    leaseholdPlaceholders.put(expired.worldGuardRegionId(),
-                            this.logic.getRegionPlaceholders(expired.worldGuardRegionId(),
-                                    expired.worldId()));
-                }
-                scheduler.runTask(this, () -> {
-                    for (RealtyBackend.ExpiredLeasehold expired : expiredLeaseholds) {
-                        World world = getServer().getWorld(expired.worldId());
-                        if (world != null) {
-                            RegionManager regionManager = WorldGuard.getInstance()
-                                    .getPlatform()
-                                    .getRegionContainer()
-                                    .get(BukkitAdapter.adapt(world));
-                            if (regionManager != null) {
-                                ProtectedRegion protectedRegion = regionManager.getRegion(expired.worldGuardRegionId());
-                                if (protectedRegion != null) {
-                                    protectedRegion.getOwners().removePlayer(expired.tenantId());
-                                    WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                                    Map<String, String> placeholders = leaseholdPlaceholders.getOrDefault(
-                                            expired.worldGuardRegionId(), Map.of());
-                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE, placeholders);
-                                    signTextApplicator.updateLoadedSigns(world, expired.worldGuardRegionId(),
-                                            RegionState.FOR_LEASE, placeholders);
-                                    // Post-event; RegionNotificationListener notifies tenant + landlord.
-                                    this.eventDispatch.fireSync(new LeaseExpiredEvent(
-                                            wgRegion, expired.tenantId(), expired.landlord()));
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-            // Leaseholds whose scheduled termination date has elapsed: end them, refund any
-            // prepaid-but-unused time (landlord → tenant), and notify both parties.
-            List<RealtyBackend.TerminatedLeasehold> terminatedLeaseholds = this.logic.clearTerminatedLeaseholds();
-            if (!terminatedLeaseholds.isEmpty()) {
-                Map<String, Map<String, String>> terminatedPlaceholders = new HashMap<>();
-                for (RealtyBackend.TerminatedLeasehold terminated : terminatedLeaseholds) {
-                    terminatedPlaceholders.put(terminated.worldGuardRegionId(),
-                            this.logic.getRegionPlaceholders(terminated.worldGuardRegionId(),
-                                    terminated.worldId()));
-                }
-                scheduler.runTask(this, () -> {
-                    for (RealtyBackend.TerminatedLeasehold terminated : terminatedLeaseholds) {
-                        if (terminated.refund() > 0 && this.economyProvider != null) {
-                            // No player caused this payment, so it has no initiator.
-                            PaymentResult refund = this.economyProvider.transfer(terminated.landlord(),
-                                    Party.personal(terminated.tenantId()), terminated.refund(),
-                                    "Lease Termination Refund: " + terminated.worldGuardRegionId(), null);
-                            if (refund instanceof PaymentResult.Failure failure) {
-                                // Everything an admin needs to repay the tenant by hand. The
-                                // landlord is shown by its ids, not its name, which would need
-                                // a Treasury read on the main thread.
-                                getLogger().warning("Lease termination refund for region "
-                                        + terminated.worldGuardRegionId() + " failed: " + failure.errorMessage()
-                                        + ". Tenant " + terminated.tenantId()
-                                        + " was not paid " + CurrencyFormatter.format(terminated.refund())
-                                        + " by landlord " + terminated.landlord() + ".");
-                            }
-                        }
-                        World world = getServer().getWorld(terminated.worldId());
-                        if (world != null) {
-                            RegionManager regionManager = WorldGuard.getInstance()
-                                    .getPlatform()
-                                    .getRegionContainer()
-                                    .get(BukkitAdapter.adapt(world));
-                            if (regionManager != null) {
-                                ProtectedRegion protectedRegion = regionManager.getRegion(terminated.worldGuardRegionId());
-                                if (protectedRegion != null) {
-                                    protectedRegion.getOwners().removePlayer(terminated.tenantId());
-                                    WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                                    Map<String, String> placeholders = terminatedPlaceholders.getOrDefault(
-                                            terminated.worldGuardRegionId(), Map.of());
-                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE, placeholders);
-                                    signTextApplicator.updateLoadedSigns(world, terminated.worldGuardRegionId(),
-                                            RegionState.FOR_LEASE, placeholders);
-                                    this.eventDispatch.fireSync(new LeaseTerminatedEvent(wgRegion,
-                                            terminated.tenantId(), terminated.landlord(),
-                                            terminated.refund(), terminated.terminatedByRole()));
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+            // Each ended lease, and each swept subregion, finishes in its turn on its region, so a rename
+            // or redefine running on it finishes first. Their notifications follow from their events.
+            this.logic.clearExpiredLeaseholds().forEach(this.paperApi::releaseExpiredLease);
+            this.logic.clearTerminatedLeaseholds().forEach(this.paperApi::releaseTerminatedLease);
             // After the terminations above: a subregion marked for deletion goes once its lease has ended.
-            List<RealtyBackend.DeletedLeasehold> deletedSubregions = this.logic.deleteMarkedVacantLeaseholds();
-            if (!deletedSubregions.isEmpty()) {
-                // Each removal waits its turn on its region, so it is ordered against a redefine.
-                deletedSubregions.forEach(this.paperApi::removeSweptSubregion);
-            }
+            this.logic.deleteMarkedVacantLeaseholds().forEach(this.paperApi::removeSweptSubregion);
         }, intervalTicks, intervalTicks);
     }
 

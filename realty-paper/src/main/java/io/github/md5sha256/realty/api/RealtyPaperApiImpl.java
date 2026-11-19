@@ -18,6 +18,8 @@ import io.github.md5sha256.realty.api.event.FeeChangeEvent;
 import io.github.md5sha256.realty.api.event.FeeChangedEvent;
 import io.github.md5sha256.realty.api.event.FeeRejectedEvent;
 import io.github.md5sha256.realty.api.event.FeeRemovedEvent;
+import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
+import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
 import io.github.md5sha256.realty.api.event.LevyChangeEvent;
 import io.github.md5sha256.realty.api.event.LevyChangedEvent;
 import io.github.md5sha256.realty.api.event.OfferAcceptEvent;
@@ -78,6 +80,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
@@ -1822,7 +1825,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         });
     }
 
-    // --- Scheduled subregion sweep ---
+    // --- Scheduler steps on one region ---
 
     /**
      * Removes the WorldGuard region of a subregion the scheduler's sweep deleted from the
@@ -1832,20 +1835,98 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      */
     public @NotNull CompletableFuture<Void> removeSweptSubregion(@NotNull RealtyBackend.DeletedLeasehold deleted) {
         String regionId = deleted.worldGuardRegionId();
-        return this.<Void>serializeByRegion(regionId, deleted.worldId(), () -> onMainThread(() -> {
-            WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, deleted.worldId(), regionId);
-            if (region == null) {
-                logger.warning("Subregion " + regionId + " was deleted, but its world " + deleted.worldId()
-                        + " or its WorldGuard region could not be found, so nothing was removed.");
-                return null;
-            }
-            worldGuardRegionRemoval.remove(region).ifPresent(saveError -> logger.warning("Subregion " + regionId
-                    + " was deleted, but WorldGuard could not save its removal: " + saveError));
-            events.fireSync(new ScheduledSubregionDeletedEvent(region, deleted.landlord()));
+        UUID worldId = deleted.worldId();
+        return logFailure(this.<Void>serializeByRegion(regionId, worldId, () -> onMainThread(() -> {
+            ifInWorldGuard(regionId, worldId, "Subregion " + regionId + " was deleted", region -> {
+                worldGuardRegionRemoval.remove(region).ifPresent(saveError -> logger.warning("Subregion "
+                        + regionId + " was deleted, but WorldGuard could not save its removal: " + saveError));
+                events.fireSync(new ScheduledSubregionDeletedEvent(region, deleted.landlord()));
+            });
             return null;
-        })).exceptionally(ex -> {
-            // The scheduler does not wait for this, so a failure is logged here or not at all.
-            logger.log(Level.SEVERE, "Could not remove swept subregion " + regionId, ex);
+        })), "remove swept subregion " + regionId);
+    }
+
+    /**
+     * Releases the WorldGuard region of a lease the scheduler expired in the database, in its turn
+     * on the region. Not part of {@link RealtyPaperApi}; the scheduler calls it.
+     */
+    public @NotNull CompletableFuture<Void> releaseExpiredLease(@NotNull RealtyBackend.ExpiredLeasehold expired) {
+        return releaseEndedLease(expired.worldGuardRegionId(), expired.worldId(), expired.tenantId(), () -> { },
+                region -> new LeaseExpiredEvent(region, expired.tenantId(), expired.landlord()));
+    }
+
+    /**
+     * Releases the WorldGuard region of a lease the scheduler terminated in the database, in its
+     * turn on the region, and pays the tenant's refund before the event that reports it. Not part
+     * of {@link RealtyPaperApi}; the scheduler calls it.
+     */
+    public @NotNull CompletableFuture<Void> releaseTerminatedLease(@NotNull RealtyBackend.TerminatedLeasehold terminated) {
+        return releaseEndedLease(terminated.worldGuardRegionId(), terminated.worldId(), terminated.tenantId(),
+                () -> refundTermination(terminated),
+                region -> new LeaseTerminatedEvent(region, terminated.tenantId(), terminated.landlord(),
+                        terminated.refund(), terminated.terminatedByRole()));
+    }
+
+    /**
+     * Releases the region of an ended lease in its turn on the region, so a rename or redefine
+     * already running on it finishes first. On the main thread it runs {@code settle}, whether or
+     * not WorldGuard still has the region; then the tenant stops owning it, its flags and signs are
+     * redrawn from the stored state, and {@code endedEvent} is fired.
+     */
+    private @NotNull CompletableFuture<Void> releaseEndedLease(@NotNull String regionId, @NotNull UUID worldId,
+                                                              @NotNull UUID tenantId, @NotNull Runnable settle,
+                                                              @NotNull Function<WorldGuardRegion, RealtyRegionEvent> endedEvent) {
+        return logFailure(this.<Void>serializeByRegion(regionId, worldId, () -> CompletableFuture
+                // A failed read only skips the redraw; the lease is still released, refunded and reported.
+                .supplyAsync(() -> readStoredState(regionId, worldId), executorState.dbExec())
+                .thenApplyAsync(stored -> {
+                    settle.run();
+                    ifInWorldGuard(regionId, worldId, "The lease of " + regionId + " ended", region -> {
+                        region.region().getOwners().removePlayer(tenantId);
+                        showStoredState(region, stored);
+                        events.fireSync(endedEvent.apply(region));
+                    });
+                    return null;
+                }, executorState.mainThreadExec())), "release the region of ended lease " + regionId);
+    }
+
+    /** Pays a terminated lease's refund, landlord to tenant, and logs a failed one for an admin. Main thread. */
+    private void refundTermination(@NotNull RealtyBackend.TerminatedLeasehold terminated) {
+        if (terminated.refund() <= 0) {
+            return;
+        }
+        // No player caused this payment, so it has no initiator.
+        PaymentResult refund = economyProvider.transfer(terminated.landlord(), Party.personal(terminated.tenantId()),
+                terminated.refund(), "Lease Termination Refund: " + terminated.worldGuardRegionId(), null);
+        if (refund instanceof PaymentResult.Failure failure) {
+            // Everything an admin needs to repay the tenant by hand. The landlord is shown by its
+            // ids, not its name, which would need a Treasury read on the main thread.
+            logger.warning("Lease termination refund for region " + terminated.worldGuardRegionId()
+                    + " failed: " + failure.errorMessage() + ". Tenant " + terminated.tenantId()
+                    + " was not paid " + CurrencyFormatter.format(terminated.refund())
+                    + " by landlord " + terminated.landlord() + ".");
+        }
+    }
+
+    /**
+     * Runs {@code body} with the region when WorldGuard has it; else logs that {@code happened}
+     * without a change in WorldGuard, as a rename meanwhile or a missing world leaves it. Main thread.
+     */
+    private void ifInWorldGuard(@NotNull String regionId, @NotNull UUID worldId, @NotNull String happened,
+                                @NotNull Consumer<WorldGuardRegion> body) {
+        WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
+        if (region == null) {
+            logger.warning(happened + ", but its world " + worldId + " or its WorldGuard region could not be"
+                    + " found, so nothing was changed in WorldGuard.");
+            return;
+        }
+        body.accept(region);
+    }
+
+    /** Logs a failure of a scheduler step: the scheduler does not wait for it, so here or not at all. */
+    private <T> @NotNull CompletableFuture<T> logFailure(@NotNull CompletableFuture<T> step, @NotNull String what) {
+        return step.exceptionally(ex -> {
+            logger.log(Level.SEVERE, "Could not " + what, ex);
             return null;
         });
     }
