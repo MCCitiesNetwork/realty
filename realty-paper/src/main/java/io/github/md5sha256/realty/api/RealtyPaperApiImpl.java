@@ -1852,7 +1852,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      */
     public @NotNull CompletableFuture<Void> releaseExpiredLease(@NotNull RealtyBackend.ExpiredLeasehold expired) {
         return releaseEndedLease(expired.worldGuardRegionId(), new EndedLease(expired.worldId(),
-                expired.realtyRegionId(), expired.tenantId(), () -> { },
+                expired.realtyRegionId(), expired.tenantId(), regionName -> { }, "",
                 region -> new LeaseExpiredEvent(region, expired.tenantId(), expired.landlord())));
     }
 
@@ -1862,8 +1862,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * of {@link RealtyPaperApi}; the scheduler calls it.
      */
     public @NotNull CompletableFuture<Void> releaseTerminatedLease(@NotNull RealtyBackend.TerminatedLeasehold terminated) {
+        String unpaid = terminated.refund() <= 0 ? "" : ". Tenant " + terminated.tenantId()
+                + " may not have been paid the refund of " + CurrencyFormatter.format(terminated.refund())
+                + " by landlord " + terminated.landlord();
         return releaseEndedLease(terminated.worldGuardRegionId(), new EndedLease(terminated.worldId(),
-                terminated.realtyRegionId(), terminated.tenantId(), () -> refundTermination(terminated),
+                terminated.realtyRegionId(), terminated.tenantId(),
+                regionName -> refundTermination(terminated, regionName), unpaid,
                 region -> new LeaseTerminatedEvent(region, terminated.tenantId(), terminated.landlord(),
                         terminated.refund(), terminated.terminatedByRole())));
     }
@@ -1872,12 +1876,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * An ended lease as its release needs it, apart from the region's name, which can change
      * while it waits.
      *
-     * @param settle     run on the main thread in the release's turn, whether or not WorldGuard
-     *                   still has the region: a termination's refund
+     * @param settle     run on the main thread in the release's turn with the region's current
+     *                   name, whether or not WorldGuard still has the region: a termination's refund
+     * @param unsettled  what a failed release may have left unpaid, for the admin who reads its
+     *                   log; empty when nothing
      * @param endedEvent the event the release fires once the region is released
      */
     private record EndedLease(@NotNull UUID worldId, int realtyRegionId, @NotNull UUID tenantId,
-                              @NotNull Runnable settle,
+                              @NotNull Consumer<String> settle, @NotNull String unsettled,
                               @NotNull Function<WorldGuardRegion, RealtyRegionEvent> endedEvent) {
     }
 
@@ -1885,20 +1891,33 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * Releases the region of an ended lease in its turn on the region, so a rename or redefine
      * already running on it finishes first. In its turn it reads the region's current name by its
      * stable id: a rename that committed after the scheduler read the lease, while it waited, moves
-     * the release to the new name; otherwise {@link #releaseInTurn} releases it.
+     * the release to the new name; a deleted region only settles, since a region now under its old
+     * name is another one; otherwise {@link #releaseInTurn} releases it. A failed read keeps the
+     * name the release has, so the lease is still settled.
      */
     private @NotNull CompletableFuture<Void> releaseEndedLease(@NotNull String regionId, @NotNull EndedLease lease) {
         return logFailure(this.<Void>serializeByRegion(regionId, lease.worldId(), () -> CompletableFuture
                 .supplyAsync(() -> realtyApi.getWorldGuardRegionId(lease.realtyRegionId()), executorState.dbExec())
+                .exceptionally(ex -> {
+                    logger.log(Level.WARNING, "Could not read the current name of region " + regionId
+                            + ", so its ended lease is released under that name", ex);
+                    return regionId;
+                })
                 .thenCompose(current -> {
-                    if (current != null && !current.equals(regionId)) {
+                    if (current == null) {
+                        return onMainThread(() -> {
+                            lease.settle().accept(regionId);
+                            return null;
+                        });
+                    }
+                    if (!current.equals(regionId)) {
                         // Not waited for: a rename takes both names' queues, so holding this one while
                         // waiting on the new name's could deadlock against a rename back.
                         releaseEndedLease(current, lease);
                         return CompletableFuture.<Void>completedFuture(null);
                     }
                     return releaseInTurn(regionId, lease);
-                })), "release the region of ended lease " + regionId);
+                })), "release the region of ended lease " + regionId + lease.unsettled());
     }
 
     /**
@@ -1912,7 +1931,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // A failed read only skips the redraw; the lease is still released, settled and reported.
         return CompletableFuture.supplyAsync(() -> readStoredState(regionId, worldId), executorState.dbExec())
                 .thenApplyAsync(stored -> {
-                    lease.settle().run();
+                    lease.settle().accept(regionId);
                     ifInWorldGuard(regionId, worldId, "The lease of " + regionId + " ended", region -> {
                         region.region().getOwners().removePlayer(lease.tenantId());
                         showStoredState(region, stored);
@@ -1922,18 +1941,22 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 }, executorState.mainThreadExec());
     }
 
-    /** Pays a terminated lease's refund, landlord to tenant, and logs a failed one for an admin. Main thread. */
-    private void refundTermination(@NotNull RealtyBackend.TerminatedLeasehold terminated) {
+    /**
+     * Pays a terminated lease's refund, landlord to tenant, and logs a failed one for an admin.
+     * {@code regionName} is the region's current name, for the memo and the log. Main thread.
+     */
+    private void refundTermination(@NotNull RealtyBackend.TerminatedLeasehold terminated,
+                                   @NotNull String regionName) {
         if (terminated.refund() <= 0) {
             return;
         }
         // No player caused this payment, so it has no initiator.
         PaymentResult refund = economyProvider.transfer(terminated.landlord(), Party.personal(terminated.tenantId()),
-                terminated.refund(), "Lease Termination Refund: " + terminated.worldGuardRegionId(), null);
+                terminated.refund(), "Lease Termination Refund: " + regionName, null);
         if (refund instanceof PaymentResult.Failure failure) {
             // Everything an admin needs to repay the tenant by hand. The landlord is shown by its
             // ids, not its name, which would need a Treasury read on the main thread.
-            logger.warning("Lease termination refund for region " + terminated.worldGuardRegionId()
+            logger.warning("Lease termination refund for region " + regionName
                     + " failed: " + failure.errorMessage() + ". Tenant " + terminated.tenantId()
                     + " was not paid " + CurrencyFormatter.format(terminated.refund())
                     + " by landlord " + terminated.landlord() + ".");
