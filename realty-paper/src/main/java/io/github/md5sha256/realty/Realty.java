@@ -63,6 +63,8 @@ import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ModuleCommandGroup;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
+import io.github.md5sha256.realty.command.RedefineCommand;
+import io.github.md5sha256.realty.command.RedefineReplies;
 import io.github.md5sha256.realty.command.RenameCommand;
 import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.RentableCommand;
@@ -1164,6 +1166,7 @@ public final class Realty extends JavaPlugin {
 
         SubregionWand subregionWand = new SubregionWand(this, this.settings);
         SubregionWandManager subregionWandManager = new SubregionWandManager();
+        RedefineReplies redefineReplies = new RedefineReplies(messageContainer, this.eventDispatch);
         SubregionDialog subregionDialog = new SubregionDialog(paperApi, executorState,
                 this.database, subregionWandManager, this.settings, this.realtyTags,
                 messageContainer);
@@ -1206,6 +1209,8 @@ public final class Realty extends JavaPlugin {
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
                 new RenameCommand(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch),
+                new RedefineCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        redefineReplies),
                 new GroupCommandGroup(paperApi, this.partyResolver,
                         PartyFlags.groupSuggestions(this.logic, executorState.dbExec()),
                         PartyFlags.accountSuggestions(this.treasury, executorState.dbExec()),

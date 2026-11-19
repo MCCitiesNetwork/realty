@@ -89,6 +89,9 @@ permissions:
   realty.command.rename.others:
     description: Allows renaming any other registered region
     default: op
+  realty.command.redefine:
+    description: Allows redefining any registered region with a WorldEdit selection
+    default: op
   realty.command.create.leasehold:
     description: Allows using /realty create leasehold
     default: op

@@ -107,7 +107,8 @@ public enum RealtyCategory {
                     Map.entry("notification.sale-proceeds", "Sale proceeds"),
                     Map.entry("notification.sale-proceeds-no-fees", "Sale proceeds, no fees"),
                     Map.entry("notification.sale-payout", "Sale fee paid"),
-                    Map.entry("notification.fee-awaiting-approval", "Fee awaiting approval")));
+                    Map.entry("notification.fee-awaiting-approval", "Fee awaiting approval"),
+                    Map.entry("notification.region-redefined", "Region redefined")));
 
     /** Where a key no category claims is routed. */
     public static final RealtyCategory FALLBACK = GENERAL;

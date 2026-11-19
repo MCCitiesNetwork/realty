@@ -167,6 +167,24 @@ public final class MessageKeys {
     public static final String RENAME_WORLDGUARD_SAVE_ERROR = "rename.worldguard-save-error";
     public static final String RENAME_ERROR = "rename.error";
 
+    public static final String REDEFINE_SUCCESS = "redefine.success";
+    public static final String REDEFINE_CAPTURE_REMOVED = "redefine.capture-removed";
+    public static final String REDEFINE_WORLDGUARD_SAVE_ERROR = "redefine.worldguard-save-error";
+    public static final String REDEFINE_NO_SELECTION = "redefine.no-selection";
+    public static final String REDEFINE_UNSUPPORTED_SELECTION = "redefine.unsupported-selection";
+    public static final String REDEFINE_WRONG_WORLD = "redefine.wrong-world";
+    public static final String REDEFINE_SAME_SHAPE = "redefine.same-shape";
+    public static final String REDEFINE_TOO_SMALL = "redefine.too-small";
+    public static final String REDEFINE_OUTSIDE_PARENT = "redefine.outside-parent";
+    public static final String REDEFINE_OVERLAPS_SIBLING = "redefine.overlaps-sibling";
+    public static final String REDEFINE_CHILD_OUTSIDE = "redefine.child-outside";
+    public static final String REDEFINE_NOT_REGISTERED = "redefine.not-registered";
+    public static final String REDEFINE_NOT_AUTHORIZED = "redefine.not-authorized";
+    public static final String REDEFINE_OCCUPIED = "redefine.occupied";
+    public static final String REDEFINE_UNSUPPORTED_REGION = "redefine.unsupported-region";
+    public static final String REDEFINE_CAPTURE_RUNNING = "redefine.capture-running";
+    public static final String REDEFINE_ERROR = "redefine.error";
+
     // help
     public static final String HELP_MAIN = "help.main";
     public static final String HELP_UNKNOWN_CATEGORY = "help.unknown-category";
@@ -568,6 +586,7 @@ public final class MessageKeys {
     public static final String NOTIFICATION_TERMINATION_SUBREGION_REMOVED = "notification.termination-subregion-removed";
     public static final String NOTIFICATION_SUBREGION_DELETED = "notification.subregion-deleted";
     public static final String NOTIFICATION_REGION_RENAMED = "notification.region-renamed";
+    public static final String NOTIFICATION_REGION_REDEFINED = "notification.region-redefined";
     public static final String NOTIFICATION_TERMINATION_SCHEDULED_LANDLORD = "notification.termination-scheduled-landlord";
     public static final String NOTIFICATION_TERMINATION_CANCELLED = "notification.termination-cancelled";
     public static final String NOTIFICATION_LEASEHOLD_TERMINATED_TENANT = "notification.leasehold-terminated-tenant";
