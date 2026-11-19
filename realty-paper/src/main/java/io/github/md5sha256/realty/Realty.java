@@ -601,6 +601,8 @@ public final class Realty extends JavaPlugin {
                             this.eventDispatch.fireSync(new AuctionEndedEvent(
                                     wgRegion, auction.winnerId(), auction.auctioneerId()));
                         }
+                        // Bidding has closed, which flags and signs can show.
+                        this.paperApi.redrawFromStore(auction.worldGuardRegionId(), auction.worldId());
                     }
                 });
             }
@@ -613,6 +615,8 @@ public final class Realty extends JavaPlugin {
                         payment.regionId(), payment.worldId(),
                         WorldGuardRegionResolver.resolve(getServer(), payment.worldId(), payment.regionId()),
                         payment.bidderId(), refund.amount(), refund.paid(), payment.oldRules())));
+                // With no runner-up left the auction has ended, which flags and signs can show.
+                this.paperApi.redrawFromStore(payment.regionId(), payment.worldId());
             }
             for (RealtyBackend.ExpiredOfferPayment payment : this.logic.clearExpiredOfferPayments()) {
                 SaleSettlement.ExpiryRefund refund = settleExpiry(payment.refundId(), payment.offererId(),
@@ -653,11 +657,11 @@ public final class Realty extends JavaPlugin {
                                 if (protectedRegion != null) {
                                     protectedRegion.getOwners().removePlayer(expired.tenantId());
                                     WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                                    regionProfileService.applyFlags(
-                                            wgRegion,
-                                            RegionState.FOR_LEASE,
-                                            leaseholdPlaceholders.getOrDefault(expired.worldGuardRegionId(),
-                                                    Map.of()));
+                                    Map<String, String> placeholders = leaseholdPlaceholders.getOrDefault(
+                                            expired.worldGuardRegionId(), Map.of());
+                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE, placeholders);
+                                    signTextApplicator.updateLoadedSigns(world, expired.worldGuardRegionId(),
+                                            RegionState.FOR_LEASE, placeholders);
                                     // Post-event; RegionNotificationListener notifies tenant + landlord.
                                     this.eventDispatch.fireSync(new LeaseExpiredEvent(
                                             wgRegion, expired.tenantId(), expired.landlord()));
@@ -706,9 +710,11 @@ public final class Realty extends JavaPlugin {
                                 if (protectedRegion != null) {
                                     protectedRegion.getOwners().removePlayer(terminated.tenantId());
                                     WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE,
-                                            terminatedPlaceholders.getOrDefault(terminated.worldGuardRegionId(),
-                                                    Map.of()));
+                                    Map<String, String> placeholders = terminatedPlaceholders.getOrDefault(
+                                            terminated.worldGuardRegionId(), Map.of());
+                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE, placeholders);
+                                    signTextApplicator.updateLoadedSigns(world, terminated.worldGuardRegionId(),
+                                            RegionState.FOR_LEASE, placeholders);
                                     this.eventDispatch.fireSync(new LeaseTerminatedEvent(wgRegion,
                                             terminated.tenantId(), terminated.landlord(),
                                             terminated.refund(), terminated.terminatedByRole()));

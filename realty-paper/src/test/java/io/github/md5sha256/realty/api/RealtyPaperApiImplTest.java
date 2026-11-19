@@ -329,6 +329,12 @@ class RealtyPaperApiImplTest {
     // buy()
     // ═══════════════════════════════════════════════════
 
+    /** The backend reads the region back as {@code state} with {@code placeholders}. */
+    private void storedStateIs(RegionState state, Map<String, String> placeholders) {
+        when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
+                new RealtyRegionEntity(1, REGION_ID, WORLD_ID), state, placeholders));
+    }
+
     @Nested
     @DisplayName("actorContext")
     class ActorContextFactory {
@@ -1069,12 +1075,13 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("success extends lease and updates signs")
+        @DisplayName("success extends lease, rewrites the flags and updates signs")
         void success() {
+            Map<String, String> renewedTerms = Map.of("end_date", "2026-12-01");
             when(realtyApi.renewLeasehold(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(RENEWED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
-                    .thenReturn(Map.of());
+                    .thenReturn(renewedTerms);
             when(economyProvider.getBalance(TENANT)).thenReturn(500.0);
             when(economyProvider.transfer(eq(TENANT), eq(LANDLORD), eq(200.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Success());
@@ -1084,8 +1091,9 @@ class RealtyPaperApiImplTest {
             Assertions.assertInstanceOf(RealtyPaperApi.ExtendResult.Success.class, result);
             RealtyPaperApi.ExtendResult.Success success = (RealtyPaperApi.ExtendResult.Success) result;
             Assertions.assertEquals(200.0, success.price());
-            verify(signTextApplicator).updateLoadedSigns(eq(world), eq(REGION_ID),
-                    eq(RegionState.LEASED), any());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.LEASED, renewedTerms);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID,
+                    RegionState.LEASED, renewedTerms);
         }
     }
 
@@ -1407,11 +1415,18 @@ class RealtyPaperApiImplTest {
 
         private static final Map<String, String> NEW_TERMS = Map.of("price", "5000");
 
+        private RegionManager regionManager;
+
+        @BeforeEach
+        void setUpRegionManager() {
+            regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            lenient().when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+        }
+
         private void regionIs(RegionState state) {
             when(server.getWorld(WORLD_ID)).thenReturn(world);
-            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
-                    .thenReturn(new RealtyBackend.RegionWithState(
-                            new RealtyRegionEntity(1, REGION_ID, WORLD_ID), state, NEW_TERMS));
+            storedStateIs(state, NEW_TERMS);
         }
 
         private void assertNothingTouched() {
@@ -1421,7 +1436,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("setPrice success updates loaded signs and leaves the flags alone")
+        @DisplayName("setPrice success updates loaded signs and rewrites the flags with the new terms")
         void setPriceSuccess() {
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
@@ -1432,7 +1447,21 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
             verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.FOR_SALE, NEW_TERMS);
+        }
+
+        @Test
+        @DisplayName("a region missing from WorldGuard still has its signs redrawn")
+        void missingWorldGuardRegion() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+            when(regionManager.getRegion(REGION_ID)).thenReturn(null);
+
+            api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
             verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
         }
 
         @Test
@@ -1582,7 +1611,31 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("unsetPrice success updates loaded signs")
+        @DisplayName("setAuthority success updates loaded signs and rewrites the flags")
+        void setAuthoritySuccess() {
+            when(realtyApi.setAuthority(REGION_ID, WORLD_ID, Party.personal(AUTHORITY_ID)))
+                    .thenReturn(new RealtyBackend.SetAuthorityResult.Success(Party.personal(UUID.randomUUID())));
+            regionIs(RegionState.SOLD);
+
+            api.setAuthority(REGION_ID, WORLD_ID, Party.personal(AUTHORITY_ID)).join();
+
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.SOLD, NEW_TERMS);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, NEW_TERMS);
+        }
+
+        @Test
+        @DisplayName("setAuthority NoFreeholdContract touches nothing")
+        void setAuthorityNoFreehold() {
+            when(realtyApi.setAuthority(REGION_ID, WORLD_ID, Party.personal(AUTHORITY_ID)))
+                    .thenReturn(new RealtyBackend.SetAuthorityResult.NoFreeholdContract());
+
+            api.setAuthority(REGION_ID, WORLD_ID, Party.personal(AUTHORITY_ID)).join();
+
+            assertNothingTouched();
+        }
+
+        @Test
+        @DisplayName("unsetPrice success updates loaded signs and rewrites the flags")
         void unsetPriceSuccess() {
             when(realtyApi.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX))
                     .thenReturn(new RealtyBackend.UnsetPriceResult.Success());
@@ -1593,7 +1646,7 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyBackend.UnsetPriceResult.Success.class, result);
             verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, NEW_TERMS);
-            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.SOLD, NEW_TERMS);
         }
 
         @Test
@@ -1608,7 +1661,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("setDuration success updates loaded signs")
+        @DisplayName("setDuration success updates loaded signs and rewrites the flags")
         void setDurationSuccess() {
             when(realtyApi.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetDurationResult.Success());
@@ -1619,7 +1672,7 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyBackend.SetDurationResult.Success.class, result);
             verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_LEASE, NEW_TERMS);
-            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.FOR_LEASE, NEW_TERMS);
         }
 
         @Test
@@ -1634,7 +1687,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("setMaxRenewals success updates loaded signs")
+        @DisplayName("setMaxRenewals success updates loaded signs and rewrites the flags")
         void setMaxRenewalsSuccess() {
             when(realtyApi.setMaxRenewals(REGION_ID, WORLD_ID, 4, BUYER_CTX, false))
                     .thenReturn(new RealtyBackend.SetMaxRenewalsResult.Success());
@@ -1645,7 +1698,7 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyBackend.SetMaxRenewalsResult.Success.class, result);
             verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.LEASED, NEW_TERMS);
-            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.LEASED, NEW_TERMS);
         }
 
         @Test
@@ -1799,9 +1852,11 @@ class RealtyPaperApiImplTest {
     class SetLandlord {
 
         @Test
-        @DisplayName("success clears members")
+        @DisplayName("success clears members, rewrites the flags and updates signs")
         void success() {
             protectedRegion.getMembers().addPlayer(UUID.randomUUID());
+            Map<String, String> stored = Map.of("landlord", "NewLandlord");
+            storedStateIs(RegionState.FOR_LEASE, stored);
 
             when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console(), false))
                     .thenReturn(new RealtyBackend.SetLandlordResult.Success(Party.personal(UUID.randomUUID())));
@@ -1812,6 +1867,8 @@ class RealtyPaperApiImplTest {
             Assertions.assertInstanceOf(
                     RealtyPaperApi.SetLandlordResult.Success.class, result);
             Assertions.assertEquals(0, protectedRegion.getMembers().size());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.FOR_LEASE, stored);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_LEASE, stored);
         }
 
         @Test
@@ -1982,6 +2039,69 @@ class RealtyPaperApiImplTest {
                     .findFirst().orElseThrow(() -> new AssertionError("no " + type.getSimpleName() + " fired"));
         }
 
+        private static final Map<String, String> STORED = Map.of("has_auction", "true");
+
+        @Test
+        @DisplayName("creating an auction rewrites the flags and updates signs")
+        void createShowsTheAuction() {
+            when(realtyApi.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10))
+                    .thenReturn(new RealtyBackend.CreateAuctionResult.Success());
+            storedStateIs(RegionState.SOLD, STORED);
+
+            api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10).join();
+
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.SOLD, STORED);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, STORED);
+        }
+
+        @Test
+        @DisplayName("a refused auction leaves flags and signs alone")
+        void refusedCreateTouchesNothing() {
+            when(realtyApi.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10))
+                    .thenReturn(new RealtyBackend.CreateAuctionResult.OffersExist());
+
+            api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10).join();
+
+            verify(realtyApi, never()).getRegionWithState(any(), any());
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("cancelling an auction rewrites the flags and updates signs")
+        void cancelShowsTheRegionWithoutTheAuction() {
+            when(realtyApi.cancelAuction(REGION_ID, WORLD_ID))
+                    .thenReturn(new RealtyBackend.CancelAuctionResult(1, List.of()));
+            storedStateIs(RegionState.SOLD, STORED);
+
+            api.cancelAuction(REGION_ID, WORLD_ID, BUYER_ID).join();
+
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.SOLD, STORED);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, STORED);
+        }
+
+        @Test
+        @DisplayName("redrawFromStore shows a change made outside the API, such as an ended auction")
+        void redrawFromStoreShowsTheStoredState() {
+            storedStateIs(RegionState.SOLD, STORED);
+
+            api.redrawFromStore(REGION_ID, WORLD_ID).join();
+
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.SOLD, STORED);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, STORED);
+        }
+
+        @Test
+        @DisplayName("redrawFromStore skips a region it cannot read")
+        void redrawFromStoreSkipsAnUnreadableRegion() {
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenThrow(new IllegalStateException("database gone"));
+
+            api.redrawFromStore(REGION_ID, WORLD_ID).join();
+
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
         @Test
         void createFiresBothEvents() {
             when(realtyApi.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10))
@@ -2056,6 +2176,7 @@ class RealtyPaperApiImplTest {
             api.cancelAuction(REGION_ID, WORLD_ID, BUYER_ID).join();
 
             verify(events, never()).fireSync(any(RealtyRegionEvent.class));
+            verify(realtyApi, never()).getRegionWithState(any(), any());
         }
     }
 
@@ -3353,7 +3474,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("a landlord renames a subregion: WorldGuard, signs and cooldown follow")
+        @DisplayName("a landlord renames a subregion: WorldGuard, flags, signs and cooldown follow")
         void landlordRenamesSubregion() {
             backendRenames(new RealtyBackend.RenameRegionResult.Success(Optional.of(TENANT_ID)));
             Map<String, String> placeholders = Map.of("region", NEW_NAME);
@@ -3374,8 +3495,8 @@ class RealtyPaperApiImplTest {
             Assertions.assertEquals(1, signCache.getSignsByRegion(NEW_NAME, WORLD_ID).size());
             Assertions.assertNotNull(captureCooldown.remaining(NEW_NAME, WORLD_ID, java.time.Duration.ofHours(1)));
             verify(signTextApplicator).updateLoadedSigns(world, NEW_NAME, RegionState.LEASED, placeholders);
-            // Applying the profile resets a region's flags; the rename keeps them as copied.
-            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            // A flag such as a greeting can show the name, so the profile is applied under the new name.
+            verify(regionProfileService).applyFlags(renamed.region(), RegionState.LEASED, placeholders);
         }
 
         @Test
