@@ -329,6 +329,12 @@ class RealtyPaperApiImplTest {
     // buy()
     // ═══════════════════════════════════════════════════
 
+    /** The backend reads the region back as {@code state} with {@code placeholders}. */
+    private void storedStateIs(RegionState state, Map<String, String> placeholders) {
+        when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
+                new RealtyRegionEntity(1, REGION_ID, WORLD_ID), state, placeholders));
+    }
+
     @Nested
     @DisplayName("actorContext")
     class ActorContextFactory {
@@ -1420,9 +1426,7 @@ class RealtyPaperApiImplTest {
 
         private void regionIs(RegionState state) {
             when(server.getWorld(WORLD_ID)).thenReturn(world);
-            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
-                    .thenReturn(new RealtyBackend.RegionWithState(
-                            new RealtyRegionEntity(1, REGION_ID, WORLD_ID), state, NEW_TERMS));
+            storedStateIs(state, NEW_TERMS);
         }
 
         private void assertNothingTouched() {
@@ -1852,12 +1856,7 @@ class RealtyPaperApiImplTest {
         void success() {
             protectedRegion.getMembers().addPlayer(UUID.randomUUID());
             Map<String, String> stored = Map.of("landlord", "NewLandlord");
-            RegionManager regionManager = org.mockito.Mockito.mock(RegionManager.class);
-            when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
-            when(regionContainer.get(any())).thenReturn(regionManager);
-            when(server.getWorld(WORLD_ID)).thenReturn(world);
-            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
-                    new RealtyRegionEntity(1, REGION_ID, WORLD_ID), RegionState.FOR_LEASE, stored));
+            storedStateIs(RegionState.FOR_LEASE, stored);
 
             when(realtyApi.setLandlord(REGION_ID, WORLD_ID, Party.personal(LANDLORD_ID), ActorContext.console(), false))
                     .thenReturn(new RealtyBackend.SetLandlordResult.Success(Party.personal(UUID.randomUUID())));
@@ -2042,17 +2041,12 @@ class RealtyPaperApiImplTest {
 
         private static final Map<String, String> STORED = Map.of("has_auction", "true");
 
-        private void storedStateIs(RegionState state) {
-            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
-                    new RealtyRegionEntity(1, REGION_ID, WORLD_ID), state, STORED));
-        }
-
         @Test
         @DisplayName("creating an auction rewrites the flags and updates signs")
         void createShowsTheAuction() {
             when(realtyApi.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10))
                     .thenReturn(new RealtyBackend.CreateAuctionResult.Success());
-            storedStateIs(RegionState.SOLD);
+            storedStateIs(RegionState.SOLD, STORED);
 
             api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10).join();
 
@@ -2070,6 +2064,7 @@ class RealtyPaperApiImplTest {
 
             verify(realtyApi, never()).getRegionWithState(any(), any());
             verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
         }
 
         @Test
@@ -2077,7 +2072,7 @@ class RealtyPaperApiImplTest {
         void cancelShowsTheRegionWithoutTheAuction() {
             when(realtyApi.cancelAuction(REGION_ID, WORLD_ID))
                     .thenReturn(new RealtyBackend.CancelAuctionResult(1, List.of()));
-            storedStateIs(RegionState.SOLD);
+            storedStateIs(RegionState.SOLD, STORED);
 
             api.cancelAuction(REGION_ID, WORLD_ID, BUYER_ID).join();
 

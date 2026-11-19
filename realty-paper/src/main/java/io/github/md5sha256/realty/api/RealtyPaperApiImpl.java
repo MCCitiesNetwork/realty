@@ -1353,12 +1353,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             RealtyBackend.SetLandlordResult result =
                     realtyApi.setLandlord(regionId, worldId, landlord, ctx, vacantOnly);
-            return new Shown<>(result, result instanceof RealtyBackend.SetLandlordResult.Success
-                    ? readStoredState(regionId, worldId) : null);
+            return shown(result, result instanceof RealtyBackend.SetLandlordResult.Success, regionId, worldId);
         }, executorState.dbExec()).thenApplyAsync(shown -> switch (shown.result()) {
             case RealtyBackend.SetLandlordResult.Success success -> {
                 region.region().getMembers().clear();
-                showStoredState(regionId, worldId, shown.stored());
+                showStoredState(region, shown.stored());
                 yield (SetLandlordResult) new SetLandlordResult.Success(
                         success.previousLandlord(), regionId);
             }
@@ -1567,11 +1566,6 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         });
     }
 
-    /** The database step of a rename: its result and, when it renamed, the region's state for the sign redraw. */
-    private record DatabaseRename(@NotNull RealtyBackend.RenameRegionResult result,
-                                  @Nullable RealtyBackend.RegionWithState state) {
-    }
-
     private @NotNull CompletableFuture<RenameRegionResult> renameHoldingBothNames(
             @NotNull WorldGuardRegion region, @NotNull String newId, @NotNull ActorContext ctx,
             @NotNull Optional<String> parentId) {
@@ -1583,19 +1577,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             RealtyBackend.RenameRegionResult result = ctx.bypass()
                     ? realtyApi.renameRegion(oldId, newId, worldId, ctx)
                     : realtyApi.renameSubregion(oldId, newId, worldId, parentId.orElseThrow(), ctx);
-            RealtyBackend.RegionWithState state = null;
-            if (result instanceof RealtyBackend.RenameRegionResult.Success) {
-                // The rename has committed: a failed read only costs the flags and signs, not the answer.
-                try {
-                    state = realtyApi.getRegionWithState(newId, worldId);
-                } catch (RuntimeException ex) {
-                    logger.log(Level.WARNING, "Could not read region " + newId + " to rewrite its flags and redraw its signs", ex);
-                }
-            }
-            return new DatabaseRename(result, state);
+            return shown(result, result instanceof RealtyBackend.RenameRegionResult.Success, newId, worldId);
         }, executorState.dbExec()).thenComposeAsync(database -> switch (database.result()) {
             case RealtyBackend.RenameRegionResult.Success success -> renameInWorldGuard(
-                    region, newId, ctx.player(), success.tenantId(), database.state());
+                    region, newId, ctx.player(), success.tenantId(), database.stored());
             case RealtyBackend.RenameRegionResult.NoRegion ignored ->
                     done(new RenameRegionResult.NotRegistered());
             case RealtyBackend.RenameRegionResult.NameTaken ignored ->
@@ -1613,13 +1598,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID worldId = renamed.world().getUID();
         signCache.renameRegion(oldId, newId, worldId);
         captureCooldown.rename(oldId, newId, worldId);
-        if (state != null) {
-            // Flags and signs can show the name. Applying the profile under the new name resets
-            // flags set by hand, as every state change does, and drops a grouped profile that
-            // listed the old name; the reply warns about the latter.
-            regionProfileService.applyFlags(renamed, state.state(), state.placeholders());
-            signTextApplicator.updateLoadedSigns(renamed.world(), newId, state.state(), state.placeholders());
-        }
+        // Flags and signs can show the name. Applying the profile under the new name resets
+        // flags set by hand, as every state change does, and drops a grouped profile that
+        // listed the old name; the reply warns about the latter.
+        showStoredState(renamed, state);
         events.fireSync(new RegionRenamedEvent(renamed, actorId, oldId));
         return new RenameRegionResult.Renamed(renamed, oldId, tenantId,
                 regionProfileService.hasGroupedProfile(oldId));
@@ -1952,16 +1934,16 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     return CompletableFuture.supplyAsync(() -> {
                         RealtyBackend.CreateAuctionResult result = realtyApi.createAuction(regionId, worldId, ctx,
                                 biddingDurationSeconds, paymentDurationSeconds, minBid, minBidStep);
-                        return new Shown<>(result, result instanceof RealtyBackend.CreateAuctionResult.Success
-                                ? readStoredState(regionId, worldId) : null);
+                        return shown(result, result instanceof RealtyBackend.CreateAuctionResult.Success,
+                                regionId, worldId);
                     }, executorState.dbExec()).thenApplyAsync(shown -> {
                         if (shown.result() instanceof RealtyBackend.CreateAuctionResult.Success
                                 && gate.region() != null) {
                             events.fireSync(new AuctionCreatedEvent(gate.region(), auctioneerId, minBid, minBidStep,
                                     biddingDurationSeconds, paymentDurationSeconds,
                                     Instant.now().plusSeconds(biddingDurationSeconds)));
+                            showStoredState(gate.region(), shown.stored());
                         }
-                        showStoredState(regionId, worldId, shown.stored());
                         return shown.result();
                     }, executorState.mainThreadExec());
                 }, executorState.mainThreadExec());
@@ -1973,13 +1955,13 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return thenFire(regionId, worldId,
                 () -> {
                     RealtyBackend.CancelAuctionResult result = realtyApi.cancelAuction(regionId, worldId);
-                    return new Shown<>(result, result.deleted() > 0 ? readStoredState(regionId, worldId) : null);
+                    return shown(result, result.deleted() > 0, regionId, worldId);
                 },
                 (region, shown) -> {
                     if (shown.result().deleted() > 0) {
                         events.fireSync(new AuctionCancelledEvent(region, actorId, shown.result().bidderIds()));
                     }
-                    showStoredState(regionId, worldId, shown.stored());
+                    showStoredState(region, shown.stored());
                 }).thenApply(Shown::result);
     }
 
@@ -2583,23 +2565,39 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }
     }
 
+    /** Database thread: {@code result}, with the region's stored state when {@code succeeded}. */
+    private <T> @NotNull Shown<T> shown(@NotNull T result, boolean succeeded,
+                                        @NotNull String regionId, @NotNull UUID worldId) {
+        return new Shown<>(result, succeeded ? readStoredState(regionId, worldId) : null);
+    }
+
     /**
      * Main thread: rewrites the region's flags and redraws its loaded signs from {@code stored}.
      * Flag values such as a greeting can show any placeholder, so every write that changes one
      * calls this, not only a change of state. Does nothing when {@code stored} is null or the world
-     * is not loaded; a region WorldGuard no longer has still gets its signs redrawn. A failure is
-     * logged and never reaches the caller, whose write has already committed.
+     * is not loaded; a region WorldGuard no longer has still gets its signs redrawn.
      */
     private void showStoredState(@NotNull String regionId, @NotNull UUID worldId,
                                  @Nullable RealtyBackend.RegionWithState stored) {
-        World world = stored != null ? server.getWorld(worldId) : null;
-        if (world == null) {
-            return;
+        World world = server.getWorld(worldId);
+        if (stored != null && world != null) {
+            show(world, regionId, WorldGuardRegionResolver.resolve(server, worldId, regionId), stored);
         }
+    }
+
+    /** Main thread: as {@link #showStoredState(String, UUID, RealtyBackend.RegionWithState)}, for a region in hand. */
+    private void showStoredState(@NotNull WorldGuardRegion region, @Nullable RealtyBackend.RegionWithState stored) {
+        if (stored != null) {
+            show(region.world(), region.region().getId(), region, stored);
+        }
+    }
+
+    /** A failure is logged and never reaches the caller, whose write has already committed. */
+    private void show(@NotNull World world, @NotNull String regionId, @Nullable WorldGuardRegion region,
+                      @NotNull RealtyBackend.RegionWithState stored) {
         try {
-            WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(server, worldId, regionId);
-            if (wgRegion != null) {
-                regionProfileService.applyFlags(wgRegion, stored.state(), stored.placeholders());
+            if (region != null) {
+                regionProfileService.applyFlags(region, stored.state(), stored.placeholders());
             }
             signTextApplicator.updateLoadedSigns(world, regionId, stored.state(), stored.placeholders());
         } catch (RuntimeException ex) {
@@ -2622,7 +2620,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                                            @NotNull Supplier<T> write) {
         return serializeByRegion(regionId, worldId, () -> CompletableFuture.supplyAsync(() -> {
             T result = write.get();
-            return new Shown<>(result, successType.isInstance(result) ? readStoredState(regionId, worldId) : null);
+            return shown(result, successType.isInstance(result), regionId, worldId);
         }, executorState.dbExec())).thenApplyAsync(shown -> {
             showStoredState(regionId, worldId, shown.stored());
             return shown.result();
