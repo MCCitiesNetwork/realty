@@ -1,13 +1,10 @@
 package io.github.md5sha256.realty.api;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.regions.CuboidRegion;
-import com.sk89q.worldedit.regions.Polygonal2DRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
-import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.AuctionBidEvent;
@@ -1798,7 +1795,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         if (!WorldGuardRegionRename.isSupported(region.region())) {
             return done(new RedefineRegionResult.UnsupportedRegion());
         }
-        Optional<ProtectedRegion> built = WorldGuardRegionRedefine.fromSelection(regionId, selection);
+        Optional<ProtectedRegion> built = SubregionSelectionValidator.toProtectedRegion(regionId, selection);
         if (built.isEmpty()) {
             return done(new RedefineRegionResult.UnsupportedSelection());
         }
@@ -1859,34 +1856,19 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return done(new RedefineRegionResult.NotRegistered());
         }
         WorldGuardRegion region = current.get();
-        Optional<WorldGuardRegionRedefine.Problem> problem = worldGuardRegionRedefine.check(
+        Optional<RedefineRegionResult> refusal = worldGuardRegionRedefine.check(
                 region, selection, replacement, check.subregion(), subregionMinVolume.getAsInt());
-        if (problem.isPresent()) {
-            return done(switch (problem.get()) {
-                case WorldGuardRegionRedefine.Problem.TooSmall tooSmall ->
-                        new RedefineRegionResult.TooSmall(tooSmall.volume(), tooSmall.minVolume());
-                case WorldGuardRegionRedefine.Problem.OutsideParent outside ->
-                        new RedefineRegionResult.OutsideParent(outside.parentId());
-                case WorldGuardRegionRedefine.Problem.OverlapsSibling overlap ->
-                        new RedefineRegionResult.OverlapsSibling(overlap.siblingId());
-                case WorldGuardRegionRedefine.Problem.ChildOutside child ->
-                        new RedefineRegionResult.ChildOutside(child.childId());
-                case WorldGuardRegionRedefine.Problem.NoRegionManager ignored -> new RedefineRegionResult.Error(
-                        "WorldGuard has no region manager for " + region.world().getName());
-            });
+        if (refusal.isPresent()) {
+            return done(refusal.get());
         }
         if (!events.fireSync(new RegionRedefineEvent(region, ctx.player(), replacement))) {
             return done(new RedefineRegionResult.Cancelled());
         }
         ProtectedRegion old = region.region();
-        long oldVolume = SubregionSelectionValidator.asSelection(old)
-                .map(SubregionSelectionValidator::blockVolume).orElse(0L);
+        long oldVolume = SubregionSelectionValidator.blockVolume(old);
         long newVolume = SubregionSelectionValidator.blockVolume(selection);
         WorldGuardRegionRedefine.Outcome outcome = worldGuardRegionRedefine.redefine(region, replacement);
-        WorldGuardRegion redefined = switch (outcome) {
-            case WorldGuardRegionRedefine.Outcome.Redefined saved -> saved.region();
-            case WorldGuardRegionRedefine.Outcome.RedefinedSaveFailed failed -> failed.region();
-        };
+        WorldGuardRegion redefined = outcome.region();
         String regionId = old.getId();
         UUID worldId = region.world().getUID();
         return CompletableFuture.supplyAsync(() -> deleteCapture(regionId, worldId), executorState.dbExec())
@@ -1894,10 +1876,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                     events.fireSync(new RegionRedefinedEvent(redefined, ctx.player(), old));
                     RedefineRegionResult.Redefined result = new RedefineRegionResult.Redefined(
                             redefined, oldVolume, newVolume, check.occupantId(), captureRemoved);
-                    if (outcome instanceof WorldGuardRegionRedefine.Outcome.RedefinedSaveFailed failed) {
-                        return new RedefineRegionResult.WorldGuardSaveError(result, failed.error());
-                    }
-                    return result;
+                    return outcome.saveError()
+                            .<RedefineRegionResult>map(error -> new RedefineRegionResult.WorldGuardSaveError(result, error))
+                            .orElse(result);
                 }, executorState.mainThreadExec());
     }
 
@@ -2815,16 +2796,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 executorState.dbExec());
     }
 
+    /** The selection's shape, or for a shape Realty does not create, its bounding box. */
     private static @NotNull ProtectedRegion createProtectedRegion(@NotNull String name,
                                                                     @NotNull Region selection) {
-        if (selection instanceof CuboidRegion cuboid) {
-            return new ProtectedCuboidRegion(name,
-                    cuboid.getMinimumPoint(), cuboid.getMaximumPoint());
-        } else if (selection instanceof Polygonal2DRegion polygon) {
-            return new ProtectedPolygonalRegion(name,
-                    polygon.getPoints(), polygon.getMinimumY(), polygon.getMaximumY());
-        }
-        return new ProtectedCuboidRegion(name,
-                selection.getMinimumPoint(), selection.getMaximumPoint());
+        return SubregionSelectionValidator.toProtectedRegion(name, selection).orElseGet(() ->
+                new ProtectedCuboidRegion(name, selection.getMinimumPoint(), selection.getMaximumPoint()));
     }
 }

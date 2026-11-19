@@ -93,8 +93,6 @@ public final class SubregionDialog {
     private final ActorContexts actors;
     private final RedefineReplies replies;
     private final ConcurrentHashMap<UUID, SubregionState> playerStates = new ConcurrentHashMap<>();
-    /** The region each player is redefining with the wand, between the command and the confirm. */
-    private final ConcurrentHashMap<UUID, WorldGuardRegion> redefineTargets = new ConcurrentHashMap<>();
 
     public SubregionDialog(@NotNull RealtyPaperApi api,
                            @NotNull ExecutorState executorState,
@@ -128,7 +126,7 @@ public final class SubregionDialog {
         }
         if (!wandSelection.heightSet()) {
             // No vertical span chosen yet — collect it first, then this dialog reopens.
-            showHeightDialog(player, wandSelection);
+            showHeightDialog(player, wandSelection, null);
             return;
         }
         Region selection = wandSelection.toRegion();
@@ -239,9 +237,7 @@ public final class SubregionDialog {
             player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_SELECTION_INCOMPLETE));
             return;
         }
-        // Creating a subregion ends any redefine the player started.
-        redefineTargets.remove(player.getUniqueId());
-        showHeightDialog(player, selection);
+        showHeightDialog(player, selection, null);
     }
 
     /**
@@ -259,36 +255,40 @@ public final class SubregionDialog {
                     Placeholder.unparsed("region", target.region().getId())));
             return;
         }
-        redefineTargets.put(player.getUniqueId(), target);
-        showHeightDialog(player, selection);
+        showHeightDialog(player, selection, target);
     }
 
     /**
      * Where the height slider starts: the selection's height once set, else the height of the
      * region being redefined, else {@value #DEFAULT_HEIGHT}; always between 1 and {@code maxHeight}.
      */
-    static int initialHeight(@NotNull WandSelection selection, @Nullable ProtectedRegion target, int maxHeight) {
+    static int initialHeight(@NotNull WandSelection selection, @Nullable WorldGuardRegion target, int maxHeight) {
         int height;
         if (selection.heightSet()) {
             height = selection.ceilingY() - selection.floorY() + 1;
         } else if (target != null) {
-            height = target.getMaximumPoint().y() - target.getMinimumPoint().y() + 1;
+            height = target.region().getMaximumPoint().y() - target.region().getMinimumPoint().y() + 1;
         } else {
             height = DEFAULT_HEIGHT;
         }
         return Math.max(1, Math.min(maxHeight, height));
     }
 
+    /**
+     * @param target the region being redefined; {@code null} when creating a subregion. Continue
+     *               goes to the redefine's confirm dialog for a target and to the creation dialog
+     *               otherwise.
+     */
     private void showHeightDialog(@NotNull Player player,
-                                  @NotNull WandSelection selection) {
+                                  @NotNull WandSelection selection,
+                                  @Nullable WorldGuardRegion target) {
         World world = selection.world();
         // Floor is the lowest corner the player marked; the slider only sets how tall it is.
         int baseFloor = selection.minPointY();
         int worldMax = world.getMaxHeight() - 1;
         int maxHeight = Math.max(1, worldMax - baseFloor + 1);
 
-        WorldGuardRegion target = redefineTargets.get(player.getUniqueId());
-        int currentHeight = initialHeight(selection, target == null ? null : target.region(), maxHeight);
+        int currentHeight = initialHeight(selection, target, maxHeight);
 
         List<DialogInput> inputs = new ArrayList<>();
         inputs.add(DialogInput.numberRange(INPUT_HEIGHT, Component.text("Height"),
@@ -307,14 +307,13 @@ public final class SubregionDialog {
         };
         DialogActionCallback continueCallback = (response, audience) -> {
             saveHeight(selection, response, baseFloor, worldMax);
-            if (redefineTargets.containsKey(player.getUniqueId())) {
-                showRedefineConfirm(player, selection);
+            if (target != null) {
+                showRedefineConfirm(player, selection, target);
             } else {
                 open(player);
             }
         };
         DialogActionCallback clearCallback = (response, audience) -> {
-            redefineTargets.remove(player.getUniqueId());
             wandManager.clear(player.getUniqueId());
             player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_SELECTION_CLEARED));
         };
@@ -348,16 +347,14 @@ public final class SubregionDialog {
     }
 
     /** The redefine's last step: the old and new size, then Confirm or Cancel. Main thread. */
-    private void showRedefineConfirm(@NotNull Player player, @NotNull WandSelection selection) {
-        WorldGuardRegion target = redefineTargets.get(player.getUniqueId());
-        if (target == null || !selection.isReady()) {
+    private void showRedefineConfirm(@NotNull Player player, @NotNull WandSelection selection,
+                                     @NotNull WorldGuardRegion target) {
+        if (!selection.isReady()) {
             return;
         }
-        long oldVolume = SubregionSelectionValidator.asSelection(target.region())
-                .map(SubregionSelectionValidator::blockVolume).orElse(0L);
+        long oldVolume = SubregionSelectionValidator.blockVolume(target.region());
         long newVolume = SubregionSelectionValidator.blockVolume(selection.toRegion());
-        DialogActionCallback confirmCallback = (response, audience) -> confirmRedefine(player);
-        DialogActionCallback cancelCallback = (response, audience) -> redefineTargets.remove(player.getUniqueId());
+        DialogActionCallback confirmCallback = (response, audience) -> confirmRedefine(player, target);
         Dialog dialog = Dialog.create(factory -> factory.empty()
                 .base(DialogBase.builder(Component.text("Step 2 of 2: Confirm"))
                         .canCloseWithEscape(true)
@@ -371,32 +368,19 @@ public final class SubregionDialog {
                                 .width(150)
                                 .action(DialogAction.customClick(confirmCallback, CLICK_OPTIONS))
                                 .build(),
-                        ActionButton.builder(Component.text("Cancel"))
-                                .width(150)
-                                .action(DialogAction.customClick(cancelCallback, CLICK_OPTIONS))
-                                .build())));
+                        ActionButton.builder(Component.text("Cancel")).width(150).build())));
         player.showDialog(dialog);
     }
 
     /** Redefines the player's target with their wand selection, and clears the selection if it took. */
-    private void confirmRedefine(@NotNull Player player) {
+    private void confirmRedefine(@NotNull Player player, @NotNull WorldGuardRegion target) {
         UUID playerId = player.getUniqueId();
-        WorldGuardRegion target = redefineTargets.remove(playerId);
         WandSelection selection = wandManager.get(playerId);
-        if (target == null) {
-            return;
-        }
         if (selection == null || !selection.isReady()) {
             player.sendMessage(messages.messageFor(MessageKeys.SUBREGION_SELECTION_INCOMPLETE));
             return;
         }
-        // A wand selection carries no world, so the API cannot tell; marking corners in another
-        // world since the command started a fresh selection there.
-        if (!selection.world().equals(target.world())) {
-            player.sendMessage(messages.messageFor(MessageKeys.REDEFINE_WRONG_WORLD,
-                    Placeholder.unparsed("region", target.region().getId())));
-            return;
-        }
+        // The selection carries its world: one marked in another world since is refused by the API.
         Region shape = selection.toRegion();
         String regionId = target.region().getId();
         boolean bypass = player.hasPermission(REDEFINE_OTHERS_PERMISSION);

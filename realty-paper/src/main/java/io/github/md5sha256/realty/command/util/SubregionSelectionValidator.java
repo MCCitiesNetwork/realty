@@ -103,7 +103,8 @@ public final class SubregionSelectionValidator {
                                                                @NotNull RegionManager regionManager,
                                                                @Nullable String excludeId) {
         for (ProtectedRegion sibling : regionManager.getRegions().values()) {
-            if (!Objects.equals(sibling.getParent(), parent) || sibling.getId().equals(excludeId)) {
+            if (!Objects.equals(sibling.getParent(), parent) || sibling.getId().equals(excludeId)
+                    || !boxesTouch(selection, sibling)) {
                 continue;
             }
             for (BlockVector3 point : selection) {
@@ -113,6 +114,38 @@ public final class SubregionSelectionValidator {
             }
         }
         return null;
+    }
+
+    /** Whether the bounding boxes meet; regions whose boxes do not cannot share a block. */
+    private static boolean boxesTouch(@NotNull Region selection, @NotNull ProtectedRegion region) {
+        BlockVector3 aMin = selection.getMinimumPoint();
+        BlockVector3 aMax = selection.getMaximumPoint();
+        BlockVector3 bMin = region.getMinimumPoint();
+        BlockVector3 bMax = region.getMaximumPoint();
+        return aMin.x() <= bMax.x() && bMin.x() <= aMax.x()
+                && aMin.y() <= bMax.y() && bMin.y() <= aMax.y()
+                && aMin.z() <= bMax.z() && bMin.z() <= aMax.z();
+    }
+
+    /**
+     * A cuboid or polygon WorldGuard region with {@code id} and the selection's shape. Empty for a
+     * selection of another shape.
+     */
+    public static @NotNull Optional<ProtectedRegion> toProtectedRegion(@NotNull String id,
+                                                                       @NotNull Region selection) {
+        if (selection instanceof CuboidRegion cuboid) {
+            return Optional.of(new ProtectedCuboidRegion(id, cuboid.getMinimumPoint(), cuboid.getMaximumPoint()));
+        }
+        if (selection instanceof Polygonal2DRegion polygon) {
+            return Optional.of(new ProtectedPolygonalRegion(id, polygon.getPoints(),
+                    polygon.getMinimumY(), polygon.getMaximumY()));
+        }
+        return Optional.empty();
+    }
+
+    /** The blocks a cuboid or polygon region holds, as {@link #blockVolume(Region)} counts them; 0 for another shape. */
+    public static long blockVolume(@NotNull ProtectedRegion region) {
+        return asSelection(region).map(SubregionSelectionValidator::blockVolume).orElse(0L);
     }
 
     /**
@@ -138,8 +171,7 @@ public final class SubregionSelectionValidator {
                                                                        @NotNull ProtectedRegion replacement,
                                                                        @NotNull RegionManager regionManager) {
         for (ProtectedRegion child : regionManager.getRegions().values()) {
-            // Children hold the parent object itself.
-            if (child.getParent() != old) {
+            if (!old.equals(child.getParent())) {
                 continue;
             }
             Optional<Region> shape = asSelection(child);

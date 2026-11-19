@@ -114,7 +114,7 @@ public final class WandSelection {
             BlockVector3 b = points.get(1);
             BlockVector3 min = BlockVector3.at(Math.min(a.x(), b.x()), floorY, Math.min(a.z(), b.z()));
             BlockVector3 max = BlockVector3.at(Math.max(a.x(), b.x()), ceilingY, Math.max(a.z(), b.z()));
-            return new CuboidRegion(min, max);
+            return new CuboidRegion(BukkitAdapter.adapt(world), min, max);
         }
         List<BlockVector2> footprint = new ArrayList<>(points.size());
         for (BlockVector3 point : points) {

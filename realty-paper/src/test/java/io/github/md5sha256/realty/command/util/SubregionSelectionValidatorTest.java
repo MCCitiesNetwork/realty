@@ -2,7 +2,9 @@ package io.github.md5sha256.realty.command.util;
 
 import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.math.Vector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.regions.EllipsoidRegion;
 import com.sk89q.worldedit.regions.Polygonal2DRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldguard.protection.flags.registry.SimpleFlagRegistry;
@@ -48,6 +50,33 @@ class SubregionSelectionValidatorTest {
 
     private static Region selection(int from, int to) {
         return new CuboidRegion(BlockVector3.at(from, from, from), BlockVector3.at(to, to, to));
+    }
+
+    private static final List<BlockVector2> TRIANGLE =
+            List.of(BlockVector2.at(0, 0), BlockVector2.at(10, 0), BlockVector2.at(5, 12));
+
+    @Test
+    void toProtectedRegionBuildsOnlyCuboidsAndPolygons() {
+        ProtectedRegion cuboid = SubregionSelectionValidator.toProtectedRegion("plot", selection(0, 9)).orElseThrow();
+        Assertions.assertInstanceOf(ProtectedCuboidRegion.class, cuboid);
+        Assertions.assertEquals("plot", cuboid.getId());
+        Assertions.assertEquals(BlockVector3.at(9, 9, 9), cuboid.getMaximumPoint());
+
+        ProtectedPolygonalRegion polygon = Assertions.assertInstanceOf(ProtectedPolygonalRegion.class,
+                SubregionSelectionValidator.toProtectedRegion("plot", new Polygonal2DRegion(null, TRIANGLE, 5, 15))
+                        .orElseThrow());
+        Assertions.assertEquals(TRIANGLE, polygon.getPoints());
+        Assertions.assertEquals(5, polygon.getMinimumPoint().y());
+        Assertions.assertEquals(15, polygon.getMaximumPoint().y());
+
+        Assertions.assertEquals(Optional.empty(), SubregionSelectionValidator.toProtectedRegion("plot",
+                new EllipsoidRegion(BlockVector3.at(0, 0, 0), Vector3.at(4, 4, 4))));
+    }
+
+    @Test
+    void blockVolumeOfARegionCountsItsBlocks() {
+        Assertions.assertEquals(11L * 11 * 11, SubregionSelectionValidator.blockVolume(this.childA));
+        Assertions.assertEquals(0L, SubregionSelectionValidator.blockVolume(new GlobalProtectedRegion("global")));
     }
 
     @Test

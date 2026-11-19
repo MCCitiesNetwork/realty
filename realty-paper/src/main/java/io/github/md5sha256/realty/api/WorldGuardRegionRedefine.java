@@ -1,19 +1,16 @@
 package io.github.md5sha256.realty.api;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.regions.CuboidRegion;
-import com.sk89q.worldedit.regions.Polygonal2DRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.managers.storage.StorageException;
-import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
+import io.github.md5sha256.realty.api.RealtyPaperApi.RedefineRegionResult;
 import io.github.md5sha256.realty.command.util.SubregionSelectionValidator;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -33,53 +30,12 @@ public final class WorldGuardRegionRedefine {
         this.logger = logger;
     }
 
-    /** Why a new shape is refused. */
-    public sealed interface Problem {
-
-        record TooSmall(long volume, int minVolume) implements Problem {
-        }
-
-        record OutsideParent(@NotNull String parentId) implements Problem {
-        }
-
-        record OverlapsSibling(@NotNull String siblingId) implements Problem {
-        }
-
-        record ChildOutside(@NotNull String childId) implements Problem {
-        }
-
-        /** The region's world has no region manager. */
-        record NoRegionManager() implements Problem {
-        }
-    }
-
-    public sealed interface Outcome {
-
-        /** {@code region} holds the replacement, which is now in WorldGuard. */
-        record Redefined(@NotNull WorldGuardRegion region) implements Outcome {
-        }
-
-        /**
-         * Redefined, but WorldGuard could not save. The change still stands: the region manager
-         * holds the replacement and WorldGuard writes it on its next save.
-         */
-        record RedefinedSaveFailed(@NotNull WorldGuardRegion region, @NotNull String error) implements Outcome {
-        }
-    }
-
     /**
-     * A region with {@code id} and the selection's shape. Empty for a selection that is neither a
-     * cuboid nor a polygon, the two shapes Realty creates.
+     * @param region    holds the replacement, which is now in WorldGuard
+     * @param saveError set when WorldGuard could not save. The change still stands: the region
+     *                  manager holds the replacement and WorldGuard writes it on its next save.
      */
-    public static @NotNull Optional<ProtectedRegion> fromSelection(@NotNull String id, @NotNull Region selection) {
-        if (selection instanceof CuboidRegion cuboid) {
-            return Optional.of(new ProtectedCuboidRegion(id, cuboid.getMinimumPoint(), cuboid.getMaximumPoint()));
-        }
-        if (selection instanceof Polygonal2DRegion polygon) {
-            return Optional.of(new ProtectedPolygonalRegion(id, polygon.getPoints(),
-                    polygon.getMinimumY(), polygon.getMaximumY()));
-        }
-        return Optional.empty();
+    public record Outcome(@NotNull WorldGuardRegion region, @NotNull Optional<String> saveError) {
     }
 
     /**
@@ -110,35 +66,37 @@ public final class WorldGuardRegionRedefine {
     }
 
     /**
-     * Checks a new shape against the region's surroundings. With {@code subregion}, the shape must
-     * have at least {@code minVolume} blocks, lie fully inside the region's parent, and not overlap
-     * a sibling. Always, every child of the region must lie fully inside {@code replacement}.
+     * Checks a new shape against the region's surroundings, and gives the refusal if it fails.
+     * With {@code subregion}, the shape must have at least {@code minVolume} blocks, lie fully
+     * inside the region's parent, and not overlap a sibling. Always, every child of the region must
+     * lie fully inside {@code replacement}.
      */
-    public @NotNull Optional<Problem> check(@NotNull WorldGuardRegion region, @NotNull Region selection,
-                                            @NotNull ProtectedRegion replacement, boolean subregion,
-                                            int minVolume) {
+    public @NotNull Optional<RedefineRegionResult> check(@NotNull WorldGuardRegion region, @NotNull Region selection,
+                                                         @NotNull ProtectedRegion replacement, boolean subregion,
+                                                         int minVolume) {
         RegionManager regionManager = this.regionContainer.get(BukkitAdapter.adapt(region.world()));
         if (regionManager == null) {
-            return Optional.of(new Problem.NoRegionManager());
+            return Optional.of(new RedefineRegionResult.Error(
+                    "WorldGuard has no region manager for " + region.world().getName()));
         }
         ProtectedRegion old = region.region();
         ProtectedRegion parent = old.getParent();
         if (subregion && parent != null) {
             long volume = SubregionSelectionValidator.blockVolume(selection);
             if (volume < minVolume) {
-                return Optional.of(new Problem.TooSmall(volume, minVolume));
+                return Optional.of(new RedefineRegionResult.TooSmall(volume, minVolume));
             }
             if (!SubregionSelectionValidator.regionIsFullyContainedByParent(selection, parent)) {
-                return Optional.of(new Problem.OutsideParent(parent.getId()));
+                return Optional.of(new RedefineRegionResult.OutsideParent(parent.getId()));
             }
             ProtectedRegion sibling = SubregionSelectionValidator.overlappingSibling(
                     selection, parent, regionManager, old.getId());
             if (sibling != null) {
-                return Optional.of(new Problem.OverlapsSibling(sibling.getId()));
+                return Optional.of(new RedefineRegionResult.OverlapsSibling(sibling.getId()));
             }
         }
         return SubregionSelectionValidator.firstChildOutside(old, replacement, regionManager)
-                .map(child -> new Problem.ChildOutside(child.getId()));
+                .map(child -> new RedefineRegionResult.ChildOutside(child.getId()));
     }
 
     /**
@@ -151,29 +109,16 @@ public final class WorldGuardRegionRedefine {
         if (regionManager == null) {
             throw new IllegalStateException("No region manager for the world of " + region.region().getId());
         }
-        ProtectedRegion old = region.region();
-        try {
-            // Owners, members (players and groups), every flag, the priority and the parent.
-            replacement.copyFrom(old);
-            // The same id, so this replaces the old region in the manager and its index.
-            regionManager.addRegion(replacement);
-            // Children hold the parent object, not its id, so they still hold the old shape.
-            for (ProtectedRegion child : List.copyOf(regionManager.getRegions().values())) {
-                if (child.getParent() == old) {
-                    child.setParent(replacement);
-                }
-            }
-        } catch (ProtectedRegion.CircularInheritanceException ex) {
-            // The replacement takes the old region's place in a tree that had no cycle.
-            throw new IllegalStateException("Redefining " + old.getId() + " made a parent cycle", ex);
-        }
+        // The same id, so the replacement takes the old region's place in the manager and its index.
+        WorldGuardRegionRename.takePlace(regionManager, region.region(), replacement);
         WorldGuardRegion redefined = new WorldGuardRegion(replacement, region.world());
         try {
             regionManager.save();
         } catch (StorageException ex) {
-            this.logger.log(Level.WARNING, "Could not save the redefine of WorldGuard region " + old.getId(), ex);
-            return new Outcome.RedefinedSaveFailed(redefined, String.valueOf(ex.getMessage()));
+            this.logger.log(Level.WARNING, "Could not save the redefine of WorldGuard region "
+                    + region.region().getId(), ex);
+            return new Outcome(redefined, Optional.of(String.valueOf(ex.getMessage())));
         }
-        return new Outcome.Redefined(redefined);
+        return new Outcome(redefined, Optional.empty());
     }
 }

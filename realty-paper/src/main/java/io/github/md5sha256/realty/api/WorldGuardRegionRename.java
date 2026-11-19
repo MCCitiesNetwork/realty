@@ -73,20 +73,8 @@ public final class WorldGuardRegionRename {
         }
         ProtectedRegion old = region.region();
         ProtectedRegion copy = sameShape(old, newId);
-        try {
-            // Owners, members (players and groups), every flag, the priority and the parent.
-            copy.copyFrom(old);
-            regionManager.addRegion(copy);
-            // Read the children before the old region goes: removing it unsets their parent.
-            for (ProtectedRegion child : List.copyOf(regionManager.getRegions().values())) {
-                if (old.equals(child.getParent())) {
-                    child.setParent(copy);
-                }
-            }
-        } catch (ProtectedRegion.CircularInheritanceException ex) {
-            // The copy takes the old region's place in a tree that had no cycle.
-            throw new IllegalStateException("Renaming " + old.getId() + " to " + newId + " made a parent cycle", ex);
-        }
+        // Before the old region goes: removing it unsets its children's parent.
+        takePlace(regionManager, old, copy);
         regionManager.removeRegion(old.getId());
         WorldGuardRegion renamed = new WorldGuardRegion(copy, region.world());
         try {
@@ -97,6 +85,28 @@ public final class WorldGuardRegionRename {
             return new Outcome.RenamedSaveFailed(renamed, String.valueOf(ex.getMessage()));
         }
         return new Outcome.Renamed(renamed);
+    }
+
+    /**
+     * Puts {@code replacement} in the manager in {@code old}'s place: it takes the old region's
+     * owners, members (players and groups), every flag, the priority and the parent, and every
+     * child of the old region is pointed at it. The caller removes the old region if the ids differ.
+     */
+    static void takePlace(@NotNull RegionManager regionManager, @NotNull ProtectedRegion old,
+                          @NotNull ProtectedRegion replacement) {
+        try {
+            replacement.copyFrom(old);
+            regionManager.addRegion(replacement);
+            // Children hold the parent object, so they still hold the old one.
+            for (ProtectedRegion child : List.copyOf(regionManager.getRegions().values())) {
+                if (old.equals(child.getParent())) {
+                    child.setParent(replacement);
+                }
+            }
+        } catch (ProtectedRegion.CircularInheritanceException ex) {
+            // The replacement takes the old region's place in a tree that had no cycle.
+            throw new IllegalStateException("Replacing " + old.getId() + " made a parent cycle", ex);
+        }
     }
 
     private static @NotNull ProtectedRegion sameShape(@NotNull ProtectedRegion old, @NotNull String newId) {

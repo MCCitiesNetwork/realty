@@ -3,10 +3,7 @@ package io.github.md5sha256.realty.api;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.math.Vector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
-import com.sk89q.worldedit.regions.EllipsoidRegion;
-import com.sk89q.worldedit.regions.Polygonal2DRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldguard.protection.flags.StringFlag;
 import com.sk89q.worldguard.protection.managers.RegionManager;
@@ -17,6 +14,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
+import io.github.md5sha256.realty.command.util.SubregionSelectionValidator;
 import org.bukkit.World;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -75,9 +73,10 @@ class WorldGuardRegionRedefineTest {
         return new WorldGuardRegion(region, this.world);
     }
 
-    private WorldGuardRegionRedefine.Outcome.Redefined redefined(WorldGuardRegion region, ProtectedRegion replacement) {
-        return Assertions.assertInstanceOf(WorldGuardRegionRedefine.Outcome.Redefined.class,
-                this.redefine.redefine(region, replacement));
+    private WorldGuardRegionRedefine.Outcome redefined(WorldGuardRegion region, ProtectedRegion replacement) {
+        WorldGuardRegionRedefine.Outcome outcome = this.redefine.redefine(region, replacement);
+        Assertions.assertEquals(Optional.empty(), outcome.saveError());
+        return outcome;
     }
 
     /** A freehold 0..100 with a subregion {@code ID} at 10..20 in it. */
@@ -89,9 +88,9 @@ class WorldGuardRegionRedefineTest {
         return added(plot);
     }
 
-    private Optional<WorldGuardRegionRedefine.Problem> check(WorldGuardRegion region, Region selection,
+    private Optional<RealtyPaperApi.RedefineRegionResult> check(WorldGuardRegion region, Region selection,
                                                               boolean subregion, int minVolume) {
-        ProtectedRegion replacement = WorldGuardRegionRedefine.fromSelection(ID, selection).orElseThrow();
+        ProtectedRegion replacement = SubregionSelectionValidator.toProtectedRegion(ID, selection).orElseThrow();
         return this.redefine.check(region, selection, replacement, subregion, minVolume);
     }
 
@@ -111,7 +110,7 @@ class WorldGuardRegionRedefineTest {
         old.setParent(parent);
         ProtectedPolygonalRegion replacement = new ProtectedPolygonalRegion(ID, TRIANGLE, 0, 20);
 
-        WorldGuardRegionRedefine.Outcome.Redefined outcome = redefined(added(old), replacement);
+        WorldGuardRegionRedefine.Outcome outcome = redefined(added(old), replacement);
 
         Assertions.assertSame(replacement, this.manager.getRegion(ID));
         Assertions.assertSame(replacement, outcome.region().region());
@@ -174,11 +173,9 @@ class WorldGuardRegionRedefineTest {
         useManager(failing);
         ProtectedCuboidRegion replacement = cuboid(ID, 0, 30);
 
-        WorldGuardRegionRedefine.Outcome.RedefinedSaveFailed outcome = Assertions.assertInstanceOf(
-                WorldGuardRegionRedefine.Outcome.RedefinedSaveFailed.class,
-                this.redefine.redefine(added(cuboid(ID, 0, 20)), replacement));
+        WorldGuardRegionRedefine.Outcome outcome = this.redefine.redefine(added(cuboid(ID, 0, 20)), replacement);
 
-        Assertions.assertEquals("disk full", outcome.error());
+        Assertions.assertEquals(Optional.of("disk full"), outcome.saveError());
         Assertions.assertSame(replacement, outcome.region().region());
         Assertions.assertSame(replacement, this.manager.getRegion(ID));
     }
@@ -199,24 +196,6 @@ class WorldGuardRegionRedefineTest {
     }
 
     @Test
-    void fromSelectionBuildsOnlyCuboidsAndPolygons() {
-        ProtectedRegion cuboid = WorldGuardRegionRedefine.fromSelection(ID, selection(0, 9)).orElseThrow();
-        Assertions.assertInstanceOf(ProtectedCuboidRegion.class, cuboid);
-        Assertions.assertEquals(ID, cuboid.getId());
-        Assertions.assertEquals(BlockVector3.at(9, 9, 9), cuboid.getMaximumPoint());
-
-        ProtectedPolygonalRegion polygon = Assertions.assertInstanceOf(ProtectedPolygonalRegion.class,
-                WorldGuardRegionRedefine.fromSelection(ID, new Polygonal2DRegion(null, TRIANGLE, 5, 15))
-                        .orElseThrow());
-        Assertions.assertEquals(TRIANGLE, polygon.getPoints());
-        Assertions.assertEquals(5, polygon.getMinimumPoint().y());
-        Assertions.assertEquals(15, polygon.getMaximumPoint().y());
-
-        Assertions.assertEquals(Optional.empty(), WorldGuardRegionRedefine.fromSelection(ID,
-                new EllipsoidRegion(BlockVector3.at(0, 0, 0), Vector3.at(4, 4, 4))));
-    }
-
-    @Test
     void currentReadsTheRegionWorldGuardHasNow() {
         WorldGuardRegion stale = added(cuboid(ID, 0, 20));
         ProtectedCuboidRegion now = cuboid(ID, 0, 30);
@@ -229,7 +208,7 @@ class WorldGuardRegionRedefineTest {
 
     @Test
     void checkRefusesASubregionOutsideItsParent() throws ProtectedRegion.CircularInheritanceException {
-        Assertions.assertEquals(Optional.of(new WorldGuardRegionRedefine.Problem.OutsideParent("parent")),
+        Assertions.assertEquals(Optional.of(new RealtyPaperApi.RedefineRegionResult.OutsideParent("parent")),
                 check(subregionOfAFreehold(), selection(90, 110), true, 1));
     }
 
@@ -240,7 +219,7 @@ class WorldGuardRegionRedefineTest {
         sibling.setParent(plot.region().getParent());
         this.manager.addRegion(sibling);
 
-        Assertions.assertEquals(Optional.of(new WorldGuardRegionRedefine.Problem.OverlapsSibling("sibling")),
+        Assertions.assertEquals(Optional.of(new RealtyPaperApi.RedefineRegionResult.OverlapsSibling("sibling")),
                 check(plot, selection(10, 45), true, 1));
     }
 
@@ -248,7 +227,7 @@ class WorldGuardRegionRedefineTest {
     void checkRefusesASubregionBelowTheMinimum() throws ProtectedRegion.CircularInheritanceException {
         // 2 x 2 x 2 is 8 blocks: one under a minimum of 9, and exactly a minimum of 8.
         WorldGuardRegion plot = subregionOfAFreehold();
-        Assertions.assertEquals(Optional.of(new WorldGuardRegionRedefine.Problem.TooSmall(8, 9)),
+        Assertions.assertEquals(Optional.of(new RealtyPaperApi.RedefineRegionResult.TooSmall(8, 9)),
                 check(plot, selection(10, 11), true, 9));
         Assertions.assertEquals(Optional.empty(), check(plot, selection(10, 11), true, 8));
     }
@@ -261,7 +240,7 @@ class WorldGuardRegionRedefineTest {
         child.setParent(freehold);
         this.manager.addRegion(child);
 
-        Assertions.assertEquals(Optional.of(new WorldGuardRegionRedefine.Problem.ChildOutside("child")),
+        Assertions.assertEquals(Optional.of(new RealtyPaperApi.RedefineRegionResult.ChildOutside("child")),
                 check(region, selection(0, 50), false, 1));
     }
 

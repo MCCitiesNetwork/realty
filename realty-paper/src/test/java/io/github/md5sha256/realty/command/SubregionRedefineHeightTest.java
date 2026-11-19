@@ -2,6 +2,7 @@ package io.github.md5sha256.realty.command;
 
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
+import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.wand.SubregionWandManager;
 import io.github.md5sha256.realty.wand.WandSelection;
 import org.bukkit.World;
@@ -16,8 +17,8 @@ class SubregionRedefineHeightTest {
 
     private static final int MAX = 300;
     /** A region 10 blocks tall: Y 64 to 73. */
-    private static final ProtectedCuboidRegion TARGET =
-            new ProtectedCuboidRegion("plot", BlockVector3.at(0, 64, 0), BlockVector3.at(9, 73, 9));
+    private static final WorldGuardRegion TARGET = new WorldGuardRegion(
+            new ProtectedCuboidRegion("plot", BlockVector3.at(0, 64, 0), BlockVector3.at(9, 73, 9)), null);
 
     private static WandSelection footprint() {
         SubregionWandManager manager = new SubregionWandManager();
