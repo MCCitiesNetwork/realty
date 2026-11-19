@@ -603,6 +603,10 @@ public final class Realty extends JavaPlugin {
                         }
                     }
                 });
+                // The auction placeholders changed, so flags and signs show the region without it.
+                for (RealtyBackend.ExpiredBiddingAuction auction : endedAuctions) {
+                    this.paperApi.redrawFromStore(auction.worldGuardRegionId(), auction.worldId());
+                }
             }
             // Each expiry recorded its refund with the expiry itself. It is tried here at once, off
             // the main thread, and its event fired there; a failure is retried like any refund.
@@ -653,11 +657,11 @@ public final class Realty extends JavaPlugin {
                                 if (protectedRegion != null) {
                                     protectedRegion.getOwners().removePlayer(expired.tenantId());
                                     WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                                    regionProfileService.applyFlags(
-                                            wgRegion,
-                                            RegionState.FOR_LEASE,
-                                            leaseholdPlaceholders.getOrDefault(expired.worldGuardRegionId(),
-                                                    Map.of()));
+                                    Map<String, String> placeholders = leaseholdPlaceholders.getOrDefault(
+                                            expired.worldGuardRegionId(), Map.of());
+                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE, placeholders);
+                                    signTextApplicator.updateLoadedSigns(world, expired.worldGuardRegionId(),
+                                            RegionState.FOR_LEASE, placeholders);
                                     // Post-event; RegionNotificationListener notifies tenant + landlord.
                                     this.eventDispatch.fireSync(new LeaseExpiredEvent(
                                             wgRegion, expired.tenantId(), expired.landlord()));
@@ -706,9 +710,11 @@ public final class Realty extends JavaPlugin {
                                 if (protectedRegion != null) {
                                     protectedRegion.getOwners().removePlayer(terminated.tenantId());
                                     WorldGuardRegion wgRegion = new WorldGuardRegion(protectedRegion, world);
-                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE,
-                                            terminatedPlaceholders.getOrDefault(terminated.worldGuardRegionId(),
-                                                    Map.of()));
+                                    Map<String, String> placeholders = terminatedPlaceholders.getOrDefault(
+                                            terminated.worldGuardRegionId(), Map.of());
+                                    regionProfileService.applyFlags(wgRegion, RegionState.FOR_LEASE, placeholders);
+                                    signTextApplicator.updateLoadedSigns(world, terminated.worldGuardRegionId(),
+                                            RegionState.FOR_LEASE, placeholders);
                                     this.eventDispatch.fireSync(new LeaseTerminatedEvent(wgRegion,
                                             terminated.tenantId(), terminated.landlord(),
                                             terminated.refund(), terminated.terminatedByRole()));

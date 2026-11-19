@@ -2081,6 +2081,28 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
+        @DisplayName("redrawFromStore shows a change made outside the API, such as an ended auction")
+        void redrawFromStoreShowsTheStoredState() {
+            storedStateIs(RegionState.SOLD, STORED);
+
+            api.redrawFromStore(REGION_ID, WORLD_ID).join();
+
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.SOLD, STORED);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, STORED);
+        }
+
+        @Test
+        @DisplayName("redrawFromStore skips a region it cannot read")
+        void redrawFromStoreSkipsAnUnreadableRegion() {
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenThrow(new IllegalStateException("database gone"));
+
+            api.redrawFromStore(REGION_ID, WORLD_ID).join();
+
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator, never()).updateLoadedSigns(any(), any(), any(), any());
+        }
+
+        @Test
         void createFiresBothEvents() {
             when(realtyApi.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 600, 100, 10))
                     .thenReturn(new RealtyBackend.CreateAuctionResult.Success());
