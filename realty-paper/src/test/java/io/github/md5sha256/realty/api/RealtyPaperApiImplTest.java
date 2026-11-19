@@ -4071,6 +4071,47 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
+        @DisplayName("an auction started while the region is redefined shows on the region WorldGuard has")
+        void anAuctionShowsOnTheCurrentRegion() {
+            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
+            ProtectedCuboidRegion[] replacement = new ProtectedCuboidRegion[1];
+            when(realtyApi.createAuction(eq(REGION_ID), eq(WORLD_ID), any(), anyLong(), anyLong(), anyDouble(),
+                    anyDouble())).thenAnswer(invocation -> {
+                        // A redefine swaps the region while the auction is written.
+                        replacement[0] = replaceRegion(40);
+                        return new RealtyBackend.CreateAuctionResult.Success();
+                    });
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
+                    new RealtyRegionEntity(1, REGION_ID, WORLD_ID), RegionState.SOLD, Map.of()));
+
+            api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 3600, 10.0, 1.0).join();
+
+            verify(regionProfileService).applyFlags(argThat(region -> region.region() == replacement[0]), any(), any());
+        }
+
+        @Test
+        @DisplayName("a subregion delete waits its turn on the region")
+        void aSubregionDeleteWaitsItsTurn() throws ProtectedRegion.CircularInheritanceException {
+            ProtectedCuboidRegion parent = new ProtectedCuboidRegion("parent_plot",
+                    BlockVector3.at(0, 0, 0), BlockVector3.at(200, 200, 200));
+            regionManager.addRegion(parent);
+            protectedRegion.setParent(parent);
+            ActorContext landlord = ActorContext.player(LANDLORD_ID, false);
+            when(realtyApi.getFreeholdContract("parent_plot", WORLD_ID))
+                    .thenReturn(new FreeholdContractEntity(1, GOVERNMENT, null, null, false));
+            when(realtyApi.deleteVacantLeasehold(REGION_ID, WORLD_ID, landlord))
+                    .thenReturn(new RealtyBackend.DeleteLeaseholdResult.Success());
+
+            CompletableFuture<RealtyPaperApi.DeleteSubregionResult> deleted = api.deleteSubregion(wgRegion, landlord);
+            verify(realtyApi, never()).deleteVacantLeasehold(any(), any(), any());
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.Deleted.class, deleted.join());
+            Assertions.assertFalse(regionManager.hasRegion(REGION_ID));
+        }
+
+        @Test
         @DisplayName("a rename queued behind a redefine keeps the new shape")
         void aRenameQueuedBehindARedefineKeepsTheNewShape() {
             ActorContext staff = ActorContext.player(BUYER_ID, true);

@@ -748,11 +748,20 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                                                                  @NotNull ActorContext ctx,
                                                                  boolean immediate) {
         String regionId = region.region().getId();
-        UUID worldId = region.world().getUID();
-        long noticeSeconds = immediate ? 0L : terminationNoticeSeconds.getAsLong();
         // Serialized per region: the read→charge→commit sequence cannot interleave with a concurrent
         // extend/unrent/terminate on the same lease.
-        return serializeRegion(region, () -> new TerminateResult.NoLeaseholdContract(regionId), current -> CompletableFuture.supplyAsync(
+        return serializeRegion(region, () -> new TerminateResult.NoLeaseholdContract(regionId),
+                current -> terminateHoldingQueue(current, ctx, immediate));
+    }
+
+    /** {@link #terminate} for a caller that already holds the region's queue, such as a subregion delete. */
+    private @NotNull CompletableFuture<TerminateResult> terminateHoldingQueue(@NotNull WorldGuardRegion current,
+                                                                             @NotNull ActorContext ctx,
+                                                                             boolean immediate) {
+        String regionId = current.region().getId();
+        UUID worldId = current.world().getUID();
+        long noticeSeconds = immediate ? 0L : terminationNoticeSeconds.getAsLong();
+        return CompletableFuture.supplyAsync(
                 () -> computeTerminationPlan(regionId, realtyApi.getLeaseholdContract(regionId, worldId),
                         ctx, noticeSeconds),
                 executorState.dbExec()
@@ -793,7 +802,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         }, executorState.mainThreadExec()).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             return new TerminateResult.Error(String.valueOf(cause.getMessage()));
-        }));
+        });
     }
 
     private @NotNull TerminationPlan computeTerminationPlan(
@@ -1456,16 +1465,17 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         if (parentId.isEmpty()) {
             return done(new DeleteSubregionResult.NotSubregion());
         }
-        return CompletableFuture.supplyAsync(
+        // Queued, so a redefine cannot put back a region this delete has just removed.
+        return serializeRegion(region, DeleteSubregionResult.NotSubregion::new, current -> CompletableFuture.supplyAsync(
                 () -> isFreehold(parentId.get(), worldId)
                         ? Optional.of(realtyApi.deleteVacantLeasehold(regionId, worldId, ctx))
                         : Optional.<RealtyBackend.DeleteLeaseholdResult>empty(),
                 executorState.dbExec()
         ).thenComposeAsync(deleted -> deleted.isEmpty()
                 ? done(new DeleteSubregionResult.NotSubregion())
-                : afterVacantDelete(region, regionId, worldId, ctx, deleted.get()),
+                : afterVacantDelete(current, regionId, worldId, ctx, deleted.get()),
                 executorState.mainThreadExec()
-        ).exceptionally(ex -> {
+        )).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             cause.printStackTrace();
             return new DeleteSubregionResult.Error(String.valueOf(cause.getMessage()));
@@ -1487,7 +1497,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             case RealtyBackend.DeleteLeaseholdResult.Occupied occupied when occupied.terminationEffectiveDate() != null ->
                     markSubregionForDeletion(regionId, worldId, ctx, occupied.tenantId(), Optional.empty());
             // Rented and not terminating: the landlord's termination, with notice, ends the lease first.
-            case RealtyBackend.DeleteLeaseholdResult.Occupied occupied -> terminate(region, ctx, false)
+            // This delete holds the region's queue, so it terminates from inside it.
+            case RealtyBackend.DeleteLeaseholdResult.Occupied occupied -> terminateHoldingQueue(region, ctx, false)
                     .thenCompose(terminated -> terminated instanceof TerminateResult.Success success
                             ? markSubregionForDeletion(regionId, worldId, ctx, occupied.tenantId(), Optional.of(success))
                             : done(new DeleteSubregionResult.TerminationFailed(terminated)));
@@ -1765,19 +1776,18 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         UUID worldId = parentRegion.world().getUID();
         // In the parent's queue, so a redefine of the parent and this create are ordered, and the
         // child gets the parent WorldGuard has.
-        return serializeRegion(parentRegion, () -> new QuickCreateSubregionResult.NoFreeholdContract(parentId), parent -> CompletableFuture.supplyAsync(() -> {
+        return serializeRegion(parentRegion, () -> new QuickCreateSubregionResult.NoFreeholdContract(parentId), parent -> CompletableFuture.<Map.Entry<QuickCreateSubregionResult, Map<String, String>>>supplyAsync(() -> {
             FreeholdContractEntity freehold = realtyApi.getFreeholdContract(parentId, worldId);
             if (freehold == null) {
-                return Map.<QuickCreateSubregionResult, Map<String, String>>entry(new QuickCreateSubregionResult.NoFreeholdContract(parentId), Map.of());
+                return Map.entry(new QuickCreateSubregionResult.NoFreeholdContract(parentId), Map.of());
             }
             boolean created = realtyApi.createLeasehold(
                     childName, worldId, price, durationSeconds, maxRenewals, Party.personal(landlordId));
             if (!created) {
-                return Map.<QuickCreateSubregionResult, Map<String, String>>entry(new QuickCreateSubregionResult.RegionExists(childName), Map.of());
+                return Map.entry(new QuickCreateSubregionResult.RegionExists(childName), Map.of());
             }
             Map<String, String> placeholders = realtyApi.getRegionPlaceholders(childName, worldId);
-            return Map.<QuickCreateSubregionResult, Map<String, String>>entry(
-                    new QuickCreateSubregionResult.Success(childName, parentId), placeholders);
+            return Map.entry(new QuickCreateSubregionResult.Success(childName, parentId), placeholders);
         }, executorState.dbExec()).thenComposeAsync(entry -> {
             QuickCreateSubregionResult result = entry.getKey();
             if (result instanceof QuickCreateSubregionResult.Success) {
@@ -2101,7 +2111,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                             events.fireSync(new AuctionCreatedEvent(gate.region(), auctioneerId, minBid, minBidStep,
                                     biddingDurationSeconds, paymentDurationSeconds,
                                     Instant.now().plusSeconds(biddingDurationSeconds)));
-                            showStoredState(gate.region(), shown.stored());
+                            // Looked up again: a redefine during the write replaces the region object.
+                            showStoredState(regionId, worldId, shown.stored());
                         }
                         return shown.result();
                     }, executorState.mainThreadExec());

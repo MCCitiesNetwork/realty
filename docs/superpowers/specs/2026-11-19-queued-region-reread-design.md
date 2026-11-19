@@ -118,9 +118,11 @@ In `RealtyPaperApiImplTest`, with a real in-memory region manager:
   create was not safe outside it: a redefine refuses an unregistered region only by reading the
   database, and a create commits its row before it writes to WorldGuard. A create whose region is
   gone gives `Error`; a delete gives `NotRegistered`.
-- **`deleteSubregion` stays outside the queue.** It removes the WorldGuard region by id, so it
-  removes the right one; its rented path goes through `terminate`, which is queued. Wrapping it
-  would deadlock, because the queue is not reentrant and `terminate` takes the same queue.
+- **`deleteSubregion` takes the queue too**, so a redefine cannot put back a region the delete
+  has just removed. Its rented path terminates the lease from inside the queue, through
+  `terminateHoldingQueue`, because the queue is not reentrant and `terminate` would wait on itself.
+- **`createAuction` is not queued.** It looks the region up again by id when it writes the flags,
+  as `cancelAuction` and the id-based redraws do, so it writes to the region WorldGuard has.
 - **Checks before queuing read the caller's object.** They read only the id, the world and, for
   redefine, the shape; the id and world cannot change, and a redefine that compares against a
   stale shape only risks refusing a no-op or letting one through.
