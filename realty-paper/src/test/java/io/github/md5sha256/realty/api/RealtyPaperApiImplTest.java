@@ -4314,21 +4314,23 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("a failed read of the region's current name releases and refunds under the name it had")
-        void aFailedNameLookupStillReleasesAndRefunds() {
-            storedForLease();
+        @DisplayName("a failed read of the region's current name only refunds, and logs the owner to remove by hand")
+        void aFailedNameLookupOnlyRefunds() {
+            // The region may have been renamed and another one given its old name, so the release
+            // must not touch the region under that name.
             when(realtyApi.getWorldGuardRegionId(REALTY_REGION_ID)).thenThrow(new IllegalStateException("db down"));
             when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
                     .thenReturn(new PaymentResult.Success());
             protectedRegion.getOwners().addPlayer(TENANT_ID);
-            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
 
-            gate.complete("done");
-            released.join();
+            List<String> logged = loggedWhile(() -> api.releaseTerminatedLease(terminated()));
 
             verify(economyProvider).transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull());
-            Assertions.assertFalse(protectedRegion.getOwners().contains(TENANT_ID));
-            verify(events).fireSync(any(LeaseTerminatedEvent.class));
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID));
+            verify(events, never()).fireSync(any(LeaseTerminatedEvent.class));
+            Assertions.assertTrue(logged.stream().anyMatch(message -> message.contains(REGION_ID)
+                    && message.contains(String.valueOf(REALTY_REGION_ID))
+                    && message.contains(TENANT_ID.toString())), "logged: " + logged);
         }
 
         @Test

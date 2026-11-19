@@ -1912,17 +1912,21 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
      * Releases the region of an ended lease in its turn on the region, so a rename or redefine
      * already running on it finishes first. In its turn it reads the region's current name by its
      * stable id: a rename that committed after the scheduler read the lease, while it waited, moves
-     * the release to the new name; a deleted region only settles, since a region now under its old
-     * name is another one; otherwise {@link #releaseInTurn} releases it. A failed read keeps the
-     * name the release has, so the lease is still settled.
+     * the release to the new name; otherwise {@link #releaseInTurn} releases it. A deleted region,
+     * or a read that failed, only settles: the region now under the old name may be another one.
      */
     private @NotNull CompletableFuture<Void> releaseEndedLease(@NotNull String regionId, @NotNull EndedLease lease) {
         return logFailure(this.<Void>serializeByRegion(regionId, lease.worldId(), () -> CompletableFuture
                 .supplyAsync(() -> realtyApi.getWorldGuardRegionId(lease.realtyRegionId()), executorState.dbExec())
-                .exceptionally(ex -> {
-                    logger.log(Level.WARNING, "Could not read the current name of region " + regionId
-                            + ", so its ended lease is released under that name", ex);
-                    return regionId;
+                .handle((current, ex) -> {
+                    if (ex != null) {
+                        logger.log(Level.WARNING, "Could not read the current name of region " + regionId
+                                + " (Realty id " + lease.realtyRegionId() + "), so its ended lease is only"
+                                + " settled. Tenant " + lease.tenantId() + " may still be a WorldGuard owner of"
+                                + " the region and must be removed by hand.", ex);
+                    }
+                    // A failed read gives no name, so it is handled like a deleted region.
+                    return current;
                 })
                 .thenCompose(current -> {
                     if (current == null) {
