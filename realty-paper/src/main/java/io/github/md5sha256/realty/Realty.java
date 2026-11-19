@@ -410,9 +410,9 @@ public final class Realty extends JavaPlugin {
                 task -> getServer().getScheduler().runTaskAsynchronously(this, task));
         this.settlement = new SaleSettlement(economyProvider, this.logic, this.holdingAccount, this.eventDispatch,
                 getLogger());
-        this.worldGuardRegionRemoval = new WorldGuardRegionRemoval(
-                WorldGuard.getInstance().getPlatform().getRegionContainer(), this.regionProfileService, getLogger());
         RegionContainer regionContainer = WorldGuard.getInstance().getPlatform().getRegionContainer();
+        this.worldGuardRegionRemoval = new WorldGuardRegionRemoval(
+                regionContainer, this.regionProfileService, getLogger());
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,

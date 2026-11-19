@@ -2071,21 +2071,24 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     /**
-     * In the region's turn, fires its cancellable pre-event on the main thread, then runs
-     * {@code action} if no listener cancelled it, else gives {@code cancelled}. A region WorldGuard
-     * no longer knows fires no events and goes ahead, so the backend decides the outcome. The action
-     * runs inside the turn, so it uses {@link #thenFireInTurn}, not {@link #thenFire}.
+     * {@link #thenFire} behind a cancellable pre-event: in the region's turn, fires
+     * {@code preEvent} on the main thread, then makes the backend call and fires its post-events if
+     * no listener cancelled it, else gives {@code cancelled}. A region WorldGuard no longer knows
+     * fires no events and goes ahead, so the backend decides the outcome. {@code result} turns what
+     * the call returned into the caller's result.
      */
-    private <R> @NotNull CompletableFuture<R> gatedFire(@NotNull String regionId, @NotNull UUID worldId,
-                                                        @NotNull Function<WorldGuardRegion, RealtyRegionEvent> preEvent,
-                                                        @NotNull Supplier<CompletableFuture<R>> action,
-                                                        @NotNull Supplier<R> cancelled) {
+    private <T, R> @NotNull CompletableFuture<R> gatedFire(@NotNull String regionId, @NotNull UUID worldId,
+                                                           @NotNull Function<WorldGuardRegion, RealtyRegionEvent> preEvent,
+                                                           @NotNull Supplier<T> call,
+                                                           @NotNull BiConsumer<WorldGuardRegion, T> postEvents,
+                                                           @NotNull Function<T, R> result,
+                                                           @NotNull Supplier<R> cancelled) {
         return serializeByRegion(regionId, worldId, () -> onMainThread(() -> {
             WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
             return region == null || events.fireSync(preEvent.apply(region));
-        }).thenComposeAsync(proceed -> proceed
-                ? action.get()
-                : CompletableFuture.completedFuture(cancelled.get()), executorState.mainThreadExec()));
+        }).thenCompose(proceed -> proceed
+                ? thenFireInTurn(regionId, worldId, call, postEvents).thenApply(result)
+                : CompletableFuture.completedFuture(cancelled.get())));
     }
 
     /**
@@ -2100,7 +2103,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return serializeByRegion(regionId, worldId, () -> thenFireInTurn(regionId, worldId, call, postEvents));
     }
 
-    /** {@link #thenFire} for a caller that already holds the region's queue. */
+    /** {@link #thenFire} once the region's turn has come. */
     private <R> @NotNull CompletableFuture<R> thenFireInTurn(@NotNull String regionId, @NotNull UUID worldId,
                                                              @NotNull Supplier<R> call,
                                                              @NotNull BiConsumer<WorldGuardRegion, R> postEvents) {
@@ -2126,22 +2129,22 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return gatedFire(regionId, worldId,
                 region -> new AuctionCreateEvent(region, auctioneerId, minBid, minBidStep,
                         biddingDurationSeconds, paymentDurationSeconds),
-                () -> thenFireInTurn(regionId, worldId,
-                        () -> {
-                            RealtyBackend.CreateAuctionResult result = realtyApi.createAuction(regionId,
-                                    worldId, ctx, biddingDurationSeconds, paymentDurationSeconds, minBid,
-                                    minBidStep);
-                            return shown(result, result instanceof RealtyBackend.CreateAuctionResult.Success,
-                                    regionId, worldId);
-                        },
-                        (region, shown) -> {
-                            if (shown.result() instanceof RealtyBackend.CreateAuctionResult.Success) {
-                                events.fireSync(new AuctionCreatedEvent(region, auctioneerId, minBid,
-                                        minBidStep, biddingDurationSeconds, paymentDurationSeconds,
-                                        Instant.now().plusSeconds(biddingDurationSeconds)));
-                                showStoredState(region, shown.stored());
-                            }
-                        }).thenApply(Shown::result),
+                () -> {
+                    RealtyBackend.CreateAuctionResult result = realtyApi.createAuction(regionId,
+                            worldId, ctx, biddingDurationSeconds, paymentDurationSeconds, minBid,
+                            minBidStep);
+                    return shown(result, result instanceof RealtyBackend.CreateAuctionResult.Success,
+                            regionId, worldId);
+                },
+                (region, shown) -> {
+                    if (shown.result() instanceof RealtyBackend.CreateAuctionResult.Success) {
+                        events.fireSync(new AuctionCreatedEvent(region, auctioneerId, minBid,
+                                minBidStep, biddingDurationSeconds, paymentDurationSeconds,
+                                Instant.now().plusSeconds(biddingDurationSeconds)));
+                        showStoredState(region, shown.stored());
+                    }
+                },
+                Shown::result,
                 RealtyBackend.CreateAuctionResult.Cancelled::new);
     }
 
@@ -2170,26 +2173,26 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict) {
         UUID bidderId = bidder.requirePlayer();
         return gatedFire(regionId, worldId, region -> new AuctionBidEvent(region, bidderId, bidAmount),
-                () -> thenFireInTurn(regionId, worldId,
-                        () -> {
-                            RealtyBackend.BidResult result = realtyApi.performBid(regionId, worldId, bidder,
-                                    bidAmount, bypassConflict);
-                            if (!(result instanceof RealtyBackend.BidResult.Success)) {
-                                return new PlacedBid(result, null);
-                            }
-                            RealtyBackend.RegionInfo info = realtyApi.getRegionInfo(regionId, worldId);
-                            Instant endsAt = info.auction() == null || info.highestBid() == null ? null
-                                    : toInstant(info.highestBid().bidTime())
-                                            .plusSeconds(info.auction().biddingDurationSeconds());
-                            return new PlacedBid(result, endsAt);
-                        },
-                        (region, placed) -> {
-                            if (placed.result() instanceof RealtyBackend.BidResult.Success success
-                                    && placed.biddingEndsAt() != null) {
-                                events.fireSync(new AuctionBidPlacedEvent(region, bidderId, bidAmount,
-                                        success.previousBidderId(), placed.biddingEndsAt()));
-                            }
-                        }).thenApply(PlacedBid::result),
+                () -> {
+                    RealtyBackend.BidResult result = realtyApi.performBid(regionId, worldId, bidder,
+                            bidAmount, bypassConflict);
+                    if (!(result instanceof RealtyBackend.BidResult.Success)) {
+                        return new PlacedBid(result, null);
+                    }
+                    RealtyBackend.RegionInfo info = realtyApi.getRegionInfo(regionId, worldId);
+                    Instant endsAt = info.auction() == null || info.highestBid() == null ? null
+                            : toInstant(info.highestBid().bidTime())
+                                    .plusSeconds(info.auction().biddingDurationSeconds());
+                    return new PlacedBid(result, endsAt);
+                },
+                (region, placed) -> {
+                    if (placed.result() instanceof RealtyBackend.BidResult.Success success
+                            && placed.biddingEndsAt() != null) {
+                        events.fireSync(new AuctionBidPlacedEvent(region, bidderId, bidAmount,
+                                success.previousBidderId(), placed.biddingEndsAt()));
+                    }
+                },
+                PlacedBid::result,
                 RealtyBackend.BidResult.Cancelled::new);
     }
 
@@ -2209,14 +2212,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext offerer, double price, boolean bypassConflict) {
         UUID offererId = offerer.requirePlayer();
         return gatedFire(regionId, worldId, region -> new OfferPlaceEvent(region, offererId, price),
-                () -> thenFireInTurn(regionId, worldId,
-                        () -> realtyApi.placeOffer(regionId, worldId, offerer, price, bypassConflict),
-                        (region, result) -> {
-                            if (result instanceof RealtyBackend.OfferResult.Success success) {
-                                events.fireSync(new OfferPlacedEvent(region, offererId,
-                                        success.titleHolderId(), price));
-                            }
-                        }),
+                () -> realtyApi.placeOffer(regionId, worldId, offerer, price, bypassConflict),
+                (region, result) -> {
+                    if (result instanceof RealtyBackend.OfferResult.Success success) {
+                        events.fireSync(new OfferPlacedEvent(region, offererId,
+                                success.titleHolderId(), price));
+                    }
+                },
+                Function.identity(),
                 RealtyBackend.OfferResult.Cancelled::new);
     }
 
@@ -2226,15 +2229,15 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext ctx, @NotNull UUID offererId) {
         UUID accepterId = ctx.requirePlayer();
         return gatedFire(regionId, worldId, region -> new OfferAcceptEvent(region, accepterId, offererId),
-                () -> thenFireInTurn(regionId, worldId,
-                        () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
-                        (region, result) -> {
-                            if (result instanceof RealtyBackend.AcceptOfferResult.Success accepted) {
-                                events.fireSync(new OfferAcceptedEvent(region, accepterId, offererId,
-                                        accepted.price(), accepted.totalDue(),
-                                        toInstant(accepted.paymentDeadline())));
-                            }
-                        }),
+                () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
+                (region, result) -> {
+                    if (result instanceof RealtyBackend.AcceptOfferResult.Success accepted) {
+                        events.fireSync(new OfferAcceptedEvent(region, accepterId, offererId,
+                                accepted.price(), accepted.totalDue(),
+                                toInstant(accepted.paymentDeadline())));
+                    }
+                },
+                Function.identity(),
                 RealtyBackend.AcceptOfferResult.Cancelled::new);
     }
 
