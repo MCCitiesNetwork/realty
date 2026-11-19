@@ -268,18 +268,27 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     <T> @NotNull CompletableFuture<T> serializeRegion(@NotNull WorldGuardRegion region,
                                                       @NotNull Supplier<T> gone,
                                                       @NotNull Function<WorldGuardRegion, CompletableFuture<T>> operation) {
-        return serializeByRegion(region.region().getId(), region.world().getUID(), () ->
-                onMainThread(() -> current(region)).thenCompose(now -> now.map(operation)
-                        .orElseGet(() -> CompletableFuture.completedFuture(gone.get()))));
+        return serializeByRegion(region.region().getId(), region.world().getUID(),
+                () -> reread(region, gone, operation));
+    }
+
+    /**
+     * Runs {@code operation} with the region as WorldGuard has it now, or gives {@code gone} when
+     * WorldGuard no longer has it. For an operation that already holds the region's queue.
+     */
+    private <T> @NotNull CompletableFuture<T> reread(@NotNull WorldGuardRegion region,
+                                                     @NotNull Supplier<T> gone,
+                                                     @NotNull Function<WorldGuardRegion, CompletableFuture<T>> operation) {
+        return onMainThread(() -> inWorldGuard(region)).thenCompose(now -> now.map(operation)
+                .orElseGet(() -> CompletableFuture.completedFuture(gone.get())));
     }
 
     /**
      * The region as WorldGuard has it now; empty when it is gone. A world without a region manager
      * has nothing to re-read, so the region is given back as it is. Main thread.
      */
-    @NotNull Optional<WorldGuardRegion> current(@NotNull WorldGuardRegion region) {
-        RegionManager regionManager = WorldGuard.getInstance().getPlatform().getRegionContainer()
-                .get(BukkitAdapter.adapt(region.world()));
+    private @NotNull Optional<WorldGuardRegion> inWorldGuard(@NotNull WorldGuardRegion region) {
+        RegionManager regionManager = regionManager(region.world());
         if (regionManager == null) {
             return Optional.of(region);
         }
@@ -296,6 +305,11 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             return CompletableFuture.completedFuture(supplier.get());
         }
         return CompletableFuture.supplyAsync(supplier, executorState.mainThreadExec());
+    }
+
+    /** The world's WorldGuard region manager; {@code null} when WorldGuard is off in that world. */
+    private static @Nullable RegionManager regionManager(@NotNull World world) {
+        return WorldGuard.getInstance().getPlatform().getRegionContainer().get(BukkitAdapter.adapt(world));
     }
 
     // ═══════════════════════════════════════════════════
@@ -1605,9 +1619,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         // Once both are held, the region as WorldGuard has it: one queued behind a redefine holds
         // the object the redefine replaced.
         return serializeByRegion(first, worldId, () -> serializeByRegion(second, worldId,
-                () -> onMainThread(() -> current(region)).thenCompose(now -> now
-                        .map(current -> renameHoldingBothNames(current, newId, ctx, parentId))
-                        .orElseGet(() -> done(new RenameRegionResult.NotRegistered()))))
+                () -> reread(region, RenameRegionResult.NotRegistered::new,
+                        current -> renameHoldingBothNames(current, newId, ctx, parentId)))
         ).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             logger.log(Level.SEVERE, "Could not rename region " + oldId + " to " + newId, cause);
@@ -1796,9 +1809,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                             (QuickCreateSubregionResult) new QuickCreateSubregionResult.Error(
                                     "Circular region inheritance"));
                 }
-                RegionManager regionManager = WorldGuard.getInstance()
-                        .getPlatform().getRegionContainer()
-                        .get(BukkitAdapter.adapt(parentRegion.world()));
+                RegionManager regionManager = regionManager(parentRegion.world());
                 if (regionManager != null) {
                     regionManager.addRegion(childRegion);
                 }
@@ -2808,9 +2819,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private void updateChildLandlords(@NotNull String parentRegionId,
                                       @NotNull World world,
                                       @NotNull UUID newLandlord) {
-        RegionManager regionManager = WorldGuard.getInstance()
-                .getPlatform().getRegionContainer()
-                .get(BukkitAdapter.adapt(world));
+        RegionManager regionManager = regionManager(world);
         if (regionManager == null) {
             return;
         }

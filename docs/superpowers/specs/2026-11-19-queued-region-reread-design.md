@@ -113,6 +113,12 @@ In `RealtyPaperApiImplTest`, with a real in-memory region manager:
 
 - **Changes outside Realty's queue.** A region replaced by `/rg redefine` or by another plugin
   while a Realty operation runs is not seen. The queue only orders Realty's own operations.
+- **Writers outside the queue.** `transferTitleHolder`, `createFreehold`, `createLeasehold`,
+  `deleteRegion` and `quickCreateSubregion` write to WorldGuard (owners, members, flags, a new
+  child's parent) without taking the region's queue, so they still act on the caller's object.
+  One of them running at the same time as a redefine of the same region can write to the object
+  the redefine replaced. Moving them into the queue changes their ordering against every other
+  operation and is left for its own change.
 - **Checks before queuing read the caller's object.** They read only the id, the world and, for
   redefine, the shape; the id and world cannot change, and a redefine that compares against a
   stale shape only risks refusing a no-op or letting one through.

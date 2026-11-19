@@ -89,6 +89,7 @@ import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
@@ -3946,7 +3947,7 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("a region gone when its turn comes gives the gone result")
         void aRegionGoneWhenItsTurnComesGivesGone() {
-            java.util.concurrent.atomic.AtomicBoolean ran = new java.util.concurrent.atomic.AtomicBoolean();
+            AtomicBoolean ran = new AtomicBoolean();
             Object marker = new Object();
             CompletableFuture<Object> result = api.serializeRegion(wgRegion, () -> marker, now -> {
                 ran.set(true);
@@ -4004,15 +4005,6 @@ class RealtyPaperApiImplTest {
             Assertions.assertInstanceOf(RealtyPaperApi.RenameRegionResult.Renamed.class, renamed.join());
             Assertions.assertEquals(BlockVector3.at(40, 40, 40),
                     regionManager.getRegion("renamed-plot").getMaximumPoint());
-        }
-
-        @Test
-        @DisplayName("current reads the region manager")
-        void currentReadsTheManager() {
-            ProtectedCuboidRegion replacement = replaceRegion(40);
-            Assertions.assertSame(replacement, api.current(wgRegion).orElseThrow().region());
-            regionManager.removeRegion(REGION_ID);
-            Assertions.assertEquals(Optional.empty(), api.current(wgRegion));
         }
     }
 }
