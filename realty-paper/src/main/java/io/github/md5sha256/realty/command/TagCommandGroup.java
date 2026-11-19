@@ -99,30 +99,40 @@ public record TagCommandGroup(
         }
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
-        CompletableFuture.runAsync(() -> {
-            try (SqlSessionWrapper session = database.openSession(true)) {
-                RegionTagMapper mapper = session.regionTagMapper();
-                if (mapper.exists(tagId, regionId, worldId)) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_ALREADY_TAGGED,
-                            Placeholder.unparsed("tag", tagId),
-                            Placeholder.unparsed("region", regionId)));
-                    return;
-                }
-                int inserted = mapper.insert(tagId, regionId, worldId);
-                if (inserted > 0) {
-                    sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_SUCCESS,
-                            Placeholder.unparsed("tag", tagId),
-                            Placeholder.unparsed("region", regionId)));
-                } else {
-                    sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_FAILED,
-                            Placeholder.unparsed("tag", tagId),
-                            Placeholder.unparsed("region", regionId)));
-                }
-            } catch (Exception ex) {
-                sender.sendMessage(messages.messageFor(MessageKeys.TAG_ERROR,
-                        Placeholder.unparsed("error", ex.getMessage())));
+        CompletableFuture.runAsync(() -> addTag(sender, tagId, regionId, worldId), executorState.dbExec());
+    }
+
+    /** Tags a region that is registered with Realty, and tells the sender what happened. Reads the database. */
+    void addTag(@NotNull CommandSender sender, @NotNull String tagId, @NotNull String regionId,
+                @NotNull UUID worldId) {
+        try (SqlSessionWrapper session = database.openSession(true)) {
+            // Everything that reads tags starts from a Realty region, so a tag elsewhere would do nothing.
+            if (session.realtyRegionMapper().selectByWorldGuardRegion(regionId, worldId) == null) {
+                sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_NOT_REGISTERED,
+                        Placeholder.unparsed("region", regionId)));
+                return;
             }
-        }, executorState.dbExec());
+            RegionTagMapper mapper = session.regionTagMapper();
+            if (mapper.exists(tagId, regionId, worldId)) {
+                sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_ALREADY_TAGGED,
+                        Placeholder.unparsed("tag", tagId),
+                        Placeholder.unparsed("region", regionId)));
+                return;
+            }
+            int inserted = mapper.insert(tagId, regionId, worldId);
+            if (inserted > 0) {
+                sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_SUCCESS,
+                        Placeholder.unparsed("tag", tagId),
+                        Placeholder.unparsed("region", regionId)));
+            } else {
+                sender.sendMessage(messages.messageFor(MessageKeys.TAG_ADD_FAILED,
+                        Placeholder.unparsed("tag", tagId),
+                        Placeholder.unparsed("region", regionId)));
+            }
+        } catch (Exception ex) {
+            sender.sendMessage(messages.messageFor(MessageKeys.TAG_ERROR,
+                    Placeholder.unparsed("error", ex.getMessage())));
+        }
     }
 
     private void executeRemove(@NotNull CommandContext<Source> ctx) {

@@ -989,6 +989,8 @@ tag:
     list-none: <prefix> <red>No tags available.
     error: '<red>Tag operation failed: <error>'
     add-already-tagged: <prefix> <red>Region <region> already has the tag <tag>.
+    add-not-registered: <prefix> <red>Region <region> is not registered in Realty, so it cannot
+        be tagged.
     clear-success: <prefix> Cleared <red><count> tag(s)</red> from region <gold><region></gold>.
     clear-none: <prefix> <red>Region <region> has no tags to clear.
 search:

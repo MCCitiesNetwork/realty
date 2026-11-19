@@ -645,6 +645,7 @@ public final class MessageKeys {
     public static final String TAG_ADD_SUCCESS = "tag.add-success";
     public static final String TAG_ADD_ALREADY_TAGGED = "tag.add-already-tagged";
     public static final String TAG_ADD_FAILED = "tag.add-failed";
+    public static final String TAG_ADD_NOT_REGISTERED = "tag.add-not-registered";
     public static final String TAG_REMOVE_SUCCESS = "tag.remove-success";
     public static final String TAG_REMOVE_NOT_FOUND = "tag.remove-not-found";
     public static final String TAG_LIST_HEADER = "tag.list-header";
