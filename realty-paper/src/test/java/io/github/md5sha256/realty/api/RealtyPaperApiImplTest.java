@@ -107,6 +107,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -257,7 +258,7 @@ class RealtyPaperApiImplTest {
                 new SafeLocationFinder(), stubPlayerNameService(), accountId -> CompletableFuture.completedFuture(Optional.empty()),
                 actorContexts, events, holding, settlement,
                 regionRemoval,
-                    regionRename, regionRedefine, captureRegistry, captureCooldown, LOG);
+                    regionContainer, regionRename, regionRedefine, captureRegistry, captureCooldown, LOG);
 
         lenient().when(world.getUID()).thenReturn(WORLD_ID);
         // An instalment whose money moved is confirmed, as the backend does while its payment exists.
@@ -617,7 +618,7 @@ class RealtyPaperApiImplTest {
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
                             realtyApi), events, holding, settlement, regionRemoval,
-                    regionRename, regionRedefine, captureRegistry, captureCooldown, LOG);
+                    regionContainer, regionRename, regionRedefine, captureRegistry, captureCooldown, LOG);
         }
 
         private void runMainThread() {
@@ -1608,7 +1609,7 @@ class RealtyPaperApiImplTest {
                                     new SimpleDateFormat("yyyy"), 0, 0, 0, 0, List.of(), null,
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
                             realtyApi), events, holding, settlement, regionRemoval,
-                    regionRename, regionRedefine, captureRegistry, captureCooldown, LOG);
+                    regionContainer, regionRename, regionRedefine, captureRegistry, captureCooldown, LOG);
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
             regionIs(RegionState.FOR_SALE);
@@ -2325,7 +2326,7 @@ class RealtyPaperApiImplTest {
                                     0, 0, 0, 0, AccountManagers.MEMBERS)),
                             realtyApi),
                     events, none, new SaleSettlement(economyProvider, realtyApi, none, events, LOG), regionRemoval,
-                    regionRename, regionRedefine, captureRegistry, captureCooldown, LOG);
+                    regionContainer, regionRename, regionRedefine, captureRegistry, captureCooldown, LOG);
         }
 
         private void paidInFull(double amount, FeeQuote quote, boolean oldRules) {
@@ -3868,6 +3869,48 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
+        @DisplayName("a capture that starts while the redefine reads the database refuses it")
+        void aCaptureStartedDuringTheDatabaseStepRefuses() {
+            when(realtyApi.getLeaseholdContract(REGION_ID, WORLD_ID)).thenAnswer(invocation -> {
+                captureRegistry.begin(REGION_ID, WORLD_ID, org.mockito.Mockito.mock(TickSlicedCopy.class));
+                return VACANT;
+            });
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RedefineRegionResult.CaptureRunning.class,
+                    redefine(cuboid(0, 50), AS_STAFF));
+            assertRefusedAfterTheDatabase();
+        }
+
+        @Test
+        @DisplayName("a region with a WorldGuard parent that is not a subregion still stays inside it")
+        void aNonSubregionStaysInsideItsParent() {
+            leaseIs(VACANT);
+            // The parent is not a registered freehold, so the region is not a subregion.
+            lenient().when(realtyApi.getFreeholdContract(PARENT_ID, WORLD_ID)).thenReturn(null);
+            Assertions.assertEquals(new RealtyPaperApi.RedefineRegionResult.OutsideParent(PARENT_ID),
+                    redefine(cuboid(150, 250), AS_STAFF));
+            assertRefusedAfterTheDatabase();
+        }
+
+        @Test
+        @DisplayName("of two queued redefines to one shape, the second finds the shape already there")
+        void aSecondQueuedRedefineToTheSameShapeIsRefused() {
+            leaseIs(VACANT);
+            CompletableFuture<String> gate = new CompletableFuture<>();
+            api.serializeByRegion(REGION_ID, WORLD_ID, () -> gate);
+            CompletableFuture<RealtyPaperApi.RedefineRegionResult> first =
+                    api.redefineRegion(wgRegion, cuboid(0, 50), AS_STAFF);
+            CompletableFuture<RealtyPaperApi.RedefineRegionResult> second =
+                    api.redefineRegion(wgRegion, cuboid(0, 50), AS_STAFF);
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyPaperApi.RedefineRegionResult.Redefined.class, first.join());
+            Assertions.assertInstanceOf(RealtyPaperApi.RedefineRegionResult.SameShape.class, second.join());
+            verify(events, times(1)).fireSync(any(RegionRedefinedEvent.class));
+        }
+
+        @Test
         @DisplayName("a queued redefine works on the region as WorldGuard has it when it runs")
         void aQueuedRedefineUsesTheCurrentRegion() throws ProtectedRegion.CircularInheritanceException {
             leaseIs(VACANT);
@@ -4084,7 +4127,9 @@ class RealtyPaperApiImplTest {
             when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
                     new RealtyRegionEntity(1, REGION_ID, WORLD_ID), RegionState.SOLD, Map.of()));
 
-            api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 3600, 10.0, 1.0).join();
+            CompletableFuture<?> created = api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 3600, 10.0, 1.0);
+            gate.complete("done");
+            created.join();
 
             verify(regionProfileService).applyFlags(argThat(region -> region.region() == replacement[0]), any(), any());
         }
@@ -4109,6 +4154,35 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyPaperApi.DeleteSubregionResult.Deleted.class, deleted.join());
             Assertions.assertFalse(regionManager.hasRegion(REGION_ID));
+        }
+
+        @Test
+        @DisplayName("an auction start waits its turn on the region")
+        void anAuctionStartWaitsItsTurn() {
+            when(realtyApi.createAuction(eq(REGION_ID), eq(WORLD_ID), any(), anyLong(), anyLong(), anyDouble(),
+                    anyDouble())).thenReturn(new RealtyBackend.CreateAuctionResult.Success());
+            CompletableFuture<RealtyBackend.CreateAuctionResult> created =
+                    api.createAuction(REGION_ID, WORLD_ID, BUYER_CTX, 3600, 3600, 10.0, 1.0);
+            verify(realtyApi, never()).createAuction(any(), any(), any(), anyLong(), anyLong(), anyDouble(),
+                    anyDouble());
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyBackend.CreateAuctionResult.Success.class, created.join());
+        }
+
+        @Test
+        @DisplayName("an offer withdrawal waits its turn on the region")
+        void anOfferWithdrawalWaitsItsTurn() {
+            when(realtyApi.withdrawOffer(REGION_ID, WORLD_ID, BUYER_ID))
+                    .thenReturn(new RealtyBackend.WithdrawOfferResult.NoOffer());
+            CompletableFuture<RealtyBackend.WithdrawOfferResult> withdrawn =
+                    api.withdrawOffer(REGION_ID, WORLD_ID, BUYER_ID);
+            verify(realtyApi, never()).withdrawOffer(any(), any(), any());
+
+            gate.complete("done");
+
+            Assertions.assertInstanceOf(RealtyBackend.WithdrawOfferResult.NoOffer.class, withdrawn.join());
         }
 
         @Test

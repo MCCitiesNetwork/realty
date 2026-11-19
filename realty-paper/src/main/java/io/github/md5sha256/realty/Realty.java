@@ -9,6 +9,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.ExecutorState;
@@ -411,6 +412,7 @@ public final class Realty extends JavaPlugin {
                 getLogger());
         this.worldGuardRegionRemoval = new WorldGuardRegionRemoval(
                 WorldGuard.getInstance().getPlatform().getRegionContainer(), this.regionProfileService, getLogger());
+        RegionContainer regionContainer = WorldGuard.getInstance().getPlatform().getRegionContainer();
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
@@ -420,8 +422,9 @@ public final class Realty extends JavaPlugin {
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
                 this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement,
                 this.worldGuardRegionRemoval,
-                new WorldGuardRegionRename(WorldGuard.getInstance().getPlatform().getRegionContainer(), getLogger()),
-                new WorldGuardRegionRedefine(WorldGuard.getInstance().getPlatform().getRegionContainer(), getLogger()),
+                regionContainer,
+                new WorldGuardRegionRename(regionContainer, getLogger()),
+                new WorldGuardRegionRedefine(regionContainer, getLogger()),
                 this.captureRegistry, this.captureCooldown, getLogger());
         reportStuckSalePayments();
         this.moduleManager = new ModuleLifecycleManager<>(this,

@@ -53,9 +53,9 @@ public final class WorldGuardRegionRedefine {
 
     /**
      * Checks a new shape against the region's surroundings, and gives the refusal if it fails.
-     * With {@code subregion}, the shape must have at least {@code minVolume} blocks, lie fully
-     * inside the region's parent, and not overlap a sibling. Always, every child of the region must
-     * lie fully inside {@code replacement}.
+     * When the region has a WorldGuard parent, the shape must lie fully inside it and not overlap a
+     * sibling; with {@code subregion} it must also have at least {@code minVolume} blocks. Always,
+     * every child of the region must lie fully inside {@code replacement}.
      */
     public @NotNull Optional<RedefineRegionResult> check(@NotNull WorldGuardRegion region, @NotNull Region selection,
                                                          @NotNull ProtectedRegion replacement, boolean subregion,
@@ -67,9 +67,11 @@ public final class WorldGuardRegionRedefine {
         }
         ProtectedRegion old = region.region();
         ProtectedRegion parent = old.getParent();
-        if (subregion && parent != null) {
+        if (parent != null) {
+            // Only a subregion has a minimum volume; any region with a parent stays inside it and
+            // clear of its siblings, as subregion create requires.
             long volume = SubregionSelectionValidator.blockVolume(selection);
-            if (volume < minVolume) {
+            if (subregion && volume < minVolume) {
                 return Optional.of(new RedefineRegionResult.TooSmall(volume, minVolume));
             }
             if (!SubregionSelectionValidator.regionIsFullyContainedByParent(selection, parent)) {

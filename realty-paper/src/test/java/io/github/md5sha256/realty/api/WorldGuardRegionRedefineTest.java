@@ -239,6 +239,21 @@ class WorldGuardRegionRedefineTest {
     }
 
     @Test
+    void checkKeepsAnyRegionWithAParentInsideItAndClearOfItsSiblings() throws ProtectedRegion.CircularInheritanceException {
+        WorldGuardRegion plot = subregionOfAFreehold();
+        ProtectedCuboidRegion sibling = cuboid("sibling", 40, 50);
+        sibling.setParent(plot.region().getParent());
+        this.manager.addRegion(sibling);
+
+        // Not a subregion (its parent is not a registered freehold), so only the volume rule is off.
+        Assertions.assertEquals(Optional.of(new RealtyPaperApi.RedefineRegionResult.OutsideParent("parent")),
+                check(plot, selection(90, 110), false, 1));
+        Assertions.assertEquals(Optional.of(new RealtyPaperApi.RedefineRegionResult.OverlapsSibling("sibling")),
+                check(plot, selection(10, 45), false, 1));
+        Assertions.assertEquals(Optional.empty(), check(plot, selection(10, 11), false, 1000));
+    }
+
+    @Test
     void checkIgnoresSubregionRulesForATopLevelRegion() {
         WorldGuardRegion region = added(cuboid(ID, 0, 20));
         Assertions.assertEquals(Optional.empty(), check(region, selection(0, 1), false, 1000));

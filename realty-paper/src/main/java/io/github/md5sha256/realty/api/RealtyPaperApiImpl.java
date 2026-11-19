@@ -2,10 +2,10 @@ package io.github.md5sha256.realty.api;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.regions.Region;
-import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.AuctionBidEvent;
 import io.github.md5sha256.realty.api.event.AuctionBidPlacedEvent;
@@ -78,6 +78,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -93,9 +95,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     private final RegionProfileService regionProfileService;
     private final SignTextApplicator signTextApplicator;
     private final SignCache signCache;
-    private final java.util.function.LongSupplier terminationNoticeSeconds;
-    private final java.util.function.IntSupplier subregionMinVolume;
+    private final LongSupplier terminationNoticeSeconds;
+    private final IntSupplier subregionMinVolume;
     private final WorldGuardRegionRemoval worldGuardRegionRemoval;
+    private final RegionContainer regionContainer;
     private final WorldGuardRegionRename worldGuardRegionRename;
     private final WorldGuardRegionRedefine worldGuardRegionRedefine;
     private final CaptureRegistry captureRegistry;
@@ -125,8 +128,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull RegionProfileService regionProfileService,
                               @NotNull SignTextApplicator signTextApplicator,
                               @NotNull SignCache signCache,
-                              @NotNull java.util.function.LongSupplier terminationNoticeSeconds,
-                              @NotNull java.util.function.IntSupplier subregionMinVolume,
+                              @NotNull LongSupplier terminationNoticeSeconds,
+                              @NotNull IntSupplier subregionMinVolume,
                               @NotNull SafeLocationFinder safeLocationFinder,
                               @NotNull PlayerNameService playerNameService,
                               @NotNull AccountNameService accountNameService,
@@ -135,12 +138,14 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                               @NotNull HoldingAccount holding,
                               @NotNull SaleSettlement settlement,
                               @NotNull WorldGuardRegionRemoval worldGuardRegionRemoval,
+                              @NotNull RegionContainer regionContainer,
                               @NotNull WorldGuardRegionRename worldGuardRegionRename,
                               @NotNull WorldGuardRegionRedefine worldGuardRegionRedefine,
                               @NotNull CaptureRegistry captureRegistry,
                               @NotNull CaptureCooldown captureCooldown,
                               @NotNull Logger logger) {
         this.worldGuardRegionRemoval = worldGuardRegionRemoval;
+        this.regionContainer = regionContainer;
         this.worldGuardRegionRename = worldGuardRegionRename;
         this.worldGuardRegionRedefine = worldGuardRegionRedefine;
         this.captureRegistry = captureRegistry;
@@ -313,8 +318,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     /** The world's WorldGuard region manager; {@code null} when WorldGuard is off in that world. */
-    private static @Nullable RegionManager regionManager(@NotNull World world) {
-        return WorldGuard.getInstance().getPlatform().getRegionContainer().get(BukkitAdapter.adapt(world));
+    private @Nullable RegionManager regionManager(@NotNull World world) {
+        return regionContainer.get(BukkitAdapter.adapt(world));
     }
 
     // ═══════════════════════════════════════════════════
@@ -1854,14 +1859,20 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         if (captureRegistry.isInFlight(regionId, worldId)) {
             return done(new RedefineRegionResult.CaptureRunning());
         }
-        Optional<String> parentId = parentId(region);
         // Serialised with rent and buy, so the region cannot be let between the check and the swap.
-        return serializeRegion(region, RedefineRegionResult.NotRegistered::new, current -> CompletableFuture
-                .supplyAsync(() -> checkRedefine(regionId, worldId, parentId, ctx), executorState.dbExec())
-                .thenComposeAsync(check -> check.refusal().map(RealtyPaperApiImpl::done)
-                                .orElseGet(() -> redefineInWorldGuard(current, selection, replacement, check, ctx)),
-                        executorState.mainThreadExec())
-        ).exceptionally(ex -> {
+        // The checks above are fast paths on the caller's region; in its turn the redefine checks
+        // the shape again on the region as WorldGuard has it, which a redefine ahead may have changed.
+        return serializeRegion(region, RedefineRegionResult.NotRegistered::new, current -> {
+            if (WorldGuardRegionRedefine.sameShape(current.region(), replacement)) {
+                return done(new RedefineRegionResult.SameShape());
+            }
+            Optional<String> parentId = parentId(current);
+            return CompletableFuture
+                    .supplyAsync(() -> checkRedefine(regionId, worldId, parentId, ctx), executorState.dbExec())
+                    .thenComposeAsync(check -> check.refusal().map(RealtyPaperApiImpl::done)
+                                    .orElseGet(() -> redefineInWorldGuard(current, selection, replacement, check, ctx)),
+                            executorState.mainThreadExec());
+        }).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             logger.log(Level.SEVERE, "Could not redefine region " + regionId, cause);
             return new RedefineRegionResult.Error(String.valueOf(cause.getMessage()));
@@ -1899,6 +1910,12 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                 region, selection, replacement, check.subregion(), subregionMinVolume.getAsInt());
         if (refusal.isPresent()) {
             return done(refusal.get());
+        }
+        // Checked again here: a capture can begin while the database is read, and it would save the
+        // old shape after the swap. The check, the event and the swap share this main-thread task,
+        // so none can begin between them.
+        if (captureRegistry.isInFlight(region.region().getId(), region.world().getUID())) {
+            return done(new RedefineRegionResult.CaptureRunning());
         }
         if (!events.fireSync(new RegionRedefineEvent(region, ctx.player(), replacement))) {
             return done(new RedefineRegionResult.Cancelled());
@@ -2054,29 +2071,39 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
     }
 
     /**
-     * Fires the region's cancellable pre-event on the main thread, then runs {@code action} if no
-     * listener cancelled it, else gives {@code cancelled}. A region WorldGuard no longer knows fires
-     * no events and goes ahead, so the backend decides the outcome.
+     * In the region's turn, fires its cancellable pre-event on the main thread, then runs
+     * {@code action} if no listener cancelled it, else gives {@code cancelled}. A region WorldGuard
+     * no longer knows fires no events and goes ahead, so the backend decides the outcome. The action
+     * runs inside the turn, so it uses {@link #thenFireInTurn}, not {@link #thenFire}.
      */
     private <R> @NotNull CompletableFuture<R> gatedFire(@NotNull String regionId, @NotNull UUID worldId,
                                                         @NotNull Function<WorldGuardRegion, RealtyRegionEvent> preEvent,
                                                         @NotNull Supplier<CompletableFuture<R>> action,
                                                         @NotNull Supplier<R> cancelled) {
-        return CompletableFuture.supplyAsync(() -> {
+        return serializeByRegion(regionId, worldId, () -> onMainThread(() -> {
             WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
             return region == null || events.fireSync(preEvent.apply(region));
-        }, executorState.mainThreadExec()).thenComposeAsync(proceed -> proceed
+        }).thenComposeAsync(proceed -> proceed
                 ? action.get()
-                : CompletableFuture.completedFuture(cancelled.get()), executorState.mainThreadExec());
+                : CompletableFuture.completedFuture(cancelled.get()), executorState.mainThreadExec()));
     }
 
     /**
-     * Runs a backend call on the database executor, then hands its result to {@code postEvents} on
-     * the main thread with the region, when WorldGuard still knows it.
+     * In the region's turn, runs a backend call on the database executor, then hands its result to
+     * {@code postEvents} on the main thread with the region, when WorldGuard still knows it. Queued
+     * like every other write to the region, so a rename or redefine cannot land between the write
+     * and the redraw.
      */
     private <R> @NotNull CompletableFuture<R> thenFire(@NotNull String regionId, @NotNull UUID worldId,
                                                        @NotNull Supplier<R> call,
                                                        @NotNull BiConsumer<WorldGuardRegion, R> postEvents) {
+        return serializeByRegion(regionId, worldId, () -> thenFireInTurn(regionId, worldId, call, postEvents));
+    }
+
+    /** {@link #thenFire} for a caller that already holds the region's queue. */
+    private <R> @NotNull CompletableFuture<R> thenFireInTurn(@NotNull String regionId, @NotNull UUID worldId,
+                                                             @NotNull Supplier<R> call,
+                                                             @NotNull BiConsumer<WorldGuardRegion, R> postEvents) {
         return CompletableFuture.supplyAsync(call, executorState.dbExec()).thenApplyAsync(result -> {
             WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, worldId, regionId);
             if (region != null) {
@@ -2099,7 +2126,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
         return gatedFire(regionId, worldId,
                 region -> new AuctionCreateEvent(region, auctioneerId, minBid, minBidStep,
                         biddingDurationSeconds, paymentDurationSeconds),
-                () -> thenFire(regionId, worldId,
+                () -> thenFireInTurn(regionId, worldId,
                         () -> {
                             RealtyBackend.CreateAuctionResult result = realtyApi.createAuction(regionId,
                                     worldId, ctx, biddingDurationSeconds, paymentDurationSeconds, minBid,
@@ -2143,7 +2170,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext bidder, double bidAmount, boolean bypassConflict) {
         UUID bidderId = bidder.requirePlayer();
         return gatedFire(regionId, worldId, region -> new AuctionBidEvent(region, bidderId, bidAmount),
-                () -> thenFire(regionId, worldId,
+                () -> thenFireInTurn(regionId, worldId,
                         () -> {
                             RealtyBackend.BidResult result = realtyApi.performBid(regionId, worldId, bidder,
                                     bidAmount, bypassConflict);
@@ -2182,7 +2209,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext offerer, double price, boolean bypassConflict) {
         UUID offererId = offerer.requirePlayer();
         return gatedFire(regionId, worldId, region -> new OfferPlaceEvent(region, offererId, price),
-                () -> thenFire(regionId, worldId,
+                () -> thenFireInTurn(regionId, worldId,
                         () -> realtyApi.placeOffer(regionId, worldId, offerer, price, bypassConflict),
                         (region, result) -> {
                             if (result instanceof RealtyBackend.OfferResult.Success success) {
@@ -2199,7 +2226,7 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             @NotNull ActorContext ctx, @NotNull UUID offererId) {
         UUID accepterId = ctx.requirePlayer();
         return gatedFire(regionId, worldId, region -> new OfferAcceptEvent(region, accepterId, offererId),
-                () -> thenFire(regionId, worldId,
+                () -> thenFireInTurn(regionId, worldId,
                         () -> realtyApi.acceptOffer(regionId, worldId, ctx, offererId),
                         (region, result) -> {
                             if (result instanceof RealtyBackend.AcceptOfferResult.Success accepted) {
