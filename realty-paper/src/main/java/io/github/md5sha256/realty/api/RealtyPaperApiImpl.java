@@ -649,6 +649,8 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
                         .thenApply(ignored -> new ExtendResult.PaymentFailed(failure.errorMessage()));
             }
         }
+        // The state stays LEASED, but a flag value can show the new end date through placeholders.
+        regionProfileService.applyFlags(region, RegionState.LEASED, placeholders);
         signTextApplicator.updateLoadedSigns(region.world(), regionId,
                 RegionState.LEASED, placeholders);
         return CompletableFuture.completedFuture(
@@ -2556,9 +2558,9 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     /**
      * Runs a write of a region's price, duration or extension limit and, when it answers with
-     * {@code successType}, redraws the region's loaded signs from what is now stored. These terms
-     * are not part of a region's state, so its flags stay as they are. The returned future
-     * completes on the main thread with the write's own answer.
+     * {@code successType}, rewrites the region's flags and redraws its loaded signs from what is
+     * now stored, since a flag value such as a greeting can show the terms through placeholders.
+     * The returned future completes on the main thread with the write's own answer.
      *
      * <p>The write waits its turn on the region, see {@link #serializeByRegion}. The redraw is
      * left out of that turn: it always hops to the main thread, which is what makes the future
@@ -2585,6 +2587,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             try {
                 World world = region != null ? server.getWorld(worldId) : null;
                 if (world != null) {
+                    WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(server, worldId, regionId);
+                    if (wgRegion != null) {
+                        regionProfileService.applyFlags(wgRegion, region.state(), region.placeholders());
+                    }
                     signTextApplicator.updateLoadedSigns(world, regionId,
                             region.state(), region.placeholders());
                 }

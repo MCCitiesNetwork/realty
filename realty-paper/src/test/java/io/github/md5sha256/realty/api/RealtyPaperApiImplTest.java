@@ -1069,12 +1069,13 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("success extends lease and updates signs")
+        @DisplayName("success extends lease, rewrites the flags and updates signs")
         void success() {
+            Map<String, String> renewedTerms = Map.of("end_date", "2026-12-01");
             when(realtyApi.renewLeasehold(REGION_ID, WORLD_ID, TENANT_ID))
                     .thenReturn(RENEWED);
             when(realtyApi.getRegionPlaceholders(REGION_ID, WORLD_ID))
-                    .thenReturn(Map.of());
+                    .thenReturn(renewedTerms);
             when(economyProvider.getBalance(TENANT)).thenReturn(500.0);
             when(economyProvider.transfer(eq(TENANT), eq(LANDLORD), eq(200.0), any(), eq(TENANT_ID)))
                     .thenReturn(new PaymentResult.Success());
@@ -1084,8 +1085,9 @@ class RealtyPaperApiImplTest {
             Assertions.assertInstanceOf(RealtyPaperApi.ExtendResult.Success.class, result);
             RealtyPaperApi.ExtendResult.Success success = (RealtyPaperApi.ExtendResult.Success) result;
             Assertions.assertEquals(200.0, success.price());
-            verify(signTextApplicator).updateLoadedSigns(eq(world), eq(REGION_ID),
-                    eq(RegionState.LEASED), any());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.LEASED, renewedTerms);
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID,
+                    RegionState.LEASED, renewedTerms);
         }
     }
 
@@ -1407,6 +1409,15 @@ class RealtyPaperApiImplTest {
 
         private static final Map<String, String> NEW_TERMS = Map.of("price", "5000");
 
+        private RegionManager regionManager;
+
+        @BeforeEach
+        void setUpRegionManager() {
+            regionManager = org.mockito.Mockito.mock(RegionManager.class);
+            lenient().when(regionManager.getRegion(REGION_ID)).thenReturn(protectedRegion);
+            lenient().when(regionContainer.get(any())).thenReturn(regionManager);
+        }
+
         private void regionIs(RegionState state) {
             when(server.getWorld(WORLD_ID)).thenReturn(world);
             when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID))
@@ -1421,7 +1432,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("setPrice success updates loaded signs and leaves the flags alone")
+        @DisplayName("setPrice success updates loaded signs and rewrites the flags with the new terms")
         void setPriceSuccess() {
             when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetPriceResult.Success());
@@ -1432,7 +1443,21 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyBackend.SetPriceResult.Success.class, result);
             verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.FOR_SALE, NEW_TERMS);
+        }
+
+        @Test
+        @DisplayName("a region missing from WorldGuard still has its signs redrawn")
+        void missingWorldGuardRegion() {
+            when(realtyApi.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true))
+                    .thenReturn(new RealtyBackend.SetPriceResult.Success());
+            regionIs(RegionState.FOR_SALE);
+            when(regionManager.getRegion(REGION_ID)).thenReturn(null);
+
+            api.setPrice(REGION_ID, WORLD_ID, 5000.0, BUYER_CTX, true).join();
+
             verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_SALE, NEW_TERMS);
         }
 
         @Test
@@ -1582,7 +1607,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("unsetPrice success updates loaded signs")
+        @DisplayName("unsetPrice success updates loaded signs and rewrites the flags")
         void unsetPriceSuccess() {
             when(realtyApi.unsetPrice(REGION_ID, WORLD_ID, BUYER_CTX))
                     .thenReturn(new RealtyBackend.UnsetPriceResult.Success());
@@ -1593,7 +1618,7 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyBackend.UnsetPriceResult.Success.class, result);
             verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.SOLD, NEW_TERMS);
-            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.SOLD, NEW_TERMS);
         }
 
         @Test
@@ -1608,7 +1633,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("setDuration success updates loaded signs")
+        @DisplayName("setDuration success updates loaded signs and rewrites the flags")
         void setDurationSuccess() {
             when(realtyApi.setDuration(REGION_ID, WORLD_ID, 7200, BUYER_CTX, true))
                     .thenReturn(new RealtyBackend.SetDurationResult.Success());
@@ -1619,7 +1644,7 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyBackend.SetDurationResult.Success.class, result);
             verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.FOR_LEASE, NEW_TERMS);
-            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.FOR_LEASE, NEW_TERMS);
         }
 
         @Test
@@ -1634,7 +1659,7 @@ class RealtyPaperApiImplTest {
         }
 
         @Test
-        @DisplayName("setMaxRenewals success updates loaded signs")
+        @DisplayName("setMaxRenewals success updates loaded signs and rewrites the flags")
         void setMaxRenewalsSuccess() {
             when(realtyApi.setMaxRenewals(REGION_ID, WORLD_ID, 4, BUYER_CTX, false))
                     .thenReturn(new RealtyBackend.SetMaxRenewalsResult.Success());
@@ -1645,7 +1670,7 @@ class RealtyPaperApiImplTest {
 
             Assertions.assertInstanceOf(RealtyBackend.SetMaxRenewalsResult.Success.class, result);
             verify(signTextApplicator).updateLoadedSigns(world, REGION_ID, RegionState.LEASED, NEW_TERMS);
-            verify(regionProfileService, never()).applyFlags(any(), any(), any());
+            verify(regionProfileService).applyFlags(wgRegion, RegionState.LEASED, NEW_TERMS);
         }
 
         @Test
