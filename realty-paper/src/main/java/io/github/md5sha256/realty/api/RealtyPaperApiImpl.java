@@ -32,6 +32,7 @@ import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import io.github.md5sha256.realty.api.event.RegionRedefineEvent;
 import io.github.md5sha256.realty.api.event.RegionRedefinedEvent;
 import io.github.md5sha256.realty.api.event.RegionRenamedEvent;
+import io.github.md5sha256.realty.api.event.ScheduledSubregionDeletedEvent;
 import io.github.md5sha256.realty.api.event.RegionRenameEvent;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.database.Database;
@@ -1818,6 +1819,34 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             cause.printStackTrace();
             return new QuickCreateSubregionResult.Error(String.valueOf(cause.getMessage()));
+        });
+    }
+
+    // --- Scheduled subregion sweep ---
+
+    /**
+     * Removes the WorldGuard region of a subregion the scheduler's sweep deleted from the
+     * database, and tells its landlord. It waits its turn on the region: a redefine that passed its
+     * checks before the sweep would otherwise put the region back after it was removed. Not part
+     * of {@link RealtyPaperApi}; the scheduler calls it.
+     */
+    public @NotNull CompletableFuture<Void> removeSweptSubregion(@NotNull RealtyBackend.DeletedLeasehold deleted) {
+        String regionId = deleted.worldGuardRegionId();
+        return this.<Void>serializeByRegion(regionId, deleted.worldId(), () -> onMainThread(() -> {
+            WorldGuardRegion region = WorldGuardRegionResolver.resolve(server, deleted.worldId(), regionId);
+            if (region == null) {
+                logger.warning("Subregion " + regionId + " was deleted, but its world " + deleted.worldId()
+                        + " or its WorldGuard region could not be found, so nothing was removed.");
+                return null;
+            }
+            worldGuardRegionRemoval.remove(region).ifPresent(saveError -> logger.warning("Subregion " + regionId
+                    + " was deleted, but WorldGuard could not save its removal: " + saveError));
+            events.fireSync(new ScheduledSubregionDeletedEvent(region, deleted.landlord()));
+            return null;
+        })).exceptionally(ex -> {
+            // The scheduler does not wait for this, so a failure is logged here or not at all.
+            logger.log(Level.SEVERE, "Could not remove swept subregion " + regionId, ex);
+            return null;
         });
     }
 

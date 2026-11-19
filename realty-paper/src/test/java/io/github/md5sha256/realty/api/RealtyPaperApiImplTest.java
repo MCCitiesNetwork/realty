@@ -44,6 +44,7 @@ import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import io.github.md5sha256.realty.api.event.RegionRedefineEvent;
 import io.github.md5sha256.realty.api.event.RegionRedefinedEvent;
 import io.github.md5sha256.realty.api.event.RegionRenamedEvent;
+import io.github.md5sha256.realty.api.event.ScheduledSubregionDeletedEvent;
 import io.github.md5sha256.realty.api.event.RegionRenameEvent;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
@@ -3962,6 +3963,8 @@ class RealtyPaperApiImplTest {
 
         @BeforeEach
         void regionInARealManager() {
+            // Operations that look the region up by id find the world through the server.
+            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
             regionManager = TestRegionManagers.inMemory();
             regionManager.addRegion(protectedRegion);
             lenient().when(regionContainer.get(any())).thenReturn(regionManager);
@@ -4116,7 +4119,6 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("an auction started while the region is redefined shows on the region WorldGuard has")
         void anAuctionShowsOnTheCurrentRegion() {
-            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
             ProtectedCuboidRegion[] replacement = new ProtectedCuboidRegion[1];
             when(realtyApi.createAuction(eq(REGION_ID), eq(WORLD_ID), any(), anyLong(), anyLong(), anyDouble(),
                     anyDouble())).thenAnswer(invocation -> {
@@ -4183,6 +4185,33 @@ class RealtyPaperApiImplTest {
             gate.complete("done");
 
             Assertions.assertInstanceOf(RealtyBackend.WithdrawOfferResult.NoOffer.class, withdrawn.join());
+        }
+
+        @Test
+        @DisplayName("the sweep removes a subregion only when its turn on the region comes")
+        void theSweepWaitsItsTurn() {
+            CompletableFuture<Void> swept = api.removeSweptSubregion(
+                    new RealtyBackend.DeletedLeasehold(REGION_ID, WORLD_ID, LANDLORD));
+            Assertions.assertTrue(regionManager.hasRegion(REGION_ID));
+
+            gate.complete("done");
+            swept.join();
+
+            Assertions.assertFalse(regionManager.hasRegion(REGION_ID));
+            verify(events).fireSync(any(ScheduledSubregionDeletedEvent.class));
+        }
+
+        @Test
+        @DisplayName("the sweep skips a subregion WorldGuard no longer has")
+        void theSweepSkipsARegionAlreadyGone() {
+            CompletableFuture<Void> swept = api.removeSweptSubregion(
+                    new RealtyBackend.DeletedLeasehold(REGION_ID, WORLD_ID, LANDLORD));
+            regionManager.removeRegion(REGION_ID);
+
+            gate.complete("done");
+            swept.join();
+
+            verify(events, never()).fireSync(any(ScheduledSubregionDeletedEvent.class));
         }
 
         @Test

@@ -37,7 +37,6 @@ import io.github.md5sha256.realty.api.event.AuctionPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.OfferPaymentExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
 import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
-import io.github.md5sha256.realty.api.event.ScheduledSubregionDeletedEvent;
 import io.github.md5sha256.realty.api.event.RealtyNotificationEvent;
 import io.github.md5sha256.realty.command.AddCommand;
 import io.github.md5sha256.realty.command.AgentInviteAcceptCommand;
@@ -224,7 +223,6 @@ public final class Realty extends JavaPlugin {
     private Database database;
     private SignTextApplicator signTextApplicator;
     private RealtyPaperApiImpl paperApi;
-    private WorldGuardRegionRemoval worldGuardRegionRemoval;
     private RealtyEventDispatch eventDispatch;
     private ModuleLifecycleManager<Realty> moduleManager;
     private boolean failedLoad = false;
@@ -411,7 +409,7 @@ public final class Realty extends JavaPlugin {
         this.settlement = new SaleSettlement(economyProvider, this.logic, this.holdingAccount, this.eventDispatch,
                 getLogger());
         RegionContainer regionContainer = WorldGuard.getInstance().getPlatform().getRegionContainer();
-        this.worldGuardRegionRemoval = new WorldGuardRegionRemoval(
+        WorldGuardRegionRemoval worldGuardRegionRemoval = new WorldGuardRegionRemoval(
                 regionContainer, this.regionProfileService, getLogger());
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
@@ -421,7 +419,7 @@ public final class Realty extends JavaPlugin {
                 this.playerNameService,
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
                 this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement,
-                this.worldGuardRegionRemoval,
+                worldGuardRegionRemoval,
                 regionContainer,
                 new WorldGuardRegionRename(regionContainer, getLogger()),
                 new WorldGuardRegionRedefine(regionContainer, getLogger()),
@@ -735,28 +733,10 @@ public final class Realty extends JavaPlugin {
             // After the terminations above: a subregion marked for deletion goes once its lease has ended.
             List<RealtyBackend.DeletedLeasehold> deletedSubregions = this.logic.deleteMarkedVacantLeaseholds();
             if (!deletedSubregions.isEmpty()) {
-                scheduler.runTask(this, () -> {
-                    for (RealtyBackend.DeletedLeasehold deleted : deletedSubregions) {
-                        removeSweptSubregion(deleted);
-                    }
-                });
+                // Each removal waits its turn on its region, so it is ordered against a redefine.
+                deletedSubregions.forEach(this.paperApi::removeSweptSubregion);
             }
         }, intervalTicks, intervalTicks);
-    }
-
-    /** Removes the WorldGuard region of a subregion the sweep deleted, and tells its landlord. Main thread. */
-    private void removeSweptSubregion(@NotNull RealtyBackend.DeletedLeasehold deleted) {
-        WorldGuardRegion wgRegion = WorldGuardRegionResolver.resolve(getServer(), deleted.worldId(),
-                deleted.worldGuardRegionId());
-        if (wgRegion == null) {
-            getLogger().warning("Subregion " + deleted.worldGuardRegionId() + " was deleted, but its world "
-                    + deleted.worldId() + " or its WorldGuard region could not be found, so nothing was removed.");
-            return;
-        }
-        this.worldGuardRegionRemoval.remove(wgRegion).ifPresent(saveError -> getLogger().warning(
-                "Subregion " + deleted.worldGuardRegionId()
-                        + " was deleted, but WorldGuard could not save its removal: " + saveError));
-        this.eventDispatch.fireSync(new ScheduledSubregionDeletedEvent(wgRegion, deleted.landlord()));
     }
 
     private void initDataFolder() throws IOException {
