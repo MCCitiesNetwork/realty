@@ -43,4 +43,42 @@ class RealtySchematicBackendTest extends AbstractDatabaseTest {
         Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{2, 2}));
         Assertions.assertArrayEquals(new byte[]{2, 2}, logic.getSchematic("plot_b", WORLD_ID));
     }
+
+    @Test
+    void deleteRemovesTheCapture() {
+        register("plot_b", WORLD_ID);
+        Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{1}));
+
+        Assertions.assertTrue(logic.deleteSchematic("plot_b", WORLD_ID));
+        Assertions.assertNull(logic.getSchematic("plot_b", WORLD_ID));
+    }
+
+    @Test
+    void deleteReportsFalseWhenNothingWasCaptured() {
+        register("plot_b", WORLD_ID);
+        Assertions.assertFalse(logic.deleteSchematic("plot_b", WORLD_ID));
+    }
+
+    @Test
+    void deleteReportsFalseForAnUnregisteredRegion() {
+        Assertions.assertFalse(logic.deleteSchematic("nope", WORLD_ID));
+    }
+
+    @Test
+    void deleteLeavesTheSameNameInAnotherWorld() {
+        UUID otherWorld = UUID.fromString("8f4d1c2e-0000-0000-0000-0000000000ee");
+        register("plot_b", WORLD_ID);
+        register("plot_b", otherWorld);
+        Assertions.assertTrue(logic.storeSchematic("plot_b", WORLD_ID, new byte[]{1}));
+        Assertions.assertTrue(logic.storeSchematic("plot_b", otherWorld, new byte[]{7}));
+
+        Assertions.assertTrue(logic.deleteSchematic("plot_b", WORLD_ID));
+        Assertions.assertArrayEquals(new byte[]{7}, logic.getSchematic("plot_b", otherWorld));
+    }
+
+    private void register(String regionId, UUID worldId) {
+        try (SqlSessionWrapper session = database.openSession(true)) {
+            session.realtyRegionMapper().registerWorldGuardRegion(regionId, worldId);
+        }
+    }
 }

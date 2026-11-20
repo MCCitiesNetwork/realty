@@ -9,6 +9,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.api.CurrencyFormatter;
 import io.github.md5sha256.realty.auth.ActorContexts;
 import io.github.md5sha256.realty.api.ExecutorState;
@@ -22,6 +23,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.PlayerNameService;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegionRemoval;
+import io.github.md5sha256.realty.api.WorldGuardRegionRedefine;
 import io.github.md5sha256.realty.api.WorldGuardRegionRename;
 import io.github.md5sha256.realty.api.RealtyPaperApiImpl;
 import io.github.md5sha256.realty.api.RegionProfileService;
@@ -62,6 +64,8 @@ import io.github.md5sha256.realty.command.RegisterCommand;
 import io.github.md5sha256.realty.command.ModuleCommandGroup;
 import io.github.md5sha256.realty.command.ReloadCommand;
 import io.github.md5sha256.realty.command.RemoveCommand;
+import io.github.md5sha256.realty.command.RedefineCommand;
+import io.github.md5sha256.realty.command.RedefineReplies;
 import io.github.md5sha256.realty.command.RenameCommand;
 import io.github.md5sha256.realty.command.RentCommand;
 import io.github.md5sha256.realty.command.RentableCommand;
@@ -406,17 +410,21 @@ public final class Realty extends JavaPlugin {
                 task -> getServer().getScheduler().runTaskAsynchronously(this, task));
         this.settlement = new SaleSettlement(economyProvider, this.logic, this.holdingAccount, this.eventDispatch,
                 getLogger());
+        RegionContainer regionContainer = WorldGuard.getInstance().getPlatform().getRegionContainer();
         this.worldGuardRegionRemoval = new WorldGuardRegionRemoval(
-                WorldGuard.getInstance().getPlatform().getRegionContainer(), this.regionProfileService, getLogger());
+                regionContainer, this.regionProfileService, getLogger());
         this.paperApi = new RealtyPaperApiImpl(
                 getServer(), this.logic, economyProvider, this.executorState, this.database,
                 this.regionProfileService, this.signTextApplicator, this.signCache,
-                () -> this.settings.get().terminationNoticeSeconds(), safeLocationFinder,
+                () -> this.settings.get().terminationNoticeSeconds(),
+                () -> this.settings.get().subregionMinVolume(), safeLocationFinder,
                 this.playerNameService,
                 new TreasuryAccountNameService(this.treasury, this.executorState.dbExec()),
                 this.actorContexts, this.eventDispatch, this.holdingAccount, this.settlement,
                 this.worldGuardRegionRemoval,
-                new WorldGuardRegionRename(WorldGuard.getInstance().getPlatform().getRegionContainer(), getLogger()),
+                regionContainer,
+                new WorldGuardRegionRename(regionContainer, getLogger()),
+                new WorldGuardRegionRedefine(regionContainer, getLogger()),
                 this.captureRegistry, this.captureCooldown, getLogger());
         reportStuckSalePayments();
         this.moduleManager = new ModuleLifecycleManager<>(this,
@@ -1161,9 +1169,10 @@ public final class Realty extends JavaPlugin {
 
         SubregionWand subregionWand = new SubregionWand(this, this.settings);
         SubregionWandManager subregionWandManager = new SubregionWandManager();
+        RedefineReplies redefineReplies = new RedefineReplies(messageContainer, this.eventDispatch);
         SubregionDialog subregionDialog = new SubregionDialog(paperApi, executorState,
                 this.database, subregionWandManager, this.settings, this.realtyTags,
-                messageContainer);
+                messageContainer, this.actorContexts, redefineReplies);
         PluginManager pluginManager = getServer().getPluginManager();
         pluginManager.registerEvents(
                 new SubregionWandListener(this, subregionWand, subregionWandManager,
@@ -1203,6 +1212,8 @@ public final class Realty extends JavaPlugin {
                 new DeleteCommand(paperApi, messageContainer, this.eventDispatch),
                 new RenameCommand(paperApi, this.actorContexts, executorState, messageContainer,
                         this.eventDispatch),
+                new RedefineCommand(paperApi, this.actorContexts, executorState, messageContainer,
+                        redefineReplies),
                 new GroupCommandGroup(paperApi, this.partyResolver,
                         PartyFlags.groupSuggestions(this.logic, executorState.dbExec()),
                         PartyFlags.accountSuggestions(this.treasury, executorState.dbExec()),

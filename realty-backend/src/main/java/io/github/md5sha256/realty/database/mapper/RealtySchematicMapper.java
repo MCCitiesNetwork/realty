@@ -32,4 +32,10 @@ public interface RealtySchematicMapper {
     @Nullable RealtySchematicEntity selectByWorldGuardRegion(@NotNull String worldGuardRegionId,
                                                             @NotNull UUID worldId);
 
+    /**
+     * Deletes the region's schematic.
+     *
+     * @return rows deleted; {@code 0} when the region has none or is not registered
+     */
+    int deleteByWorldGuardRegion(@NotNull String worldGuardRegionId, @NotNull UUID worldId);
 }

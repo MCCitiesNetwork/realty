@@ -89,6 +89,9 @@ permissions:
   realty.command.rename.others:
     description: Allows renaming any other registered region
     default: op
+  realty.command.redefine:
+    description: Allows redefining any registered region with a WorldEdit selection
+    default: op
   realty.command.create.leasehold:
     description: Allows using /realty create leasehold
     default: op
@@ -298,6 +301,12 @@ permissions:
     default: op
   realty.command.subregion.delete.others:
     description: Allows deleting a subregion whose landlord you do not manage
+    default: op
+  realty.command.subregion.redefine:
+    description: Allows redefining a vacant subregion whose landlord you manage, with the wand
+    default: op
+  realty.command.subregion.redefine.others:
+    description: Allows redefining any subregion with the wand, rented or not
     default: op
   realty.command.tp:
     description: Allows using /realty tp

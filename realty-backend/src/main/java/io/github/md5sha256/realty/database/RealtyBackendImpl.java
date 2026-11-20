@@ -4366,4 +4366,14 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
     }
 
+    @Override
+    public boolean deleteSchematic(@NotNull String worldGuardRegionId, @NotNull UUID worldId) {
+        try (SqlSessionWrapper wrapper = database.openSession();
+             SqlSession session = wrapper.session()) {
+            int rows = wrapper.realtySchematicMapper().deleteByWorldGuardRegion(worldGuardRegionId, worldId);
+            session.commit();
+            return rows > 0;
+        }
+    }
+
 }

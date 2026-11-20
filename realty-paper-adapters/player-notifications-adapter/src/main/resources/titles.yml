@@ -76,3 +76,4 @@ titles:
   notification.sale-proceeds-no-fees: Sale proceeds, no fees
   notification.sale-payout:           Sale fee paid
   notification.fee-awaiting-approval: Fee awaiting approval
+  notification.region-redefined:      Region redefined

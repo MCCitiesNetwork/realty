@@ -460,6 +460,50 @@ rename:
         WorldGuard could not save it and will try again on its next save: <error></red>'
     # <error>
     error: '<prefix> <red>Failed to rename the region: <error></red>'
+redefine:
+    # <region> <old-volume> <new-volume>
+    success: <prefix> Redefined <yellow><region></yellow> from <yellow><old-volume></yellow> to
+        <yellow><new-volume></yellow> blocks.
+    # <region>
+    capture-removed: <prefix> <gray>The captured preview of <yellow><region></yellow> showed the
+        old shape and was removed. Capture it again to show a new one.</gray>
+    # <region> <error>
+    worldguard-save-error: '<prefix> <red>The region <yellow><region></yellow> is redefined, but
+        WorldGuard could not save it and will try again on its next save: <error></red>'
+    no-selection: <prefix> <red>Make a WorldEdit selection in this world first.</red>
+    unsupported-selection: <prefix> <red>The selection must be a cuboid or a polygon.</red>
+    # <region>
+    wrong-world: <prefix> <red>The selection is not in the world of <yellow><region></yellow>.</red>
+    # <region>
+    same-shape: <prefix> <red>The selection is the shape <yellow><region></yellow> already has.</red>
+    # <volume> <min-volume>
+    too-small: <prefix> <red>The new shape is too small (<volume> blocks).</red> Minimum volume
+        is <green><min-volume> blocks.</green>
+    # <region> <parent>
+    outside-parent: <prefix> <red>The new shape of <yellow><region></yellow> leaves its parent
+        region <yellow><parent></yellow>. Keep it fully inside.</red>
+    # <region> <sibling>
+    overlaps-sibling: <prefix> <red>The new shape of <yellow><region></yellow> overlaps subregion
+        <yellow><sibling></yellow>.</red>
+    # <region> <child>
+    child-outside: <prefix> <red>The new shape of <yellow><region></yellow> leaves its subregion
+        <yellow><child></yellow> outside.</red>
+    # <region>
+    not-registered: <prefix> <red>Region <yellow><region></yellow> is not registered in Realty.</red>
+    # <region>
+    not-authorized: <prefix> <red>You can only redefine a subregion whose landlord you manage.
+        <yellow><region></yellow> is not one.</red>
+    # <region>
+    occupied: <prefix> <red><yellow><region></yellow> is rented. It can be redefined once it has
+        no tenant.</red>
+    # <region>
+    unsupported-region: <prefix> <red>Region <yellow><region></yellow> is neither a cuboid nor a
+        polygon, so it cannot be redefined.</red>
+    # <region>
+    capture-running: <prefix> <red>A schematic of <yellow><region></yellow> is being captured.
+        Try again when it has finished.</red>
+    # <error>
+    error: '<prefix> <red>Failed to redefine the region: <error></red>'
 rentable:
     enabled: <prefix> Region <yellow><region></yellow> is <green>now accepting new
         tenants</green>.
@@ -631,6 +675,9 @@ notification:
         deleted now that its lease has ended.
     region-renamed: <prefix> <gray></gray> <yellow><old></yellow>, which you rent, was renamed
         to <yellow><region></yellow>.
+    # <region>
+    region-redefined: <prefix> <gray></gray> The shape of <yellow><region></yellow> was changed.
+        Check its new edges.
     termination-scheduled-landlord: <prefix> <gray></gray> The tenant of <yellow><region></yellow>
         scheduled termination, effective <yellow><date></yellow>.
     termination-cancelled: <prefix> <gray></gray> The scheduled termination of <yellow><region></yellow>

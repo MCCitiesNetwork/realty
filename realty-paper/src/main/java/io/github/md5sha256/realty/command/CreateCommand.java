@@ -1,17 +1,10 @@
 package io.github.md5sha256.realty.command;
 
-import com.sk89q.worldedit.IncompleteRegionException;
-import com.sk89q.worldedit.LocalSession;
-import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.regions.CuboidRegion;
-import com.sk89q.worldedit.regions.Polygonal2DRegion;
 import com.sk89q.worldedit.regions.Region;
-import com.sk89q.worldedit.session.SessionManager;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
-import com.sk89q.worldguard.protection.regions.ProtectedPolygonalRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.github.md5sha256.realty.api.ExecutorState;
@@ -25,6 +18,8 @@ import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
 import io.github.md5sha256.realty.command.util.PartyResolver;
+import io.github.md5sha256.realty.command.util.SubregionSelectionValidator;
+import io.github.md5sha256.realty.command.util.WorldEditSelections;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
@@ -48,7 +43,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -156,7 +150,7 @@ public record CreateCommand(@NotNull Server server,
                     Placeholder.unparsed("region", name)));
             return;
         }
-        Region selection = getSelection(player);
+        Region selection = WorldEditSelections.of(player);
         if (selection == null) {
             player.sendMessage(messages.messageFor(MessageKeys.CREATE_INCOMPLETE_SELECTION));
             return;
@@ -237,7 +231,7 @@ public record CreateCommand(@NotNull Server server,
                     Placeholder.unparsed("region", name)));
             return;
         }
-        Region selection = getSelection(player);
+        Region selection = WorldEditSelections.of(player);
         if (selection == null) {
             player.sendMessage(messages.messageFor(MessageKeys.CREATE_INCOMPLETE_SELECTION));
             return;
@@ -286,30 +280,11 @@ public record CreateCommand(@NotNull Server server,
         return regionContainer.get(BukkitAdapter.adapt(world));
     }
 
-    private static Region getSelection(@NotNull Player player) {
-        SessionManager sessionManager = WorldEdit.getInstance().getSessionManager();
-        LocalSession localSession = sessionManager.get(BukkitAdapter.adapt(player));
-        if (!Objects.equals(localSession.getSelectionWorld(), BukkitAdapter.adapt(player.getWorld()))) {
-            return null;
-        }
-        try {
-            return localSession.getSelection().clone();
-        } catch (IncompleteRegionException ex) {
-            return null;
-        }
-    }
-
+    /** The selection's shape, or for a shape Realty does not create, its bounding box. */
     private static @NotNull ProtectedRegion createProtectedRegion(@NotNull String name,
                                                                     @NotNull Region selection) {
-        if (selection instanceof CuboidRegion cuboid) {
-            return new ProtectedCuboidRegion(name,
-                    cuboid.getMinimumPoint(), cuboid.getMaximumPoint());
-        } else if (selection instanceof Polygonal2DRegion polygon) {
-            return new ProtectedPolygonalRegion(name,
-                    polygon.getPoints(), polygon.getMinimumY(), polygon.getMaximumY());
-        }
-        return new ProtectedCuboidRegion(name,
-                selection.getMinimumPoint(), selection.getMaximumPoint());
+        return SubregionSelectionValidator.toProtectedRegion(name, selection).orElseGet(() ->
+                new ProtectedCuboidRegion(name, selection.getMinimumPoint(), selection.getMaximumPoint()));
     }
 
 }

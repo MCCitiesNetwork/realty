@@ -558,6 +558,73 @@ public interface RealtyPaperApi {
                                                                 @NotNull String newName,
                                                                 @NotNull ActorContext ctx);
 
+    // --- Redefine ---
+
+    sealed interface RedefineRegionResult {
+        /**
+         * @param region         the region with its new shape; the WorldGuard region with the old
+         *                       shape is no longer in WorldGuard
+         * @param oldVolume      the blocks the old shape held
+         * @param newVolume      the blocks the new shape holds
+         * @param occupantId     the tenant of a leasehold, or else the title holder of a freehold
+         * @param captureRemoved whether a captured schematic of the region was deleted
+         */
+        record Redefined(@NotNull WorldGuardRegion region, long oldVolume, long newVolume,
+                         @NotNull Optional<UUID> occupantId, boolean captureRemoved) implements RedefineRegionResult {}
+        /** Redefined, but WorldGuard could not save. It holds the change and writes it on its next save. */
+        record WorldGuardSaveError(@NotNull Redefined redefined, @NotNull String error)
+                implements RedefineRegionResult {}
+        /** The selection is neither a cuboid nor a polygon. */
+        record UnsupportedSelection() implements RedefineRegionResult {}
+        /** The selection is in another world than the region. */
+        record WrongWorld() implements RedefineRegionResult {}
+        /** The selection has the region's current shape. */
+        record SameShape() implements RedefineRegionResult {}
+        /** A subregion's new shape has fewer blocks than the configured minimum. */
+        record TooSmall(long volume, int minVolume) implements RedefineRegionResult {}
+        /** A subregion's new shape leaves its parent freehold. */
+        record OutsideParent(@NotNull String parentId) implements RedefineRegionResult {}
+        /** A subregion's new shape overlaps another subregion of the same parent. */
+        record OverlapsSibling(@NotNull String siblingId) implements RedefineRegionResult {}
+        /** The new shape leaves a child region of the region outside. */
+        record ChildOutside(@NotNull String childId) implements RedefineRegionResult {}
+        /** The region is not registered with Realty. */
+        record NotRegistered() implements RedefineRegionResult {}
+        record NotAuthorized() implements RedefineRegionResult {}
+        /** Without a bypass, a rented subregion cannot be redefined. */
+        record Occupied() implements RedefineRegionResult {}
+        /** A listener cancelled the {@code RegionRedefineEvent}. */
+        record Cancelled() implements RedefineRegionResult {}
+        /** The WorldGuard region is neither a cuboid nor a polygon. */
+        record UnsupportedRegion() implements RedefineRegionResult {}
+        /** A schematic capture of the region is running. */
+        record CaptureRunning() implements RedefineRegionResult {}
+        record Error(@NotNull String message) implements RedefineRegionResult {}
+    }
+
+    /**
+     * Changes a registered region's shape to {@code selection} and keeps everything else: its id,
+     * contracts, history and tags, and the WorldGuard region's owners, members, flags, priority,
+     * parent and children. Without a bypass, the region must be a subregion (a leasehold whose
+     * WorldGuard parent is a registered freehold) whose landlord the actor manages, and it must
+     * have no tenant.
+     *
+     * <p>Whoever acts, the selection must be a cuboid or a polygon in the region's world (a
+     * selection that names another world is refused) and differ from the current shape. A
+     * subregion's new shape must lie inside its parent, overlap no sibling and keep the configured
+     * minimum volume. Every child region must lie inside the new shape. A region being captured is
+     * refused.</p>
+     *
+     * <p>Once every check has passed it fires a cancellable {@code RegionRedefineEvent}, swaps the
+     * shape in WorldGuard, deletes the region's captured schematic, and fires
+     * {@code RegionRedefinedEvent}. The actor of both is {@code ctx}'s player.</p>
+     *
+     * <p>Call it on the main thread.</p>
+     */
+    @NotNull CompletableFuture<RedefineRegionResult> redefineRegion(@NotNull WorldGuardRegion region,
+                                                                    @NotNull Region selection,
+                                                                    @NotNull ActorContext ctx);
+
     // --- Create/Register Freehold ---
 
     sealed interface CreateFreeholdResult {

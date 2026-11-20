@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.database.entity.RealtySchematicEntity;
 import io.github.md5sha256.realty.database.mapper.RealtySchematicMapper;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -56,5 +57,15 @@ public interface MariaRealtySchematicMapper extends RealtySchematicMapper {
     @Nullable RealtySchematicEntity selectByWorldGuardRegion(
             @Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
             @Param("worldId") @NotNull UUID worldId);
+
+    @Override
+    @Delete("""
+            DELETE s FROM RealtySchematic s
+            JOIN RealtyRegion r ON r.realtyRegionId = s.realtyRegionId
+            WHERE r.worldGuardRegionId = #{worldGuardRegionId}
+              AND r.worldId = #{worldId}
+            """)
+    int deleteByWorldGuardRegion(@Param("worldGuardRegionId") @NotNull String worldGuardRegionId,
+                                 @Param("worldId") @NotNull UUID worldId);
 
 }
