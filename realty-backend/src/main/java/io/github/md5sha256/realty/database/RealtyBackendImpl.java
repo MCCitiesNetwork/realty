@@ -2010,17 +2010,33 @@ public class RealtyBackendImpl implements RealtyBackend {
         }
         List<DeletedLeasehold> deleted = new ArrayList<>();
         for (MarkedVacantLeaseholdView lease : marked) {
-            try (SqlSessionWrapper wrapper = database.openSession()) {
-                // Guarded again, so a mark removed or a tenant arriving since the select is honoured.
-                if (wrapper.leaseholdContractMapper().deleteMarkedVacantById(lease.leaseholdContractId()) == 0) {
-                    continue;
-                }
-                wrapper.realtyRegionMapper().deleteByWorldGuardRegion(lease.worldGuardRegionId(), lease.worldId());
-                wrapper.session().commit();
-                deleted.add(new DeletedLeasehold(lease.worldGuardRegionId(), lease.worldId(), lease.landlord()));
-            }
+            deleteMarkedVacant(lease).ifPresent(deleted::add);
         }
         return deleted;
+    }
+
+    /**
+     * Deletes one marked lease read by the sweep, with its region; empty when it no longer qualifies
+     * or its region row is already gone.
+     * The region is found by its stable id and reported under the name it has now, so a rename
+     * since the sweep's read neither leaves the region row behind nor names the wrong region.
+     */
+    @NotNull Optional<DeletedLeasehold> deleteMarkedVacant(@NotNull MarkedVacantLeaseholdView lease) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            // Guarded again, so a mark removed or a tenant arriving since the select is honoured.
+            if (wrapper.leaseholdContractMapper().deleteMarkedVacantById(lease.leaseholdContractId()) == 0) {
+                return Optional.empty();
+            }
+            RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(lease.realtyRegionId());
+            if (region == null) {
+                // The region row is already gone, so there is nothing to remove.
+                wrapper.session().commit();
+                return Optional.empty();
+            }
+            wrapper.realtyRegionMapper().deleteByRealtyRegionId(lease.realtyRegionId());
+            wrapper.session().commit();
+            return Optional.of(new DeletedLeasehold(region.worldGuardRegionId(), lease.worldId(), lease.landlord()));
+        }
     }
 
     // --- Info ---
@@ -3531,10 +3547,18 @@ public class RealtyBackendImpl implements RealtyBackend {
                         null, null, null);
                 wrapper.session().commit();
                 results.add(new ExpiredLeasehold(lease.tenantId(), lease.landlord(),
-                        lease.worldGuardRegionId(), lease.worldId()));
+                        lease.worldGuardRegionId(), lease.worldId(), lease.realtyRegionId()));
             }
         }
         return results;
+    }
+
+    @Override
+    public @Nullable String getWorldGuardRegionId(int realtyRegionId) {
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            RealtyRegionEntity region = wrapper.realtyRegionMapper().selectById(realtyRegionId);
+            return region == null ? null : region.worldGuardRegionId();
+        }
     }
 
     // --- Terminated Leaseholds ---
@@ -3564,7 +3588,8 @@ public class RealtyBackendImpl implements RealtyBackend {
                         null, null, null);
                 wrapper.session().commit();
                 results.add(new TerminatedLeasehold(lease.tenantId(), lease.landlord(),
-                        lease.worldGuardRegionId(), lease.worldId(), refund, lease.terminatedByRole()));
+                        lease.worldGuardRegionId(), lease.worldId(), refund, lease.terminatedByRole(),
+                        lease.realtyRegionId()));
             }
         }
         return results;

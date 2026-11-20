@@ -10,6 +10,7 @@ public record MarkedVacantLeaseholdView(
         int leaseholdContractId,
         @NotNull Party landlord,
         @NotNull String worldGuardRegionId,
-        @NotNull UUID worldId
+        @NotNull UUID worldId,
+        int realtyRegionId
 ) {
 }

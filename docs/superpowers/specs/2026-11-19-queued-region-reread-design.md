@@ -123,11 +123,20 @@ In `RealtyPaperApiImplTest`, with a real in-memory region manager:
   `terminateHoldingQueue`, because the queue is not reentrant and `terminate` would wait on itself.
 - **`createAuction` is not queued.** It looks the region up again by id when it writes the flags,
   as `cancelAuction` and the id-based redraws do, so it writes to the region WorldGuard has.
-- **The scheduler writes outside the queue.** `Realty`'s lease expiry and scheduled termination
-  change owners and flags, and its sweep removes subregions marked for deletion, without taking
-  the region's queue. A sweep that removes a region while a redefine waits on its swap can have the
-  region put back with no Realty rows, as `deleteSubregion` could before it took the queue. Moving
-  the scheduler onto the queue is its own change.
+- **The scheduler.** Lease expiry and scheduled termination clear their rows in one database call,
+  then release each region through `RealtyPaperApiImpl.releaseExpiredLease` or
+  `releaseTerminatedLease`, which wait their turn on the region, redraw from the state stored then,
+  and pay a termination's refund before the event that reports it. The sweep of subregions marked
+  for deletion removes each one through `removeSweptSubregion` in the same way. Each ended lease
+  carries its region's stable id (`realtyRegionId`), and in its turn the release reads the region's
+  current name by that id (`RealtyBackend.getWorldGuardRegionId`). A rename that committed after the
+  rows were read moves the release to the new name, without waiting for it, because a rename takes
+  both names' queues and a release holding one while waiting on the other could deadlock against a
+  rename back. The sweep's database step deletes each marked region row by the same id and reports
+  the name the row has when it is deleted, so a rename between the sweep's read and its delete
+  neither leaves the row behind nor sends the WorldGuard removal to the wrong name. The added field
+  changes the constructors of the public `ExpiredLeasehold`, `TerminatedLeasehold` and
+  `TerminatedLeaseholdView` records, so the release notes must say so.
 - **Checks before queuing read the caller's object.** They read only the id, the world and, for
   redefine, the shape; the id and world cannot change, and a redefine that compares against a
   stale shape only risks refusing a no-op or letting one through.

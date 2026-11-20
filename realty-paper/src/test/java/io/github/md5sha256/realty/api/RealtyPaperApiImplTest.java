@@ -32,6 +32,8 @@ import io.github.md5sha256.realty.api.event.FeeChangeEvent;
 import io.github.md5sha256.realty.api.event.FeeChangedEvent;
 import io.github.md5sha256.realty.api.event.FeeRejectedEvent;
 import io.github.md5sha256.realty.api.event.FeeRemovedEvent;
+import io.github.md5sha256.realty.api.event.LeaseExpiredEvent;
+import io.github.md5sha256.realty.api.event.LeaseTerminatedEvent;
 import io.github.md5sha256.realty.api.event.LevyChangeEvent;
 import io.github.md5sha256.realty.api.event.LevyChangedEvent;
 import io.github.md5sha256.realty.api.event.OfferPurchaseCompletedEvent;
@@ -44,6 +46,7 @@ import io.github.md5sha256.realty.api.event.RealtyRegionEvent;
 import io.github.md5sha256.realty.api.event.RegionRedefineEvent;
 import io.github.md5sha256.realty.api.event.RegionRedefinedEvent;
 import io.github.md5sha256.realty.api.event.RegionRenamedEvent;
+import io.github.md5sha256.realty.api.event.ScheduledSubregionDeletedEvent;
 import io.github.md5sha256.realty.api.event.RegionRenameEvent;
 import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.database.entity.FreeholdContractAuctionEntity;
@@ -79,6 +82,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -91,6 +95,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -3956,16 +3963,22 @@ class RealtyPaperApiImplTest {
     @DisplayName("a queued operation's region")
     class QueuedRegion {
 
+        /** The stable id of the region under {@code REGION_ID}. */
+        private static final int REALTY_REGION_ID = 7;
         private RegionManager regionManager;
         /** Holds the region's queue until completed. */
         private CompletableFuture<String> gate;
 
         @BeforeEach
         void regionInARealManager() {
+            // Operations that look the region up by id find the world through the server.
+            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
             regionManager = TestRegionManagers.inMemory();
             regionManager.addRegion(protectedRegion);
             lenient().when(regionContainer.get(any())).thenReturn(regionManager);
             lenient().when(events.fireSync(any(RealtyRegionEvent.class))).thenReturn(true);
+            // The region keeps its name unless a test renames it.
+            lenient().when(realtyApi.getWorldGuardRegionId(REALTY_REGION_ID)).thenReturn(REGION_ID);
             gate = new CompletableFuture<>();
             api.serializeByRegion(REGION_ID, WORLD_ID, () -> gate);
         }
@@ -4116,7 +4129,6 @@ class RealtyPaperApiImplTest {
         @Test
         @DisplayName("an auction started while the region is redefined shows on the region WorldGuard has")
         void anAuctionShowsOnTheCurrentRegion() {
-            lenient().when(server.getWorld(WORLD_ID)).thenReturn(world);
             ProtectedCuboidRegion[] replacement = new ProtectedCuboidRegion[1];
             when(realtyApi.createAuction(eq(REGION_ID), eq(WORLD_ID), any(), anyLong(), anyLong(), anyDouble(),
                     anyDouble())).thenAnswer(invocation -> {
@@ -4183,6 +4195,231 @@ class RealtyPaperApiImplTest {
             gate.complete("done");
 
             Assertions.assertInstanceOf(RealtyBackend.WithdrawOfferResult.NoOffer.class, withdrawn.join());
+        }
+
+        @Test
+        @DisplayName("the sweep removes a subregion only when its turn on the region comes")
+        void theSweepWaitsItsTurn() {
+            CompletableFuture<Void> swept = api.removeSweptSubregion(
+                    new RealtyBackend.DeletedLeasehold(REGION_ID, WORLD_ID, LANDLORD));
+            Assertions.assertTrue(regionManager.hasRegion(REGION_ID));
+
+            gate.complete("done");
+            swept.join();
+
+            Assertions.assertFalse(regionManager.hasRegion(REGION_ID));
+            verify(events).fireSync(any(ScheduledSubregionDeletedEvent.class));
+        }
+
+        @Test
+        @DisplayName("the sweep skips a subregion WorldGuard no longer has")
+        void theSweepSkipsARegionAlreadyGone() {
+            CompletableFuture<Void> swept = api.removeSweptSubregion(
+                    new RealtyBackend.DeletedLeasehold(REGION_ID, WORLD_ID, LANDLORD));
+            regionManager.removeRegion(REGION_ID);
+
+            gate.complete("done");
+            swept.join();
+
+            verify(events, never()).fireSync(any(ScheduledSubregionDeletedEvent.class));
+        }
+
+        /** A lease of the region the scheduler terminated, with a refund of 50 to the tenant. */
+        private RealtyBackend.TerminatedLeasehold terminated() {
+            return new RealtyBackend.TerminatedLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, 50.0, "landlord",
+                    REALTY_REGION_ID);
+        }
+
+        /** The backend reads the region back for lease once the lease has ended. */
+        private void storedForLease() {
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenReturn(new RealtyBackend.RegionWithState(
+                    new RealtyRegionEntity(1, REGION_ID, WORLD_ID), RegionState.FOR_LEASE, Map.of()));
+        }
+
+        @Test
+        @DisplayName("an expired lease releases the region WorldGuard has, in its turn on the region")
+        void anExpiredLeaseReleasesTheCurrentRegionInItsTurn() {
+            storedForLease();
+            CompletableFuture<Void> released = api.releaseExpiredLease(
+                    new RealtyBackend.ExpiredLeasehold(TENANT_ID, LANDLORD, REGION_ID, WORLD_ID, REALTY_REGION_ID));
+            ProtectedCuboidRegion replacement = replaceRegion(40);
+            replacement.getOwners().addPlayer(TENANT_ID);
+            verify(events, never()).fireSync(any(LeaseExpiredEvent.class));
+
+            gate.complete("done");
+            released.join();
+
+            Assertions.assertFalse(replacement.getOwners().contains(TENANT_ID));
+            var order = inOrder(regionProfileService, events);
+            order.verify(regionProfileService).applyFlags(argThat(region -> region.region() == replacement),
+                    eq(RegionState.FOR_LEASE), any());
+            order.verify(events).fireSync(any(LeaseExpiredEvent.class));
+        }
+
+        @Test
+        @DisplayName("a terminated lease pays its refund before the event that reports it")
+        void aTerminationRefundsBeforeItsEvent() {
+            storedForLease();
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
+
+            gate.complete("done");
+            released.join();
+
+            var order = inOrder(economyProvider, events);
+            order.verify(economyProvider).transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull());
+            order.verify(events).fireSync(any(LeaseTerminatedEvent.class));
+        }
+
+        @Test
+        @DisplayName("a failed read of the stored state still releases the lease, refunds and reports it")
+        void aFailedStateReadStillReleases() {
+            when(realtyApi.getRegionWithState(REGION_ID, WORLD_ID)).thenThrow(new IllegalStateException("db down"));
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            protectedRegion.getOwners().addPlayer(TENANT_ID);
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
+
+            gate.complete("done");
+            released.join();
+
+            verify(economyProvider).transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull());
+            Assertions.assertFalse(protectedRegion.getOwners().contains(TENANT_ID));
+            verify(events).fireSync(any(LeaseTerminatedEvent.class));
+        }
+
+        @Test
+        @DisplayName("a lease whose region was renamed before its release releases the region under its new name")
+        void aLeaseFollowsARenameToItsRegion() {
+            ProtectedCuboidRegion renamed = new ProtectedCuboidRegion("renamed-plot",
+                    BlockVector3.at(0, 0, 0), BlockVector3.at(100, 100, 100));
+            renamed.getOwners().addPlayer(TENANT_ID);
+            regionManager.removeRegion(REGION_ID);
+            regionManager.addRegion(renamed);
+            when(realtyApi.getWorldGuardRegionId(REALTY_REGION_ID)).thenReturn("renamed-plot");
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
+
+            gate.complete("done");
+            released.join();
+
+            Assertions.assertFalse(renamed.getOwners().contains(TENANT_ID));
+            // Paid once, by the release that found the region, not by the one that moved it on, and
+            // under the region's current name.
+            verify(economyProvider, times(1)).transfer(eq(LANDLORD), eq(TENANT), eq(50.0),
+                    eq("Lease Termination Refund: renamed-plot"), isNull());
+            verify(events, times(1)).fireSync(any(LeaseTerminatedEvent.class));
+        }
+
+        @Test
+        @DisplayName("a failed read of the region's current name only refunds, and logs the owner to remove by hand")
+        void aFailedNameLookupOnlyRefunds() {
+            // The region may have been renamed and another one given its old name, so the release
+            // must not touch the region under that name.
+            when(realtyApi.getWorldGuardRegionId(REALTY_REGION_ID)).thenThrow(new IllegalStateException("db down"));
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            protectedRegion.getOwners().addPlayer(TENANT_ID);
+
+            List<String> logged = loggedWhile(() -> api.releaseTerminatedLease(terminated()));
+
+            verify(economyProvider).transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID));
+            verify(events, never()).fireSync(any(LeaseTerminatedEvent.class));
+            Assertions.assertTrue(logged.stream().anyMatch(message -> message.contains(REGION_ID)
+                    && message.contains(String.valueOf(REALTY_REGION_ID))
+                    && message.contains(TENANT_ID.toString())), "logged: " + logged);
+        }
+
+        @Test
+        @DisplayName("a terminated lease whose region row is gone only pays its refund")
+        void aTerminationOfADeletedRegionOnlyRefunds() {
+            // An admin deleted the region and made another one with its WorldGuard name.
+            when(realtyApi.getWorldGuardRegionId(REALTY_REGION_ID)).thenReturn(null);
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            protectedRegion.getOwners().addPlayer(TENANT_ID);
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
+
+            gate.complete("done");
+            released.join();
+
+            verify(economyProvider).transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull());
+            Assertions.assertTrue(protectedRegion.getOwners().contains(TENANT_ID));
+            verify(events, never()).fireSync(any(LeaseTerminatedEvent.class));
+        }
+
+        /** The messages {@code LOG} gets while {@code release} runs and completes. */
+        private List<String> loggedWhile(Supplier<CompletableFuture<Void>> release) {
+            List<String> logged = new ArrayList<>();
+            Handler handler = new Handler() {
+                @Override
+                public void publish(LogRecord record) {
+                    logged.add(record.getMessage());
+                }
+
+                @Override
+                public void flush() {
+                }
+
+                @Override
+                public void close() {
+                }
+            };
+            LOG.addHandler(handler);
+            try {
+                CompletableFuture<Void> released = release.get();
+                gate.complete("done");
+                released.join();
+            } finally {
+                LOG.removeHandler(handler);
+            }
+            return logged;
+        }
+
+        @Test
+        @DisplayName("a refund transfer that throws logs the refund an admin has to pay by hand")
+        void aThrowingRefundLogsTheRefund() {
+            storedForLease();
+            when(economyProvider.transfer(any(), any(), anyDouble(), any(), any()))
+                    .thenThrow(new IllegalStateException("economy down"));
+
+            List<String> logged = loggedWhile(() -> api.releaseTerminatedLease(terminated()));
+
+            Assertions.assertTrue(logged.stream().anyMatch(message -> message.contains(TENANT_ID.toString())
+                    && message.contains(CurrencyFormatter.format(50.0))), "logged: " + logged);
+        }
+
+        @Test
+        @DisplayName("a release that fails after paying the refund does not report it unpaid")
+        void aReleaseFailingAfterTheRefundDoesNotReportItUnpaid() {
+            storedForLease();
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            when(events.fireSync(any(LeaseTerminatedEvent.class))).thenThrow(new IllegalStateException("listener"));
+
+            List<String> logged = loggedWhile(() -> api.releaseTerminatedLease(terminated()));
+
+            Assertions.assertTrue(logged.stream().noneMatch(message -> message.contains("not paid")),
+                    "logged: " + logged);
+        }
+
+        @Test
+        @DisplayName("a terminated lease whose region WorldGuard no longer has still pays its refund")
+        void aTerminationOfAGoneRegionStillRefunds() {
+            when(economyProvider.transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull()))
+                    .thenReturn(new PaymentResult.Success());
+            CompletableFuture<Void> released = api.releaseTerminatedLease(terminated());
+            regionManager.removeRegion(REGION_ID);
+
+            gate.complete("done");
+            released.join();
+
+            verify(economyProvider).transfer(eq(LANDLORD), eq(TENANT), eq(50.0), any(), isNull());
+            verify(events, never()).fireSync(any(LeaseTerminatedEvent.class));
+            verify(regionProfileService, never()).applyFlags(any(), any(), any());
         }
 
         @Test

@@ -7,8 +7,10 @@ import io.github.md5sha256.realty.api.RealtyBackend.CancelTerminationResult;
 import io.github.md5sha256.realty.api.RealtyBackend.DeleteLeaseholdResult;
 import io.github.md5sha256.realty.api.RealtyBackend.DeletedLeasehold;
 import io.github.md5sha256.realty.api.RealtyBackend.MarkDeletionResult;
+import io.github.md5sha256.realty.api.RealtyBackend.RenameRegionResult;
 import io.github.md5sha256.realty.api.RealtyBackend.UnmarkDeletionResult;
 import io.github.md5sha256.realty.database.entity.LeaseholdContractEntity;
+import io.github.md5sha256.realty.database.entity.MarkedVacantLeaseholdView;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +20,7 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -215,6 +218,30 @@ class SubregionDeleteTest extends AbstractDatabaseTest {
         List<DeletedLeasehold> deleted = logic.deleteMarkedVacantLeaseholds();
         Assertions.assertTrue(deleted.contains(new DeletedLeasehold(id, WORLD_ID, Party.personal(LANDLORD))));
         Assertions.assertNull(lease(id));
+    }
+
+    @Test
+    void sweepDeletesARegionRenamedSinceItWasRead() {
+        String id = terminatingLease();
+        logic.markForDeletion(id, WORLD_ID, AS_LANDLORD);
+        clearTenant(id);
+        MarkedVacantLeaseholdView stale;
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            stale = wrapper.leaseholdContractMapper().selectMarkedVacant().stream()
+                    .filter(view -> view.worldGuardRegionId().equals(id)).findFirst().orElseThrow();
+        }
+        // A rename commits between the sweep's read and its delete.
+        String renamed = id + "_renamed";
+        Assertions.assertInstanceOf(RenameRegionResult.Success.class,
+                logic.renameRegion(id, renamed, WORLD_ID, ActorContext.console()));
+
+        Optional<DeletedLeasehold> deleted = ((RealtyBackendImpl) logic).deleteMarkedVacant(stale);
+
+        Assertions.assertEquals(Optional.of(new DeletedLeasehold(renamed, WORLD_ID, Party.personal(LANDLORD))),
+                deleted);
+        try (SqlSessionWrapper wrapper = database.openSession()) {
+            Assertions.assertNull(wrapper.realtyRegionMapper().selectById(stale.realtyRegionId()));
+        }
     }
 
     @Test

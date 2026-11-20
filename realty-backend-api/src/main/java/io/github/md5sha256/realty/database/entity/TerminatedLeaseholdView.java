@@ -33,6 +33,7 @@ public record TerminatedLeaseholdView(
         long durationSeconds,
         @Nullable LocalDateTime endDate,
         @NotNull LocalDateTime terminationEffectiveDate,
-        @NotNull String terminatedByRole
+        @NotNull String terminatedByRole,
+        int realtyRegionId
 ) {
 }
