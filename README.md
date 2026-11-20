@@ -49,7 +49,7 @@ refusing to start -- with the exception of the economy, where *neither* provider
 | [Hibernia Treasury](https://github.com/ParadauxIO/hibernia-economy) | one of | Preferred economy provider (full ledger support); uses the `io.paradaux:treasury-api:2026.11.38.1-gf6a41413b320` API |
 | [Vault](https://github.com/MilkBowl/Vault) | one of | Fallback economy provider. With neither Treasury nor Vault at enable time, Realty logs why and self-disables |
 | [EssentialsX](https://essentialsx.net/) | no | Notification delivery as mail, plus a teleport-safety predicate -- via `essentials-adapter` |
-| [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) | no | Per-player notification preferences and an inbox -- via `player-notifications-adapter` |
+| [PlayerNotifications](https://github.com/MCCitiesNetwork/player-notifications) 1.5.0+ | no | Per-player notification preferences and an inbox -- via `player-notifications-adapter` |
 | [Plan](https://github.com/plan-player-analytics/Plan) | no | Realty data on player analytics pages -- via `realty-paper-plan-extension` |
 
 The Treasury integration uses Hibernia's `io.paradaux.treasury` service and event
@@ -136,6 +136,20 @@ The adapter modules are **not bundled in the plugin jar**. Each is published as 
 the ones you want by placing them in `plugins/Realty/modules` and restarting the server. Realty
 delivers no notifications until at least one delivery module is installed, and logs a warning at
 startup while none is.
+
+### PlayerNotifications delivery
+
+`player-notifications-adapter` needs PlayerNotifications **1.5.0 or later**. On an older
+PlayerNotifications the first Realty notification fails with an `AbstractMethodError`.
+
+Each notification is stored in the player's inbox and pushed at once to the media the player chose,
+so an online player is told straight away and an offline one on their next join. Mute and silence
+still apply. A delivery PlayerNotifications reports as failed is logged as a warning.
+
+Install it **instead of** `chat-adapter`, not beside it. `chat-adapter` sends every notification to
+online players as chat, so with both installed an online player gets each notification twice. An
+upgraded server may still have the `chat-adapter.jar` an older Realty extracted; remove it from
+`plugins/Realty/modules` when you install this module.
 
 ### Notification categories
 

@@ -85,9 +85,11 @@ final class PlayerNotificationsBridge {
         RealtyNotificationRenderer notificationRenderer = new RealtyNotificationRenderer(titles);
         RealtyDataTypes.registerAll(notificationService, notificationRenderer);
 
-        // 4. Only now, with nothing left that can throw, does a live listener appear.
+        // 4. Only now, with nothing left that can throw, does a live listener appear. Each
+        //    notification is stored and pushed at once, so an online player is told now.
         PlayerNotificationsListener notificationListener = new PlayerNotificationsListener(
-                notificationService::enqueueNotification, config.expiry(), plugin.getLogger());
+                new DeliveringEnqueuer(notificationService::enqueueAndDeliver, plugin.getLogger()),
+                config.expiry(), plugin.getLogger());
         listenerRegistrar.accept(notificationListener);
         return new PlayerNotificationsBridge(notificationService, notificationRenderer,
                 notificationListener);
