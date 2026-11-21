@@ -264,9 +264,12 @@ public record SetCommandGroup(
             if (term.maxExtensions() != null
                     && !(routed.outcome() instanceof SetRouting.Outcome.Request)
                     && !routed.actor().bypass()) {
-                Component capRefusal = ExtensionCap.of(sender).refusal(messages, term.maxExtensions());
-                if (capRefusal != null) {
-                    sender.sendMessage(capRefusal);
+                // Without a lease there is nothing to raise; the write reports that there is none.
+                Integer current = routed.lease() == null ? null : routed.lease().maxExtensions();
+                Optional<Component> capRefusal = ExtensionCap.of(sender)
+                        .refusalOfChange(messages, term.maxExtensions(), current);
+                if (capRefusal.isPresent()) {
+                    sender.sendMessage(capRefusal.get());
                     return;
                 }
             }

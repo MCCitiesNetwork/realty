@@ -10,6 +10,9 @@ import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Optional;
+import java.util.OptionalInt;
+
 /**
  * How many extensions a player may give a lease. A player holding {@link #UNLIMITED_NODE} may give
  * any number, or unlimited; otherwise the highest {@code realty.leasehold.extensions.<n>} they hold
@@ -24,8 +27,8 @@ public sealed interface ExtensionCap {
     record Unlimited() implements ExtensionCap {
 
         @Override
-        public @Nullable Component refusal(@NotNull MessageContainer messages, int requested) {
-            return null;
+        public @NotNull Optional<Component> refusal(@NotNull MessageContainer messages, int requested) {
+            return Optional.empty();
         }
     }
 
@@ -33,14 +36,14 @@ public sealed interface ExtensionCap {
     record AtMost(int max) implements ExtensionCap {
 
         @Override
-        public @Nullable Component refusal(@NotNull MessageContainer messages, int requested) {
+        public @NotNull Optional<Component> refusal(@NotNull MessageContainer messages, int requested) {
             if (requested >= 0 && requested <= this.max) {
-                return null;
+                return Optional.empty();
             }
             String key = requested < 0
                     ? MessageKeys.LEASEHOLD_EXTENSIONS_UNLIMITED_NOT_ALLOWED
                     : MessageKeys.LEASEHOLD_EXTENSIONS_ABOVE_CAP;
-            return messages.messageFor(key, Placeholder.unparsed("cap", String.valueOf(this.max)));
+            return Optional.of(messages.messageFor(key, Placeholder.unparsed("cap", String.valueOf(this.max))));
         }
     }
 
@@ -58,26 +61,37 @@ public sealed interface ExtensionCap {
             if (!info.getValue() || !info.getPermission().startsWith(NODE_PREFIX)) {
                 continue;
             }
-            max = Math.max(max, parseCount(info.getPermission().substring(NODE_PREFIX.length())));
+            max = Math.max(max, parseCount(info.getPermission().substring(NODE_PREFIX.length())).orElse(0));
         }
         return new AtMost(max);
     }
 
     /**
-     * The message refusing {@code requested} extensions (-1 meaning unlimited), or {@code null}
-     * when the cap allows it.
+     * The message refusing {@code requested} extensions (-1 meaning unlimited) on a new lease, or
+     * empty when the cap allows it.
      */
-    @Nullable Component refusal(@NotNull MessageContainer messages, int requested);
+    @NotNull Optional<Component> refusal(@NotNull MessageContainer messages, int requested);
 
-    /** The count a node's suffix names, or 0 when it is not a count. */
-    private static int parseCount(@NotNull String suffix) {
+    /**
+     * As {@link #refusal}, for a lease whose limit is now {@code current} ({@code null} meaning
+     * unlimited). A change that does not raise the limit grants nothing, so it is never refused: a
+     * capped landlord can lower a lease that is above their cap.
+     */
+    default @NotNull Optional<Component> refusalOfChange(@NotNull MessageContainer messages, int requested,
+                                                         @Nullable Integer current) {
+        boolean raises = current != null && (requested < 0 || requested > current);
+        return raises ? refusal(messages, requested) : Optional.empty();
+    }
+
+    /** The count a node's suffix names; empty when it is not a count. */
+    private static @NotNull OptionalInt parseCount(@NotNull String suffix) {
         if (suffix.isEmpty() || !suffix.chars().allMatch(c -> c >= '0' && c <= '9')) {
-            return 0;
+            return OptionalInt.empty();
         }
         try {
-            return Integer.parseInt(suffix);
+            return OptionalInt.of(Integer.parseInt(suffix));
         } catch (NumberFormatException ex) {
-            return 0;
+            return OptionalInt.empty();
         }
     }
 }

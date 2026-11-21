@@ -3,6 +3,8 @@ package io.github.md5sha256.realty.command.util;
 import io.github.md5sha256.realty.command.util.ExtensionCap.AtMost;
 import io.github.md5sha256.realty.command.util.ExtensionCap.Unlimited;
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.permissions.PermissionAttachmentInfo;
@@ -10,14 +12,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.HashSet;
 import java.util.Set;
-
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ExtensionCapTest {
@@ -35,7 +36,10 @@ class ExtensionCapTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(player.getEffectivePermissions()).thenReturn(effective);
+        Mockito.lenient().when(player.getEffectivePermissions()).thenReturn(effective);
+        // A real component, so a refusal can be told apart from "allowed".
+        Mockito.lenient().when(messages.messageFor(ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(TagResolver[].class))).thenReturn(Component.text("refused"));
     }
 
     private void holds(String... nodes) {
@@ -55,7 +59,7 @@ class ExtensionCapTest {
 
     @Test
     void unlimitedNodeIsUnlimited() {
-        when(player.hasPermission(ExtensionCap.UNLIMITED_NODE)).thenReturn(true);
+        Mockito.when(player.hasPermission(ExtensionCap.UNLIMITED_NODE)).thenReturn(true);
         holds(PREFIX + "3");
         Assertions.assertEquals(new Unlimited(), ExtensionCap.of(player));
     }
@@ -88,15 +92,40 @@ class ExtensionCapTest {
     @Test
     void unlimitedRefusesNothing() {
         ExtensionCap cap = new Unlimited();
-        Assertions.assertNull(cap.refusal(messages, -1));
-        Assertions.assertNull(cap.refusal(messages, 0));
-        Assertions.assertNull(cap.refusal(messages, 1000));
+        Assertions.assertTrue(cap.refusal(messages, -1).isEmpty());
+        Assertions.assertTrue(cap.refusal(messages, 0).isEmpty());
+        Assertions.assertTrue(cap.refusal(messages, 1000).isEmpty());
     }
 
     @Test
     void atMostAllowsUpToItsLimit() {
         ExtensionCap cap = new AtMost(5);
-        Assertions.assertNull(cap.refusal(messages, 0));
-        Assertions.assertNull(cap.refusal(messages, 5));
+        Assertions.assertTrue(cap.refusal(messages, 0).isEmpty());
+        Assertions.assertTrue(cap.refusal(messages, 5).isEmpty());
+    }
+
+    @Test
+    void atMostRefusesAboveItsLimitAndUnlimited() {
+        ExtensionCap cap = new AtMost(5);
+        Assertions.assertTrue(cap.refusal(messages, 6).isPresent());
+        Assertions.assertTrue(cap.refusal(messages, -1).isPresent());
+    }
+
+    @Test
+    void aChangeThatDoesNotRaiseTheLeasesLimitIsNeverRefused() {
+        ExtensionCap cap = new AtMost(5);
+        Assertions.assertTrue(cap.refusalOfChange(messages, 10, 20).isEmpty(), "lowering 20 to 10");
+        Assertions.assertTrue(cap.refusalOfChange(messages, 20, 20).isEmpty(), "keeping 20");
+        Assertions.assertTrue(cap.refusalOfChange(messages, 10, null).isEmpty(), "lowering unlimited to 10");
+        Assertions.assertTrue(cap.refusalOfChange(messages, -1, null).isEmpty(), "keeping unlimited");
+    }
+
+    @Test
+    void aChangeThatRaisesTheLeasesLimitMeetsTheCap() {
+        ExtensionCap cap = new AtMost(5);
+        Assertions.assertTrue(cap.refusalOfChange(messages, 5, 3).isEmpty(), "raising 3 to the cap");
+        Assertions.assertTrue(cap.refusalOfChange(messages, 6, 3).isPresent(), "raising 3 above the cap");
+        Assertions.assertTrue(cap.refusalOfChange(messages, 21, 20).isPresent(), "raising 20 to 21");
+        Assertions.assertTrue(cap.refusalOfChange(messages, -1, 20).isPresent(), "raising 20 to unlimited");
     }
 }

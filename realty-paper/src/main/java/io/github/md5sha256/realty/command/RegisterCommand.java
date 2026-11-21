@@ -36,6 +36,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -112,9 +113,9 @@ public record RegisterCommand(@NotNull Server server,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
-        Component capRefusal = ExtensionCap.of(sender).refusal(messages, maxExtensions);
-        if (capRefusal != null) {
-            sender.sendMessage(capRefusal);
+        Optional<Component> capRefusal = ExtensionCap.of(sender).refusal(messages, maxExtensions);
+        if (capRefusal.isPresent()) {
+            sender.sendMessage(capRefusal.get());
             return;
         }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")

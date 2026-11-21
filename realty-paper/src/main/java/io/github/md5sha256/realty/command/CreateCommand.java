@@ -45,6 +45,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -133,9 +134,9 @@ public record CreateCommand(@NotNull Server server,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
-        Component capRefusal = ExtensionCap.of(player).refusal(messages, maxExtensions);
-        if (capRefusal != null) {
-            player.sendMessage(capRefusal);
+        Optional<Component> capRefusal = ExtensionCap.of(player).refusal(messages, maxExtensions);
+        if (capRefusal.isPresent()) {
+            player.sendMessage(capRefusal.get());
             return;
         }
         String landlordName = ctx.flags().getValue(LANDLORD_FLAG, null);

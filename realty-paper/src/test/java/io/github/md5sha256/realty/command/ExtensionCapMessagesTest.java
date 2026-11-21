@@ -30,14 +30,14 @@ class ExtensionCapMessagesTest {
 
     @Test
     void countAboveTheCapNamesTheCap() {
-        String text = plain(new ExtensionCap.AtMost(5).refusal(MESSAGES, 6));
+        String text = plain(new ExtensionCap.AtMost(5).refusal(MESSAGES, 6).orElseThrow());
         Assertions.assertTrue(text.contains("5"), text);
         Assertions.assertFalse(text.contains("unlimited"), text);
     }
 
     @Test
     void unlimitedIsRefusedWithItsOwnMessage() {
-        String text = plain(new ExtensionCap.AtMost(5).refusal(MESSAGES, -1));
+        String text = plain(new ExtensionCap.AtMost(5).refusal(MESSAGES, -1).orElseThrow());
         Assertions.assertTrue(text.contains("unlimited"), text);
         Assertions.assertTrue(text.contains("5"), text);
     }
