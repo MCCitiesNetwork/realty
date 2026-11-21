@@ -263,7 +263,7 @@ public record SetCommandGroup(
             // The landlord's cap decides; a tenant's request is checked when the landlord accepts it.
             if (term.maxExtensions() != null
                     && !(routed.outcome() instanceof SetRouting.Outcome.Request)
-                    && !sender.hasPermission(othersPermission)) {
+                    && !routed.actor().bypass()) {
                 Component capRefusal = ExtensionCap.of(sender).refusal(messages, term.maxExtensions());
                 if (capRefusal != null) {
                     sender.sendMessage(capRefusal);
