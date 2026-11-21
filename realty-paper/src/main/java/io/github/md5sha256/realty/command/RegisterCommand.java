@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.api.event.RegionCreateEvent;
 import io.github.md5sha256.realty.api.event.RegionCreatedEvent;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
@@ -110,6 +111,11 @@ public record RegisterCommand(@NotNull Server server,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
+        ExtensionCap cap = ExtensionCap.of(sender);
+        if (!cap.allows(maxExtensions)) {
+            sender.sendMessage(cap.refusal(messages, maxExtensions));
+            return;
+        }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")
                 .orElseGet(() -> sender instanceof Player player
                         ? WorldGuardRegionResolver.resolveAtLocation(player.getLocation()) : null);

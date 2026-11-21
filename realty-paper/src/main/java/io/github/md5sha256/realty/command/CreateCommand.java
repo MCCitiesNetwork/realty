@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.api.event.RegionCreateEvent;
 import io.github.md5sha256.realty.api.event.RegionCreatedEvent;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
@@ -131,6 +132,11 @@ public record CreateCommand(@NotNull Server server,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
+        ExtensionCap cap = ExtensionCap.of(player);
+        if (!cap.allows(maxExtensions)) {
+            player.sendMessage(cap.refusal(messages, maxExtensions));
+            return;
+        }
         String landlordName = ctx.flags().getValue(LANDLORD_FLAG, null);
         PartyFlags.resolveOrDefault(partyResolver, executorState, messages, player, LANDLORD_FLAG, landlordName, flag,
                 defaults.get().leaseholdLandlord(),
