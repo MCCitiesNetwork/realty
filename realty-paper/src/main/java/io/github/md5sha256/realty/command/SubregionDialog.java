@@ -194,8 +194,9 @@ public final class SubregionDialog {
                     state.worldId = worldId;
                     state.extensionCap = ExtensionCap.of(player);
                     if (state.extensionCap instanceof ExtensionCap.AtMost(int max)) {
-                        state.unlimitedRenewals = false;
                         state.maxRenewals = String.valueOf(Math.min(SubregionState.DEFAULT_MAX_RENEWALS, max));
+                    } else {
+                        state.unlimitedRenewals = true;
                     }
                     boolean anyFreehold = false;
                     for (CompletableFuture<CandidateCheck> check : checks) {
@@ -710,8 +711,14 @@ public final class SubregionDialog {
         if (maxRenewals == null) {
             return error("Max renewals must be 0 or more.");
         }
-        // Read again, so a permission removed while the dialog was open applies.
-        return ExtensionCap.of(player).refusal(messages, maxRenewals);
+        // Read again, so a permission changed while the dialog was open applies, and keep the new
+        // cap so the reopened dialog shows it. A capped player has no toggle to turn unlimited off.
+        ExtensionCap cap = ExtensionCap.of(player);
+        state.extensionCap = cap;
+        if (cap instanceof ExtensionCap.AtMost) {
+            state.unlimitedRenewals = false;
+        }
+        return cap.refusal(messages, maxRenewals).orElse(null);
     }
 
     private @NotNull Component error(@NotNull String text) {

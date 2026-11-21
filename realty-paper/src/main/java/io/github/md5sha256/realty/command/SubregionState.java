@@ -26,10 +26,10 @@ final class SubregionState {
     String price = "100";
     String durationAmount = "30";
     String durationUnit = DurationUnit.DAYS.name();
-    // The player's extension cap, read when the dialog opens; it decides whether the unlimited
-    // toggle is shown.
-    ExtensionCap extensionCap;
-    boolean unlimitedRenewals = true;
+    // The player's extension cap, read when the dialog opens and again on each validation; it
+    // decides whether the unlimited toggle is shown. Until it is read, the state allows nothing.
+    ExtensionCap extensionCap = new ExtensionCap.AtMost(0);
+    boolean unlimitedRenewals = false;
     String maxRenewals = String.valueOf(DEFAULT_MAX_RENEWALS);
     final List<String> permittedTagIds = new ArrayList<>();
     final Set<String> selectedTags = new LinkedHashSet<>();
