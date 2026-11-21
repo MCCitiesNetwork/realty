@@ -850,6 +850,10 @@ set:
         changed. Run the command again.
     just-vacated: <prefix> Region <yellow><region></yellow> was just vacated, so nothing was
         changed. Run the command again.
+leasehold:
+    extensions-above-cap: <prefix> You may grant at most <yellow><cap></yellow> extensions.
+    extensions-unlimited-not-allowed: <prefix> You may not grant unlimited extensions. You
+        may grant at most <yellow><cap></yellow>.
 modify:
     propose-success-landlord: <prefix> You have <green>proposed new terms</green> for
         region <yellow><region></yellow>. They take effect the next time the tenant
@@ -863,6 +867,8 @@ modify:
     not-authorized: <prefix> You are not the landlord or tenant of region <yellow><region>.</yellow>
     not-landlord: <prefix> Only the landlord of region <yellow><region></yellow> can
         do that.
+    extensions-above-cap: <prefix> This proposal sets <yellow><proposed></yellow> extensions
+        on region <yellow><region></yellow>, but you may grant at most <yellow><cap>.</yellow>
     update-failed: <prefix> Failed to modify region <yellow><region>.</yellow>
     error: '<prefix> Failed to modify region: <error>'
     accept-success: <prefix> You have <green>accepted the proposed terms</green> for

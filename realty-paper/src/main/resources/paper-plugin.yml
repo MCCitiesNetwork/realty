@@ -359,3 +359,6 @@ permissions:
   realty.bypass.conflict-of-interest:
     description: Allows buying, bidding on, offering on and being agent for land whose authority you manage
     default: op
+  realty.leasehold.extensions.unlimited:
+    description: Allows giving a lease unlimited extensions. Without it, the highest realty.leasehold.extensions.<n> held caps the count, and none means 0
+    default: op

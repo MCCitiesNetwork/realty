@@ -400,6 +400,11 @@ public final class MessageKeys {
     public static final String SET_JUST_RENTED = "set.just-rented";
     public static final String SET_JUST_VACATED = "set.just-vacated";
 
+    // leasehold
+    public static final String LEASEHOLD_EXTENSIONS_ABOVE_CAP = "leasehold.extensions-above-cap";
+    public static final String LEASEHOLD_EXTENSIONS_UNLIMITED_NOT_ALLOWED =
+            "leasehold.extensions-unlimited-not-allowed";
+
     // set-duration
     public static final String SET_DURATION_SUCCESS = "set-duration.success";
     public static final String SET_DURATION_NO_LEASEHOLD_CONTRACT = "set-duration.no-leasehold-contract";
@@ -599,6 +604,7 @@ public final class MessageKeys {
     public static final String MODIFY_TERMINATING = "modify.terminating";
     public static final String MODIFY_NOT_AUTHORIZED = "modify.not-authorized";
     public static final String MODIFY_NOT_LANDLORD = "modify.not-landlord";
+    public static final String MODIFY_EXTENSIONS_ABOVE_CAP = "modify.extensions-above-cap";
     public static final String MODIFY_UPDATE_FAILED = "modify.update-failed";
     public static final String MODIFY_ERROR = "modify.error";
     public static final String MODIFY_ACCEPT_SUCCESS = "modify.accept-success";
