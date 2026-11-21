@@ -349,7 +349,8 @@ help:
     - <dark_grey>►</dark_grey> <red>/realty create freehold <name> [--price <price>]
         [--titleholder <player>] [--authority <name> [type flag]]</red> <grey>- Create a freehold</grey>
     - <dark_grey>►</dark_grey> <red>/realty create leasehold <region> <price> <period> <maxextensions>
-        [--landlord <name> [type flag]]</red> <grey>- Create a leasehold</grey>
+        [--landlord <name> [type flag]]</red> <grey>- Create a leasehold, with extensions
+        up to your extension cap</grey>
     - <dark_grey>►</dark_grey> <red>/realty delete <region> [includeworldguard]</red>
         <grey>- Delete a region</grey>
     - <dark_grey>►</dark_grey> <red>/realty reload</red> <grey>- Reload configuration</grey>
