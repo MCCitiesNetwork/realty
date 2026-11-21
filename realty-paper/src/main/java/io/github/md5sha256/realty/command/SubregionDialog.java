@@ -81,8 +81,6 @@ public final class SubregionDialog {
     private static final int FORM_INPUT_WIDTH = 200;
     /** Stored as the lease's max renewals to mean "no cap"; the backend maps any negative to NULL. */
     private static final int UNLIMITED_RENEWALS = -1;
-    /** The count the max-renewals field starts at, lowered to the player's cap. */
-    private static final int DEFAULT_MAX_RENEWALS = 3;
     private static final ClickCallback.Options CLICK_OPTIONS =
             ClickCallback.Options.builder().uses(ClickCallback.UNLIMITED_USES).build();
 
@@ -197,7 +195,7 @@ public final class SubregionDialog {
                     state.extensionCap = ExtensionCap.of(player);
                     if (state.extensionCap instanceof ExtensionCap.AtMost(int max)) {
                         state.unlimitedRenewals = false;
-                        state.maxRenewals = String.valueOf(Math.min(DEFAULT_MAX_RENEWALS, max));
+                        state.maxRenewals = String.valueOf(Math.min(SubregionState.DEFAULT_MAX_RENEWALS, max));
                     }
                     boolean anyFreehold = false;
                     for (CompletableFuture<CandidateCheck> check : checks) {
@@ -713,11 +711,7 @@ public final class SubregionDialog {
             return error("Max renewals must be 0 or more.");
         }
         // Read again, so a permission removed while the dialog was open applies.
-        ExtensionCap cap = ExtensionCap.of(player);
-        if (!cap.allows(maxRenewals)) {
-            return cap.refusal(messages, maxRenewals);
-        }
-        return null;
+        return ExtensionCap.of(player).refusal(messages, maxRenewals);
     }
 
     private @NotNull Component error(@NotNull String text) {

@@ -32,6 +32,7 @@ import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
@@ -263,9 +264,9 @@ public record SetCommandGroup(
             if (term.maxExtensions() != null
                     && !(routed.outcome() instanceof SetRouting.Outcome.Request)
                     && !sender.hasPermission(othersPermission)) {
-                ExtensionCap cap = ExtensionCap.of(sender);
-                if (!cap.allows(term.maxExtensions())) {
-                    sender.sendMessage(cap.refusal(messages, term.maxExtensions()));
+                Component capRefusal = ExtensionCap.of(sender).refusal(messages, term.maxExtensions());
+                if (capRefusal != null) {
+                    sender.sendMessage(capRefusal);
                     return;
                 }
             }

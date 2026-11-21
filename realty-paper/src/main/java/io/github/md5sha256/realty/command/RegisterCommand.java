@@ -18,6 +18,7 @@ import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.DefaultParties;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
@@ -111,9 +112,9 @@ public record RegisterCommand(@NotNull Server server,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
-        ExtensionCap cap = ExtensionCap.of(sender);
-        if (!cap.allows(maxExtensions)) {
-            sender.sendMessage(cap.refusal(messages, maxExtensions));
+        Component capRefusal = ExtensionCap.of(sender).refusal(messages, maxExtensions);
+        if (capRefusal != null) {
+            sender.sendMessage(capRefusal);
             return;
         }
         WorldGuardRegion region = ctx.<WorldGuardRegion>optional("region")

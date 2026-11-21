@@ -166,7 +166,8 @@ public record ModifyCommandGroup(
             return;
         }
         boolean bypass = sender.hasPermission("realty.command.modify.others");
-        Integer extensionCap = bypass ? null : ExtensionCap.of(sender).asLimit();
+        Integer extensionCap = !bypass && ExtensionCap.of(sender) instanceof ExtensionCap.AtMost(int max)
+                ? max : null;
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())

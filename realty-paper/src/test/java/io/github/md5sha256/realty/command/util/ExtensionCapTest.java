@@ -2,6 +2,9 @@ package io.github.md5sha256.realty.command.util;
 
 import io.github.md5sha256.realty.command.util.ExtensionCap.AtMost;
 import io.github.md5sha256.realty.command.util.ExtensionCap.Unlimited;
+import io.github.md5sha256.realty.localisation.MessageContainer;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.permissions.PermissionAttachmentInfo;
@@ -15,18 +18,22 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ExtensionCapTest {
 
-    private static final String PREFIX = "realty.leasehold.extensions.";
+    private static final String PREFIX = ExtensionCap.NODE_PREFIX;
 
     @Mock
     private Player player;
     @Mock
     private CommandSender console;
+    @Mock
+    private MessageContainer messages;
 
     private final Set<PermissionAttachmentInfo> effective = new HashSet<>();
 
@@ -84,25 +91,25 @@ class ExtensionCapTest {
     }
 
     @Test
-    void unlimitedAllowsEverything() {
+    void unlimitedRefusesNothing() {
         ExtensionCap cap = new Unlimited();
-        Assertions.assertTrue(cap.allows(-1));
-        Assertions.assertTrue(cap.allows(0));
-        Assertions.assertTrue(cap.allows(1000));
+        Assertions.assertNull(cap.refusal(messages, -1));
+        Assertions.assertNull(cap.refusal(messages, 0));
+        Assertions.assertNull(cap.refusal(messages, 1000));
     }
 
     @Test
     void atMostAllowsUpToItsLimit() {
         ExtensionCap cap = new AtMost(5);
-        Assertions.assertTrue(cap.allows(0));
-        Assertions.assertTrue(cap.allows(5));
-        Assertions.assertFalse(cap.allows(6));
-        Assertions.assertFalse(cap.allows(-1));
+        Assertions.assertNull(cap.refusal(messages, 0));
+        Assertions.assertNull(cap.refusal(messages, 5));
     }
 
     @Test
-    void asLimit() {
-        Assertions.assertNull(new Unlimited().asLimit());
-        Assertions.assertEquals(5, new AtMost(5).asLimit());
+    void atMostRefusesAboveItsLimitAndUnlimited() {
+        when(messages.messageFor(anyString(), any(TagResolver[].class))).thenReturn(Component.text("refused"));
+        ExtensionCap cap = new AtMost(5);
+        Assertions.assertNotNull(cap.refusal(messages, 6));
+        Assertions.assertNotNull(cap.refusal(messages, -1));
     }
 }

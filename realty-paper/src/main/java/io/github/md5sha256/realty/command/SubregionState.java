@@ -13,6 +13,10 @@ import java.util.UUID;
 
 /** Per-player wizard state tracked by {@link SubregionDialog} between its dialog pages. */
 final class SubregionState {
+
+    /** The count the max-renewals field starts at; a capped player's starts no higher than their cap. */
+    static final int DEFAULT_MAX_RENEWALS = 3;
+
     Region selection;
     World world;
     UUID worldId;
@@ -23,10 +27,10 @@ final class SubregionState {
     String durationAmount = "30";
     String durationUnit = DurationUnit.DAYS.name();
     // The player's extension cap, read when the dialog opens; it decides whether the unlimited
-    // toggle is shown. Submitting reads the cap again.
-    ExtensionCap extensionCap = new ExtensionCap.AtMost(0);
+    // toggle is shown.
+    ExtensionCap extensionCap;
     boolean unlimitedRenewals = true;
-    String maxRenewals = "3";
+    String maxRenewals = String.valueOf(DEFAULT_MAX_RENEWALS);
     final List<String> permittedTagIds = new ArrayList<>();
     final Set<String> selectedTags = new LinkedHashSet<>();
     // Shown at the top of the details dialog when validation fails, so the message isn't hidden
