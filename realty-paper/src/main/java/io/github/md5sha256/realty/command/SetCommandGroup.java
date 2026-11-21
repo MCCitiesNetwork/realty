@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
@@ -257,6 +258,16 @@ public record SetCommandGroup(
                     && !events.fireSync(new PriceSetEvent(region, player.getUniqueId(), term.price()))) {
                 sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
                 return;
+            }
+            // The landlord's cap decides; a tenant's request is checked when the landlord accepts it.
+            if (term.maxExtensions() != null
+                    && !(routed.outcome() instanceof SetRouting.Outcome.Request)
+                    && !sender.hasPermission(othersPermission)) {
+                ExtensionCap cap = ExtensionCap.of(sender);
+                if (!cap.allows(term.maxExtensions())) {
+                    sender.sendMessage(cap.refusal(messages, term.maxExtensions()));
+                    return;
+                }
             }
             if (routed.outcome() instanceof SetRouting.Outcome.ApplyNow) {
                 applyNow.accept(region, routed);
