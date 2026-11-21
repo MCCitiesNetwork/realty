@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import com.sk89q.worldedit.regions.Region;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import net.kyori.adventure.text.Component;
 import org.bukkit.World;
 
@@ -21,6 +22,9 @@ final class SubregionState {
     String price = "100";
     String durationAmount = "30";
     String durationUnit = DurationUnit.DAYS.name();
+    // The player's extension cap, read when the dialog opens; it decides whether the unlimited
+    // toggle is shown. Submitting reads the cap again.
+    ExtensionCap extensionCap = new ExtensionCap.AtMost(0);
     boolean unlimitedRenewals = true;
     String maxRenewals = "3";
     final List<String> permittedTagIds = new ArrayList<>();

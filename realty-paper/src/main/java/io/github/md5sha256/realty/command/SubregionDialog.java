@@ -10,6 +10,7 @@ import io.github.md5sha256.realty.api.ExecutorState;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.auth.ActorContexts;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import io.github.md5sha256.realty.command.util.SubregionSelectionValidator;
 import io.github.md5sha256.realty.database.Database;
 import io.github.md5sha256.realty.database.SqlSessionWrapper;
@@ -80,6 +81,8 @@ public final class SubregionDialog {
     private static final int FORM_INPUT_WIDTH = 200;
     /** Stored as the lease's max renewals to mean "no cap"; the backend maps any negative to NULL. */
     private static final int UNLIMITED_RENEWALS = -1;
+    /** The count the max-renewals field starts at, lowered to the player's cap. */
+    private static final int DEFAULT_MAX_RENEWALS = 3;
     private static final ClickCallback.Options CLICK_OPTIONS =
             ClickCallback.Options.builder().uses(ClickCallback.UNLIMITED_USES).build();
 
@@ -191,6 +194,11 @@ public final class SubregionDialog {
                     state.selection = selection;
                     state.world = world;
                     state.worldId = worldId;
+                    state.extensionCap = ExtensionCap.of(player);
+                    if (state.extensionCap instanceof ExtensionCap.AtMost(int max)) {
+                        state.unlimitedRenewals = false;
+                        state.maxRenewals = String.valueOf(Math.min(DEFAULT_MAX_RENEWALS, max));
+                    }
                     boolean anyFreehold = false;
                     for (CompletableFuture<CandidateCheck> check : checks) {
                         CandidateCheck result = check.join();
@@ -440,9 +448,15 @@ public final class SubregionDialog {
                         unitEntries)
                 .width(FORM_INPUT_WIDTH).labelVisible(true).build());
 
-        inputs.add(DialogInput.bool(INPUT_UNLIMITED_RENEWALS, Component.text("Unlimited renewals"))
-                .initial(state.unlimitedRenewals).onTrue("true").onFalse("false").build());
-        inputs.add(DialogInput.text(INPUT_MAX_RENEWALS, Component.text("Max renewals (if limited)"))
+        String renewalsLabel;
+        if (state.extensionCap instanceof ExtensionCap.AtMost(int max)) {
+            renewalsLabel = "Max renewals (up to " + max + ")";
+        } else {
+            inputs.add(DialogInput.bool(INPUT_UNLIMITED_RENEWALS, Component.text("Unlimited renewals"))
+                    .initial(state.unlimitedRenewals).onTrue("true").onFalse("false").build());
+            renewalsLabel = "Max renewals (if limited)";
+        }
+        inputs.add(DialogInput.text(INPUT_MAX_RENEWALS, Component.text(renewalsLabel))
                 .width(FORM_INPUT_WIDTH).initial(state.maxRenewals).maxLength(6).build());
 
         ClickCallback.Options clickOptions = CLICK_OPTIONS;
@@ -452,7 +466,7 @@ public final class SubregionDialog {
             RegionManager regionManager = regionManager(state.world);
             state.error = regionManager == null
                     ? error("Region manager unavailable")
-                    : validate(state, regionManager);
+                    : validate(player, state, regionManager);
             if (state.error != null) {
                 showCreateDialog(player, state);
                 return;
@@ -595,7 +609,7 @@ public final class SubregionDialog {
         RegionManager regionManager = regionManager(state.world);
         state.error = regionManager == null
                 ? error("Region manager unavailable")
-                : validate(state, regionManager);
+                : validate(player, state, regionManager);
         if (state.error != null) {
             // Reopen the details dialog so the error is visible rather than hidden behind it.
             showCreateDialog(player, state);
@@ -665,7 +679,8 @@ public final class SubregionDialog {
      * enforced at {@link #open}; this re-checks the user-entered fields plus name uniqueness and
      * sibling overlap against the chosen parent.
      */
-    private @Nullable Component validate(@NotNull SubregionState state,
+    private @Nullable Component validate(@NotNull Player player,
+                                         @NotNull SubregionState state,
                                          @NotNull RegionManager regionManager) {
         if (state.name == null || !WorldGuardRegion.isValidName(state.name)) {
             return messages.messageFor(MessageKeys.SUBREGION_INVALID_NAME,
@@ -693,8 +708,14 @@ public final class SubregionDialog {
         if (duration == null || duration.isZero() || duration.isNegative()) {
             return error("Lease length must be more than 0.");
         }
-        if (resolveMaxRenewals(state) == null) {
+        Integer maxRenewals = resolveMaxRenewals(state);
+        if (maxRenewals == null) {
             return error("Max renewals must be 0 or more.");
+        }
+        // Read again, so a permission removed while the dialog was open applies.
+        ExtensionCap cap = ExtensionCap.of(player);
+        if (!cap.allows(maxRenewals)) {
+            return cap.refusal(messages, maxRenewals);
         }
         return null;
     }
