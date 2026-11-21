@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import io.github.md5sha256.realty.command.util.LeaseholdChangeSummary;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
@@ -165,11 +166,12 @@ public record ModifyCommandGroup(
             return;
         }
         boolean bypass = sender.hasPermission("realty.command.modify.others");
+        Integer extensionCap = bypass ? null : ExtensionCap.of(sender).asLimit();
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
                 .thenComposeAsync(actor -> switch (action) {
-                    case ACCEPT -> api.acceptModification(regionId, worldId, actor);
+                    case ACCEPT -> api.acceptModification(regionId, worldId, actor, extensionCap);
                     case REJECT -> api.rejectModification(regionId, worldId, actor);
                     case WITHDRAW -> api.withdrawModification(regionId, worldId, actor);
                 }, executorState.mainThreadExec())
