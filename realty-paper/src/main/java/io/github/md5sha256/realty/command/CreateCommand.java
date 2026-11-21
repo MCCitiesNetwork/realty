@@ -14,6 +14,7 @@ import io.github.md5sha256.realty.api.event.RegionCreateEvent;
 import io.github.md5sha256.realty.api.event.RegionCreatedEvent;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
@@ -25,6 +26,7 @@ import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
 import io.github.md5sha256.realty.settings.DefaultParties;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Server;
 import org.bukkit.World;
@@ -43,6 +45,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -131,6 +134,11 @@ public record CreateCommand(@NotNull Server server,
         double price = ctx.get(PRICE);
         Duration period = ctx.get(PERIOD);
         int maxExtensions = ctx.get(MAX_EXTENSIONS);
+        Optional<Component> capRefusal = ExtensionCap.of(player).refusal(messages, maxExtensions);
+        if (capRefusal.isPresent()) {
+            player.sendMessage(capRefusal.get());
+            return;
+        }
         String landlordName = ctx.flags().getValue(LANDLORD_FLAG, null);
         PartyFlags.resolveOrDefault(partyResolver, executorState, messages, player, LANDLORD_FLAG, landlordName, flag,
                 defaults.get().leaseholdLandlord(),

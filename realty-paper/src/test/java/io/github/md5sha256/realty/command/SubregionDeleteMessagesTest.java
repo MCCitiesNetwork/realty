@@ -2,8 +2,6 @@ package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.localisation.MessageKeys;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -35,8 +33,6 @@ class SubregionDeleteMessagesTest {
             MessageKeys.TERMINATE_CANCEL_DELETE_MARK
     })
     void keyIsShipped(String key) {
-        String text = PlainTextComponentSerializer.plainText().serialize(MESSAGES.messageFor(key));
-        Assertions.assertFalse(text.isBlank(), key);
-        Assertions.assertFalse(text.contains(key), key + " is missing from messages.yml");
+        ShippedMessages.assertShipped(MESSAGES, key);
     }
 }

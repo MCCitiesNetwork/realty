@@ -7,6 +7,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.api.WorldGuardRegion;
 import io.github.md5sha256.realty.api.event.LeaseModificationResolvedEvent;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import io.github.md5sha256.realty.command.util.LeaseholdChangeSummary;
 import io.github.md5sha256.realty.command.util.WorldGuardRegionResolver;
 import io.github.md5sha256.realty.database.entity.LeaseholdModificationView;
@@ -165,11 +166,13 @@ public record ModifyCommandGroup(
             return;
         }
         boolean bypass = sender.hasPermission("realty.command.modify.others");
+        Integer extensionCap = !bypass && ExtensionCap.of(sender) instanceof ExtensionCap.AtMost(int max)
+                ? max : null;
         String regionId = region.region().getId();
         UUID worldId = region.world().getUID();
         CompletableFuture.supplyAsync(() -> actors.forRegion(sender, bypass, region), executorState.dbExec())
                 .thenComposeAsync(actor -> switch (action) {
-                    case ACCEPT -> api.acceptModification(regionId, worldId, actor);
+                    case ACCEPT -> api.acceptModification(regionId, worldId, actor, extensionCap);
                     case REJECT -> api.rejectModification(regionId, worldId, actor);
                     case WITHDRAW -> api.withdrawModification(regionId, worldId, actor);
                 }, executorState.mainThreadExec())
@@ -198,6 +201,11 @@ public record ModifyCommandGroup(
                                 Placeholder.unparsed("region", regionId)));
                 case RealtyBackend.ResolveModificationResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_UPDATE_FAILED,
+                                Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.ResolveModificationResult.AboveExtensionCap(int cap, int proposed) ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_EXTENSIONS_ABOVE_CAP,
+                                Placeholder.unparsed("cap", String.valueOf(cap)),
+                                Placeholder.unparsed("proposed", String.valueOf(proposed)),
                                 Placeholder.unparsed("region", regionId)));
             }
         }).exceptionally(ex -> {

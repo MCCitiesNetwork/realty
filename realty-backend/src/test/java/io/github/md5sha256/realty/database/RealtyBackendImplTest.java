@@ -4,6 +4,7 @@ import io.github.md5sha256.realty.api.AccountKind;
 import io.github.md5sha256.realty.api.ActorContext;
 import io.github.md5sha256.realty.api.HistoryEventType;
 import io.github.md5sha256.realty.api.LeaseholdRoles;
+import io.github.md5sha256.realty.api.LeaseholdModificationStatus;
 import io.github.md5sha256.realty.api.Party;
 import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyBackend.CreateAuctionResult;
@@ -321,6 +322,102 @@ class RealtyBackendImplTest extends AbstractDatabaseTest {
 
             Assertions.assertInstanceOf(RealtyBackend.ProposeModificationResult.NotAuthorized.class,
                     logic.proposeModification(regionId, WORLD_ID, ActorContext.player(PLAYER_C, false), 300.0, null, null));
+        }
+
+        /** A lease of PLAYER_A's with 5 extensions, rented by PLAYER_B, who has proposed these terms. */
+        private String tenantProposal(Double price, Integer maxExtensions) {
+            return tenantProposal(5, price, maxExtensions);
+        }
+
+        /** As above, for a lease with {@code leaseMaxExtensions} extensions (-1 for unlimited). */
+        private String tenantProposal(int leaseMaxExtensions, Double price, Integer maxExtensions) {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, leaseMaxExtensions, Party.personal(PLAYER_A));
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+            Assertions.assertInstanceOf(RealtyBackend.ProposeModificationResult.Success.class,
+                    logic.proposeModification(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false),
+                            price, null, maxExtensions));
+            return regionId;
+        }
+
+        @Test
+        @DisplayName("accepting a proposal above the cap is refused and leaves it pending")
+        void acceptAboveCapIsRefusedAndStaysPending() {
+            String regionId = tenantProposal(null, 8);
+
+            Assertions.assertEquals(new RealtyBackend.ResolveModificationResult.AboveExtensionCap(5, 8),
+                    logic.acceptModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), 5));
+            Assertions.assertEquals(1,
+                    logic.listModificationsAwaitingLandlord(Set.of(Party.personal(PLAYER_A))).stream()
+                            .filter(view -> view.worldGuardRegionId().equals(regionId))
+                            .count());
+        }
+
+        @Test
+        @DisplayName("accepting a proposal at the cap succeeds")
+        void acceptAtCapSucceeds() {
+            String regionId = tenantProposal(null, 5);
+            Assertions.assertInstanceOf(RealtyBackend.ResolveModificationResult.Success.class,
+                    logic.acceptModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), 5));
+        }
+
+        @Test
+        @DisplayName("no cap accepts any count")
+        void nullCapAcceptsAnyCount() {
+            String regionId = tenantProposal(null, 8);
+            Assertions.assertInstanceOf(RealtyBackend.ResolveModificationResult.Success.class,
+                    logic.acceptModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), null));
+        }
+
+        @Test
+        @DisplayName("a proposal that lowers a lease above the cap is accepted")
+        void loweringALeaseAboveTheCapIsAccepted() {
+            String regionId = tenantProposal(20, null, 10);
+            Assertions.assertInstanceOf(RealtyBackend.ResolveModificationResult.Success.class,
+                    logic.acceptModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), 5));
+        }
+
+        @Test
+        @DisplayName("a proposal that lowers an unlimited lease is accepted")
+        void loweringAnUnlimitedLeaseIsAccepted() {
+            String regionId = tenantProposal(-1, null, 10);
+            Assertions.assertInstanceOf(RealtyBackend.ResolveModificationResult.Success.class,
+                    logic.acceptModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), 5));
+        }
+
+        @Test
+        @DisplayName("a proposal that raises a lease already above the cap is refused")
+        void raisingALeaseAboveTheCapIsRefused() {
+            String regionId = tenantProposal(20, null, 21);
+            Assertions.assertEquals(new RealtyBackend.ResolveModificationResult.AboveExtensionCap(5, 21),
+                    logic.acceptModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), 5));
+        }
+
+        @Test
+        @DisplayName("a proposal replaced after it was read is not resolved")
+        void replacedProposalIsNotResolved() {
+            String regionId = uniqueRegionId();
+            logic.createLeasehold(regionId, WORLD_ID, 200.0, 86400, 5, Party.personal(PLAYER_A));
+            logic.rentRegion(regionId, WORLD_ID, PLAYER_B);
+            RealtyBackend.ProposeModificationResult.Success first = Assertions.assertInstanceOf(
+                    RealtyBackend.ProposeModificationResult.Success.class,
+                    logic.proposeModification(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false),
+                            null, null, 3));
+            // The tenant replaces it, which supersedes the first row.
+            logic.proposeModification(regionId, WORLD_ID, ActorContext.player(PLAYER_B, false), null, null, 4);
+
+            try (SqlSessionWrapper wrapper = database.openSession()) {
+                Assertions.assertEquals(0, wrapper.leaseholdModificationMapper().resolveAwaitingLandlord(
+                        first.modificationId(), LeaseholdModificationStatus.ACTIVE));
+            }
+        }
+
+        @Test
+        @DisplayName("a proposal that leaves extensions unchanged ignores the cap")
+        void proposalWithoutExtensionsIgnoresCap() {
+            String regionId = tenantProposal(150.0, null);
+            Assertions.assertInstanceOf(RealtyBackend.ResolveModificationResult.Success.class,
+                    logic.acceptModification(regionId, WORLD_ID, ActorContext.player(PLAYER_A, false), 0));
         }
     }
 

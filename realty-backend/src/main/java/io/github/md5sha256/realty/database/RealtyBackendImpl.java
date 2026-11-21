@@ -1591,21 +1591,33 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull ResolveModificationResult acceptModification(@NotNull String worldGuardRegionId,
                                                                  @NotNull UUID worldId,
-                                                                 @NotNull ActorContext ctx) {
-        return resolveTenantProposal(worldGuardRegionId, worldId, ctx, true);
+                                                                 @NotNull ActorContext ctx,
+                                                                 @Nullable Integer extensionCap) {
+        return resolveTenantProposal(worldGuardRegionId, worldId, ctx, true, extensionCap);
     }
 
     @Override
     public @NotNull ResolveModificationResult rejectModification(@NotNull String worldGuardRegionId,
                                                                  @NotNull UUID worldId,
                                                                  @NotNull ActorContext ctx) {
-        return resolveTenantProposal(worldGuardRegionId, worldId, ctx, false);
+        return resolveTenantProposal(worldGuardRegionId, worldId, ctx, false, null);
+    }
+
+    /**
+     * Whether {@code proposed} extensions is more than a player capped at {@code cap} may grant on a
+     * lease whose limit is now {@code current} ({@code null} meaning unlimited). A proposal that does
+     * not raise the limit grants nothing, so it never exceeds. A proposal is never unlimited: the
+     * table's {@code chk_modification_maxextensions} refuses a negative count.
+     */
+    private static boolean exceedsCap(int proposed, int cap, @Nullable Integer current) {
+        return proposed > cap && current != null && proposed > current;
     }
 
     private @NotNull ResolveModificationResult resolveTenantProposal(@NotNull String worldGuardRegionId,
                                                                      @NotNull UUID worldId,
                                                                      @NotNull ActorContext ctx,
-                                                                     boolean accept) {
+                                                                     boolean accept,
+                                                                     @Nullable Integer extensionCap) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
                     .selectByRegion(worldGuardRegionId, worldId);
@@ -1623,8 +1635,17 @@ public class RealtyBackendImpl implements RealtyBackend {
             if (!LeaseholdModificationStatus.AWAITING_LANDLORD.equals(mod.status())) {
                 return new ResolveModificationResult.NotTenantProposal();
             }
-            wrapper.leaseholdModificationMapper().updateStatus(mod.modificationId(),
+            if (accept && extensionCap != null && mod.newMaxExtensions() != null
+                    && exceedsCap(mod.newMaxExtensions(), extensionCap, lease.maxExtensions())) {
+                return new ResolveModificationResult.AboveExtensionCap(extensionCap, mod.newMaxExtensions());
+            }
+            // Guarded, so a proposal the tenant replaced since the read above is not brought back
+            // after a cap check made on terms it no longer has.
+            int resolved = wrapper.leaseholdModificationMapper().resolveAwaitingLandlord(mod.modificationId(),
                     accept ? LeaseholdModificationStatus.ACTIVE : LeaseholdModificationStatus.REJECTED);
+            if (resolved == 0) {
+                return new ResolveModificationResult.UpdateFailed();
+            }
             UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     (accept ? HistoryEventType.MODIFY_ACCEPT : HistoryEventType.MODIFY_REJECT).name(),

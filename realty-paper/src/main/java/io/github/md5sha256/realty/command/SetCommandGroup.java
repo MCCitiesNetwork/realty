@@ -8,6 +8,7 @@ import io.github.md5sha256.realty.api.RealtyBackend;
 import io.github.md5sha256.realty.api.RealtyPaperApi;
 import io.github.md5sha256.realty.command.util.AuthorityParser;
 import io.github.md5sha256.realty.command.util.DurationParser;
+import io.github.md5sha256.realty.command.util.ExtensionCap;
 import io.github.md5sha256.realty.command.util.ParseBounds;
 import io.github.md5sha256.realty.command.util.PartyFlag;
 import io.github.md5sha256.realty.command.util.PartyFlags;
@@ -31,6 +32,7 @@ import io.github.md5sha256.realty.event.RealtyEventDispatch;
 import io.github.md5sha256.realty.localisation.MessageContainer;
 import io.github.md5sha256.realty.util.PartyNames;
 import io.github.md5sha256.realty.localisation.MessageKeys;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
@@ -257,6 +259,19 @@ public record SetCommandGroup(
                     && !events.fireSync(new PriceSetEvent(region, player.getUniqueId(), term.price()))) {
                 sender.sendMessage(messages.messageFor(MessageKeys.COMMON_ACTION_CANCELLED));
                 return;
+            }
+            // The landlord's cap decides; a tenant's request is checked when the landlord accepts it.
+            if (term.maxExtensions() != null
+                    && !(routed.outcome() instanceof SetRouting.Outcome.Request)
+                    && !routed.actor().bypass()) {
+                // Without a lease there is nothing to raise; the write reports that there is none.
+                Integer current = routed.lease() == null ? null : routed.lease().maxExtensions();
+                Optional<Component> capRefusal = ExtensionCap.of(sender)
+                        .refusalOfChange(messages, term.maxExtensions(), current);
+                if (capRefusal.isPresent()) {
+                    sender.sendMessage(capRefusal.get());
+                    return;
+                }
             }
             if (routed.outcome() instanceof SetRouting.Outcome.ApplyNow) {
                 applyNow.accept(region, routed);
