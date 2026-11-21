@@ -1603,6 +1603,16 @@ public class RealtyBackendImpl implements RealtyBackend {
         return resolveTenantProposal(worldGuardRegionId, worldId, ctx, false, null);
     }
 
+    /**
+     * Whether {@code proposed} extensions is more than a player capped at {@code cap} may grant on a
+     * lease whose limit is now {@code current} ({@code null} meaning unlimited). A proposal that does
+     * not raise the limit grants nothing, so it never exceeds. A proposal is never unlimited: the
+     * table's {@code chk_modification_maxextensions} refuses a negative count.
+     */
+    private static boolean exceedsCap(int proposed, int cap, @Nullable Integer current) {
+        return proposed > cap && current != null && proposed > current;
+    }
+
     private @NotNull ResolveModificationResult resolveTenantProposal(@NotNull String worldGuardRegionId,
                                                                      @NotNull UUID worldId,
                                                                      @NotNull ActorContext ctx,
@@ -1626,11 +1636,16 @@ public class RealtyBackendImpl implements RealtyBackend {
                 return new ResolveModificationResult.NotTenantProposal();
             }
             if (accept && extensionCap != null && mod.newMaxExtensions() != null
-                    && mod.newMaxExtensions() > extensionCap) {
+                    && exceedsCap(mod.newMaxExtensions(), extensionCap, lease.maxExtensions())) {
                 return new ResolveModificationResult.AboveExtensionCap(extensionCap, mod.newMaxExtensions());
             }
-            wrapper.leaseholdModificationMapper().updateStatus(mod.modificationId(),
+            // Guarded, so a proposal the tenant replaced since the read above is not brought back
+            // after a cap check made on terms it no longer has.
+            int resolved = wrapper.leaseholdModificationMapper().resolveAwaitingLandlord(mod.modificationId(),
                     accept ? LeaseholdModificationStatus.ACTIVE : LeaseholdModificationStatus.REJECTED);
+            if (resolved == 0) {
+                return new ResolveModificationResult.UpdateFailed();
+            }
             UUID tenantId = lease.tenantId() != null ? lease.tenantId() : mod.proposerId();
             wrapper.leaseholdHistoryMapper().insert(worldGuardRegionId, worldId,
                     (accept ? HistoryEventType.MODIFY_ACCEPT : HistoryEventType.MODIFY_REJECT).name(),

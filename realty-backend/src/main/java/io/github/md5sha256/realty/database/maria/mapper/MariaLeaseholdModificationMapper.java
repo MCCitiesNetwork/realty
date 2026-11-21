@@ -123,6 +123,18 @@ public interface MariaLeaseholdModificationMapper extends LeaseholdModificationM
                      @Param("status") @NotNull String status);
 
     @Override
+    @Update("""
+            UPDATE LeaseholdModification
+            SET status = #{status},
+                resolvedAt = CASE WHEN #{status} IN ('APPLIED', 'REJECTED', 'WITHDRAWN', 'SUPERSEDED')
+                                  THEN NOW() ELSE resolvedAt END
+            WHERE modificationId = #{modificationId}
+            AND status = 'AWAITING_LANDLORD'
+            """)
+    int resolveAwaitingLandlord(@Param("modificationId") int modificationId,
+                                @Param("status") @NotNull String status);
+
+    @Override
     @Select("""
             <script>
             SELECT rr.worldGuardRegionId, rr.worldId, m.proposerRole, m.proposerId,

@@ -48,6 +48,14 @@ public interface LeaseholdModificationMapper {
     int updateStatus(int modificationId, @NotNull String status);
 
     /**
+     * As {@link #updateStatus}, but only for a proposal still awaiting the landlord, so a proposal
+     * the tenant replaced or withdrew after it was read is left alone.
+     *
+     * @return 1 when the proposal was resolved, 0 when it no longer awaits the landlord
+     */
+    int resolveAwaitingLandlord(int modificationId, @NotNull String status);
+
+    /**
      * Tenant proposals awaiting a decision ({@code AWAITING_LANDLORD}) on a lease whose landlord is
      * any of the given parties. An empty collection matches nothing.
      */
