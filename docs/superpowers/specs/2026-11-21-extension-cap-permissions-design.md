@@ -54,6 +54,12 @@ never capped:
   `realty.command.set.maxextensions.others` for `set maxextensions`, and
   `realty.command.modify.others` for `modify accept`.
 
+**Lowering is never refused.** On an existing lease, a change that does not raise its extension
+limit grants nothing, so the cap does not apply to it. A landlord capped at 5 whose lease has 20
+extensions, or unlimited, may set it to 10, and may accept a tenant's proposal of 10. They may not
+raise it to 21. Without this, a lease above its landlord's cap could only stay where it is or drop
+to the cap or below.
+
 `create leasehold`, `register leasehold` and the subregion dialog have no `.others` permission.
 For them, the extension nodes alone decide. An admin who should be uncapped there is given
 `.unlimited`, which ops have by default.
@@ -72,10 +78,14 @@ public sealed interface ExtensionCap {
     static @NotNull ExtensionCap of(@NotNull CommandSender sender);
 
     /**
-     * The message refusing {@code requested} extensions (-1 meaning unlimited), or {@code null}
-     * when the cap allows it.
+     * The message refusing {@code requested} extensions (-1 meaning unlimited) on a new lease, or
+     * empty when the cap allows it.
      */
-    @Nullable Component refusal(@NotNull MessageContainer messages, int requested);
+    @NotNull Optional<Component> refusal(@NotNull MessageContainer messages, int requested);
+
+    /** As refusal, for a lease whose limit is now current (null meaning unlimited). */
+    default @NotNull Optional<Component> refusalOfChange(@NotNull MessageContainer messages,
+                                                         int requested, @Nullable Integer current);
 }
 ```
 
@@ -86,11 +96,11 @@ No injected service is needed.
 
 | Path | Check |
 | --- | --- |
-| Subregion dialog (`SubregionDialog`) | When the dialog opens, read the cap. `Unlimited`: unchanged. `AtMost(n)`: the "Unlimited renewals" toggle is not shown, `unlimitedRenewals` starts `false`, the count field starts at `min(3, n)` and its label reads "Max renewals (up to n)". `validate` refuses a count above `n`. `submit` checks again before calling `quickCreateSubregion`, in case permissions changed while the dialog was open. |
+| Subregion dialog (`SubregionDialog`) | When the dialog opens, read the cap. `Unlimited`: unchanged. `AtMost(n)`: the "Unlimited renewals" toggle is not shown, `unlimitedRenewals` starts `false`, the count field starts at `min(3, n)` and its label reads "Max renewals (up to n)". `validate` reads the cap again, refuses a count above `n`, and writes the new cap back to the state (turning unlimited off for `AtMost`), so a dialog reopened after a permission change shows the cap that now applies. It runs on Next and on submit. A state whose cap was never read allows nothing: the cap defaults to `AtMost(0)` and unlimited to off. |
 | `/realty create leasehold` (`CreateCommand.executeLeasehold`) | Refuse before creating when the cap does not allow `maxextensions`. |
 | `/realty register leasehold` (`RegisterCommand.executeLeasehold`) | The same, for a player sender. The console is never capped. |
-| `/realty set maxextensions` (`SetCommandGroup.executeSetMaxExtensions`) | Without `.others`: refuse when the cap does not allow the value. This covers both `--now` and a landlord scheduling the change for the next renewal (`Outcome.Schedule`). A tenant's request (`Outcome.Request`) is not checked, because the tenant is asking and the landlord decides. |
-| `/realty modify accept` (`ModifyCommandGroup.executeResolve`) | Without `realty.command.modify.others`: the accepting player's cap must allow the proposal's `newMaxExtensions`. A proposal that leaves extensions unchanged (`null`) is always allowed. |
+| `/realty set maxextensions` (`SetCommandGroup.executeSetMaxExtensions`) | Without `.others`: refuse when the value raises the lease's limit and the cap does not allow it. This covers both `--now` and a landlord scheduling the change for the next renewal (`Outcome.Schedule`). A tenant's request (`Outcome.Request`) is not checked, because the tenant is asking and the landlord decides. |
+| `/realty modify accept` (`ModifyCommandGroup.executeResolve`) | Without `realty.command.modify.others`: the accepting player's cap must allow the proposal's `newMaxExtensions`, unless it does not raise the lease's limit. A proposal that leaves extensions unchanged (`null`) is always allowed. |
 
 `/realty set price` and `/realty set duration` do not change extensions and are not checked.
 A proposal can never carry unlimited (`-1`), because unlimited already needs `--now`
@@ -122,7 +132,15 @@ sealed interface ResolveModificationResult {
 ```
 
 The existing three-argument method becomes a `default` that passes `null`, so callers that do
-not cap keep working. `RealtyPaperApi` gets the same overload.
+not cap keep working.
+
+Accept and reject also update the proposal only while it still awaits the landlord
+(`resolveAwaitingLandlord`), returning `UpdateFailed` otherwise. The read and the update are
+separate statements on a pool of database threads, so without the guard a proposal replaced in
+between would be brought back after a cap check made on its old terms.
+
+A proposal is never unlimited: `chk_modification_maxextensions` (V13) refuses a negative count,
+so the accept check has no unlimited case. `RealtyPaperApi` gets the same overload.
 
 **Why not put the cap on `ActorContext`.** The cap matters to one decision. Putting it on
 `ActorContext` would mean every caller that builds a context has to work it out, for actions
@@ -144,8 +162,8 @@ The final wording follows the house style of the surrounding keys (`<prefix>`, c
 ## Conventions that apply
 
 - **Commands and permissions** (`commands`): the new nodes, the declaration of `.unlimited`, and
-  the help line for `set maxextensions`. The help for `create leasehold` does not describe
-  its arguments, so it is unchanged, and `register leasehold` has no help line.
+  the help lines for `create leasehold` and `set maxextensions`. `register leasehold` and
+  `register freehold` have no help lines today; adding them is a separate change.
 - **Localisation** (`localisation`): the three new keys, covered by the shipped-messages tests.
 - **Database** (`database`): only the accept query changes. There is no schema change and no
   migration.
@@ -180,10 +198,12 @@ that set up leases. The release notes must say this first.
   - a negated node is ignored;
   - malformed and out-of-range suffixes are ignored;
   - the console is `Unlimited`;
-  - `allows(-1)` is true only for `Unlimited`.
+  - `refusal(messages, -1)` is empty only for `Unlimited`;
+  - `refusalOfChange` is empty for a change that does not raise the lease's limit.
 - Backend test (Testcontainers, beside the existing modification tests): accept with a cap below
   the proposal returns `AboveExtensionCap` and leaves the proposal pending; a cap at or above it,
-  a `null` cap, and a proposal with `null` extensions all succeed.
+  a `null` cap, a proposal with `null` extensions, and a proposal that lowers a lease above the cap
+  all succeed; a superseded proposal is not resolved.
 - Message tests: the new keys exist and their placeholders resolve.
 - Live server, by hand, with two players (one with no node, one with `.extensions.5`):
   - the dialog hides the toggle and refuses 6;
@@ -194,8 +214,9 @@ that set up leases. The release notes must say this first.
 ## Known limitations
 
 - **Existing leases keep their limits.** A lease set up before the upgrade, or before a player's
-  cap was lowered, keeps its extension limit, including unlimited. Lowering it would rewrite
-  terms tenants already agreed to.
+  cap was lowered, keeps its extension limit, including unlimited. Lowering it automatically
+  would rewrite terms tenants already agreed to. Its landlord may lower it, but not raise it above
+  their cap.
 - **The cap belongs to the acting player, not the landlord party.** For a group or account
   landlord, each manager is capped by their own nodes, so two managers can grant different
   limits on the same land.
