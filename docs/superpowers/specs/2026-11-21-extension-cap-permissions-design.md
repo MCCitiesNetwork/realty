@@ -71,8 +71,11 @@ public sealed interface ExtensionCap {
     /** Reads the cap from the sender's permissions. The console is {@link Unlimited}. */
     static @NotNull ExtensionCap of(@NotNull CommandSender sender);
 
-    /** Whether {@code maxExtensions} (-1 meaning unlimited) is within the cap. */
-    boolean allows(int maxExtensions);
+    /**
+     * The message refusing {@code requested} extensions (-1 meaning unlimited), or {@code null}
+     * when the cap allows it.
+     */
+    @Nullable Component refusal(@NotNull MessageContainer messages, int requested);
 }
 ```
 
@@ -141,7 +144,8 @@ The final wording follows the house style of the surrounding keys (`<prefix>`, c
 ## Conventions that apply
 
 - **Commands and permissions** (`commands`): the new nodes, the declaration of `.unlimited`, and
-  the help lines for `create leasehold`, `register leasehold` and `set maxextensions`.
+  the help line for `set maxextensions`. The help for `create leasehold` does not describe
+  its arguments, so it is unchanged, and `register leasehold` has no help line.
 - **Localisation** (`localisation`): the three new keys, covered by the shipped-messages tests.
 - **Database** (`database`): only the accept query changes. There is no schema change and no
   migration.
