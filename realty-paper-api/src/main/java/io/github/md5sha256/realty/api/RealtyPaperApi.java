@@ -1052,8 +1052,18 @@ public interface RealtyPaperApi {
             @NotNull ActorContext ctx,
             @Nullable Double newPrice, @Nullable Long newDurationSeconds, @Nullable Integer newMaxExtensions);
 
+    default @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> acceptModification(
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx) {
+        return acceptModification(regionId, worldId, ctx, null);
+    }
+
+    /**
+     * Accepts the tenant's pending proposal unless it sets more extensions than
+     * {@code extensionCap}; see {@link RealtyBackend#acceptModification(String, UUID, ActorContext, Integer)}.
+     */
     @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> acceptModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx,
+            @Nullable Integer extensionCap);
 
     @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> rejectModification(
             @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx);

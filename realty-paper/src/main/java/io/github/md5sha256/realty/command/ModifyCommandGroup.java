@@ -199,6 +199,11 @@ public record ModifyCommandGroup(
                 case RealtyBackend.ResolveModificationResult.UpdateFailed ignored ->
                         sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_UPDATE_FAILED,
                                 Placeholder.unparsed("region", regionId)));
+                case RealtyBackend.ResolveModificationResult.AboveExtensionCap(int cap, int proposed) ->
+                        sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_EXTENSIONS_ABOVE_CAP,
+                                Placeholder.unparsed("cap", String.valueOf(cap)),
+                                Placeholder.unparsed("proposed", String.valueOf(proposed)),
+                                Placeholder.unparsed("region", regionId)));
             }
         }).exceptionally(ex -> {
             sender.sendMessage(messages.messageFor(MessageKeys.MODIFY_ERROR,

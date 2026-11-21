@@ -2770,9 +2770,10 @@ public class RealtyPaperApiImpl implements RealtyPaperApi {
 
     @Override
     public @NotNull CompletableFuture<RealtyBackend.ResolveModificationResult> acceptModification(
-            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx) {
+            @NotNull String regionId, @NotNull UUID worldId, @NotNull ActorContext ctx,
+            @Nullable Integer extensionCap) {
         return CompletableFuture.supplyAsync(
-                () -> realtyApi.acceptModification(regionId, worldId, ctx),
+                () -> realtyApi.acceptModification(regionId, worldId, ctx, extensionCap),
                 executorState.dbExec());
     }
 

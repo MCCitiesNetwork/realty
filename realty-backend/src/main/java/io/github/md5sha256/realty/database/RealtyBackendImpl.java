@@ -1591,21 +1591,23 @@ public class RealtyBackendImpl implements RealtyBackend {
     @Override
     public @NotNull ResolveModificationResult acceptModification(@NotNull String worldGuardRegionId,
                                                                  @NotNull UUID worldId,
-                                                                 @NotNull ActorContext ctx) {
-        return resolveTenantProposal(worldGuardRegionId, worldId, ctx, true);
+                                                                 @NotNull ActorContext ctx,
+                                                                 @Nullable Integer extensionCap) {
+        return resolveTenantProposal(worldGuardRegionId, worldId, ctx, true, extensionCap);
     }
 
     @Override
     public @NotNull ResolveModificationResult rejectModification(@NotNull String worldGuardRegionId,
                                                                  @NotNull UUID worldId,
                                                                  @NotNull ActorContext ctx) {
-        return resolveTenantProposal(worldGuardRegionId, worldId, ctx, false);
+        return resolveTenantProposal(worldGuardRegionId, worldId, ctx, false, null);
     }
 
     private @NotNull ResolveModificationResult resolveTenantProposal(@NotNull String worldGuardRegionId,
                                                                      @NotNull UUID worldId,
                                                                      @NotNull ActorContext ctx,
-                                                                     boolean accept) {
+                                                                     boolean accept,
+                                                                     @Nullable Integer extensionCap) {
         try (SqlSessionWrapper wrapper = database.openSession()) {
             LeaseholdContractEntity lease = wrapper.leaseholdContractMapper()
                     .selectByRegion(worldGuardRegionId, worldId);
@@ -1622,6 +1624,10 @@ public class RealtyBackendImpl implements RealtyBackend {
             }
             if (!LeaseholdModificationStatus.AWAITING_LANDLORD.equals(mod.status())) {
                 return new ResolveModificationResult.NotTenantProposal();
+            }
+            if (accept && extensionCap != null && mod.newMaxExtensions() != null
+                    && mod.newMaxExtensions() > extensionCap) {
+                return new ResolveModificationResult.AboveExtensionCap(extensionCap, mod.newMaxExtensions());
             }
             wrapper.leaseholdModificationMapper().updateStatus(mod.modificationId(),
                     accept ? LeaseholdModificationStatus.ACTIVE : LeaseholdModificationStatus.REJECTED);

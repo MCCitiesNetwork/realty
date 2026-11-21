@@ -762,12 +762,29 @@ public interface RealtyBackend {
          */
         record NotAuthorized() implements ResolveModificationResult {}
         record UpdateFailed() implements ResolveModificationResult {}
+        /**
+         * The proposal sets {@code proposed} extensions, but the accepting player may grant at most
+         * {@code cap} (accept only). The proposal stays pending.
+         */
+        record AboveExtensionCap(int cap, int proposed) implements ResolveModificationResult {}
     }
 
     /** A manager of the landlord (or an admin) accepts a tenant's pending proposal, promoting it to {@code ACTIVE}. */
+    default @NotNull ResolveModificationResult acceptModification(@NotNull String worldGuardRegionId,
+                                                                  @NotNull UUID worldId,
+                                                                  @NotNull ActorContext ctx) {
+        return acceptModification(worldGuardRegionId, worldId, ctx, null);
+    }
+
+    /**
+     * As {@link #acceptModification(String, UUID, ActorContext)}, but refuses with
+     * {@link ResolveModificationResult.AboveExtensionCap} when the pending proposal sets more
+     * extensions than {@code extensionCap}, leaving it pending. A {@code null} cap means no cap.
+     */
     @NotNull ResolveModificationResult acceptModification(@NotNull String worldGuardRegionId,
                                                           @NotNull UUID worldId,
-                                                          @NotNull ActorContext ctx);
+                                                          @NotNull ActorContext ctx,
+                                                          @Nullable Integer extensionCap);
 
     /** A manager of the landlord (or an admin) rejects a tenant's pending proposal. */
     @NotNull ResolveModificationResult rejectModification(@NotNull String worldGuardRegionId,
