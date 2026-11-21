@@ -1,6 +1,7 @@
 package io.github.md5sha256.realty.command;
 
 import io.github.md5sha256.realty.localisation.MessageContainer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.junit.jupiter.api.Assertions;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
@@ -29,5 +30,12 @@ final class ShippedMessages {
             throw new UncheckedIOException(ex);
         }
         return messages;
+    }
+
+    /** Fails when {@code key} has no text in {@code messages}; a missing key renders as the key itself. */
+    static void assertShipped(MessageContainer messages, String key) {
+        String text = PlainTextComponentSerializer.plainText().serialize(messages.messageFor(key));
+        Assertions.assertFalse(text.isBlank(), key);
+        Assertions.assertFalse(text.contains(key), key + " is missing from messages.yml");
     }
 }

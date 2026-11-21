@@ -25,9 +25,7 @@ class ExtensionCapMessagesTest {
             MessageKeys.MODIFY_EXTENSIONS_ABOVE_CAP
     })
     void keyIsShipped(String key) {
-        String text = plain(MESSAGES.messageFor(key));
-        Assertions.assertFalse(text.isBlank(), key);
-        Assertions.assertFalse(text.contains(key), key + " is missing from messages.yml");
+        ShippedMessages.assertShipped(MESSAGES, key);
     }
 
     @Test
